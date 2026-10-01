@@ -22,7 +22,7 @@ ask() {
   fi
 }
 
-echo "== Jitsi + SpeechMind Setup =="
+echo "== Videokonferenzserver der Verbandsgemeinde Otterbach-Otterberg – Setup =="
 MEET_DOMAIN=$(ask "Domain für die Videokonferenz" "meet.example.com")
 PORTAL_DOMAIN=$(ask "Domain für das Portal" "portal.${MEET_DOMAIN#*.}")
 ACME_EMAIL=$(ask "E-Mail für Let's Encrypt")
@@ -66,7 +66,7 @@ echo
 echo "  Konferenz:  https://${MEET_DOMAIN}"
 echo "  Portal:     https://${PORTAL_DOMAIN}"
 echo "  Admin:      ${ADMIN_EMAIL}"
-echo "  Passwort:   ${ADMIN_PASSWORD}   (bitte nach dem ersten Login ändern)"
+echo "  Passwort:   ${ADMIN_PASSWORD}   (muss beim ersten Login geändert werden)"
 echo
 echo "Firewall: TCP 80, 443 und UDP ${JVB_PORT:-10000} freigeben."
 echo "Start:     docker compose up -d --build"

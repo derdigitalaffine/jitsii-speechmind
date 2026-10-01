@@ -1,24 +1,37 @@
-{% extends "base.html" %}
-{% block title %}Anmelden – Konferenz & Protokoll{% endblock %}
-{% block body %}
-<div class="login-wrap">
-  <div class="login">
-    <div class="brand"><span class="brand-lamp" aria-hidden="true"></span>Konferenz &amp; Protokoll</div>
-    {% for m in messages %}<div class="flash {{ m.kind }}" role="status">{{ m.text }}</div>{% endfor %}
-    <form class="panel" method="post" action="/login">
+{% extends "auth.html" %}
+{% block title %}Anmelden{% endblock %}
+{% block auth %}
+{% if ui.login_text %}<p class="text-center text-secondary">{{ ui.login_text }}</p>{% endif %}
+<div class="card shadow-sm">
+  <div class="card-body p-4">
+    <h1 class="h5 mb-3">Anmelden</h1>
+    <form method="post" action="/login">
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <input type="hidden" name="next" value="{{ next }}">
-      <div class="field">
-        <label for="email">E-Mail</label>
-        <input id="email" name="email" type="email" autocomplete="username" required autofocus>
+      <div class="mb-3">
+        <label class="form-label" for="email">E-Mail</label>
+        <div class="input-group"><span class="input-group-text"><i class="fa-regular fa-envelope"></i></span>
+          <input class="form-control" id="email" name="email" type="email" autocomplete="username" required autofocus></div>
       </div>
-      <div class="field">
-        <label for="password">Passwort</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <div class="mb-3">
+        <label class="form-label" for="password">Passwort</label>
+        <div class="input-group"><span class="input-group-text"><i class="fa-solid fa-lock"></i></span>
+          <input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required>
+          <button class="btn btn-outline-secondary" type="button" data-toggle-password="#password" aria-label="Passwort anzeigen"><i class="fa-solid fa-eye"></i></button></div>
       </div>
-      <button type="submit">Anmelden</button>
+      <button class="btn btn-primary w-100" type="submit">Anmelden</button>
+      <div class="text-center mt-3"><a class="small" href="/forgot">Passwort vergessen?</a></div>
     </form>
-    <p class="muted small">Als Gast brauchen Sie kein Konto – öffnen Sie einfach den Einladungslink.</p>
   </div>
 </div>
+{% if anonymous %}
+<div class="card mt-3">
+  <div class="card-body p-4">
+    <h2 class="h6"><i class="fa-solid fa-video me-2 text-primary"></i>Ohne Anmeldung konferieren</h2>
+    <p class="small text-secondary mb-3">Starten Sie sofort eine Konferenz und laden Sie andere per Link ein. Aufnahmen sind in dieser Variante nicht möglich.</p>
+    <a class="btn btn-outline-primary w-100" href="/open">Konferenz ohne Anmeldung starten</a>
+  </div>
+</div>
+{% endif %}
+<p class="text-center small text-secondary mt-3">Als Gast brauchen Sie kein Konto – öffnen Sie einfach den Einladungslink.</p>
 {% endblock %}

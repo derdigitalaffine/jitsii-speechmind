@@ -20,16 +20,17 @@ from sqlalchemy import select
 
 from .config import settings
 from .db import (
-    ACTIVE_STATUSES, STATUS_CONVERTING, STATUS_DONE, STATUS_FAILED, STATUS_PROCESSING,
+    ACTIVE_STATUSES, STATUS_CONVERTING, STATUS_NEW, STATUS_DONE, STATUS_FAILED, STATUS_PROCESSING,
     STATUS_QUEUED, STATUS_RECORDED, STATUS_UPLOADING, Meeting, Recording, SessionLocal,
     get_settings, to_local, utcnow,
 )
-from .security import decrypt
+from . import notify
+from .security import decrypt, is_open_room
 from .speechmind import SpeechMindClient, SpeechMindError
 
 log = logging.getLogger("portal.worker")
 
-WORK_DIR = settings.data_dir / "work"
+AUDIO_DIR = settings.data_dir / "audio"
 _FILENAME_TS = re.compile(r"_\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}$")
 _last_poll: dict[int, float] = {}
 _wakeup = asyncio.Event()
@@ -96,17 +97,22 @@ def scan_recordings() -> int:
     found = 0
     with SessionLocal() as db:
         known = set(db.scalars(select(Recording.session_dir)).all())
-        cfg = get_settings(db)
         for session_dir in sorted(p for p in root.iterdir() if p.is_dir()):
             if str(session_dir) in known or not (session_dir / ".finalized").exists():
                 continue
             videos = sorted(session_dir.glob("*.mp4"), key=lambda p: p.stat().st_size, reverse=True)
             video = videos[0] if videos else None
             room, participants = _room_from_metadata(session_dir, video)
+            if is_open_room(room):
+                # Offene Konferenzen (ohne Anmeldung) dürfen nicht aufgezeichnet werden
+                log.warning("Aufnahme eines offenen Raums %s verworfen: %s", room, session_dir.name)
+                shutil.rmtree(session_dir, ignore_errors=True)
+                continue
             meeting = db.scalar(select(Meeting).where(Meeting.room == room)) if room else None
 
-            transcribe = meeting.transcribe if meeting else cfg.get("transcribe_default") == "1"
-            status = STATUS_QUEUED if (transcribe and meeting and video) else STATUS_RECORDED
+            # Die Transkription wird nie automatisch gestartet: erst die MP3 erzeugen,
+            # dann entscheidet ein Mensch in der GUI.
+            status = STATUS_NEW
             error = None
             if not video:
                 status, error = STATUS_FAILED, "Keine MP4-Datei im Aufnahmeordner gefunden."
@@ -156,14 +162,36 @@ async def extract_audio(video: Path, target: Path) -> int | None:
         return None
 
 
-def _set(rec_id: int, **fields) -> None:
+def _set(rec_id: int, notify_event: str | None = None, **fields) -> None:
     with SessionLocal() as db:
         rec = db.get(Recording, rec_id)
         if rec is None:
             return
         for k, v in fields.items():
             setattr(rec, k, v)
+        if notify_event:
+            notify.notify_recording(db, rec, notify_event)
         db.commit()
+
+
+async def convert_recording(rec_id: int) -> None:
+    """Neue Aufnahme: MP3 erzeugen und zum Download bereitstellen."""
+    with SessionLocal() as db:
+        rec = db.get(Recording, rec_id)
+        if rec is None or rec.status != STATUS_NEW:
+            return
+        video = Path(rec.video_path) if rec.video_path else None
+    try:
+        if not video or not video.exists():
+            raise RuntimeError("Die Videodatei der Aufnahme existiert nicht mehr.")
+        audio = AUDIO_DIR / f"recording-{rec_id}.mp3"
+        duration = await extract_audio(video, audio)
+        _set(rec_id, "new_recording", status=STATUS_RECORDED, error=None,
+             audio_path=str(audio), duration_seconds=duration)
+        log.info("MP3 für Aufnahme %s erzeugt", rec_id)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("MP3-Erzeugung für Aufnahme %s fehlgeschlagen", rec_id)
+        _set(rec_id, "failed", status=STATUS_FAILED, error=str(exc))
 
 
 def _speaker_list(names: list[str]) -> list[dict]:
@@ -188,6 +216,7 @@ async def submit_recording(rec_id: int) -> None:
         cfg = get_settings(db)
         api_url, api_key, project = resolve_credentials(db, meeting)
         video = Path(rec.video_path) if rec.video_path else None
+        audio_path = rec.audio_path
         title = meeting.title if meeting else rec.room
         language = (meeting.language if meeting and meeting.language else cfg["sm_language"])
         doc_type = (meeting.document_type if meeting and meeting.document_type else cfg["sm_document_type"])
@@ -202,14 +231,20 @@ async def submit_recording(rec_id: int) -> None:
                                   "„SpeechMind“ einen API-Key hinterlegen.")
         if not project:
             raise SpeechMindError("Kein SpeechMind-Projekt ausgewählt. Ein Admin wählt es im Bereich „SpeechMind“ aus.")
-        if not video or not video.exists():
-            raise RuntimeError("Die Videodatei der Aufnahme existiert nicht mehr.")
+        have_audio = bool(audio_path and Path(audio_path).exists())
+        if not have_audio and (not video or not video.exists()):
+            raise RuntimeError("Weder MP3 noch Videodatei der Aufnahme sind noch vorhanden.")
 
-        _set(rec_id, status=STATUS_CONVERTING, error=None)
-        audio = WORK_DIR / f"recording-{rec_id}.mp3"
-        duration = await extract_audio(video, audio)
+        audio = Path(audio_path) if audio_path else None
+        if audio and audio.exists():
+            duration = None
+        else:
+            _set(rec_id, status=STATUS_CONVERTING, error=None)
+            audio = AUDIO_DIR / f"recording-{rec_id}.mp3"
+            duration = await extract_audio(video, audio)
+            _set(rec_id, audio_path=str(audio))
 
-        _set(rec_id, status=STATUS_UPLOADING, duration_seconds=duration)
+        _set(rec_id, status=STATUS_UPLOADING, **({"duration_seconds": duration} if duration else {}))
         unique = f"jitsi-{rec_id}-{uuid.uuid4().hex[:12]}.mp3"
         client = SpeechMindClient(api_url, api_key)
         await client.upload_file(unique, audio)
@@ -223,13 +258,12 @@ async def submit_recording(rec_id: int) -> None:
             unique_obj_name=unique,
             speakers=_speaker_list(names),
         )
-        audio.unlink(missing_ok=True)
         _set(rec_id, status=STATUS_PROCESSING, sm_unique_obj_name=unique,
              sm_protocol_slug=slug, sm_submitted_at=utcnow())
         log.info("Aufnahme %s an SpeechMind übergeben (Protokoll %s)", rec_id, slug)
     except Exception as exc:  # noqa: BLE001 – Fehler landet sichtbar in der GUI
         log.exception("Aufnahme %s fehlgeschlagen", rec_id)
-        _set(rec_id, status=STATUS_FAILED, error=str(exc))
+        _set(rec_id, "failed", status=STATUS_FAILED, error=str(exc))
 
 
 async def poll_recording(rec_id: int) -> None:
@@ -248,7 +282,7 @@ async def poll_recording(rec_id: int) -> None:
         results = await client.get_results(slug)
         if not results.get("creationDone"):
             if utcnow() - submitted > timedelta(hours=settings.poll_timeout_hours):
-                _set(rec_id, status=STATUS_FAILED,
+                _set(rec_id, "failed", status=STATUS_FAILED,
                      error=f"SpeechMind hat nach {settings.poll_timeout_hours} Stunden kein Ergebnis geliefert.")
             return
         transcript = await client.get_transcript(slug)
@@ -264,7 +298,7 @@ async def poll_recording(rec_id: int) -> None:
         if delete_local and session_dir.exists():
             shutil.rmtree(session_dir, ignore_errors=True)
             fields["video_path"] = None
-        _set(rec_id, **fields)
+        _set(rec_id, "done", **fields)
         log.info("Transkript für Aufnahme %s abgeholt (%d Segmente)", rec_id, len(transcript))
     except SpeechMindError as exc:
         # Vorübergehende Fehler beim Pollen nicht sofort als Abbruch werten
@@ -274,12 +308,16 @@ async def poll_recording(rec_id: int) -> None:
 
 async def pipeline_tick() -> None:
     with SessionLocal() as db:
+        new = db.scalars(select(Recording.id).where(Recording.status == STATUS_NEW).order_by(Recording.id)).all()
         queued = db.scalars(
             select(Recording.id).where(Recording.status == STATUS_QUEUED).order_by(Recording.id)
         ).all()
         processing = db.scalars(
             select(Recording.id).where(Recording.status == STATUS_PROCESSING)
         ).all()
+
+    for rec_id in new:
+        await convert_recording(rec_id)
 
     for rec_id in queued:
         await submit_recording(rec_id)
@@ -309,6 +347,7 @@ async def run_forever() -> None:
         try:
             await asyncio.to_thread(scan_recordings)
             await pipeline_tick()
+            await asyncio.to_thread(notify.process_queue)
         except Exception:  # noqa: BLE001
             log.exception("Fehler im Worker-Durchlauf")
         _wakeup.clear()

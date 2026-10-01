@@ -8,7 +8,7 @@
 	reverse_proxy web:80
 }
 
-# Portal (Login, Meetings, SpeechMind-Einstellungen, Transkripte)
+# Portal (Login, Benutzer, Aufnahmen, Benachrichtigungen, SpeechMind)
 {$PORTAL_DOMAIN} {
 	encode gzip
 	request_body {

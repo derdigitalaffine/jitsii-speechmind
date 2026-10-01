@@ -1,8 +1,10 @@
-# Jitsi + SpeechMind
+# Videokonferenzserver der Verbandsgemeinde Otterbach-Otterberg
 
-Selbst gehostete Videokonferenz mit [Jitsi Meet](https://jitsi.org/), Anmeldung über ein eigenes Web-Portal und automatischer Transkription der Aufnahmen über [SpeechMind](https://www.speechmind.com/).
+Selbst gehostete Videokonferenz mit [Jitsi Meet](https://jitsi.org/), Anmeldung über ein eigenes Web-Portal und Transkription der Aufnahmen über [SpeechMind](https://www.speechmind.com/).
 
-Angemeldete Benutzer:innen eröffnen Meetings, laden Gäste per Link ein und starten in der Konferenz die Aufnahme. Nach dem Ende landet die Audiospur bei SpeechMind; Protokoll, Aufgaben und Wortlaut erscheinen anschließend im Portal.
+Angemeldete Benutzer:innen eröffnen Meetings, laden Gäste per Link ein und starten in der Konferenz die Aufnahme. Nach dem Ende erzeugt das Portal eine MP3. Die **Transkription startet nie automatisch**: Im Admin-Bereich unter „Aufnahmen“ lässt sich die MP3 herunterladen oder mit „In SpeechMind bearbeiten“ an SpeechMind übergeben. Protokoll, Aufgaben und Wortlaut erscheinen danach im Portal.
+
+Name und Produktbezeichnung lassen sich über `BRAND_NAME` und `BRAND_PRODUCT` in `.env` ändern.
 
 ```
                  ┌────────────┐
@@ -22,37 +24,93 @@ Angemeldete Benutzer:innen eröffnen Meetings, laden Gäste per Link ein und sta
 - **Gäste** brauchen kein Konto. Sie treten über den Einladungslink bei, sobald eine Moderatorin oder ein Moderator im Raum ist.
 - **Aufnahme** über Jibri (Server-Aufzeichnung). Recht zum Aufzeichnen haben nur angemeldete Benutzer:innen.
 - **SpeechMind-Anbindung per Web-GUI:** API-Key hinterlegen (verschlüsselt gespeichert), Verbindung testen, Projekt auswählen oder anlegen, Protokollart und Sprache festlegen.
-- **Transkription pro Meeting** automatisch oder auf Knopfdruck, mit sichtbarem Verarbeitungsstand (Aufgezeichnet → Audiospur → Upload → SpeechMind → Transkript).
+- **Transkription auf Knopfdruck** (nie automatisch), mit sichtbarem Verarbeitungsstand (Aufgezeichnet → Audiospur → Upload → SpeechMind → Transkript).
 - **Ergebnis im Portal:** Protokoll, Aufgaben und Wortlaut mit Zeitmarken; Download als TXT.
-- **Benutzerverwaltung** für Admins; optional eigene SpeechMind-Keys pro Benutzer:in.
+- **MP3-Übersicht** im Admin-Bereich: alle Aufnahmen mit Dauer, Größe und Status, MP3-Download, Übergabe an SpeechMind.
+- **Benutzerverwaltung** für Admins mit **Einladung per E-Mail**: Die eingeladene Person legt ihr Passwort über einen Einmal-Link selbst fest. „Passwort vergessen“ nutzt denselben Weg. Optional eigene SpeechMind-Keys pro Benutzer:in.
+- **Benachrichtigungen per E-Mail** (SMTP, optional IMAP-Ablage): Einladungen, Passwort-Links und Hinweise zu neuen Aufnahmen, fertigen Transkripten und Fehlern. Nachrichten laufen über eine Warteschlange mit automatischen Wiederholungen und sichtbarem Protokoll.
+- **Konferenzen ohne Anmeldung:** Wer kein Konto hat, kann über die Anmeldeseite sofort einen eigenen Raum eröffnen und Gäste einladen. **Aufnahmen sind dort ausgeschlossen** (Aufnahme-Recht fehlt im Token; Aufnahmen solcher Räume werden zusätzlich serverseitig verworfen). Im Admin-Bereich abschaltbar.
+- **Moderne Admin-Oberfläche** (Bootstrap 5, Font Awesome 7): Seitenleiste, hell/dunkel, durchsuchbare und sortierbare Tabellen (DataTables), Mehrfach-Einladung per E-Mail-Tags (Tagify), Bestätigungsdialoge (SweetAlert2). Alle Bibliotheken liegen lokal im Repository – keine Verbindung zu Drittanbietern.
+- **Design & Branding** im Admin-Bereich: Name, Hauptfarbe, Kopfleiste, Farbschema, Rundungen, Logo, Favicon, Anmelde-Hinweis, Fußzeile, Impressum-/Datenschutz-Links, mit Live-Vorschau; Farben und Logo lassen sich ein- und ausschalten und auf Standard zurücksetzen.
+- **Standard-Admin** beim ersten Start, der beim ersten Login ein eigenes Passwort vergeben muss.
 - **Datensparsam:** keine externen Schriften oder Skripte im Portal; Videos können nach fertigem Transkript automatisch gelöscht werden.
 
-## Voraussetzungen
+## Dokumentation
 
-- Linux-Server mit Docker und Docker Compose v2
-- Zwei DNS-Einträge auf den Server, z. B. `meet.example.com` und `portal.example.com`
-- Offene Ports: **TCP 80, TCP 443, UDP 10000**
-- Ressourcen: Jitsi allein läuft mit 2 Kernen / 4 GB. **Jibri** braucht zusätzlich etwa 4 Kerne / 8 GB und nimmt **eine** Konferenz gleichzeitig auf.
-- Ein SpeechMind-Konto mit API-Zugang (API-Key über SpeechMind bzw. die Organisationsverwaltung)
+| Für wen | Datei |
+|---|---|
+| Wer den Server **installiert und betreibt** | diese Seite, danach [docs/ADMIN-HANDBUCH.md](docs/ADMIN-HANDBUCH.md) |
+| Wer **Konferenzen hält** (Mitarbeitende) | [docs/BENUTZERANLEITUNG.md](docs/BENUTZERANLEITUNG.md) |
 
-## Installation
+## Installation in 10 Schritten
+
+Sie brauchen: einen Linux-Server (Ubuntu/Debian), Zugriff per SSH mit `sudo`, und jemanden, der DNS-Einträge anlegen kann. **Rechnen Sie mit 30–60 Minuten.**
+
+### Vorher klären (Checkliste)
+
+- [ ] **Server:** mindestens 4 Kerne und 12 GB RAM, 100 GB Platz (Aufnahmen brauchen Speicher). Jitsi allein käme mit 2 Kernen / 4 GB aus, **Jibri** (die Aufnahme) braucht zusätzlich etwa 4 Kerne / 8 GB und nimmt **eine** Konferenz gleichzeitig auf.
+- [ ] **Öffentliche IP-Adresse** des Servers (`curl https://api.ipify.org` auf dem Server zeigt sie).
+- [ ] **Zwei Domainnamen**, die beide auf diese IP zeigen (DNS-Eintrag „A“), z. B. `meet.vg-otterbach-otterberg.example` und `portal.vg-otterbach-otterberg.example`. Den DNS-Eintrag legt Ihre IT oder der Domain-Anbieter an; es dauert bis zu einigen Stunden, bis er überall gilt.
+- [ ] **Firewall** (auch die des Rechenzentrums/Routers): **TCP 80, TCP 443 und UDP 10000** müssen von außen offen sein. UDP 10000 vergessen Leute am häufigsten, dann gibt es kein Bild und keinen Ton.
+- [ ] **E-Mail-Zugang für den Versand** (SMTP-Server, Benutzername, Passwort, Absenderadresse) – bekommen Sie von Ihrer IT. Ohne das geht alles außer E-Mails.
+- [ ] **SpeechMind-API-Key** (kommt vom Anbieter) – nur für die Transkription nötig, kann nachgereicht werden.
+
+### Schritt für Schritt
+
+**1. Docker installieren** (einmalig, falls noch nicht vorhanden):
 
 ```bash
-git clone https://github.com/<ihr-konto>/jitsi-speechmind.git
-cd jitsi-speechmind
-./scripts/setup.sh          # fragt Domains ab, erzeugt .env mit Zufalls-Secrets
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER      # danach einmal ab- und wieder anmelden
+docker compose version             # muss eine Versionsnummer zeigen
+```
+
+**2. Projekt herunterladen:**
+
+```bash
+git clone https://github.com/derdigitalaffine/jitsii-speechmind.git
+cd jitsii-speechmind
+```
+
+**3. Einrichtungsassistent starten** – er stellt Fragen und schreibt die Datei `.env` mit allen Passwörtern:
+
+```bash
+./scripts/setup.sh
+```
+
+Beantworten Sie die Fragen (Domains, E-Mail für Zertifikate, öffentliche IP, Admin-E-Mail). **Am Ende zeigt er das Startpasswort des Admins. Notieren Sie es jetzt**, es wird nicht wieder angezeigt.
+
+**4. Starten:**
+
+```bash
 docker compose up -d --build
 ```
 
-`setup.sh` gibt am Ende das Passwort des ersten Admin-Kontos aus. Danach:
+Das erste Mal dauert einige Minuten (Bilder werden geladen und gebaut).
 
-1. `https://portal.example.com` öffnen und anmelden.
-2. **Profil:** Passwort ändern.
-3. **SpeechMind:** API-Key eintragen, speichern, „Verbindung testen“ klicken, Projekt auswählen, speichern.
-4. **Benutzer:** Konten für Ihr Team anlegen. Das Startpasswort wird einmalig angezeigt.
-5. **Meetings:** Meeting anlegen, „Konferenz betreten“, in Jitsi über das Menü die Aufnahme starten.
+**5. Prüfen, ob alles läuft:**
 
-Nach dem Beenden der Aufnahme erscheint sie innerhalb von etwa 15 Sekunden im Meeting. SpeechMind braucht erfahrungsgemäß rund die halbe Aufnahmedauer.
+```bash
+docker compose ps
+```
+
+Alle Zeilen sollten „running“ oder „Up“ zeigen. Zertifikate holt sich Caddy beim ersten Aufruf von selbst (dauert ca. eine Minute).
+
+**6. Portal öffnen:** `https://<Ihre Portal-Domain>` im Browser. Anmelden mit der Admin-E-Mail und dem Startpasswort aus Schritt 3.
+
+**7. Eigenes Passwort vergeben.** Das Portal verlangt das sofort (alte Passwort = Startpasswort, neues mindestens 10 Zeichen). Erst danach sind die anderen Seiten erreichbar.
+
+**8. E-Mail einrichten:** Oben auf **Benachrichtigungen** klicken, SMTP-Daten eintragen, **Speichern**, dann **Testmail senden**. Kommt die Mail an, ist alles in Ordnung. Wie die Felder auszufüllen sind, steht im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#e-mail-einrichten).
+
+**9. SpeechMind verbinden:** Oben auf **SpeechMind**, API-Key eintragen, **Speichern**, **Verbindung testen**, ein Projekt auswählen, **Speichern**.
+
+**10. Kolleginnen und Kollegen einladen:** Oben auf **Benutzer**, Name und E-Mail eintragen, **Einladen**. Die Person bekommt eine Mail mit einem Link und legt ihr Passwort selbst fest.
+
+**Probelauf (empfohlen):** Legen Sie ein Meeting an, treten Sie bei, starten Sie über „…“ › „Aufnahme starten“, sprechen Sie ein paar Sätze, beenden Sie die Aufnahme. Nach kurzer Zeit erscheint sie unter **Aufnahmen** mit MP3.
+
+Fertig. Alles Weitere (Updates, Sicherung, Probleme) steht unten und im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md).
+
+> **Wichtig:** Die Datei `.env` enthält alle Geheimnisse. Niemals weitergeben, nicht in Git einchecken (ist ausgeschlossen) und **`PORTAL_SECRET_KEY` nie nachträglich ändern**, sonst sind gespeicherte Passwörter und Keys unlesbar.
 
 ### Produktion: Jitsi-Version pinnen
 
@@ -62,8 +120,7 @@ Nach dem Beenden der Aufnahme erscheint sie innerhalb von etwa 15 Sekunden im Me
 
 1. Jibri nimmt die Konferenz als MP4 in `data/recordings/<sitzung>/` auf und schreibt eine `metadata.json` mit der Meeting-URL.
 2. Am Ende ruft Jibri `jibri/finalize.sh` auf. Das Skript legt nur die Markierung `.finalized` ab.
-3. Das Portal findet die Aufnahme und ordnet sie über den Raumnamen dem Meeting zu. Ist dort Transkription aktiv, startet die Verarbeitung:
-   - ffmpeg extrahiert die Audiospur (MP3, mono, 16 kHz, 64 kbit/s),
+3. Das Portal findet die Aufnahme, ordnet sie über den Raumnamen dem Meeting zu und erzeugt per ffmpeg die MP3 (mono, 16 kHz, 64 kbit/s, unter `data/portal/audio/`). Dann wartet es. Erst ein Klick auf „In SpeechMind bearbeiten“ startet die Übergabe:
    - `getUploadUrl` liefert eine vorsignierte Upload-Adresse, die Datei wird hochgeladen,
    - `initProtocol` legt das Protokoll im gewählten Projekt an,
    - `getResults` wird abgefragt, bis SpeechMind fertig ist,
@@ -95,7 +152,8 @@ Alle Werte stehen in `.env` (Vorlage: `.env.example`). Die wichtigsten:
 | `JWT_APP_SECRET` | Gemeinsames Secret von Portal und Prosody |
 | `JWT_TOKEN_TTL_MINUTES` | Gültigkeit eines Konferenz-Tokens |
 | `PORTAL_SECRET_KEY` | Sitzungen und Verschlüsselung der API-Keys. **Nicht nachträglich ändern**, sonst sind gespeicherte Keys unlesbar. |
-| `PORTAL_ADMIN_EMAIL`, `PORTAL_ADMIN_PASSWORD` | Erstes Admin-Konto (nur beim allerersten Start) |
+| `PORTAL_ADMIN_EMAIL`, `PORTAL_ADMIN_PASSWORD` | Standard-Admin (nur beim allerersten Start; Passwortwechsel beim ersten Login erzwungen) |
+| `BRAND_NAME`, `BRAND_PRODUCT` | Name und Produktbezeichnung in Portal, Mails und Jitsi-Oberfläche |
 | `TZ` | Zeitzone für Anzeigen und Protokolldatum |
 
 Zusätzliche Portal-Variablen (optional, in `docker-compose.yml` beim Dienst `portal` ergänzen):
@@ -105,14 +163,18 @@ Zusätzliche Portal-Variablen (optional, in `docker-compose.yml` beim Dienst `po
 | `WATCH_INTERVAL_SECONDS` | 15 | Wie oft nach neuen Aufnahmen gesucht wird |
 | `SPEECHMIND_POLL_SECONDS` | 45 | Abstand der Statusabfragen bei SpeechMind |
 | `SPEECHMIND_POLL_TIMEOUT_HOURS` | 12 | Danach gilt ein Auftrag als fehlgeschlagen |
+| `INVITE_TTL_HOURS` | 72 | Gültigkeit eines Einladungslinks |
+| `RESET_TTL_HOURS` | 2 | Gültigkeit eines Passwort-Links |
 
-Die SpeechMind-Einstellungen selbst werden in der Web-GUI gepflegt, nicht in `.env`.
+SpeechMind- und Mail-Einstellungen (SMTP/IMAP) werden in der Web-GUI gepflegt, nicht in `.env`; Passwörter und Keys liegen verschlüsselt in der Datenbank.
 
 ## Daten & Sicherung
 
 Alles Persistente liegt unter `data/` (konfigurierbar über `CONFIG`):
 
 - `data/portal/portal.db` – Benutzer, Meetings, Einstellungen, Transkripte (SQLite)
+- `data/portal/audio/` – erzeugte MP3-Dateien
+- `data/portal/branding/` – hochgeladenes Logo und Favicon
 - `data/recordings/` – Jibri-Aufnahmen
 - `data/caddy/` – Zertifikate
 - übrige Ordner – Jitsi-Konfiguration (wird beim Start neu erzeugt)
@@ -147,6 +209,10 @@ docker compose logs -f jibri
 
 **Aufnahme erscheint nicht im Portal** – Prüfen, ob in `data/recordings/<sitzung>/` eine `.finalized`-Datei liegt. Fehlt sie, wurde `finalize.sh` nicht ausgeführt: Ausführungsrecht prüfen (`chmod +x jibri/finalize.sh`) und `docker compose logs jibri` ansehen.
 
+**E-Mails kommen nicht an** – Unter „Benachrichtigungen“ ganz unten steht zu jeder Nachricht der Fehler. Häufig: falscher Port/Verschlüsselung (587 = STARTTLS, 465 = SSL/TLS), falsches Passwort, oder der Mailserver erlaubt die Absenderadresse nicht. Mehr im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#e-mail-einrichten).
+
+**Admin-Passwort vergessen** – siehe [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#admin-passwort-vergessen).
+
 **Status „Fehlgeschlagen“** – Die Fehlermeldung steht direkt an der Aufnahme. Bei Problemen mit Key oder Projekt in der GUI unter „SpeechMind“ „Verbindung testen“. Danach an der Aufnahme „Erneut versuchen“. Ist der Upload bereits gelungen, fragt „Erneut versuchen“ nur das Ergebnis neu ab, ohne doppelt hochzuladen.
 
 ## Entwicklung
@@ -170,12 +236,15 @@ Projektstruktur:
 ```
 portal/app/
 ├── main.py          Routen (Login, Meetings, Aufnahmen, Admin)
-├── worker.py        Aufnahmen finden, ffmpeg, Upload, Statusabfrage
+├── worker.py        Aufnahmen finden, MP3 erzeugen, Upload, Statusabfrage
+├── notify.py        Benachrichtigungs-Engine (SMTP/IMAP, Warteschlange)
+├── branding.py      Design & Branding (Farben, Logo, Theme-CSS)
+├── cli.py           Notfall-Werkzeug (Passwort setzen, Admin machen)
 ├── speechmind.py    Client für die SpeechMind GraphQL API v2
 ├── security.py      Passwörter, Verschlüsselung, CSRF, Jitsi-JWT
 ├── db.py            Datenmodell (SQLAlchemy, SQLite)
 ├── templates/       Jinja2-Vorlagen
-└── static/style.css
+└── static/          app.css, app.js und vendor/ (Bootstrap, Font Awesome, DataTables, …)
 ```
 
 ## Lizenz

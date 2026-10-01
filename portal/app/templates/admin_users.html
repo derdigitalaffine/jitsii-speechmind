@@ -1,50 +1,88 @@
 {% extends "base.html" %}
-{% block title %}Benutzer – Konferenz & Protokoll{% endblock %}
+{% import "_macros.html" as m with context %}
+{% block title %}Benutzer{% endblock %}
 {% block content %}
-<h1>Benutzer</h1>
-<p class="lede">Wer hier ein Konto hat, kann Meetings eröffnen, moderieren und aufzeichnen. Gäste brauchen kein Konto.</p>
+{{ m.page_head('Benutzer', 'Wer hier ein Konto hat, kann Meetings eröffnen, moderieren und aufzeichnen. Neue Personen werden per E-Mail eingeladen und legen ihr Passwort selbst fest. Gäste brauchen kein Konto.') }}
 
-{% if new_password %}
-<div class="notice" role="status">
-  Zugang für <strong>{{ new_password.email }}</strong>: Passwort <span class="secret">{{ new_password.password }}</span><br>
-  <span class="small">Wird nur einmal angezeigt. Bitte sicher weitergeben; das Passwort lässt sich im Profil ändern.</span>
+{% if invite_links %}
+<div class="alert alert-info">
+  <div class="fw-semibold mb-2"><i class="fa-solid fa-link me-2"></i>Kein E-Mail-Versand eingerichtet – bitte diese Links weitergeben:</div>
+  {% for l in invite_links %}
+  <div class="mb-2"><strong>{{ l.email }}</strong><div class="input-group input-group-sm mt-1">
+    <input class="form-control" id="il{{ loop.index }}" type="text" readonly value="{{ l.link }}">
+    <button type="button" class="btn btn-outline-primary" data-copy="#il{{ loop.index }}"><i class="fa-regular fa-copy"></i> Kopieren</button></div></div>
+  {% endfor %}
+  <div class="small">Werden nur einmal angezeigt und laufen nach {{ invite_ttl }} Stunden ab. Den Mailversand richten Sie unter <a href="/admin/notifications">Benachrichtigungen</a> ein.</div>
 </div>
+{% elif not mail_ready %}
+<div class="alert alert-warning d-flex gap-2"><i class="fa-solid fa-triangle-exclamation mt-1"></i>
+  <div><strong>E-Mail-Versand ist nicht eingerichtet.</strong> Einladungen können erst per Mail verschickt werden, wenn unter <a href="/admin/notifications">Benachrichtigungen</a> SMTP hinterlegt ist.</div></div>
 {% endif %}
 
-<form class="panel" method="post" action="/admin/users">
-  <input type="hidden" name="csrf" value="{{ csrf }}">
-  <div class="inline-form">
-    <div class="field"><label for="n">Name</label><input id="n" name="name" type="text" required maxlength="200"></div>
-    <div class="field"><label for="e">E-Mail</label><input id="e" name="email" type="email" required></div>
-    <button type="submit">Konto anlegen</button>
-  </div>
-  <label class="check" style="margin-top:.9rem"><input type="checkbox" name="is_admin" value="1"><span>Administrator:in</span></label>
-</form>
+<div class="row g-3 mb-4">
+  <div class="col-12 col-xl-8"><div class="card h-100">
+    <div class="card-header"><i class="fa-solid fa-user-plus me-2"></i>Personen einladen</div>
+    <div class="card-body">
+      <form method="post" action="/admin/users" class="row g-3">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="col-12">
+          <label class="form-label" for="emails">E-Mail-Adressen</label>
+          <input class="js-emails" id="emails" name="emails" placeholder="Adressen eintippen oder einfügen, Enter oder Komma trennt" required>
+          <div class="form-text">Mehrere Adressen auf einmal sind möglich. Der Anzeigename wird aus der Adresse abgeleitet und kann im Profil geändert werden.</div>
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label" for="nm">Name (nur bei einer Adresse)</label>
+          <input class="form-control" id="nm" name="name" type="text" maxlength="200" placeholder="Optional">
+        </div>
+        <div class="col-12 col-md-6 d-flex align-items-end">
+          <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="adm" name="is_admin" value="1"><label class="form-check-label" for="adm">Administrator:in</label></div>
+        </div>
+        <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-paper-plane me-1"></i>Einladen</button></div>
+      </form>
+    </div>
+  </div></div>
 
-<div class="table-wrap" style="margin-top:2rem">
-<table>
-  <thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th></th></tr></thead>
+  <div class="col-12 col-xl-4"><div class="card h-100">
+    <div class="card-header"><i class="fa-solid fa-door-open me-2"></i>Konferenzen ohne Anmeldung</div>
+    <div class="card-body">
+      <p class="small text-secondary">Erlaubt jedem, über die Anmeldeseite eine eigene Konferenz zu starten und Gäste einzuladen. <strong>Aufnahmen sind dort nie möglich</strong>; sie werden zusätzlich serverseitig verworfen.</p>
+      <form method="post" action="/admin/access">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" role="switch" id="anon" name="allow_anonymous" value="1" {% if allow_anonymous %}checked{% endif %}>
+          <label class="form-check-label" for="anon">Freigegeben</label>
+        </div>
+        <button class="btn btn-outline-primary btn-sm" type="submit">Speichern</button>
+      </form>
+    </div>
+  </div></div>
+</div>
+
+<div class="card"><div class="card-body">
+<table class="table table-hover align-middle js-table w-100" data-order='[[0,"asc"]]'>
+  <thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th>Angelegt</th><th class="no-sort col-actions">Aktionen</th></tr></thead>
   <tbody>
   {% for u in users %}
   <tr>
-    <td>{{ u.name }}</td>
+    <td><div class="d-flex align-items-center gap-2"><span class="avatar">{{ m.initials(u.name) }}</span><span class="fw-semibold">{{ u.name }}</span></div></td>
     <td>{{ u.email }}</td>
-    <td>{{ 'Admin' if u.is_admin else 'Benutzer' }}</td>
-    <td>{% if u.active %}<span class="tag on">aktiv</span>{% else %}<span class="tag">gesperrt</span>{% endif %}</td>
-    <td>
+    <td>{% if u.is_admin %}<span class="badge text-bg-primary"><i class="fa-solid fa-user-shield me-1"></i>Admin</span>{% else %}<span class="badge text-bg-secondary">Benutzer</span>{% endif %}</td>
+    <td>{% if not u.active %}<span class="badge text-bg-danger">gesperrt</span>{% elif not u.password_set %}<span class="badge text-bg-warning">eingeladen</span>{% else %}<span class="badge text-bg-success">aktiv</span>{% endif %}</td>
+    <td data-order="{{ u.created_at.isoformat() }}">{{ u.created_at | local('%d.%m.%Y') }}</td>
+    <td class="col-actions">
       {% if u.id != user.id %}
-      <form method="post" action="/admin/users/{{ u.id }}" class="actions" style="margin:0">
+      <form method="post" action="/admin/users/{{ u.id }}" class="d-inline-flex gap-1">
         <input type="hidden" name="csrf" value="{{ csrf }}">
-        <button class="link" name="action" value="toggle_admin">{{ 'Admin-Recht entziehen' if u.is_admin else 'Zum Admin machen' }}</button>
-        <button class="link" name="action" value="toggle_active">{{ 'Sperren' if u.active else 'Entsperren' }}</button>
-        <button class="link" name="action" value="reset_password">Neues Passwort</button>
-        <button class="link" name="action" value="delete" onclick="return confirm('{{ u.email }} wirklich löschen?')">Löschen</button>
+        <button class="btn btn-sm btn-outline-secondary" name="action" value="invite" data-bs-toggle="tooltip" title="{{ 'Einladung erneut senden' if not u.password_set else 'Passwort-Link senden' }}" aria-label="Link senden"><i class="fa-solid fa-paper-plane"></i></button>
+        <button class="btn btn-sm btn-outline-secondary" name="action" value="toggle_admin" data-bs-toggle="tooltip" title="{{ 'Admin-Recht entziehen' if u.is_admin else 'Zum Admin machen' }}" aria-label="Rolle ändern"><i class="fa-solid fa-user-shield"></i></button>
+        <button class="btn btn-sm btn-outline-secondary" name="action" value="toggle_active" data-bs-toggle="tooltip" title="{{ 'Sperren' if u.active else 'Entsperren' }}" aria-label="Sperren oder entsperren"><i class="fa-solid {{ 'fa-lock' if u.active else 'fa-lock-open' }}"></i></button>
+        <button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm-title="{{ u.email }} löschen?" data-confirm="Konto und zugehörige Meetings werden gelöscht. Aufnahmen bleiben für Admins sichtbar." data-bs-toggle="tooltip" title="Löschen" aria-label="Löschen"><i class="fa-regular fa-trash-can"></i></button>
       </form>
-      {% else %}<span class="muted small">Ihr Konto</span>{% endif %}
+      {% else %}<span class="text-secondary small">Ihr Konto</span>{% endif %}
     </td>
   </tr>
   {% endfor %}
   </tbody>
 </table>
-</div>
+</div></div>
 {% endblock %}

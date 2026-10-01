@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Benachrichtigungen{% endblock %}
+{% block content %}
+{% call m.page_head('Benachrichtigungen', 'E-Mails für Einladungen, Passwort-Links und Hinweise zu Aufnahmen. Versand über SMTP; optional wird eine Kopie jeder Nachricht per IMAP im Ordner „Gesendet“ abgelegt.') %}
+  <span class="badge text-bg-{{ 'success' if mail_ready else 'warning' }} fs-6 align-self-start"><i class="fa-solid {{ 'fa-circle-check' if mail_ready else 'fa-triangle-exclamation' }} me-1"></i>{{ 'Versand eingerichtet' if mail_ready else 'Nicht eingerichtet' }}</span>
+{% endcall %}
+
+<form method="post" action="/admin/notifications" class="row g-4">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+
+  <div class="col-12 col-xl-6"><div class="card h-100">
+    <div class="card-header"><i class="fa-solid fa-paper-plane me-2"></i>Postausgang (SMTP)</div>
+    <div class="card-body row g-3">
+      <div class="col-12"><label class="form-label" for="sh">Server</label>
+        <input class="form-control" id="sh" name="smtp_host" type="text" value="{{ cfg.smtp_host }}" placeholder="smtp.example.org"></div>
+      <div class="col-5"><label class="form-label" for="sp">Port</label>
+        <input class="form-control" id="sp" name="smtp_port" type="number" min="1" max="65535" value="{{ cfg.smtp_port }}"></div>
+      <div class="col-7"><label class="form-label" for="ss">Verschlüsselung</label>
+        <select class="form-select js-select" id="ss" name="smtp_security">
+          <option value="starttls" {% if cfg.smtp_security == 'starttls' %}selected{% endif %}>STARTTLS (Port 587)</option>
+          <option value="ssl" {% if cfg.smtp_security == 'ssl' %}selected{% endif %}>SSL/TLS (Port 465)</option>
+          <option value="none" {% if cfg.smtp_security == 'none' %}selected{% endif %}>keine</option>
+        </select></div>
+      <div class="col-md-6"><label class="form-label" for="su">Benutzername</label>
+        <input class="form-control" id="su" name="smtp_user" type="text" autocomplete="off" value="{{ cfg.smtp_user }}"></div>
+      <div class="col-md-6"><label class="form-label" for="spw">Passwort</label>
+        <div class="input-group"><input class="form-control" id="spw" name="smtp_password" type="password" autocomplete="new-password" placeholder="{{ smtp_mask or 'Nicht hinterlegt' }}">
+          <button class="btn btn-outline-secondary" type="button" data-toggle-password="#spw" aria-label="Anzeigen"><i class="fa-solid fa-eye"></i></button></div>
+        <div class="form-text">Verschlüsselt gespeichert. Nur ausfüllen, um zu ersetzen.</div></div>
+      <div class="col-md-6"><label class="form-label" for="mf">Absenderadresse</label>
+        <input class="form-control" id="mf" name="mail_from" type="email" value="{{ cfg.mail_from }}" placeholder="videokonferenz@example.org"></div>
+      <div class="col-md-6"><label class="form-label" for="mn">Absendername</label>
+        <input class="form-control" id="mn" name="mail_from_name" type="text" value="{{ cfg.mail_from_name }}" placeholder="{{ brand }}"></div>
+    </div>
+  </div></div>
+
+  <div class="col-12 col-xl-6"><div class="card h-100">
+    <div class="card-header"><i class="fa-solid fa-inbox me-2"></i>Postfach (IMAP, optional)</div>
+    <div class="card-body row g-3">
+      <div class="col-12"><label class="form-label" for="ih">Server</label>
+        <input class="form-control" id="ih" name="imap_host" type="text" value="{{ cfg.imap_host }}" placeholder="imap.example.org"></div>
+      <div class="col-5"><label class="form-label" for="ip">Port</label>
+        <input class="form-control" id="ip" name="imap_port" type="number" min="1" max="65535" value="{{ cfg.imap_port }}"></div>
+      <div class="col-7"><label class="form-label" for="is">Verschlüsselung</label>
+        <select class="form-select js-select" id="is" name="imap_security">
+          <option value="ssl" {% if cfg.imap_security == 'ssl' %}selected{% endif %}>SSL/TLS (Port 993)</option>
+          <option value="starttls" {% if cfg.imap_security == 'starttls' %}selected{% endif %}>STARTTLS (Port 143)</option>
+          <option value="none" {% if cfg.imap_security == 'none' %}selected{% endif %}>keine</option>
+        </select></div>
+      <div class="col-md-6"><label class="form-label" for="iu">Benutzername</label>
+        <input class="form-control" id="iu" name="imap_user" type="text" autocomplete="off" value="{{ cfg.imap_user }}"></div>
+      <div class="col-md-6"><label class="form-label" for="ipw">Passwort</label>
+        <div class="input-group"><input class="form-control" id="ipw" name="imap_password" type="password" autocomplete="new-password" placeholder="{{ imap_mask or 'Nicht hinterlegt' }}">
+          <button class="btn btn-outline-secondary" type="button" data-toggle-password="#ipw" aria-label="Anzeigen"><i class="fa-solid fa-eye"></i></button></div></div>
+      <div class="col-md-6"><label class="form-label" for="if">Ordner für Gesendetes</label>
+        <input class="form-control" id="if" name="imap_sent_folder" type="text" value="{{ cfg.imap_sent_folder }}" placeholder="Sent"></div>
+      <div class="col-md-6 d-flex align-items-end"><div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch" id="iss" name="imap_save_sent" value="1" {% if cfg.imap_save_sent == '1' %}checked{% endif %}>
+        <label class="form-check-label" for="iss">Kopie gesendeter Nachrichten ablegen</label></div></div>
+    </div>
+  </div></div>
+
+  <div class="col-12"><div class="card">
+    <div class="card-header"><i class="fa-regular fa-bell me-2"></i>Hinweise an Benutzer:innen</div>
+    <div class="card-body">
+      <p class="text-secondary small">Empfänger ist die Besitzerin bzw. der Besitzer des Meetings, bei Räumen ohne Meeting alle Admins. Einladungen und Passwort-Links werden immer verschickt.</p>
+      <div class="row g-3">
+        <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="n1" name="notify_new_recording" value="1" {% if cfg.notify_new_recording == '1' %}checked{% endif %}><label class="form-check-label" for="n1">Neue Aufnahme liegt als MP3 bereit</label></div></div>
+        <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="n2" name="notify_done" value="1" {% if cfg.notify_done == '1' %}checked{% endif %}><label class="form-check-label" for="n2">Transkript ist fertig</label></div></div>
+        <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="n3" name="notify_failed" value="1" {% if cfg.notify_failed == '1' %}checked{% endif %}><label class="form-check-label" for="n3">Verarbeitung fehlgeschlagen</label></div></div>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div>
+</form>
+
+<div class="card mt-4"><div class="card-header"><i class="fa-solid fa-plug me-2"></i>Verbindung prüfen <span class="text-secondary fw-normal small">– zuerst speichern, dann testen</span></div>
+  <div class="card-body d-flex flex-wrap gap-2">
+    <form method="post" action="/admin/notifications/test-smtp"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-primary" type="submit"><i class="fa-regular fa-envelope me-1"></i>Testmail an {{ user.email }}</button></form>
+    <form method="post" action="/admin/notifications/test-imap"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-primary" type="submit"><i class="fa-solid fa-inbox me-1"></i>IMAP testen</button></form>
+  </div>
+</div>
+
+<div class="card mt-4"><div class="card-header"><i class="fa-solid fa-clock-rotate-left me-2"></i>Versandprotokoll</div><div class="card-body">
+{% if log_rows %}
+<table class="table table-hover align-middle js-table w-100" data-order='[[0,"desc"]]'>
+  <thead><tr><th>Zeit</th><th>Empfänger</th><th>Betreff</th><th>Status</th><th class="no-sort col-actions"></th></tr></thead>
+  <tbody>
+  {% for n in log_rows %}
+  <tr>
+    <td data-order="{{ n.created_at.isoformat() }}">{{ n.created_at | local }}</td>
+    <td>{{ n.to_addr }}</td>
+    <td>{{ n.subject }}</td>
+    <td>{% if n.status == 'sent' %}<span class="badge text-bg-success">gesendet</span>{% elif n.status == 'failed' %}<span class="badge text-bg-danger">fehlgeschlagen</span>{% else %}<span class="badge text-bg-warning">wartet ({{ n.attempts }}. Versuch)</span>{% endif %}
+      {% if n.error %}<div class="text-danger small mt-1">{{ n.error }}</div>{% endif %}</td>
+    <td class="col-actions">{% if n.status == 'failed' %}
+      <form method="post" action="/admin/notifications/{{ n.id }}/retry"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-rotate-right me-1"></i>Erneut senden</button></form>
+    {% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<div class="text-center text-secondary py-4">Noch keine Nachrichten verschickt.</div>{% endif %}
+</div></div>
+{% endblock %}

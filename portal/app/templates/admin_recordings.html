@@ -1,13 +1,25 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
-{% block title %}Alle Aufnahmen – Konferenz & Protokoll{% endblock %}
-{% block head %}{% if recordings | selectattr('status', 'in', active_statuses) | list %}<meta http-equiv="refresh" content="30">{% endif %}{% endblock %}
+{% block title %}Aufnahmen{% endblock %}
 {% block content %}
-<h1>Alle Aufnahmen</h1>
-<p class="lede">Aufnahmen aller Räume, auch solcher ohne Meeting im Portal. Neue Aufnahmen erscheinen hier, sobald Jibri sie abgeschlossen hat.</p>
-{% if recordings %}
-  {% for rec in recordings %}{{ m.rec_card(rec, csrf, show_meeting=true) }}{% endfor %}
-{% else %}
-<p class="empty">Noch keine Aufnahmen auf diesem Server.</p>
+<div {% if stats.active %}data-autorefresh="30"{% endif %}>
+{{ m.page_head('Aufnahmen', 'Alle Konferenzaufnahmen als MP3. Die Transkription läuft nie von selbst: Laden Sie die MP3 herunter oder übergeben Sie die Aufnahme mit „In SpeechMind bearbeiten“ an SpeechMind.') }}
+
+{% if not sm_ready %}
+<div class="alert alert-warning d-flex gap-2"><i class="fa-solid fa-triangle-exclamation mt-1"></i>
+  <div><strong>SpeechMind ist noch nicht verbunden.</strong> Unter <a href="/admin/speechmind">SpeechMind</a> API-Key und Projekt hinterlegen, dann lassen sich Aufnahmen übergeben.</div></div>
 {% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">{{ m.stat('fa-file-audio', stats.total, 'Aufnahmen gesamt') }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-hand-pointer', stats.ready, 'MP3 bereit, noch offen') }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-gear', stats.active, 'In Verarbeitung') }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-circle-check', stats.done, 'Transkribiert') }}</div>
+</div>
+
+<div class="card"><div class="card-body">
+  {% if recordings %}{{ m.rec_table(recordings, csrf) }}
+  {% else %}<div class="text-center text-secondary py-5"><i class="fa-solid fa-microphone-slash fa-2x mb-2"></i><br>Noch keine Aufnahmen auf diesem Server.</div>{% endif %}
+</div></div>
+</div>
 {% endblock %}

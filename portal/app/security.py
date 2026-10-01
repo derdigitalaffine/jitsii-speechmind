@@ -89,7 +89,14 @@ def clean_room(room: str) -> str:
     return re.sub(r"[^a-z0-9._-]", "", room)[:128]
 
 
-def jitsi_token(user, room: str) -> str:
+OPEN_PREFIX = "offen-"  # Räume ohne Anmeldung: nie aufgezeichnet, nicht für Meetings vergebbar
+
+
+def is_open_room(room: str) -> bool:
+    return room.startswith(OPEN_PREFIX)
+
+
+def _jitsi_jwt(room: str, uid: str, name: str, email: str, recording: bool) -> str:
     now = int(time.time())
     payload = {
         "aud": settings.jwt_audience,
@@ -100,14 +107,9 @@ def jitsi_token(user, room: str) -> str:
         "nbf": now - 10,
         "exp": now + settings.jwt_ttl_minutes * 60,
         "context": {
-            "user": {
-                "id": str(user.id),
-                "name": user.name,
-                "email": user.email,
-                "moderator": True,
-            },
+            "user": {"id": uid, "name": name, "email": email, "moderator": True},
             "features": {
-                "recording": True,
+                "recording": recording,
                 "livestreaming": False,
                 "transcription": False,
                 "outbound-call": False,
@@ -115,3 +117,29 @@ def jitsi_token(user, room: str) -> str:
         },
     }
     return jwt.encode(payload, settings.jwt_app_secret, algorithm="HS256")
+
+
+def jitsi_token(user, room: str) -> str:
+    """Token für Portal-Benutzer. In offenen Räumen ist die Aufnahme nie erlaubt."""
+    return _jitsi_jwt(room, str(user.id), user.name, user.email, recording=not is_open_room(room))
+
+
+def open_room_token(name: str, room: str) -> str:
+    """Token für jemanden ohne Konto: Moderation im eigenen Raum, aber keine Aufnahme."""
+    return _jitsi_jwt(room, "open-" + secrets.token_hex(4), name, "", recording=False)
+
+
+def new_open_room() -> str:
+    return OPEN_PREFIX + secrets.token_hex(5)
+
+
+# --- Einladungs- und Zurücksetzen-Links ---------------------------------------
+
+def new_token() -> tuple[str, str]:
+    """Liefert (Token für den Link, Hash für die Datenbank)."""
+    token = secrets.token_urlsafe(32)
+    return token, hash_token(token)
+
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
