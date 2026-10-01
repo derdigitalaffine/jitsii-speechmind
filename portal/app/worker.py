@@ -367,6 +367,18 @@ def reset_interrupted() -> None:
         db.commit()
 
 
+RSVP_INTERVAL_SECONDS = 120
+_last_rsvp = [0.0]
+
+
+def _poll_rsvp() -> None:
+    from . import rsvp
+    with SessionLocal() as db:
+        enabled = get_settings(db).get("imap_rsvp") == "1"
+    if enabled:
+        rsvp.poll_safely()
+
+
 async def run_forever() -> None:
     global _loop
     _loop = asyncio.get_running_loop()
@@ -377,6 +389,10 @@ async def run_forever() -> None:
             await asyncio.to_thread(scan_recordings)
             await pipeline_tick()
             await asyncio.to_thread(notify.process_queue)
+            if time.monotonic() - _last_rsvp[0] >= RSVP_INTERVAL_SECONDS:
+                _last_rsvp[0] = time.monotonic()
+                await asyncio.to_thread(_poll_rsvp)
+            await asyncio.to_thread(notify.process_queue)  # Hinweise zu neuen Antworten gleich verschicken
         except Exception:  # noqa: BLE001
             log.exception("Fehler im Worker-Durchlauf")
         _wakeup.clear()

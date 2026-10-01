@@ -106,7 +106,9 @@ templates = Jinja2Templates(directory=BASE / "templates")
 templates.env.globals.update(brand=settings.brand_name, product=settings.brand_product)
 templates.env.globals["themes"] = branding.THEMES
 templates.env.globals.update(planning_when=planning.when, local_input=planning.local_input,
-                             is_upcoming=planning.is_upcoming)
+                             is_upcoming=planning.is_upcoming, rsvp_labels=planning.RSVP_LABELS,
+                             rsvp_summary=planning.rsvp_summary)
+templates.env.filters["isodate"] = lambda value: datetime.fromisoformat(value) if value else None
 templates.env.filters["filesize"] = lambda n: (
     "" if not n else f"{n / 1_000_000:.1f} MB".replace(".", ",") if n >= 1_000_000 else f"{max(n // 1000, 1)} kB")
 templates.env.filters["local"] = lambda dt, fmt="%d.%m.%Y, %H:%M": to_local(dt).strftime(fmt) if dt else ""
@@ -1105,7 +1107,8 @@ def admin_notifications_save(
     mail_from: str = Form(""), mail_from_name: str = Form(""),
     imap_host: str = Form(""), imap_port: str = Form("993"), imap_security: str = Form("ssl"),
     imap_user: str = Form(""), imap_password: str = Form(""), imap_sent_folder: str = Form("Sent"),
-    imap_save_sent: str = Form(""), notify_new_recording: str = Form(""),
+    imap_save_sent: str = Form(""), imap_rsvp: str = Form(""), imap_rsvp_folder: str = Form("INBOX"),
+    imap_rsvp_move: str = Form(""), notify_rsvp: str = Form(""), notify_new_recording: str = Form(""),
     notify_done: str = Form(""), notify_failed: str = Form(""),
     user: User = Depends(admin_user), db: Session = Depends(get_db),
 ):
@@ -1116,6 +1119,7 @@ def admin_notifications_save(
         "smtp_host": smtp_host, "smtp_user": smtp_user, "mail_from": mail_from,
         "mail_from_name": mail_from_name, "imap_host": imap_host, "imap_user": imap_user,
         "imap_sent_folder": imap_sent_folder or "Sent",
+        "imap_rsvp_folder": imap_rsvp_folder or "INBOX", "imap_rsvp_move": imap_rsvp_move,
     }
     for key, value in values.items():
         set_setting(db, key, value.strip())
@@ -1127,7 +1131,11 @@ def admin_notifications_save(
         set_setting(db, "smtp_password_enc", encrypt(smtp_password))
     if imap_password:
         set_setting(db, "imap_password_enc", encrypt(imap_password))
-    for key, value in (("imap_save_sent", imap_save_sent), ("notify_new_recording", notify_new_recording),
+    if imap_rsvp == "1" and not imap_host.strip():
+        flash(request, "Für die Auswertung von Zu-/Absagen wird ein IMAP-Server benötigt.", "error")
+        imap_rsvp = ""
+    for key, value in (("imap_save_sent", imap_save_sent), ("imap_rsvp", imap_rsvp), ("notify_rsvp", notify_rsvp),
+                       ("notify_new_recording", notify_new_recording),
                        ("notify_done", notify_done), ("notify_failed", notify_failed)):
         set_setting(db, key, "1" if value == "1" else "0")
     db.commit()
@@ -1159,6 +1167,19 @@ async def admin_notifications_test_imap(request: Request, user: User = Depends(a
     else:
         flash(request, info)
     return redirect("/admin/notifications")
+
+
+@app.post("/admin/notifications/rsvp-poll", dependencies=[Depends(check_csrf)])
+async def admin_notifications_rsvp_poll(request: Request, user: User = Depends(admin_user)):
+    from . import rsvp
+    try:
+        result = await asyncio.to_thread(rsvp.poll, True)
+    except notify.MailError as exc:
+        flash(request, str(exc), "error")
+    else:
+        worker.wake()
+        flash(request, "Postfach abgerufen: " + result)
+    return redirect("/admin/notifications#antworten")
 
 
 @app.post("/admin/notifications/{nid}/retry", dependencies=[Depends(check_csrf)])

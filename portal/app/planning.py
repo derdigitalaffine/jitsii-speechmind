@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from . import ics, mailtpl, notify
 from .config import settings
-from .db import LOCAL_TZ, Invitee, Meeting, User, get_settings, to_local, utcnow
+from .db import LOCAL_TZ, Invitee, Meeting, SessionLocal, User, get_settings, to_local, utcnow
 
 EMAIL_RE = re.compile(r"^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$")
 WEEKDAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
@@ -68,7 +68,44 @@ def ensure_uid(meeting: Meeting) -> None:
         meeting.ics_uid = f"{uuid.uuid4().hex}@{host}"
 
 
-def _calendar(meeting: Meeting, method: str, attendees: list[tuple[str, str]], organizer: User | None) -> str:
+RSVP_LABELS = {
+    "accepted": "Zugesagt", "declined": "Abgesagt", "tentative": "Mit Vorbehalt",
+    "delegated": "Weitergeleitet", "counter": "Neuer Zeitvorschlag", None: "Offen",
+}
+
+
+def rsvp_summary(meeting: Meeting) -> dict[str, int]:
+    counts = {"accepted": 0, "declined": 0, "tentative": 0, "open": 0}
+    for inv in meeting.invitees:
+        key = inv.rsvp_status if inv.rsvp_status in ("accepted", "declined", "tentative") else "open"
+        counts[key] += 1
+    return counts
+
+
+def rsvp_text(meeting: Meeting) -> str:
+    c = rsvp_summary(meeting)
+    parts = [f"{c['accepted']} zugesagt", f"{c['declined']} abgesagt"]
+    if c["tentative"]:
+        parts.append(f"{c['tentative']} mit Vorbehalt")
+    parts.append(f"{c['open']} offen")
+    return ", ".join(parts)
+
+
+def organizer_identity(cfg: dict[str, str], organizer: User | None) -> tuple[str, str] | None:
+    """Organisator im Kalendereintrag.
+
+    Werden Antworten per IMAP ausgewertet, muss Outlook Zu-/Absagen an das Portal-Postfach schicken:
+    dann steht dessen Adresse als Organisator drin (mit dem Namen der planenden Person).
+    """
+    if organizer is None:
+        return None
+    if cfg.get("imap_rsvp") == "1" and cfg.get("mail_from"):
+        return organizer.name, cfg["mail_from"]
+    return organizer.name, organizer.email
+
+
+def _calendar(meeting: Meeting, method: str, attendees: list[tuple[str, str]],
+              organizer: tuple[str, str] | None) -> str:
     link = join_link(meeting)
     text = f"Einwahl: {link}"
     if meeting.description:
@@ -78,7 +115,7 @@ def _calendar(meeting: Meeting, method: str, attendees: list[tuple[str, str]], o
         method=method, uid=meeting.ics_uid, sequence=meeting.ics_sequence or 0,
         start=meeting.starts_at, minutes=meeting.duration_minutes or 60, title=meeting.title,
         description=text, location=link, url=link,
-        organizer=(organizer.name, organizer.email) if organizer else None,
+        organizer=organizer,
         attendees=attendees, cancelled=method == "CANCEL",
     )
 
@@ -86,7 +123,9 @@ def _calendar(meeting: Meeting, method: str, attendees: list[tuple[str, str]], o
 def calendar_file(meeting: Meeting) -> str:
     """ICS zum Herunterladen (für den eigenen Kalender oder zum Weiterleiten)."""
     attendees = [(i.name, i.email) for i in meeting.invitees]
-    return _calendar(meeting, "PUBLISH", attendees, meeting.owner)
+    with SessionLocal() as db:
+        cfg = get_settings(db)
+    return _calendar(meeting, "PUBLISH", attendees, organizer_identity(cfg, meeting.owner))
 
 
 def send(db, meeting: Meeting, invitees: list[Invitee], kind: str, organizer: User,
@@ -105,10 +144,15 @@ def send(db, meeting: Meeting, invitees: list[Invitee], kind: str, organizer: Us
     base = {**when(meeting), "titel": meeting.title, "link": join_link(meeting),
             "beschreibung": meeting.description or "", "organisator": organizer.name,
             "organisator_email": organizer.email}
+    org = organizer_identity(cfg, organizer)
     count = 0
     for inv in invitees:
+        if kind in ("invite", "update"):
+            # Neue bzw. geänderte Einladung: frühere Antworten gelten nicht mehr (wie in Outlook)
+            if kind == "update" or inv.rsvp_status is None:
+                inv.rsvp_status, inv.rsvp_at, inv.rsvp_comment = None, None, None
         subject, body = mailtpl.render(db, f"meeting_{kind}", {**base, "name": inv.name or inv.email}, cfg)
-        ics_text = _calendar(meeting, method, [(inv.name, inv.email)], organizer)
+        ics_text = _calendar(meeting, method, [(inv.name, inv.email)], org)
         if notify.enqueue(db, inv.email, subject, body, f"meeting_{kind}", cfg, reply_to=organizer.email,
                           attachments=[{"filename": filename, "content": ics_text, "calendar_method": method}]):
             inv.invited_at = utcnow()
@@ -116,7 +160,7 @@ def send(db, meeting: Meeting, invitees: list[Invitee], kind: str, organizer: Us
     if copy_to_organizer:
         subject, body = mailtpl.render(db, f"meeting_{kind}", {**base, "name": organizer.name}, cfg)
         own = _calendar(meeting, "CANCEL" if kind == "cancel" else "PUBLISH",
-                        [(i.name, i.email) for i in meeting.invitees], organizer)
+                        [(i.name, i.email) for i in meeting.invitees], org)
         notify.enqueue(db, organizer.email, "[Kopie] " + subject, body, f"meeting_{kind}", cfg,
                        attachments=[{"filename": filename, "content": own,
                                      "calendar_method": "CANCEL" if kind == "cancel" else "PUBLISH"}])
