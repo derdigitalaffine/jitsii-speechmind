@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Module{% endblock %}
+{% block content %}
+{{ m.page_head('Module', 'Zusatzfunktionen des Portals ein- oder ausschalten. Ein abgeschaltetes Modul verschwindet aus Menü und Rechteverwaltung und ist komplett unerreichbar – auch über bereits verteilte Links. Die Daten bleiben erhalten.') }}
+<form method="post" action="/admin/modules">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-xl-4"><div class="card h-100"><div class="card-body">
+      <div class="d-flex align-items-center gap-3 mb-2"><span class="stat-icon"><i class="fa-solid fa-video"></i></span>
+        <div><div class="fw-semibold">Videokonferenzen</div><span class="badge text-bg-secondary">immer aktiv</span></div></div>
+      <p class="small text-secondary mb-0">Kernfunktion: Meetings, Planung mit Kalendereinladungen, Aufnahme und Transkription. Wer sie nutzen darf, legen Sie je Person unter „Benutzer &amp; Gruppen“ fest.</p>
+    </div></div></div>
+    {% for key, (label, setting, prefixes) in all_modules.items() %}
+    <div class="col-12 col-md-6 col-xl-4"><div class="card h-100"><div class="card-body">
+      <div class="d-flex align-items-center gap-3 mb-2"><span class="stat-icon"><i class="fa-solid {{ {'shortlinks': 'fa-link', 'forms': 'fa-clipboard-list', 'polls': 'fa-calendar-check', 'bookings': 'fa-calendar-plus'}[key] }}"></i></span>
+        <div class="flex-grow-1"><div class="fw-semibold">{{ label }}</div><span class="small text-secondary">{{ stats[key] }} {{ {'shortlinks': 'Kurzlinks', 'forms': 'Formulare', 'polls': 'Terminumfragen', 'bookings': 'Buchungsseiten'}[key] }} gespeichert</span></div>
+        <div class="form-check form-switch fs-4 mb-0"><input class="form-check-input" type="checkbox" role="switch" name="{{ key }}" value="1" id="mod-{{ key }}" {% if key in modules %}checked{% endif %} aria-label="{{ label }} einschalten"></div></div>
+      <p class="small text-secondary mb-0">{% if key == 'shortlinks' %}Kurze Adressen mit Aufrufstatistik (wie Shlink), QR-Generator (SVG, PNG, JPG), optional eigene Kurz-Domain. Abgeschaltet leiten auch bestehende Kurzlinks nicht mehr weiter.{% elif key == 'bookings' %}Terminbuchung (wie Microsoft Bookings oder Calendly): Zeitbereiche im Kalender festlegen, Gäste buchen freie Zeitfenster selbst – z. B. für Vorstellungsgespräche oder Sprechstunden –, mit Bestätigung, Kalendereintrag, Erinnerung und Absage. Abgeschaltet sind auch die Buchungslinks gesperrt.{% elif key == 'polls' %}Terminfindung wie Doodle: Terminvorschläge, Abstimmung mit Ja / Wenn nötig / Nein per Link oder Einladung, Termin festlegen und auf Wunsch direkt als Besprechung mit Einladungen anlegen. Abgeschaltet sind auch verteilte Abstimmungslinks gesperrt.{% else %}Formularbaukasten (wie Nextcloud Forms) mit mehrseitigen Formularen, Einladungen, öffentlichen Links, Auswertung und Export. Abgeschaltet sind auch öffentliche und persönliche Formular-Links gesperrt.{% endif %}</p>
+    </div></div></div>
+    {% endfor %}
+  </div>
+  <button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
+</form>
+{% endblock %}

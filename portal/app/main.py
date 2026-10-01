@@ -16,16 +16,17 @@ from fastapi.responses import (
 )
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup, escape
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import access, branding, chat, mailtpl, notify, planning, proxy, worker
+from . import access, branding, chat, mailtpl, notify, planning, proxy, twofa, worker
 from .planning import EMAIL_RE, name_from_email
 from .config import settings
 from .db import (
-    ACTIVE_STATUSES, Invitee, STATUS_DONE, STATUS_FAILED, STATUS_PROCESSING, STATUS_QUEUED, STATUS_RECORDED,
+    ACTIVE_STATUSES, PERMISSIONS, Group, Invitee, STATUS_DONE, STATUS_FAILED, STATUS_PROCESSING, STATUS_QUEUED, STATUS_RECORDED,
     STATUS_REMOTE, Meeting,
     Notification, Recording, SessionLocal, User, get_settings, init_db, set_setting, to_local, utcnow,
 )
@@ -107,13 +108,67 @@ app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")
 templates.env.globals.update(brand=settings.brand_name, product=settings.brand_product)
 templates.env.globals["themes"] = branding.THEMES
+templates.env.globals["permissions"] = PERMISSIONS
 templates.env.globals.update(planning_when=planning.when, cancel_recipients=planning.cancel_recipients, local_input=planning.local_input,
                              is_upcoming=planning.is_upcoming, rsvp_labels=planning.RSVP_LABELS,
                              rsvp_summary=planning.rsvp_summary)
 templates.env.filters["isodate"] = lambda value: datetime.fromisoformat(value) if value else None
 templates.env.filters["filesize"] = lambda n: (
     "" if not n else f"{n / 1_000_000:.1f} MB".replace(".", ",") if n >= 1_000_000 else f"{max(n // 1000, 1)} kB")
+_LINK_RE = re.compile(r"(https?://[^\s<>\"]+)")
+
+
+def _richtext(text: str | None) -> Markup:
+    """Beschreibungstexte: HTML maskiert, Links anklickbar, **fett**, Zeilenumbrüche erhalten."""
+    escaped = str(escape(text or ""))
+    escaped = _LINK_RE.sub(lambda m: f'<a href="{m.group(1)}" target="_blank" rel="noopener">{m.group(1)}</a>', escaped)
+    escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+    return Markup(escaped.replace("\n", "<br>"))
+
+
+templates.env.filters["richtext"] = _richtext
 templates.env.filters["local"] = lambda dt, fmt="%d.%m.%Y, %H:%M": to_local(dt).strftime(fmt) if dt else ""
+
+
+# --- Zusatzmodule -------------------------------------------------------------
+
+# Modul: (Einstellung, Rechte-Schlüssel, Pfad-Präfixe)
+MODULES = {
+    "shortlinks": ("Kurzlinks & QR-Codes", "module_shortlinks", ("/shortlinks", "/s/", "/s")),
+    "forms": ("Formulare", "module_forms", ("/forms", "/f/")),
+    "polls": ("Terminumfragen", "module_polls", ("/polls", "/t/")),
+    "bookings": ("Terminbuchung", "module_bookings", ("/bookings", "/b/")),
+}
+_module_cache: dict = {"at": 0.0, "enabled": set(MODULES)}
+
+
+def enabled_modules() -> set[str]:
+    """Eingeschaltete Zusatzmodule (für einige Sekunden zwischengespeichert)."""
+    if time.monotonic() - _module_cache["at"] > 5:
+        with SessionLocal() as db:
+            cfg = get_settings(db)
+        _module_cache["enabled"] = {key for key, (_, setting, _) in MODULES.items() if cfg.get(setting, "1") == "1"}
+        _module_cache["at"] = time.monotonic()
+    return _module_cache["enabled"]
+
+
+def module_for_path(path: str) -> str | None:
+    for key, (_, _, prefixes) in MODULES.items():
+        for prefix in prefixes:
+            if path == prefix or path.startswith(prefix.rstrip("/") + "/") or path.startswith(prefix + "-"):
+                return key
+    return None
+
+
+@app.middleware("http")
+async def _module_gate(request: Request, call_next):
+    """Abgeschaltete Module sind vollständig unerreichbar (auch öffentliche Links)."""
+    key = module_for_path(request.url.path)
+    if key and key not in enabled_modules():
+        return HTMLResponse("<!doctype html><meta charset=utf-8><title>Nicht verfügbar</title>"
+                            "<p style='font-family:sans-serif;margin:3rem'>Diese Funktion ist auf diesem Server "
+                            "nicht eingeschaltet.</p>", status_code=404)
+    return await call_next(request)
 
 
 # --- Hilfsfunktionen ----------------------------------------------------------
@@ -155,6 +210,12 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
     if user.must_change_password and request.url.path != "/profile":
         flash(request, "Bitte vergeben Sie zuerst ein eigenes Passwort.", "error")
         raise ForcedRedirect("/profile")
+    if request.session.get("mfa_setup") and not request.url.path.startswith("/profile"):
+        if twofa.needs_setup(user, get_settings(db)):
+            flash(request, "Für Ihr Konto ist die Zwei-Faktor-Anmeldung Pflicht. Bitte richten Sie jetzt die "
+                           "Authenticator-App ein.", "error")
+            raise ForcedRedirect("/profile/security")
+        request.session.pop("mfa_setup", None)
     return user
 
 
@@ -162,6 +223,38 @@ def admin_user(user: User = Depends(current_user)) -> User:
     if not user.is_admin:
         raise HTTPException(403, "Nur für Administratoren.")
     return user
+
+
+def require(perm: str):
+    """Abhängigkeit: angemeldet und für den Bereich freigeschaltet (Admins immer)."""
+    def dep(user: User = Depends(current_user)) -> User:
+        if not user.can(perm):
+            raise HTTPException(403, f"Für den Bereich „{PERMISSIONS[perm][0]}“ fehlt die Berechtigung. "
+                                     "Bitte wenden Sie sich an die Verwaltung des Portals.")
+        return user
+    return dep
+
+
+video_user = require("video")
+users_manager = require("users")
+
+
+def home_for(user: User) -> str:
+    """Startseite nach dem Login: der erste freigeschaltete Bereich."""
+    if user.can("video"):
+        return "/"
+    modules = enabled_modules()
+    if user.can("forms") and "forms" in modules:
+        return "/forms"
+    if user.can("shortlinks") and "shortlinks" in modules:
+        return "/shortlinks"
+    if user.can("polls") and "polls" in modules:
+        return "/polls"
+    if user.can("bookings") and "bookings" in modules:
+        return "/bookings"
+    if user.can("users"):
+        return "/admin/users"
+    return "/forms/inbox" if "forms" in modules else "/profile"
 
 
 _attempts: dict[str, list[float]] = {}
@@ -202,6 +295,7 @@ def render(request: Request, name: str, user: User | None = None, **ctx) -> HTML
         "pipeline": PIPELINE,
         "active_statuses": ACTIVE_STATUSES,
         "meet_base_url": settings.meet_base_url,
+        "modules": enabled_modules(),
         **ctx,
     })
 
@@ -280,12 +374,98 @@ def login(request: Request, email: str = Form(...), password: str = Form(...),
     if user is None or not user.active or not verify_password(user.password_hash, password):
         flash(request, "E-Mail oder Passwort ist falsch.", "error")
         return redirect(f"/login?next={quote(safe_next(next))}")
+    return start_session(request, db, user, safe_next(next))
+
+
+def start_session(request: Request, db: Session, user: User, target: str) -> RedirectResponse:
+    """Nach geprüftem Passwort: anmelden oder zuerst den zweiten Faktor verlangen."""
+    cfg = get_settings(db)
+    request.session.clear()
+    if target == "/":
+        target = "/admin/recordings" if user.is_admin else home_for(user)
+    found = twofa.methods(user, cfg)
+    if found:
+        request.session.update({"mfa_uid": user.id, "mfa_next": target, "mfa_at": time.time(), "mfa_tries": 0})
+        if found == ["email"]:
+            twofa.send_email_code(db, user)
+            db.commit()
+            worker.wake()
+            request.session["mfa_sent"] = True
+        return redirect("/login/2fa")
+    request.session["uid"] = user.id
+    if twofa.needs_setup(user, cfg):
+        request.session["mfa_setup"] = True
+    return redirect(target)
+
+
+def _pending_mfa(request: Request, db: Session) -> User | None:
+    uid = request.session.get("mfa_uid")
+    if not uid or time.time() - float(request.session.get("mfa_at", 0)) > 600:
+        return None
+    user = db.get(User, uid)
+    return user if user and user.active else None
+
+
+@app.get("/login/2fa")
+def login_2fa_form(request: Request, db: Session = Depends(get_db)):
+    user = _pending_mfa(request, db)
+    if user is None:
+        flash(request, "Die Anmeldung ist abgelaufen. Bitte erneut anmelden.", "error")
+        return redirect("/login")
+    found = twofa.methods(user, get_settings(db))
+    return render(request, "login_2fa.html", None, methods=found, sent=request.session.get("mfa_sent", False),
+                  email_hint=re.sub(r"(?<=.).(?=[^@]*@)", "•", user.email), has_recovery=twofa.recovery_left(user) > 0)
+
+
+@app.post("/login/2fa/send", dependencies=[Depends(check_csrf)])
+def login_2fa_send(request: Request, db: Session = Depends(get_db)):
+    rate_limit(request, "mfa-mail", limit=4)
+    user = _pending_mfa(request, db)
+    if user is None or "email" not in twofa.methods(user, get_settings(db)):
+        return redirect("/login")
+    twofa.send_email_code(db, user)
+    db.commit()
+    worker.wake()
+    request.session["mfa_sent"] = True
+    flash(request, "Ein neuer Code ist unterwegs. Er ist 10 Minuten gültig.")
+    return redirect("/login/2fa?m=email")
+
+
+@app.post("/login/2fa", dependencies=[Depends(check_csrf)])
+def login_2fa(request: Request, code: str = Form(""), method: str = Form("totp"), db: Session = Depends(get_db)):
+    rate_limit(request, "mfa", limit=20)
+    user = _pending_mfa(request, db)
+    if user is None:
+        flash(request, "Die Anmeldung ist abgelaufen. Bitte erneut anmelden.", "error")
+        return redirect("/login")
+    found = twofa.methods(user, get_settings(db))
+    ok = False
+    if method == "totp" and "totp" in found:
+        step = twofa.check_totp(twofa.user_secret(user), code, user.totp_last_step)
+        if step is not None:
+            user.totp_last_step, ok = step, True
+    elif method == "email" and "email" in found:
+        ok = twofa.check_email_code(user, code)
+    elif method == "recovery":
+        ok = twofa.use_recovery_code(user, code)
+    if not ok:
+        tries = int(request.session.get("mfa_tries", 0)) + 1
+        request.session["mfa_tries"] = tries
+        db.commit()
+        if tries >= twofa.MAX_TRIES:
+            request.session.clear()
+            flash(request, "Zu viele falsche Codes. Bitte melden Sie sich erneut an.", "error")
+            return redirect("/login")
+        flash(request, "Der Code stimmt nicht oder ist abgelaufen.", "error")
+        return redirect(f"/login/2fa?m={method}")
+    target = request.session.get("mfa_next") or "/"
+    db.commit()
     request.session.clear()
     request.session["uid"] = user.id
-    target = safe_next(next)
-    if user.is_admin and target == "/":
-        target = "/admin/recordings"
-    return redirect(target)
+    if method == "recovery":
+        flash(request, f"Wiederherstellungscode verbraucht – noch {twofa.recovery_left(user)} übrig. "
+                       "Richten Sie unter Profil › Sicherheit neue Codes oder ein neues Gerät ein.", "error")
+    return redirect(safe_next(target))
 
 
 # --- Einladung & Passwort zurücksetzen ----------------------------------------
@@ -339,10 +519,9 @@ def invite_accept(request: Request, token: str, password: str = Form(...), passw
     target.password_set, target.must_change_password = True, False
     target.token_hash = target.token_expires_at = None
     db.commit()
-    request.session.clear()
-    request.session["uid"] = target.id
-    flash(request, "Passwort gespeichert. Sie sind angemeldet.")
-    return redirect("/")
+    response = start_session(request, db, target, "/")
+    flash(request, "Passwort gespeichert." + ("" if "mfa_uid" in request.session else " Sie sind angemeldet."))
+    return response
 
 
 @app.get("/forgot")
@@ -388,11 +567,14 @@ def jitsi_auth(request: Request, room: str = "", db: Session = Depends(get_db)):
     if not room:
         return redirect("/")
     meeting = db.scalar(select(Meeting).where(Meeting.room == room))
-    if meeting is not None and session_user(request, db) is None:
+    member = session_user(request, db)
+    if meeting is not None and (member is None or not member.can("video")):
         # Geschützter Portal-Raum ohne Anmeldung: erklären, wie man hineinkommt, statt nur Login
         return render(request, "guest.html", None, mode="protected", meeting=meeting,
                       login_url="/login?next=" + quote(f"/jitsi/auth?room={room}"))
     user = current_user(request, db)
+    if not user.can("video"):
+        raise HTTPException(403, "Für Videokonferenzen fehlt die Berechtigung.")
     # Aufnehmen nur in Portal-Räumen
     return redirect(join_url(user, room, recording=meeting is not None))
 
@@ -437,7 +619,7 @@ def join_personal(request: Request, token: str, db: Session = Depends(get_db)):
     if meeting.cancelled_at:
         return render(request, "guest.html", session_user(request, db), mode="cancelled", meeting=meeting)
     user = session_user(request, db)
-    if user is not None and user.email == inv.email:
+    if user is not None and user.email == inv.email and user.can("video"):
         return redirect(join_url(user, meeting.room))
     return redirect(guest_join_url(inv.name or inv.email, meeting.room, f"guest-{inv.id}", inv.email))
 
@@ -489,7 +671,7 @@ def join_guest_form(request: Request, token: str, db: Session = Depends(get_db))
     user = session_user(request, db)
     if meeting is None:
         return render(request, "guest.html", user, mode="invalid")
-    if user is not None:
+    if user is not None and user.can("video"):
         return redirect(join_url(user, meeting.room))
     return render(request, "guest.html", None, mode="form", meeting=meeting, token=token)
 
@@ -511,6 +693,8 @@ def join_guest(request: Request, token: str, name: str = Form(""), db: Session =
 
 @app.get("/")
 def dashboard(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    if not user.can("video"):
+        return redirect(home_for(user))
     meetings = db.scalars(
         select(Meeting).where(Meeting.owner_id == user.id).order_by(Meeting.created_at.desc())
     ).all()
@@ -525,7 +709,7 @@ def dashboard(request: Request, user: User = Depends(current_user), db: Session 
 
 @app.post("/meetings", dependencies=[Depends(check_csrf)])
 def create_meeting(request: Request, title: str = Form(...),
-                   user: User = Depends(current_user), db: Session = Depends(get_db)):
+                   user: User = Depends(video_user), db: Session = Depends(get_db)):
     title = title.strip()[:200] or "Besprechung"
     meeting = Meeting(owner_id=user.id, title=title, room=unique_room(db, room_slug(title)))
     ensure_guest_token(meeting)
@@ -562,7 +746,7 @@ def _flash_sent(request: Request, count: int, mail_ready: bool, meeting: Meeting
 
 
 @app.get("/meetings/plan")
-def meeting_plan_form(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def meeting_plan_form(request: Request, user: User = Depends(video_user), db: Session = Depends(get_db)):
     start = to_local(utcnow() + timedelta(days=1)).replace(minute=0, second=0, microsecond=0)
     return render(request, "plan.html", user, durations=planning.DURATIONS, users_json=_users_json(db),
                   default_start=start.strftime("%Y-%m-%dT%H:%M"),
@@ -572,7 +756,7 @@ def meeting_plan_form(request: Request, user: User = Depends(current_user), db: 
 @app.post("/meetings/plan", dependencies=[Depends(check_csrf)])
 def meeting_plan(request: Request, title: str = Form(...), start: str = Form(""), duration: str = Form("60"),
                  description: str = Form(""), invitees: str = Form(""), copy_me: str = Form(""),
-                 user: User = Depends(current_user), db: Session = Depends(get_db)):
+                 user: User = Depends(video_user), db: Session = Depends(get_db)):
     title = title.strip()[:200] or "Besprechung"
     starts_at, minutes, error = _plan_values(start, duration)
     emails, bad = planning.parse_emails(invitees)
@@ -597,7 +781,7 @@ def meeting_plan(request: Request, title: str = Form(...), start: str = Form("")
 
 
 @app.get("/meetings/{meeting_id}")
-def meeting_detail(request: Request, meeting_id: int, user: User = Depends(current_user),
+def meeting_detail(request: Request, meeting_id: int, user: User = Depends(video_user),
                    db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
     if not meeting.guest_token:
@@ -614,7 +798,7 @@ def meeting_detail(request: Request, meeting_id: int, user: User = Depends(curre
 @app.post("/meetings/{meeting_id}/settings", dependencies=[Depends(check_csrf)])
 def meeting_settings(request: Request, meeting_id: int, title: str = Form(...),
                      document_type: str = Form(""),
-                     language: str = Form(""), user: User = Depends(current_user),
+                     language: str = Form(""), user: User = Depends(video_user),
                      db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
     meeting.title = title.strip()[:200] or meeting.title
@@ -627,7 +811,7 @@ def meeting_settings(request: Request, meeting_id: int, title: str = Form(...),
 
 @app.post("/meetings/{meeting_id}/delete", dependencies=[Depends(check_csrf)])
 def meeting_delete(request: Request, meeting_id: int, send_cancel: str = Form(""), message: str = Form(""),
-                   user: User = Depends(current_user), db: Session = Depends(get_db)):
+                   user: User = Depends(video_user), db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
     recipients = planning.cancel_recipients(meeting)
     count, mail_ready = 0, True
@@ -648,7 +832,7 @@ def meeting_delete(request: Request, meeting_id: int, send_cancel: str = Form(""
 
 
 @app.post("/meetings/{meeting_id}/guest-link", dependencies=[Depends(check_csrf)])
-def meeting_guest_link_reset(request: Request, meeting_id: int, user: User = Depends(current_user),
+def meeting_guest_link_reset(request: Request, meeting_id: int, user: User = Depends(video_user),
                              db: Session = Depends(get_db)):
     """Neuen allgemeinen Gastlink erzeugen; der alte funktioniert danach nicht mehr."""
     meeting = own_meeting(db, meeting_id, user)
@@ -659,7 +843,7 @@ def meeting_guest_link_reset(request: Request, meeting_id: int, user: User = Dep
 
 
 @app.get("/meetings/{meeting_id}/join")
-def meeting_join(meeting_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def meeting_join(meeting_id: int, user: User = Depends(video_user), db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
     return redirect(join_url(user, meeting.room))
 
@@ -667,7 +851,7 @@ def meeting_join(meeting_id: int, user: User = Depends(current_user), db: Sessio
 @app.post("/meetings/{meeting_id}/schedule", dependencies=[Depends(check_csrf)])
 def meeting_schedule(request: Request, meeting_id: int, start: str = Form(""), duration: str = Form("60"),
                      description: str = Form(""), notify_invitees: str = Form(""),
-                     user: User = Depends(current_user), db: Session = Depends(get_db)):
+                     user: User = Depends(video_user), db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
     starts_at, minutes, error = _plan_values(start, duration)
     if error:
@@ -693,7 +877,7 @@ def meeting_schedule(request: Request, meeting_id: int, start: str = Form(""), d
 
 @app.post("/meetings/{meeting_id}/invitees", dependencies=[Depends(check_csrf)])
 def meeting_add_invitees(request: Request, meeting_id: int, invitees: str = Form(""),
-                         user: User = Depends(current_user), db: Session = Depends(get_db)):
+                         user: User = Depends(video_user), db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
     emails, bad = planning.parse_emails(invitees)
     if bad or not emails:
@@ -712,7 +896,7 @@ def meeting_add_invitees(request: Request, meeting_id: int, invitees: str = Form
 
 @app.post("/meetings/{meeting_id}/invitees/{invitee_id}/delete", dependencies=[Depends(check_csrf)])
 def meeting_remove_invitee(request: Request, meeting_id: int, invitee_id: int,
-                           user: User = Depends(current_user), db: Session = Depends(get_db)):
+                           user: User = Depends(video_user), db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
     inv = db.get(Invitee, invitee_id)
     if inv is None or inv.meeting_id != meeting.id:
@@ -727,7 +911,7 @@ def meeting_remove_invitee(request: Request, meeting_id: int, invitee_id: int,
 
 
 @app.post("/meetings/{meeting_id}/resend", dependencies=[Depends(check_csrf)])
-def meeting_resend(request: Request, meeting_id: int, user: User = Depends(current_user),
+def meeting_resend(request: Request, meeting_id: int, user: User = Depends(video_user),
                    db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
     count, mail_ready = planning.send(db, meeting, list(meeting.invitees), "invite", meeting.owner)
@@ -739,7 +923,7 @@ def meeting_resend(request: Request, meeting_id: int, user: User = Depends(curre
 
 @app.post("/meetings/{meeting_id}/cancel", dependencies=[Depends(check_csrf)])
 def meeting_cancel(request: Request, meeting_id: int, message: str = Form(""),
-                   user: User = Depends(current_user), db: Session = Depends(get_db)):
+                   user: User = Depends(video_user), db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
     if meeting.starts_at is None or meeting.cancelled_at:
         return redirect(f"/meetings/{meeting.id}")
@@ -755,7 +939,7 @@ def meeting_cancel(request: Request, meeting_id: int, message: str = Form(""),
 
 
 @app.get("/meetings/{meeting_id}/calendar.ics")
-def meeting_calendar(meeting_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def meeting_calendar(meeting_id: int, user: User = Depends(video_user), db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
     if meeting.starts_at is None:
         raise HTTPException(404, "Für dieses Meeting ist kein Termin geplant.")
@@ -818,7 +1002,7 @@ async def admin_templates_save(request: Request, key: str, subject: str = Form("
 # --- Aufnahmen & Transkripte --------------------------------------------------
 
 @app.get("/recordings/{rec_id}")
-def recording_detail(request: Request, rec_id: int, user: User = Depends(current_user),
+def recording_detail(request: Request, rec_id: int, user: User = Depends(video_user),
                      db: Session = Depends(get_db)):
     rec = own_recording(db, rec_id, user)
     transcript = json.loads(rec.transcript_json) if rec.transcript_json else []
@@ -830,7 +1014,7 @@ def recording_detail(request: Request, rec_id: int, user: User = Depends(current
 
 
 @app.post("/recordings/{rec_id}/transcribe", dependencies=[Depends(check_csrf)])
-def recording_transcribe(request: Request, rec_id: int, user: User = Depends(current_user),
+def recording_transcribe(request: Request, rec_id: int, user: User = Depends(video_user),
                          db: Session = Depends(get_db)):
     rec = own_recording(db, rec_id, user)
     if rec.status in ACTIVE_STATUSES:
@@ -851,7 +1035,7 @@ def recording_transcribe(request: Request, rec_id: int, user: User = Depends(cur
 
 
 @app.post("/recordings/{rec_id}/reconvert", dependencies=[Depends(check_csrf)])
-def recording_reconvert(request: Request, rec_id: int, user: User = Depends(current_user),
+def recording_reconvert(request: Request, rec_id: int, user: User = Depends(video_user),
                         db: Session = Depends(get_db)):
     """MP3 aus dem Video neu erzeugen und den Ton neu messen."""
     rec = own_recording(db, rec_id, user)
@@ -868,7 +1052,7 @@ def recording_reconvert(request: Request, rec_id: int, user: User = Depends(curr
 
 
 @app.get("/recordings/{rec_id}/audio.mp3")
-def recording_audio(rec_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def recording_audio(rec_id: int, user: User = Depends(video_user), db: Session = Depends(get_db)):
     rec = own_recording(db, rec_id, user)
     path = Path(rec.audio_path) if rec.audio_path else None
     if not path or not path.exists():
@@ -879,7 +1063,7 @@ def recording_audio(rec_id: int, user: User = Depends(current_user), db: Session
 
 
 @app.get("/recordings/{rec_id}/video")
-def recording_video(rec_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def recording_video(rec_id: int, user: User = Depends(video_user), db: Session = Depends(get_db)):
     rec = own_recording(db, rec_id, user)
     path = Path(rec.video_path) if rec.video_path else None
     root = settings.recordings_dir.resolve()
@@ -889,19 +1073,22 @@ def recording_video(rec_id: int, user: User = Depends(current_user), db: Session
 
 
 @app.get("/recordings/{rec_id}/chat.txt", response_class=PlainTextResponse)
-def recording_chat_txt(rec_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def recording_chat_txt(rec_id: int, user: User = Depends(video_user), db: Session = Depends(get_db)):
     rec = own_recording(db, rec_id, user)
-    if not rec.chat:
+    if not rec.chat and not rec.polls:
         raise HTTPException(404, "Zu dieser Aufnahme gibt es kein Chatprotokoll.")
     title = rec.meeting.title if rec.meeting else rec.room
     filename = f"chatprotokoll-{room_slug(title)}-{to_local(rec.created_at):%Y%m%d-%H%M}.txt"
     head = f"Chatprotokoll: {title}, Aufnahme vom {to_local(rec.created_at):%d.%m.%Y %H:%M} Uhr\n\n"
-    return PlainTextResponse(head + chat.as_text(rec.chat, to_local),
+    body = chat.as_text(rec.chat, to_local) if rec.chat else ""
+    if rec.polls:
+        body += ("\n" if body else "") + "UMFRAGEN\n\n" + chat.polls_as_text(rec.polls, to_local)
+    return PlainTextResponse(head + body,
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
 @app.get("/recordings/{rec_id}/transcript.txt", response_class=PlainTextResponse)
-def recording_transcript_txt(rec_id: int, user: User = Depends(current_user),
+def recording_transcript_txt(rec_id: int, user: User = Depends(video_user),
                              db: Session = Depends(get_db)):
     rec = own_recording(db, rec_id, user)
     if rec.status != STATUS_DONE or not rec.transcript_json:
@@ -945,12 +1132,12 @@ def delete_recording(db: Session, rec: Recording, mode: str) -> str:
     if rec.status in ACTIVE_STATUSES:
         return "busy"
     _remove_media(rec)
-    if mode == "media" and (rec.transcript_json or rec.sm_protocol_slug or rec.chat_json):
+    if mode == "media" and (rec.transcript_json or rec.sm_protocol_slug or rec.chat_json or rec.polls_json):
         if rec.status != STATUS_DONE:
             rec.error = None
         return "media"
     if mode == "keep_link" and rec.sm_protocol_slug:
-        rec.transcript_json = rec.summary_json = rec.chat_json = None
+        rec.transcript_json = rec.summary_json = rec.chat_json = rec.polls_json = None
         rec.status, rec.error = STATUS_REMOTE, None
         return "remote"
     db.delete(rec)
@@ -967,7 +1154,7 @@ DELETE_MESSAGES = {
 
 @app.post("/recordings/{rec_id}/delete", dependencies=[Depends(check_csrf)])
 def recording_delete(request: Request, rec_id: int, mode: str = Form("all"),
-                     user: User = Depends(current_user), db: Session = Depends(get_db)):
+                     user: User = Depends(video_user), db: Session = Depends(get_db)):
     rec = own_recording(db, rec_id, user)
     back = f"/meetings/{rec.meeting_id}" if rec.meeting_id else "/admin/recordings"
     result = delete_recording(db, rec, mode if mode in DELETE_MODES else "all")
@@ -977,7 +1164,7 @@ def recording_delete(request: Request, rec_id: int, mode: str = Form("all"),
 
 
 @app.post("/recordings/bulk-delete", dependencies=[Depends(check_csrf)])
-async def recordings_bulk_delete(request: Request, user: User = Depends(current_user),
+async def recordings_bulk_delete(request: Request, user: User = Depends(video_user),
                                  db: Session = Depends(get_db)):
     form = await request.form()
     mode = form.get("mode") if form.get("mode") in DELETE_MODES else "all"
@@ -1002,7 +1189,7 @@ async def recordings_bulk_delete(request: Request, user: User = Depends(current_
 
 
 @app.post("/recordings/{rec_id}/fetch", dependencies=[Depends(check_csrf)])
-def recording_fetch(request: Request, rec_id: int, user: User = Depends(current_user),
+def recording_fetch(request: Request, rec_id: int, user: User = Depends(video_user),
                     db: Session = Depends(get_db)):
     """Protokoll und Wortlaut erneut bei SpeechMind abholen."""
     rec = own_recording(db, rec_id, user)
@@ -1057,6 +1244,109 @@ def profile_save(request: Request, name: str = Form(...), current_password: str 
     db.commit()
     flash(request, "Profil gespeichert.")
     return redirect("/profile")
+
+
+# --- Über dieses Portal -----------------------------------------------------------
+
+@app.get("/about")
+def about_page(request: Request, db: Session = Depends(get_db)):
+    from . import about
+    return render(request, "about.html", session_user(request, db), publisher=about.PUBLISHER, license=about.LICENSE,
+                  components=about.COMPONENTS, services=about.SERVICES)
+
+
+# --- Profil: Sicherheit (Zwei-Faktor-Anmeldung) ---------------------------------
+
+@app.get("/profile/security")
+def profile_security(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    cfg = get_settings(db)
+    setup = None
+    if request.query_params.get("setup") == "totp" or (twofa.needs_setup(user, cfg) and not user.totp_enabled):
+        secret = request.session.get("totp_setup") or twofa.new_secret()
+        request.session["totp_setup"] = secret
+        uri = twofa.provisioning_uri(secret, user)
+        setup = {"secret": " ".join(secret[i:i + 4] for i in range(0, len(secret), 4)), "qr": twofa.qr_svg(uri)}
+    return render(request, "profile_security.html", user, allowed=twofa.allowed(cfg), required=twofa.required(user, cfg),
+                  methods=twofa.methods(user, cfg), setup=setup, recovery_left=twofa.recovery_left(user),
+                  new_codes=request.session.pop("recovery_codes", None), mail_ready=notify.mail_configured(cfg))
+
+
+def _confirm_password(request: Request, user: User, password: str) -> bool:
+    if verify_password(user.password_hash, password):
+        return True
+    flash(request, "Das Passwort stimmt nicht.", "error")
+    return False
+
+
+@app.post("/profile/security/totp", dependencies=[Depends(check_csrf)])
+def profile_totp(request: Request, action: str = Form(...), code: str = Form(""), password: str = Form(""),
+                 user: User = Depends(current_user), db: Session = Depends(get_db)):
+    user = db.get(User, user.id)
+    cfg = get_settings(db)
+    if action == "enable":
+        secret = request.session.get("totp_setup")
+        step = twofa.check_totp(secret, code) if secret and twofa.allowed(cfg)["totp"] else None
+        if step is None:
+            flash(request, "Der Code stimmt nicht. Prüfen Sie die Uhrzeit des Telefons und geben Sie den aktuellen "
+                           "Code ein.", "error")
+            return redirect("/profile/security?setup=totp")
+        twofa.enable_totp(user, secret)
+        user.totp_last_step = step
+        request.session.pop("totp_setup", None)
+        request.session.pop("mfa_setup", None)
+        if not twofa.recovery_left(user):
+            request.session["recovery_codes"] = twofa.new_recovery_codes(user)
+        flash(request, "Authenticator-App eingerichtet. Ab der nächsten Anmeldung wird ein Code abgefragt.")
+    elif action == "disable" and _confirm_password(request, user, password):
+        if twofa.required(user, cfg) and not (twofa.allowed(cfg)["email"]):
+            flash(request, "Die App kann nicht entfernt werden: Zwei-Faktor ist Pflicht und Codes per E-Mail sind "
+                           "nicht erlaubt. Richten Sie stattdessen ein neues Gerät ein.", "error")
+            return redirect("/profile/security")
+        user.totp_enabled, user.totp_secret_enc, user.totp_last_step = False, None, None
+        flash(request, "Authenticator-App entfernt.")
+    db.commit()
+    return redirect("/profile/security")
+
+
+@app.post("/profile/security/email", dependencies=[Depends(check_csrf)])
+def profile_mfa_email(request: Request, enable: str = Form(""), password: str = Form(""),
+                      user: User = Depends(current_user), db: Session = Depends(get_db)):
+    user = db.get(User, user.id)
+    if not _confirm_password(request, user, password):
+        return redirect("/profile/security")
+    if enable == "1" and not twofa.allowed(get_settings(db))["email"]:
+        raise HTTPException(403)
+    user.mfa_email = enable == "1"
+    if user.mfa_email and not twofa.recovery_left(user):
+        request.session["recovery_codes"] = twofa.new_recovery_codes(user)
+    db.commit()
+    flash(request, "Code per E-Mail eingeschaltet." if user.mfa_email else "Code per E-Mail ausgeschaltet.")
+    return redirect("/profile/security")
+
+
+@app.post("/profile/security/recovery", dependencies=[Depends(check_csrf)])
+def profile_recovery(request: Request, password: str = Form(""), user: User = Depends(current_user),
+                     db: Session = Depends(get_db)):
+    user = db.get(User, user.id)
+    if _confirm_password(request, user, password):
+        request.session["recovery_codes"] = twofa.new_recovery_codes(user)
+        db.commit()
+        flash(request, "Neue Wiederherstellungscodes erzeugt. Die alten gelten nicht mehr.")
+    return redirect("/profile/security#wiederherstellung")
+
+
+@app.post("/admin/security", dependencies=[Depends(check_csrf)])
+def admin_security(request: Request, mfa_email_allowed: str = Form(""), mfa_totp_allowed: str = Form(""),
+                   mfa_required: str = Form("off"), user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    if mfa_required != "off" and mfa_email_allowed != "1" and mfa_totp_allowed != "1":
+        flash(request, "Für eine Pflicht muss mindestens ein Verfahren erlaubt sein.", "error")
+        return redirect("/admin/users#sicherheit")
+    set_setting(db, "mfa_email_allowed", "1" if mfa_email_allowed == "1" else "0")
+    set_setting(db, "mfa_totp_allowed", "1" if mfa_totp_allowed == "1" else "0")
+    set_setting(db, "mfa_required", mfa_required if mfa_required in twofa.REQUIRED else "off")
+    db.commit()
+    flash(request, "Anmelde-Einstellungen gespeichert. Sie gelten ab der nächsten Anmeldung.")
+    return redirect("/admin/users#sicherheit")
 
 
 # --- Admin: SpeechMind --------------------------------------------------------
@@ -1139,21 +1429,39 @@ def flash_link_result(request: Request, target: User, link: str, queued: bool) -
         request.session["invite_links"] = [{"email": target.email, "link": link}]
 
 
+def _perm_value(selected: list[str]) -> str:
+    return ",".join(p for p in PERMISSIONS if p in selected)
+
+
+def _can_manage(actor: User, target: User) -> bool:
+    """Wer Benutzer verwalten darf, aber kein Admin ist, ändert keine Admin-Konten."""
+    return actor.is_admin or not target.is_admin
+
+
+def _set_groups(db: Session, target: User, group_ids: list[str]) -> None:
+    ids = {int(g) for g in group_ids if str(g).isdigit()}
+    target.groups = list(db.scalars(select(Group).where(Group.id.in_(ids)))) if ids else []
+
+
 @app.get("/admin/users")
-def admin_users(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
-    users = db.scalars(select(User).order_by(User.name)).all()
-    return render(request, "admin_users.html", user, users=users,
+def admin_users(request: Request, user: User = Depends(users_manager), db: Session = Depends(get_db)):
+    users = db.scalars(select(User).options(joinedload(User.groups)).order_by(User.name)).unique().all()
+    groups = db.scalars(select(Group).options(joinedload(Group.members)).order_by(Group.name)).unique().all()
+    return render(request, "admin_users.html", user, users=users, groups=groups,
                   invite_links=request.session.pop("invite_links", None),
                   mail_ready=notify.mail_configured(get_settings(db)),
                   invite_ttl=settings.invite_ttl_hours,
-                  allow_anonymous=anonymous_allowed(db))
+                  allow_anonymous=anonymous_allowed(db), cfg=get_settings(db), mfa_required=twofa.REQUIRED)
 
 
 @app.post("/admin/users", dependencies=[Depends(check_csrf)])
-def admin_users_create(request: Request, emails: str = Form(...), name: str = Form(""),
-                       is_admin: str = Form(""), user: User = Depends(admin_user),
-                       db: Session = Depends(get_db)):
+async def admin_users_create(request: Request, emails: str = Form(...), name: str = Form(""),
+                             is_admin: str = Form(""), user: User = Depends(users_manager),
+                             db: Session = Depends(get_db)):
     """Lädt eine oder mehrere Personen ein (Adressen durch Komma, Semikolon oder Leerzeichen getrennt)."""
+    form = await request.form()
+    perms = _perm_value(form.getlist("perm"))
+    group_ids = form.getlist("groups")
     addresses = list(dict.fromkeys(a.lower() for a in re.split(r"[,;\s]+", emails) if a))
     bad = [a for a in addresses if not EMAIL_RE.match(a)]
     if not addresses or bad:
@@ -1166,9 +1474,10 @@ def admin_users_create(request: Request, emails: str = Form(...), name: str = Fo
             continue
         display = name.strip()[:200] if len(addresses) == 1 and name.strip() else name_from_email(email)
         # Bis zur Annahme der Einladung ist das Passwort ein nicht erratbarer Zufallswert
-        target = User(email=email, name=display, is_admin=is_admin == "1",
+        target = User(email=email, name=display, is_admin=is_admin == "1" and user.is_admin, permissions=perms,
                       password_hash=hash_password(secrets.token_urlsafe(32)), password_set=False)
         db.add(target)
+        _set_groups(db, target, group_ids)
         link, queued = send_link(db, target, "invite")
         created.append(email)
         if not queued:
@@ -1182,17 +1491,102 @@ def admin_users_create(request: Request, emails: str = Form(...), name: str = Fo
     return redirect("/admin/users")
 
 
+# --- Admin: Benutzer per CSV importieren ----------------------------------------
+
+@app.get("/admin/users/import-template.csv")
+def admin_users_import_template(user: User = Depends(users_manager)):
+    from . import user_import
+    return Response(user_import.template_csv(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="benutzer-import-vorlage.csv"'})
+
+
+@app.post("/admin/users/import", dependencies=[Depends(check_csrf)])
+async def admin_users_import_preview(request: Request, file: UploadFile = File(...),
+                                     user: User = Depends(users_manager), db: Session = Depends(get_db)):
+    """Schritt 1: Datei prüfen und Vorschau zeigen – noch ohne Änderungen."""
+    from . import user_import
+    data = await file.read(5_000_001)
+    if len(data) > 5_000_000:
+        flash(request, "Die Datei ist größer als 5 MB.", "error")
+        return redirect("/admin/users#import")
+    rows, problems = user_import.parse(data, db, user)
+    if not rows:
+        flash(request, " ".join(problems) or "Keine Zeilen gefunden.", "error")
+        return redirect("/admin/users#import")
+    token = user_import.stash(rows)
+    return render(request, "admin_users_import.html", user, rows=rows, problems=problems, token=token,
+                  summary=user_import.summary(rows), filename=file.filename,
+                  mail_ready=notify.mail_configured(get_settings(db)), invite_ttl=settings.invite_ttl_hours)
+
+
+@app.post("/admin/users/import/apply", dependencies=[Depends(check_csrf)])
+def admin_users_import_apply(request: Request, token: str = Form(...), invite: str = Form(""),
+                             force_change: str = Form(""), user: User = Depends(users_manager),
+                             db: Session = Depends(get_db)):
+    """Schritt 2: Konten und Gruppen anlegen, auf Wunsch Einladungen an Konten ohne Passwort."""
+    from . import user_import
+    rows = user_import.unstash(token, remove=True)
+    if rows is None:
+        flash(request, "Der Import ist abgelaufen. Bitte die Datei erneut hochladen.", "error")
+        return redirect("/admin/users#import")
+    if not user.is_admin:
+        for row in rows:
+            row["admin"] = False
+    without_password, created, added = user_import.apply(db, rows, force_change == "1")
+    links, queued = [], 0
+    if invite == "1":
+        for target in without_password:
+            link, ok = send_link(db, target, "invite")
+            queued += ok
+            if not ok:
+                links.append({"email": target.email, "link": link})
+    db.commit()
+    worker.wake()
+    if links:
+        request.session["invite_links"] = links[:200]
+    parts = [f"{len(created)} Konto/Konten angelegt"]
+    if added:
+        parts.append(f"{added} Gruppenmitgliedschaft(en) ergänzt")
+    if queued:
+        parts.append(f"{queued} Einladung(en) per Mail unterwegs")
+    if without_password and invite != "1":
+        parts.append(f"{len(without_password)} Konto/Konten ohne Passwort – Einladung später über das "
+                     "Papierflieger-Symbol senden")
+    flash(request, "Import abgeschlossen: " + ", ".join(parts) + ".")
+    return redirect("/admin/users")
+
+
 @app.post("/admin/users/{uid}", dependencies=[Depends(check_csrf)])
-def admin_users_update(request: Request, uid: int, action: str = Form(...),
-                       user: User = Depends(admin_user), db: Session = Depends(get_db)):
+async def admin_users_update(request: Request, uid: int, action: str = Form(...),
+                             user: User = Depends(users_manager), db: Session = Depends(get_db)):
     target = db.get(User, uid)
     if target is None:
         raise HTTPException(404)
+    if not _can_manage(user, target):
+        flash(request, "Konten von Administrator:innen kann nur ein Admin ändern.", "error")
+        return redirect("/admin/users")
     if target.id == user.id and action in ("toggle_admin", "toggle_active", "delete"):
         flash(request, "Das eigene Konto lässt sich hier nicht ändern.", "error")
         return redirect("/admin/users")
     if action == "toggle_admin":
+        if not user.is_admin:
+            raise HTTPException(403)
         target.is_admin = not target.is_admin
+    elif action == "edit":
+        form = await request.form()
+        name = " ".join(str(form.get("name", "")).split())[:200]
+        if name:
+            target.name = name
+        perms = form.getlist("perm")
+        if target.id == user.id and not user.is_admin and "users" not in perms:
+            perms.append("users")  # sich nicht selbst aussperren
+        target.permissions = _perm_value(perms)
+        _set_groups(db, target, form.getlist("groups"))
+        flash(request, f"{target.email} gespeichert.")
+    elif action == "reset_2fa":
+        twofa.reset(target)
+        flash(request, f"Zwei-Faktor-Anmeldung von {target.email} zurückgesetzt. Bei Pflicht wird bei der "
+                       "nächsten Anmeldung neu eingerichtet bzw. ein Code per E-Mail verwendet.")
     elif action == "toggle_active":
         target.active = not target.active
     elif action in ("invite", "reset_password"):
@@ -1207,11 +1601,91 @@ def admin_users_update(request: Request, uid: int, action: str = Form(...),
             for rec in meeting.recordings:
                 rec.meeting_id = None
             db.delete(meeting)
+        _release_owned(db, target)
         db.delete(target)
         flash(request, f"{target.email} gelöscht.")
     db.commit()
     access.sync(db)
     return redirect("/admin/users")
+
+
+def _release_owned(db: Session, target: User) -> None:
+    """Kurzlinks und Formulare einer gelöschten Person bleiben erhalten und gehen an die löschende Verwaltung
+    bzw. werden herrenlos (Admins sehen sie weiter)."""
+    from .db import BookingPage, Form as FormModel, Poll, ShortLink
+    for page in db.scalars(select(BookingPage).where(BookingPage.owner_id == target.id)):
+        page.owner_id = None
+    for poll in db.scalars(select(Poll).where(Poll.owner_id == target.id)):
+        poll.owner_id = None
+    for link in db.scalars(select(ShortLink).where(ShortLink.owner_id == target.id)):
+        link.owner_id = None
+    for form in db.scalars(select(FormModel).where(FormModel.owner_id == target.id)):
+        form.owner_id = None
+
+
+@app.post("/admin/groups", dependencies=[Depends(check_csrf)])
+async def admin_groups_create(request: Request, name: str = Form(...), description: str = Form(""),
+                              user: User = Depends(users_manager), db: Session = Depends(get_db)):
+    form = await request.form()
+    name = " ".join(name.split())[:120]
+    if not name or db.scalar(select(Group).where(func.lower(Group.name) == name.lower())):
+        flash(request, "Bitte einen neuen, noch nicht vergebenen Gruppennamen angeben.", "error")
+        return redirect("/admin/users#gruppen")
+    group = Group(name=name, description=" ".join(description.split())[:255])
+    ids = {int(u) for u in form.getlist("members") if str(u).isdigit()}
+    group.members = list(db.scalars(select(User).where(User.id.in_(ids)))) if ids else []
+    db.add(group)
+    db.commit()
+    flash(request, f"Gruppe „{group.name}“ angelegt.")
+    return redirect("/admin/users#gruppen")
+
+
+@app.post("/admin/groups/{gid}", dependencies=[Depends(check_csrf)])
+async def admin_groups_update(request: Request, gid: int, action: str = Form("save"),
+                              user: User = Depends(users_manager), db: Session = Depends(get_db)):
+    group = db.get(Group, gid)
+    if group is None:
+        raise HTTPException(404)
+    if action == "delete":
+        db.delete(group)
+        db.commit()
+        flash(request, f"Gruppe „{group.name}“ gelöscht. Die Mitglieder behalten ihre Konten.")
+        return redirect("/admin/users#gruppen")
+    form = await request.form()
+    name = " ".join(str(form.get("name", "")).split())[:120]
+    clash = db.scalar(select(Group).where(func.lower(Group.name) == name.lower(), Group.id != group.id))
+    if name and not clash:
+        group.name = name
+    group.description = " ".join(str(form.get("description", "")).split())[:255]
+    ids = {int(u) for u in form.getlist("members") if str(u).isdigit()}
+    group.members = list(db.scalars(select(User).where(User.id.in_(ids)))) if ids else []
+    db.commit()
+    flash(request, f"Gruppe „{group.name}“ gespeichert." + (" Der Name ist schon vergeben." if clash else ""))
+    return redirect("/admin/users#gruppen")
+
+
+# --- Admin: Module -------------------------------------------------------------
+
+@app.get("/admin/modules")
+def admin_modules(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    from .db import BookingPage, Form as FormModel, Poll, ShortLink
+    stats = {"bookings": db.scalar(select(func.count(BookingPage.id))),
+             "shortlinks": db.scalar(select(func.count(ShortLink.id))),
+             "forms": db.scalar(select(func.count(FormModel.id))),
+             "polls": db.scalar(select(func.count(Poll.id)))}
+    return render(request, "admin_modules.html", user, all_modules=MODULES, stats=stats)
+
+
+@app.post("/admin/modules", dependencies=[Depends(check_csrf)])
+async def admin_modules_save(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    data = await request.form()
+    for key, (label, setting, _) in MODULES.items():
+        set_setting(db, setting, "1" if data.get(key) == "1" else "0")
+    db.commit()
+    _module_cache["at"] = 0.0
+    flash(request, "Module gespeichert. Abgeschaltete Module sind sofort für alle unerreichbar; ihre Daten "
+                   "bleiben erhalten und sind nach dem Wiedereinschalten wieder da.")
+    return redirect("/admin/modules")
 
 
 # --- Admin: Benachrichtigungen ------------------------------------------------
@@ -1460,7 +1934,7 @@ DESIGN_TEXT_FIELDS = ("ui_brand_name", "ui_product", "ui_login_text", "ui_footer
 def branding_file(kind: str):
     if kind == "jitsi.json":
         return branding_jitsi()
-    path = branding.file_path(kind) if kind in ("logo", "favicon") else None
+    path = branding.file_path(kind) if kind in ("logo", "favicon", "favicon_auto") else None
     if path is None:
         raise HTTPException(404)
     media = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp",
@@ -1484,7 +1958,8 @@ def admin_design(request: Request, user: User = Depends(admin_user), db: Session
     cfg = get_settings(db)
     return render(request, "admin_design.html", user, cfg=cfg, navbars=branding.NAVBARS,
                   radii=branding.RADII, default_primary=branding.DEFAULT_PRIMARY,
-                  logo_url=branding._file(cfg, "ui_logo")[1], favicon_url=branding._file(cfg, "ui_favicon")[1])
+                  logo_url=branding._file(cfg, "ui_logo")[1], favicon_url=branding._file(cfg, "ui_favicon")[1],
+                  favicon_auto_url=branding._file(cfg, "ui_favicon_auto")[1] if cfg.get("ui_logo") else "")
 
 
 @app.post("/admin/design", dependencies=[Depends(check_csrf)])
@@ -1513,25 +1988,41 @@ async def admin_design_save(
     set_setting(db, "ui_show_name", "1" if ui_show_name == "1" else "0")
     set_setting(db, "ui_jitsi", "1" if ui_jitsi == "1" else "0")
 
-    errors = []
-    for key, upload, remove, allowed, limit in (
-        ("ui_logo", logo, remove_logo, branding.LOGO_TYPES, 1_000_000),
-        ("ui_favicon", favicon, remove_favicon, branding.FAVICON_TYPES, 256_000),
-    ):
+    errors, notes = [], []
+    for key, upload, remove, allowed in (("ui_logo", logo, remove_logo, branding.LOGO_TYPES),
+                                         ("ui_favicon", favicon, remove_favicon, branding.FAVICON_TYPES)):
+        label = "Logo" if key == "ui_logo" else "Favicon"
         if remove == "1":
             _drop_brand_file(db, key)
-        if upload is not None and upload.filename:
-            data = await upload.read(limit + 1)
-            try:
-                ext = branding.check_upload(data, upload.filename, allowed, limit)
-            except ValueError as exc:
-                errors.append(f"{'Logo' if key == 'ui_logo' else 'Favicon'}: {exc}")
-                continue
-            _drop_brand_file(db, key)
-            branding.BRAND_DIR.mkdir(parents=True, exist_ok=True)
-            name = f"{key.removeprefix('ui_')}-{secrets.token_hex(4)}.{ext}"
-            (branding.BRAND_DIR / name).write_bytes(data)
-            set_setting(db, key, name)
+            if key == "ui_logo":
+                _drop_brand_file(db, "ui_favicon_auto")
+        if upload is None or not upload.filename:
+            continue
+        data = await upload.read(branding.MAX_UPLOAD + 1)
+        try:
+            ext = branding.check_upload(data, upload.filename, allowed, branding.MAX_UPLOAD)
+            if key == "ui_logo":
+                stored, ext, shrunk = await asyncio.to_thread(branding.shrink_logo, data, ext)
+                if shrunk:
+                    notes.append(f"Das Logo wurde für die Anzeige verkleinert ({len(data) // 1024} kB → "
+                                 f"{len(stored) // 1024} kB).")
+                icon, icon_ext = await asyncio.to_thread(branding.make_favicon, stored, ext)
+            else:
+                stored, ext = await asyncio.to_thread(branding.make_favicon, data, ext, 256)
+        except ValueError as exc:
+            errors.append(f"{label}: {exc}")
+            continue
+        _drop_brand_file(db, key)
+        branding.BRAND_DIR.mkdir(parents=True, exist_ok=True)
+        name = f"{key.removeprefix('ui_')}-{secrets.token_hex(4)}.{ext}"
+        (branding.BRAND_DIR / name).write_bytes(stored)
+        set_setting(db, key, name)
+        if key == "ui_logo":
+            # Favicon aus dem Logo: gilt, solange kein eigenes Favicon hochgeladen ist
+            _drop_brand_file(db, "ui_favicon_auto")
+            auto = f"favicon_auto-{secrets.token_hex(4)}.{icon_ext}"
+            (branding.BRAND_DIR / auto).write_bytes(icon)
+            set_setting(db, "ui_favicon_auto", auto)
     db.commit()
     branding.invalidate()
     for err in errors:
@@ -1543,6 +2034,8 @@ async def admin_design_save(
               "noch nicht sichtbar. Schalten Sie oben „Eigenes Design“ ein und speichern Sie erneut.", "error")
     else:
         flash(request, "Design gespeichert und angewendet.")
+    for note in notes:
+        flash(request, note)
     return redirect("/admin/design")
 
 
@@ -1571,7 +2064,7 @@ def branding_jitsi():
 @app.post("/admin/design/reset", dependencies=[Depends(check_csrf)])
 def admin_design_reset(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
     from .db import DEFAULT_SETTINGS
-    for key in ("ui_logo", "ui_favicon"):
+    for key in ("ui_logo", "ui_favicon", "ui_favicon_auto"):
         _drop_brand_file(db, key)
     for key, value in DEFAULT_SETTINGS.items():
         if key.startswith("ui_"):
@@ -1593,3 +2086,10 @@ async def _http_error(request: Request, exc: StarletteHTTPException):
 
 
 __all__ = ["app", "STATUS_RECORDED"]
+
+
+# Weitere Bereiche (registrieren ihre Routen an derselben App)
+from . import routes_shortlinks  # noqa: E402,F401
+from . import routes_forms  # noqa: E402,F401
+from . import routes_polls  # noqa: E402,F401
+from . import routes_bookings  # noqa: E402,F401

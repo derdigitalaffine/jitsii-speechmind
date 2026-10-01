@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ poll.title if poll else 'Terminumfrage' }}{% endblock %}
+{% block content %}
+<div class="form-fill" style="max-width: 60rem">
+{% if missing %}
+  <div class="card mt-3"><div class="card-body p-5 text-center"><i class="fa-solid fa-link-slash fa-3x text-secondary mb-3"></i>
+    <h1 class="h4">Terminumfrage nicht gefunden</h1><p class="text-secondary mb-0">Der Link ist ungültig oder wurde ersetzt. Bitte wenden Sie sich an die Person, die Ihnen den Link geschickt hat.</p></div></div>
+{% else %}
+  <div class="card mb-3 border-top border-primary border-4"><div class="card-body">
+    <div class="small text-secondary mb-1"><i class="fa-solid fa-calendar-check me-1"></i>Terminumfrage{% if poll.owner %} von {{ poll.owner.name }}{% endif %}</div>
+    <h1 class="h3 mb-2">{{ poll.title }}</h1>
+    {% if poll.description %}<div class="text-secondary mb-2">{{ poll.description | richtext }}</div>{% endif %}
+    <div class="small text-secondary d-flex flex-wrap gap-3">
+      {% if poll.location %}<span><i class="fa-solid fa-location-dot me-1"></i>{{ poll.location }}</span>{% endif %}
+      <span><i class="fa-regular fa-clock me-1"></i>{{ poll.duration_minutes }} Minuten</span>
+      <span><i class="fa-solid fa-users me-1"></i>{{ answered_count }} Antwort{{ '' if answered_count == 1 else 'en' }}</span>
+      {% if poll.expires_at and is_open %}<span><i class="fa-regular fa-hourglass-half me-1"></i>bis {{ poll.expires_at | local }} Uhr</span>{% endif %}
+    </div>
+  </div></div>
+
+  {% if poll.final_option %}
+  <div class="alert alert-success d-flex align-items-center gap-3">{{ m.date_tile(parts(poll.final_option), True) }}
+    <div><div class="small">Der Termin steht fest</div><div class="h5 mb-0">{{ parts(poll.final_option).label }}</div></div></div>
+  {% elif not is_open %}
+  <div class="alert alert-secondary"><i class="fa-solid fa-lock me-1"></i>Die Abstimmung ist beendet.</div>
+  {% endif %}
+  {% if error %}<div class="alert alert-danger"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>{% endif %}
+
+  {% if others %}
+  <div class="card mb-3"><div class="card-header small fw-semibold">Bisherige Antworten</div><div class="card-body p-2">
+    {% set rows = others %}{% include "_poll_grid.html" %}
+  </div></div>
+  {% elif poll.hidden %}
+  <p class="small text-secondary"><i class="fa-solid fa-eye-slash me-1"></i>Verdeckte Umfrage: Die Antworten der anderen sind nicht sichtbar.</p>
+  {% endif %}
+
+  {% if is_open %}
+  {% set mine = participant.answers if participant else {} %}
+  <form method="post" action="{{ action }}" class="card mb-5">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="d-none" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
+    <div class="card-header fw-semibold">{{ 'Ihre Antwort ändern' if participant and participant.answered_at else 'Ihre Antwort' }}</div>
+    <div class="card-body">
+      <div class="row g-3 mb-3">
+        <div class="col-md-6"><label class="form-label" for="pn">Ihr Name</label>
+          <input class="form-control" id="pn" name="name" required maxlength="120" value="{{ participant.name if participant else (member.name if member else '') }}" autocomplete="name"></div>
+        <div class="col-md-6"><label class="form-label" for="pe">E-Mail {% if not poll.require_email %}<span class="text-secondary">(optional, für die Terminbestätigung)</span>{% endif %}</label>
+          <input class="form-control" id="pe" name="email" type="email" maxlength="255" value="{{ participant.email if participant else (member.email if member else '') }}" autocomplete="email" {% if poll.require_email and not (participant and participant.email) %}required{% endif %}></div>
+      </div>
+      {% if not poll.single_choice %}<div class="d-flex flex-wrap gap-2 mb-2 small"><span class="text-secondary">Für alle Termine:</span>
+        <button type="button" class="btn btn-sm btn-outline-success py-0" data-poll-all="yes"><i class="fa-solid fa-check me-1"></i>Ja</button>
+        {% if poll.allow_maybe %}<button type="button" class="btn btn-sm btn-outline-warning py-0" data-poll-all="maybe"><i class="fa-solid fa-question me-1"></i>Wenn nötig</button>{% endif %}
+        <button type="button" class="btn btn-sm btn-outline-danger py-0" data-poll-all="no"><i class="fa-solid fa-xmark me-1"></i>Nein</button></div>{% endif %}
+      <p class="small text-secondary mb-2">{% if poll.single_choice %}Bitte wählen Sie <strong>einen</strong> Termin.{% else %}Wählen Sie für jeden Vorschlag: <span class="text-success"><i class="fa-solid fa-check"></i> Ja</span>{% if poll.allow_maybe %}, <span class="text-warning-emphasis"><i class="fa-solid fa-question"></i> Wenn nötig</span>{% endif %} oder <span class="text-danger"><i class="fa-solid fa-xmark"></i> Nein</span>.{% endif %}</p>
+      <div class="list-group mb-3">
+      {% for o in poll.options %}{% set pp = parts(o) %}{% set v = mine.get(o.id|string, 'no') %}{% set c = counts[o.id] %}{% set is_full = o.id in full and v != 'yes' %}
+        <div class="list-group-item d-flex flex-wrap align-items-center gap-2 poll-option-row {{ 'is-full' if is_full }}">
+          {{ m.date_tile(pp) }}
+          <div class="flex-grow-1"><div class="fw-semibold">{{ pp.time }}</div>
+            <div class="small text-secondary">{% if o.note %}{{ o.note }} · {% endif %}{% if not poll.hidden %}{{ c.yes }} Ja{% if poll.allow_maybe and c.maybe %}, {{ c.maybe }} wenn nötig{% endif %}{% endif %}
+              {% if poll.max_per_option %} · {{ [poll.max_per_option - c.yes + (1 if v == 'yes' else 0), 0] | max }} von {{ poll.max_per_option }} Plätzen frei{% endif %}
+              {% if o.id in best and not poll.hidden %} <i class="fa-solid fa-star text-warning" title="Meiste Zusagen"></i>{% endif %}</div></div>
+          {% if poll.single_choice %}
+            <div class="form-check form-check-reverse mb-0"><input class="form-check-input fs-5" type="radio" name="choice" value="{{ o.id }}" id="c{{ o.id }}" {% if v == 'yes' %}checked{% endif %} {% if is_full %}disabled{% endif %} required>
+              <label class="form-check-label" for="c{{ o.id }}">{{ 'ausgebucht' if is_full else 'wählen' }}</label></div>
+          {% else %}
+            <div class="btn-group poll-answer" role="radiogroup" aria-label="{{ pp.label }}">
+              <input type="radio" class="btn-check" name="o_{{ o.id }}" id="y{{ o.id }}" value="yes" {% if v == 'yes' %}checked{% endif %} {% if is_full %}disabled{% endif %}>
+              <label class="btn btn-outline-success" for="y{{ o.id }}" title="Ja"><i class="fa-solid fa-check"></i></label>
+              {% if poll.allow_maybe %}<input type="radio" class="btn-check" name="o_{{ o.id }}" id="m{{ o.id }}" value="maybe" {% if v == 'maybe' %}checked{% endif %}>
+              <label class="btn btn-outline-warning" for="m{{ o.id }}" title="Wenn nötig"><i class="fa-solid fa-question"></i></label>{% endif %}
+              <input type="radio" class="btn-check" name="o_{{ o.id }}" id="n{{ o.id }}" value="no" {% if v == 'no' %}checked{% endif %}>
+              <label class="btn btn-outline-danger" for="n{{ o.id }}" title="Nein"><i class="fa-solid fa-xmark"></i></label>
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+      </div>
+      <label class="form-label" for="pc">Kommentar <span class="text-secondary">(optional)</span></label>
+      <textarea class="form-control mb-3" id="pc" name="comment" rows="2" maxlength="1000">{{ participant.comment if participant else '' }}</textarea>
+      <button class="btn btn-primary btn-lg" type="submit"><i class="fa-solid fa-paper-plane me-1"></i>{{ 'Änderung speichern' if participant and participant.answered_at else 'Abstimmen' }}</button>
+      {% if participant and participant.answered_at %}<div class="form-text mt-2">Sie haben am {{ participant.answered_at | local }} Uhr abgestimmt. Diese Seite ist Ihr persönlicher Link – speichern Sie ihn, um Ihre Antwort später zu ändern.</div>{% endif %}
+    </div>
+  </form>
+  {% endif %}
+{% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script>
+document.addEventListener('click', function (ev) {
+  var b = ev.target.closest('[data-poll-all]'); if (!b) { return; }
+  document.querySelectorAll('.poll-answer input[value="' + b.dataset.pollAll + '"]:not(:disabled)').forEach(function (i) { i.checked = true; });
+});
+</script>{% endblock %}

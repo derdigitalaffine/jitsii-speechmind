@@ -2,7 +2,9 @@
 {% import "_macros.html" as m with context %}
 {% block title %}Profil{% endblock %}
 {% block content %}
-{{ m.page_head('Profil', user.email ~ (' – Administrator:in' if user.is_admin else '')) }}
+{% call m.page_head('Profil', user.email ~ (' – Administrator:in' if user.is_admin else '')) %}
+  <a class="btn btn-outline-primary" href="/profile/security"><i class="fa-solid fa-shield-halved me-1"></i>Sicherheit &amp; Zwei-Faktor</a>
+{% endcall %}
 {% if user.must_change_password %}
 <div class="alert alert-warning"><i class="fa-solid fa-key me-2"></i><strong>Bitte vergeben Sie jetzt ein eigenes Passwort.</strong> Erst danach sind die anderen Seiten erreichbar.</div>
 {% endif %}

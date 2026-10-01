@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Antwort {{ number }} · {{ form.title }}{% endblock %}
+{% block content %}
+{% include "_form_head.html" %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <a class="btn btn-outline-secondary btn-sm" href="/forms/{{ form.id }}/results"><i class="fa-solid fa-arrow-left me-1"></i>Alle Antworten</a>
+  <div class="btn-group btn-group-sm">
+    <a class="btn btn-outline-secondary {{ 'disabled' if not prev_id }}" href="/forms/{{ form.id }}/responses/{{ prev_id }}" aria-label="Vorherige"><i class="fa-solid fa-chevron-left"></i></a>
+    <span class="btn btn-outline-secondary disabled">Antwort {{ number }} von {{ response_count }}</span>
+    <a class="btn btn-outline-secondary {{ 'disabled' if not next_id }}" href="/forms/{{ form.id }}/responses/{{ next_id }}" aria-label="Nächste"><i class="fa-solid fa-chevron-right"></i></a>
+  </div>
+  {% if level >= 3 %}<form method="post" action="/forms/{{ form.id }}/responses/{{ resp.id }}/delete" class="ms-auto"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="btn btn-sm btn-outline-danger" data-confirm-title="Antwort {{ number }} löschen?" data-confirm="Auch hochgeladene Dateien dieser Antwort werden gelöscht."><i class="fa-regular fa-trash-can me-1"></i>Löschen</button></form>{% endif %}
+</div>
+<div class="card"><div class="card-header small">
+  <i class="fa-regular fa-clock me-1"></i>{{ resp.created_at | local }} Uhr ·
+  <i class="fa-regular fa-user ms-1 me-1"></i>{{ resp.name or resp.email or 'anonym' }}{% if resp.name and resp.email %} &lt;{{ resp.email }}&gt;{% endif %} ·
+  {{ {'public': 'öffentlicher Link', 'invite': 'persönliche Einladung', 'user': 'angemeldet'}[resp.source] or resp.source }}
+</div>
+<dl class="list-group list-group-flush mb-0">
+  {% set a = resp.answers %}
+  {% for q in items %}{% set v = a.get(q.id) %}
+  <div class="list-group-item">
+    <dt class="small text-secondary fw-normal mb-1">{{ q.title or types[q.type][0] }}</dt>
+    <dd class="mb-0 text-break" style="white-space: pre-line">{% if q.type == 'file' and v %}{% for f in v %}<a href="/forms/{{ form.id }}/responses/{{ resp.id }}/files/{{ f.file }}"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a> <span class="small text-secondary">({{ f.size | filesize }})</span><br>{% endfor %}{% elif q.type == 'color' and v %}<span class="d-inline-block rounded border me-1 align-middle" style="width:1.2rem;height:1.2rem;background:{{ v }}"></span>{{ v }}{% else %}{{ display(q, v) or '–' }}{% endif %}</dd>
+  </div>
+  {% endfor %}
+</dl></div>
+{% endblock %}

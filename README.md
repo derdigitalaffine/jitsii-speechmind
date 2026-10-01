@@ -1,51 +1,85 @@
 # Videokonferenzserver der Verbandsgemeinde Otterbach-Otterberg
 
-Selbst gehostete Videokonferenz mit [Jitsi Meet](https://jitsi.org/), Anmeldung über ein eigenes Web-Portal und Transkription der Aufnahmen über [SpeechMind](https://www.speechmind.com/).
+**Selbst gehostetes Portal für Verwaltungen:** Videokonferenzen mit [Jitsi Meet](https://jitsi.org/), Aufnahme und Transkription über [SpeechMind](https://www.speechmind.com/), Besprechungsplanung mit Outlook-Einladungen, Terminumfragen wie Doodle, Terminbuchung wie Calendly, Kurzlinks mit QR-Codes und ein Formularserver – alles auf dem eigenen Server, ohne Daten an große Plattformen.
 
-Angemeldete Benutzer:innen eröffnen Meetings, laden Gäste per Link ein und starten in der Konferenz die Aufnahme. Nach dem Ende erzeugt das Portal eine MP3. Die **Transkription startet nie automatisch**: Im Admin-Bereich unter „Aufnahmen“ lässt sich die MP3 herunterladen oder mit „In SpeechMind bearbeiten“ an SpeechMind übergeben. Protokoll, Aufgaben und Wortlaut erscheinen danach im Portal.
-
-Name und Produktbezeichnung lassen sich über `BRAND_NAME` und `BRAND_PRODUCT` in `.env` ändern.
+Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Software (MIT-Lizenz)** ausdrücklich für alle anderen Verwaltungen gedacht: Verbandsgemeinden, Städte, Kreise, Zweckverbände. Nutzen Sie es, passen Sie es an Ihr Haus an, und teilen Sie Verbesserungen, damit alle davon profitieren. Name, Farben und Logo stellen Sie in der Oberfläche um (Design & Branding), voreingestellt über `BRAND_NAME` und `BRAND_PRODUCT` in `.env`.
 
 ```
                  ┌────────────┐
- Browser ──443──►│   Caddy    │── meet.example.com ──► Jitsi web ─┬─ prosody (JWT-Auth)
+ Browser ──443──►│   Caddy    │── meet.example.com ──► Jitsi web ─┬─ prosody (JWT + Portal-Module)
                  │ (TLS, LE)  │                                   ├─ jicofo
                  └─────┬──────┘                                   └─ jvb ◄── UDP 10000
                        │
-                       └── portal.example.com ──► Portal (Login, Meetings, Einstellungen)
-                                                     ▲          │
-                         Jibri ── Aufnahme (.mp4) ───┘          ▼
-                                                     ffmpeg → SpeechMind GraphQL API
+                       ├── portal.example.com ──► Portal: Meetings, Planung, Kurzlinks, Formulare, Verwaltung
+                       │                              ▲          │
+                       └── kurz.example.com (opt.)    │          ▼
+                                    Jibri ── Aufnahme ┘   ffmpeg → SpeechMind GraphQL API
 ```
 
 ## Funktionen
 
-- **Anmeldung:** Jitsi läuft mit JWT-Authentifizierung über das Portal. Portal-Räume betreten nur angemeldete Benutzer:innen und Gäste mit Link; wer einen Portal-Raum ohne Link aufruft, wird zur Portal-Anmeldung geschickt.
-- **Gäste** brauchen kein Konto. Sie treten über den Gastlink des Meetings oder ihren persönlichen Link aus der Einladung bei.
-- **Aufnahme** über Jibri (Server-Aufzeichnung). Recht zum Aufzeichnen haben nur angemeldete Benutzer:innen.
-- **SpeechMind-Anbindung per Web-GUI:** API-Key hinterlegen (verschlüsselt gespeichert), Verbindung testen, Projekt auswählen oder anlegen, Protokollart und Sprache festlegen.
-- **Transkription auf Knopfdruck** (nie automatisch), mit sichtbarem Verarbeitungsstand (Aufgezeichnet → Audiospur → Upload → SpeechMind → Transkript).
-- **Ergebnis im Portal:** Protokoll, Aufgaben und Wortlaut mit Zeitmarken; Download als TXT.
-- **MP3-Übersicht** im Admin-Bereich: alle Aufnahmen mit Dauer, Größe und Status, MP3-Download, Übergabe an SpeechMind.
-- **Besprechungen planen:** Termin, Dauer, Tagesordnung und Teilnehmende (Portal-Benutzer werden vorgeschlagen, externe Gäste per Adresse). Jede Person bekommt eine eigene Einladung als Outlook-Besprechungsanfrage mit ICS-Anhang und Einwahllink; Änderungen, Ausladungen und Absagen aktualisieren die Kalender automatisch. **Zu- und Absagen** (auch „Mit Vorbehalt“ und neue Zeitvorschläge) liest das Portal per IMAP aus dem Postfach und zeigt sie beim Termin an; die planende Person wird per Mail informiert.
-- **Bearbeitbare E-Mail-Vorlagen** für alle Mails (Einladungen, Passwort-Links, Besprechungen, Aufnahmen) mit Platzhaltern, Live-Vorschau und Testmail.
-- **Aufnahmen löschen** einzeln oder per Mehrfachauswahl: nur Video und MP3 (Transkript bleibt), alles außer dem Verweis auf SpeechMind (Protokoll später wieder abrufbar) oder alles.
-- **Benutzerverwaltung** für Admins mit **Einladung per E-Mail**: Die eingeladene Person legt ihr Passwort über einen Einmal-Link selbst fest. „Passwort vergessen“ nutzt denselben Weg. Optional eigene SpeechMind-Keys pro Benutzer:in.
-- **Benachrichtigungen per E-Mail** (SMTP, optional IMAP-Ablage): Einladungen, Passwort-Links und Hinweise zu neuen Aufnahmen, fertigen Transkripten und Fehlern. Nachrichten laufen über eine Warteschlange mit automatischen Wiederholungen und sichtbarem Protokoll.
-- **HTTPS mit Reverse Proxy (Caddy):** Start mit selbst signiertem Zertifikat, sofort lauffähig. **Let's Encrypt** (automatische Beantragung und Erneuerung) schaltet man bei Bedarf in der Admin-Oberfläche unter „HTTPS & Zertifikat“ ein – ohne Dateien zu bearbeiten, mit DNS-Prüfung, Testumgebung und Statusanzeige.
-- **Freie Räume und geschützte Portal-Räume:** Jede:r kann ohne Konto unter beliebigem Namen einen Raum eröffnen (abschaltbar), dort gibt es aber **keine Aufnahme**. Im Portal angelegte Räume sind **nur mit Anmeldung** oder per **Gastlink / persönlichem Einladungslink** erreichbar; aufnehmen dürfen dort nur angemeldete Benutzer:innen. Durchgesetzt von zwei kleinen Prosody-Modulen (`prosody/`).
-- **Chatprotokoll:** Der Gruppenchat während einer Aufnahme wird mit der Aufnahme gespeichert (lesbar und als TXT); Chat ohne Aufnahme wird nach 48 Stunden gelöscht.
-- **Moderne Admin-Oberfläche** (Bootstrap 5, Font Awesome 7): Seitenleiste, hell/dunkel, durchsuchbare und sortierbare Tabellen (DataTables), Mehrfach-Einladung per E-Mail-Tags (Tagify), Bestätigungsdialoge (SweetAlert2). Alle Bibliotheken liegen lokal im Repository – keine Verbindung zu Drittanbietern.
-- **Design & Branding** im Admin-Bereich: Name, Hauptfarbe, Kopfleiste, Farbschema, Rundungen, Logo, Favicon, Anmelde-Hinweis, Fußzeile, Impressum-/Datenschutz-Links, mit Live-Vorschau; Farben und Logo lassen sich ein- und ausschalten und auf Standard zurücksetzen. Auf Wunsch übernimmt auch die Konferenzoberfläche (und damit die Videoaufnahme) Logo und Farbe.
-- **Standard-Admin** beim ersten Start, der beim ersten Login ein eigenes Passwort vergeben muss.
-- **Datensparsam:** keine externen Schriften oder Skripte im Portal; Videos können nach fertigem Transkript automatisch gelöscht werden.
+### Videokonferenzen
+
+- **Portal-Räume** (im Portal angelegt) sind nur mit Anmeldung oder per **Gastlink / persönlichem Einladungslink** erreichbar. Gäste dürfen nicht aufnehmen und werden **nie automatisch Moderator**. Durchgesetzt von zwei kleinen Prosody-Modulen (`prosody/`).
+- **Freie Räume:** Jede:r kann ohne Konto unter beliebigem Namen einen Raum eröffnen (abschaltbar) – dort gibt es keine Aufnahme.
+- **Aufnahme** über Jibri. Das Portal erzeugt eine MP3 und erkennt stumme Aufnahmen.
+- **Chatprotokoll und Umfragen:** Gruppenchat und Jitsi-Umfragen (Frage, Ergebnis, Abstimmende) während einer Aufnahme werden mit der Aufnahme gespeichert; ohne Aufnahme nach 48 Stunden gelöscht.
+- **Transkription auf Knopfdruck** (nie automatisch) über SpeechMind: Protokoll mit Beschlüssen und Aufgaben, Wortlaut mit Zeitmarken, Download als TXT. Verarbeitungsstand sichtbar.
+- **Aufnahmen löschen** einzeln oder gesammelt: nur Medien, alles außer dem Verweis auf SpeechMind, oder alles.
+
+### Besprechungen planen
+
+- Termin, Dauer, Tagesordnung, Teilnehmende (Kolleg:innen werden vorgeschlagen, Gäste per Adresse).
+- Jede Person bekommt eine eigene **Outlook-Besprechungsanfrage** mit ICS und persönlichem Einwahllink. Änderungen, Ausladungen und Absagen aktualisieren die Kalender; beim Löschen eines Meetings werden Absagen vorgeschlagen.
+- **Zu- und Absagen** per Kalender (IMAP-Auswertung inkl. Outlook/Exchange-Sonderformaten, mit Postfach-Diagnose) oder per Link in jedem Mailprogramm.
+
+### Terminumfragen wie Doodle (abschaltbares Modul)
+
+- Terminvorschläge (ganztägig oder mit Uhrzeit) mit Generator „Tage × Uhrzeiten“.
+- Abstimmen mit **Ja / Wenn nötig / Nein** per öffentlichem Link (ohne Konto) oder persönlicher Einladung an Benutzer, Gruppen und Gäste; Antworten jederzeit änderbar, Erinnerungen, Frist.
+- Optionen: nur ein Termin, **Plätze je Termin** (Terminbuchung, z. B. Sprechstunden), verdeckte Umfrage, E-Mail-Pflicht.
+- Ergebnis-Raster mit besten Terminen, CSV-Export; **Termin festlegen** mit Mail und Kalenderdatei an alle oder **direkt als Besprechung mit Outlook-Einladungen**.
+
+### Terminbuchung wie Calendly (abschaltbares Modul)
+
+- Zeitbereiche im **Wochenkalender aufziehen** (oder wöchentlich wiederholt per Formular); daraus entstehen Zeitfenster aus **Dauer + Pause** mit Plätzen je Fenster.
+- Gäste buchen **selbst** freie Zeitfenster – öffentlich oder **nur mit persönlicher Einladung** (ideal für Vorstellungsgespräche; Bewerberliste einfach einfügen).
+- Bestätigung mit Kalendereintrag, **Verschieben und Absagen** durch Gast oder Anbieter, automatische **Erinnerungen**, optional **eigene Videokonferenz je Termin**.
+- **Terminliste mit Filter und Sortierung**, Export als **iCal, CSV, JSON und Markdown**, **Kalender-Abo** für Outlook & Co.
+
+### Kurzlinks und QR-Codes (abschaltbares Modul)
+
+- Wie [Shlink](https://shlink.io/), aber in der Oberfläche: eigenes oder zufälliges Kürzel, Titel, Schlagwörter, Gültigkeitszeitraum, Aufruf-Limit, Parameter-Weitergabe, Art der Weiterleitung.
+- **Statistik ohne IP-Adressen** (Aufrufe pro Tag, Browser, System, Gerät, Herkunft), Bots und Link-Prüfer getrennt, CSV-Export.
+- Optional **eigene Kurz-Domain** – das Portal trägt sie selbst in den Proxy ein.
+- **QR-Generator** für Kurzlinks und beliebige Inhalte: Vorschau, Farben, Größe, Fehlerkorrektur, Download als **SVG, PNG und JPG**.
+
+### Formulare (abschaltbares Modul)
+
+- **Baukasten** mit den Feldtypen von Nextcloud Forms: kurze Antwort (Text, E-Mail, Telefon, Zahl, eigenes Muster), langer Text, Einfach-/Mehrfachauswahl (mit „Sonstiges“), Auswahlliste, Datum, Uhrzeit, Datum+Uhrzeit, lineare Skala, Farbe, Datei-Upload.
+- **Gliederung** mit Überschriften, Zwischenüberschriften, Hinweistexten, Trennlinien und **mehrseitigen Formularen**. Ziehen und Ablegen, Duplizieren, Vorschau.
+- **Verteilen:** öffentlicher Link (mit QR-Code und Kurzlink), persönliche Einladungen an Benutzer, **Gruppen** und Gäste per Mail, Erinnerungen, Frist, anonym, Mehrfachantworten, Eingangsbestätigung.
+- **Auswerten:** Zusammenfassung mit Diagrammen, Einzelansicht, Export **CSV** (Excel) und **JSON**.
+- **Benachrichtigung** bei neuen Antworten, wahlweise mit CSV- und/oder JSON-Anhang – nur die neue Antwort oder jeweils alle.
+- **Im Portal teilen** mit Personen oder Gruppen in drei Stufen: Ergebnisse einsehen · zusätzlich einladen · zusätzlich bearbeiten und löschen.
+
+### Verwaltung und Sicherheit
+
+- **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
+- **Zwei-Faktor-Anmeldung** per **Authenticator-App (TOTP)** oder **Code per E-Mail**, mit Notfallcodes; freiwillig oder Pflicht für Admins/alle. „Passwort vergessen“ per Mail-Link.
+- **Module** Kurzlinks, Formulare, Terminumfragen und Terminbuchung komplett abschaltbar.
+- **E-Mail** über SMTP mit Warteschlange, Wiederholungen und Protokoll; optional Ablage in „Gesendet“ per IMAP. **Alle Mails als Vorlagen bearbeitbar**, mit Platzhaltern und Live-Vorschau.
+- **HTTPS** mit Caddy: Start mit selbst signiertem Zertifikat, **Let's Encrypt** per Klick in der Oberfläche.
+- **Design & Branding:** Name, Farben, Logo (auch große Dateien – der Server verkleinert), Favicon (sonst automatisch aus dem Logo), Fußzeile, Impressum/Datenschutz; auf Wunsch auch in der Konferenzoberfläche und damit in den Aufnahmen.
+- **Moderne Oberfläche** mit Bootstrap 5 und Font Awesome 7, hell/dunkel, durchsuchbare Tabellen, Diagramme – alle Bibliotheken liegen lokal, **keine Verbindung zu Drittanbietern**.
+- Seite **„Über dieses Portal“** mit allen verwendeten Komponenten und ihren Lizenzen.
 
 ## Dokumentation
 
 | Für wen | Datei |
 |---|---|
-| Wer den Server **installiert und betreibt** | diese Seite, danach [docs/ADMIN-HANDBUCH.md](docs/ADMIN-HANDBUCH.md) |
-| Wer **Konferenzen hält** (Mitarbeitende) | [docs/BENUTZERANLEITUNG.md](docs/BENUTZERANLEITUNG.md) |
+| Wer den Server **installiert und betreibt** | diese Seite, danach das [Admin-Handbuch](docs/ADMIN-HANDBUCH.md) |
+| Wer das Portal **benutzt** (Konferenzen, Kurzlinks, Formulare) | das [Benutzerhandbuch](docs/BENUTZERHANDBUCH.md) |
 
 ## Installation in 11 Schritten
 
@@ -107,17 +141,27 @@ Alle Zeilen sollten „running“ oder „Up“ zeigen. Der Proxy startet mit **
 
 **7. Eigenes Passwort vergeben.** Das Portal verlangt das sofort (alte Passwort = Startpasswort, neues mindestens 10 Zeichen). Erst danach sind die anderen Seiten erreichbar.
 
-**8. E-Mail einrichten:** Oben auf **Benachrichtigungen** klicken, SMTP-Daten eintragen, **Speichern**, dann **Testmail senden**. Kommt die Mail an, ist alles in Ordnung. Wie die Felder auszufüllen sind, steht im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#e-mail-einrichten).
+**8. E-Mail einrichten:** Links im Menü auf **Benachrichtigungen** klicken, SMTP-Daten eintragen, **Speichern**, dann **Testmail senden**. Kommt die Mail an, ist alles in Ordnung. Wie die Felder auszufüllen sind, steht im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#e-mail-einrichten).
 
-**9. SpeechMind verbinden:** Oben auf **SpeechMind**, API-Key eintragen, **Speichern**, **Verbindung testen**, ein Projekt auswählen, **Speichern**.
+**9. SpeechMind verbinden:** Links auf **SpeechMind**, API-Key eintragen, **Speichern**, **Verbindung testen**, ein Projekt auswählen, **Speichern**.
 
-**10. Kolleginnen und Kollegen einladen:** Oben auf **Benutzer**, Name und E-Mail eintragen, **Einladen**. Die Person bekommt eine Mail mit einem Link und legt ihr Passwort selbst fest.
+**10. Kolleginnen und Kollegen einladen:** Links auf **Benutzer & Gruppen**, E-Mail-Adressen eintragen, **Rechte** wählen (Videokonferenzen, Kurzlinks, Formulare, Terminumfragen, Terminbuchung, Benutzerverwaltung), **Einladen**. Die Person bekommt eine Mail mit einem Link und legt ihr Passwort selbst fest. Empfehlung: im selben Menü unter „Anmeldung & Zwei-Faktor“ die Zwei-Faktor-Anmeldung mindestens für Admins zur Pflicht machen.
 
 **11. Öffentliches Zertifikat (Let's Encrypt) einschalten:** Sind DNS-Einträge und Ports 80/443 bereit, im Portal links auf **HTTPS & Zertifikat**, **Let's Encrypt** wählen, E-Mail prüfen, **Speichern und anwenden**. Nach etwa einer Minute steht oben „vertrauenswürdig“ und die Browser-Warnung ist weg. Zum gefahrlosen Üben vorher „Testumgebung“ einschalten. Details im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#https-und-zertifikat).
 
 **Probelauf (empfohlen):** Legen Sie ein Meeting an, treten Sie bei, starten Sie über „…“ › „Aufnahme starten“, sprechen Sie ein paar Sätze, beenden Sie die Aufnahme. Nach kurzer Zeit erscheint sie unter **Aufnahmen** mit MP3.
 
-Fertig. Alles Weitere (Updates, Sicherung, Probleme) steht unten und im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md).
+Fertig. Brauchen Sie Kurzlinks oder Formulare nicht, schalten Sie sie unter **Module** ab. Alles Weitere (Updates, Sicherung, Probleme) steht unten und im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md).
+
+### Update einer bestehenden Installation
+
+```bash
+git pull
+docker compose up -d --build        # Portal neu bauen; die Datenbank wird automatisch angepasst
+docker compose restart prosody      # nur nötig, wenn sich prosody/*.lua geändert hat (trennt laufende Konferenzen kurz)
+```
+
+Vorher sichern (siehe [Daten & Sicherung](#daten--sicherung)).
 
 > **Wichtig:** Die Datei `.env` enthält alle Geheimnisse. Niemals weitergeben, nicht in Git einchecken (ist ausgeschlossen) und **`PORTAL_SECRET_KEY` nie nachträglich ändern**, sonst sind gespeicherte Passwörter und Keys unlesbar.
 
@@ -140,10 +184,11 @@ Grundlage ist die [SpeechMind API v2](https://www.speechmind.com/docs/introducti
 
 ### Wer sieht was?
 
-| | Eigene Meetings & Aufnahmen | Fremde Aufnahmen | Einstellungen & Benutzer |
-|---|---|---|---|
-| Benutzer:in | ✓ | – | eigenes Profil |
-| Admin | ✓ | ✓ | ✓ |
+| | Eigene Meetings, Aufnahmen, Kurzlinks, Formulare | Fremde Inhalte | Benutzer & Gruppen | Systemeinstellungen |
+|---|---|---|---|---|
+| Benutzer:in (je nach Recht) | ✓ | nur für sie freigegebene Formulare | – | – |
+| Recht „Benutzerverwaltung“ | ✓ | wie oben | ✓ (außer Admin-Konten) | – |
+| Admin | ✓ | ✓ | ✓ | ✓ |
 
 Räume, die direkt über die Konferenzadresse eröffnet werden (freie Räume), gehören nicht zum Portal: keine Aufnahme, kein Chatprotokoll.
 
@@ -157,7 +202,6 @@ Alle Werte stehen in `.env` (Vorlage: `.env.example`). Die wichtigsten:
 | `ACME_EMAIL` | Kontakt für Let's Encrypt |
 | `JVB_ADVERTISE_IPS` | Öffentliche IP des Servers (wichtig hinter NAT) |
 | `JITSI_IMAGE_VERSION` | Jitsi-Release, für Produktion pinnen |
-| `ENABLE_GUESTS` | `1` = Gäste per Link erlaubt |
 | `JWT_APP_SECRET` | Gemeinsames Secret von Portal und Prosody |
 | `JWT_TOKEN_TTL_MINUTES` | Gültigkeit eines Konferenz-Tokens |
 | `PORTAL_SECRET_KEY` | Sitzungen und Verschlüsselung der API-Keys. **Nicht nachträglich ändern**, sonst sind gespeicherte Keys unlesbar. |
@@ -181,12 +225,13 @@ SpeechMind- und Mail-Einstellungen (SMTP/IMAP) werden in der Web-GUI gepflegt, n
 
 Alles Persistente liegt unter `data/` (konfigurierbar über `CONFIG`):
 
-- `data/portal/portal.db` – Benutzer, Meetings, Einstellungen, Transkripte (SQLite)
+- `data/portal/portal.db` – Benutzer, Gruppen, Meetings, Einstellungen, Transkripte, Kurzlinks mit Statistik, Formulare und Antworten (SQLite)
 - `data/portal/audio/` – erzeugte MP3-Dateien
-- `data/portal/branding/` – hochgeladenes Logo und Favicon
+- `data/portal/branding/` – Logo und Favicon
+- `data/portal/forms/` – Dateien, die über Formulare hochgeladen wurden
 - `data/recordings/` – Jibri-Aufnahmen
 - `data/portal-rooms/` – Liste der Portal-Räume für Prosody (wird automatisch erzeugt)
-- `data/portal-chat/` – Chat-Rohdaten aus Portal-Räumen (nach 48 Stunden gelöscht)
+- `data/portal-chat/` – Chat- und Umfrage-Rohdaten aus Portal-Räumen (nach 48 Stunden gelöscht)
 - `data/caddy/` – Zertifikate und die vom Portal verwaltete Proxy-Konfiguration (`conf/Caddyfile`)
 - übrige Ordner – Jitsi-Konfiguration (wird beim Start neu erzeugt)
 
@@ -203,6 +248,9 @@ docker compose exec portal python -c "import sqlite3; s=sqlite3.connect('/data/p
 - Die Option „Video nach fertigem Transkript löschen“ reduziert die auf dem Server gespeicherten Daten.
 - „Teilnehmernamen als Sprecherliste übergeben“ ist standardmäßig aus.
 - Das Portal lädt keine Ressourcen von Drittanbietern.
+- Kurzlinks zählen Aufrufe **ohne IP-Adressen** und ohne Cookies.
+- Formulare: nur abfragen, was nötig ist; Antworten und Uploads liegen auf dem eigenen Server und werden mit dem Formular gelöscht. CSV/JSON-Anhänge in Benachrichtigungen enthalten personenbezogene Daten – nur an berechtigte Postfächer.
+- Zwei-Faktor-Anmeldung schützt Konten mit Zugriff auf Aufnahmen und Formulardaten; für Admins als Pflicht empfohlen.
 
 ## Fehlersuche
 
@@ -248,25 +296,41 @@ Projektstruktur:
 
 ```
 portal/app/
-├── main.py          Routen (Login, Meetings, Aufnahmen, Admin)
-├── worker.py        Aufnahmen finden, MP3 erzeugen, Upload, Statusabfrage
-├── notify.py        Benachrichtigungs-Engine (SMTP/IMAP, Warteschlange, Anhänge)
-├── mailtpl.py       Bearbeitbare E-Mail-Vorlagen
-├── planning.py      Besprechungen planen, Einladungen versenden
-├── ics.py           Kalendereinladungen (iCalendar, RFC 5545)
-├── access.py        Liste der Portal-Räume für Prosody
-├── chat.py          Chatprotokolle aus Portal-Räumen
-├── rsvp.py          Zu-/Absagen aus dem IMAP-Postfach auswerten
-├── branding.py      Design & Branding (Farben, Logo, Theme-CSS)
-├── proxy.py         Reverse Proxy: Caddyfile erzeugen, Zertifikate prüfen
-├── cli.py           Notfall-Werkzeug (Passwort setzen, Admin machen)
-├── speechmind.py    Client für die SpeechMind GraphQL API v2
-├── security.py      Passwörter, Verschlüsselung, CSRF, Jitsi-JWT
-├── db.py            Datenmodell (SQLAlchemy, SQLite)
-├── templates/       Jinja2-Vorlagen
-└── static/          app.css, app.js und vendor/ (Bootstrap, Font Awesome, DataTables, …)
+├── main.py              Routen: Login, Zwei-Faktor, Meetings, Aufnahmen, Verwaltung
+├── routes_shortlinks.py Kurzlinks, Weiterleitung, QR-Generator
+├── routes_forms.py      Formulare: Baukasten, Teilen, Auswertung, Ausfüllen
+├── shortlinks.py        Kurzlink-Logik, Statistik, QR-Codes (SVG/PNG/JPG)
+├── forms.py             Formular-Logik: Prüfung, Export CSV/JSON, Auswertung, Mails, Freigaben
+├── twofa.py             Zwei-Faktor: TOTP (RFC 6238), Mail-Code, Notfallcodes
+├── worker.py            Aufnahmen finden, MP3 erzeugen, Upload, Statusabfrage
+├── notify.py            Benachrichtigungs-Engine (SMTP/IMAP, Warteschlange, Anhänge)
+├── mailtpl.py           Bearbeitbare E-Mail-Vorlagen
+├── planning.py          Besprechungen planen, Einladungen versenden
+├── ics.py               Kalendereinladungen (iCalendar, RFC 5545)
+├── rsvp.py              Zu-/Absagen aus dem IMAP-Postfach auswerten, Postfach-Diagnose
+├── access.py            Liste der Portal-Räume für Prosody
+├── chat.py              Chatprotokolle und Umfragen aus Portal-Räumen
+├── branding.py          Design & Branding (Farben, Logo verkleinern, Favicon, Theme-CSS)
+├── proxy.py             Reverse Proxy: Caddyfile erzeugen (inkl. Kurz-Domain), Zertifikate prüfen
+├── about.py             Angaben für „Über dieses Portal“ (Komponenten und Lizenzen)
+├── user_import.py       Benutzer per CSV importieren (Vorlage, Prüfung, Übernahme)
+├── polls.py             Terminumfragen: Vorschläge, Auswertung, Einladungen, Termin festlegen
+├── routes_polls.py      Terminumfragen: Verwaltung und öffentliche Abstimmung
+├── bookings.py          Terminbuchung: Zeitfenster, Buchen/Verschieben/Absagen, Erinnerungen, Export
+├── routes_bookings.py   Terminbuchung: Kalender, Terminliste, öffentliche Buchung, Kalender-Abo
+├── cli.py               Notfall-Werkzeug (Passwort setzen, Admin machen, Zwei-Faktor zurücksetzen)
+├── speechmind.py        Client für die SpeechMind GraphQL API v2
+├── security.py          Passwörter, Verschlüsselung, CSRF, Jitsi-JWT
+├── db.py                Datenmodell (SQLAlchemy, SQLite) mit automatischer Migration
+├── templates/           Jinja2-Vorlagen
+└── static/              app.css, app.js, form-builder.js, form-fill.js, charts.js und vendor/
+prosody/                 Prosody-Module: Zugang zu Portal-Räumen, Moderation, Chat und Umfragen
 ```
+
+**Mitmachen:** Fehler melden, Verbesserungen vorschlagen oder als Pull Request einreichen – gerade Erfahrungen aus anderen Verwaltungen sind willkommen.
 
 ## Lizenz
 
-MIT, siehe [LICENSE](LICENSE). Jitsi Meet steht unter der Apache-2.0-Lizenz. SpeechMind ist ein kommerzieller Dienst der SpeechMind GmbH; dieses Projekt ist kein offizielles SpeechMind-Produkt.
+Freie Software unter der **MIT-Lizenz**, siehe [LICENSE](LICENSE): verwenden, kopieren, verändern und weitergeben – auch in Ihrer Verwaltung –, solange der Urheberrechts- und Lizenzhinweis erhalten bleibt. Ohne Gewährleistung.
+
+Verwendete Komponenten stehen unter eigenen freien Lizenzen (u. a. Jitsi Meet Apache-2.0, Prosody MIT, Caddy Apache-2.0, Bootstrap MIT, Font Awesome Free CC BY 4.0/OFL/MIT, Chart.js MIT, FullCalendar MIT); die vollständige Liste zeigt das Portal unter **Über dieses Portal**. SpeechMind ist ein kommerzieller Dienst der SpeechMind GmbH; dieses Projekt ist kein offizielles SpeechMind-Produkt.

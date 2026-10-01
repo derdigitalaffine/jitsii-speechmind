@@ -80,14 +80,27 @@ def render(cfg: dict[str, str]) -> str:
         "\t# Design der Konferenzoberfläche (dynamicBrandingUrl) und Logo kommen vom Portal\n"
         "\thandle /branding/* {\n\t\treverse_proxy portal:8000\n\t}\n"
         "\thandle {\n\t\treverse_proxy web:80\n\t}\n}\n\n"
-        f"{h['portal']} {{\n{tls}\tencode gzip\n\trequest_body {{\n\t\tmax_size 10MB\n\t}}\n"
+        f"{h['portal']} {{\n{tls}\tencode gzip\n\trequest_body {{\n\t\tmax_size 60MB\n\t}}\n"
         "\theader {\n"
         f"{hsts}"
         '\t\tX-Content-Type-Options "nosniff"\n'
         '\t\tReferrer-Policy "same-origin"\n'
         '\t\tX-Frame-Options "DENY"\n'
         "\t}\n\treverse_proxy portal:8000\n}\n"
+        f"{short_block(cfg, h, tls)}"
     )
+
+
+def short_block(cfg: dict[str, str], h: dict[str, str], tls: str) -> str:
+    """Optionale Kurz-Domain: jeder Pfad wird auf /s/... des Portals umgeschrieben."""
+    domain = (cfg.get("short_domain") or "").strip().lower()
+    if not domain:
+        return ""
+    if not DOMAIN_RE.match(domain) or domain in h.values():
+        raise ValueError(f"Ungültige Kurz-Domain: {domain!r}")
+    return (f"\n{domain} {{\n{tls}\tencode gzip\n"
+            "\t# Kurzlinks (Portal › Kurzlinks): /abc -> Portal /s/abc\n"
+            "\trewrite * /s{uri}\n\treverse_proxy portal:8000\n}\n")
 
 
 def write(cfg: dict[str, str]) -> bool:

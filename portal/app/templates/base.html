@@ -60,6 +60,8 @@
         <ul class="dropdown-menu dropdown-menu-end">
           <li><h6 class="dropdown-header">{{ user.email }}</h6></li>
           <li><a class="dropdown-item" href="/profile"><i class="fa-regular fa-user fa-fw me-2"></i>Profil</a></li>
+          <li><a class="dropdown-item" href="/profile/security"><i class="fa-solid fa-shield-halved fa-fw me-2"></i>Sicherheit</a></li>
+          <li><a class="dropdown-item" href="/about"><i class="fa-solid fa-circle-info fa-fw me-2"></i>Über dieses Portal</a></li>
           <li><hr class="dropdown-divider"></li>
           <li>
             <form method="post" action="/logout">
@@ -87,17 +89,37 @@
         </div>
         <div class="offcanvas-body d-block p-2">
           <ul class="nav flex-column gap-1">
+            {% if user.can('video') %}
+            <li class="nav-section">Videokonferenzen</li>
             {{ m.nav_item('/', 'fa-video', 'Meetings', path == '/' or (path.startswith('/meetings') and path != '/meetings/plan')) }}
             {{ m.nav_item('/meetings/plan', 'fa-calendar-plus', 'Besprechung planen', path == '/meetings/plan') }}
-            {% if user.is_admin %}
+            {% endif %}
+            {% if user.can('shortlinks') and 'shortlinks' in modules %}
+            <li class="nav-section">Kurzlinks</li>
+            {{ m.nav_item('/shortlinks', 'fa-link', 'Kurzlinks', path.startswith('/shortlinks')) }}
+            {% endif %}
+            {% if (user.can('polls') and 'polls' in modules) or (user.can('bookings') and 'bookings' in modules) %}
+            <li class="nav-section">Termine</li>
+            {% if user.can('polls') and 'polls' in modules %}{{ m.nav_item('/polls', 'fa-calendar-check', 'Terminumfragen', path.startswith('/polls')) }}{% endif %}
+            {% if user.can('bookings') and 'bookings' in modules %}{{ m.nav_item('/bookings', 'fa-calendar-plus', 'Terminbuchung', path.startswith('/bookings')) }}{% endif %}
+            {% endif %}
+            {% if 'forms' in modules %}
+            <li class="nav-section">Formulare</li>
+            {{ m.nav_item('/forms', 'fa-clipboard-list', 'Formulare' if user.can('forms') else 'Geteilte Formulare', path == '/forms' or (path.startswith('/forms/') and not path.startswith('/forms/inbox'))) }}
+            {{ m.nav_item('/forms/inbox', 'fa-inbox', 'Zum Ausfüllen', path.startswith('/forms/inbox')) }}
+            {% endif %}
+            {% if user.is_admin or user.can('users') %}
             <li class="nav-section">Verwaltung</li>
-            {{ m.nav_item('/admin/recordings', 'fa-file-audio', 'Aufnahmen', path == '/admin/recordings' or path.startswith('/recordings')) }}
-            {{ m.nav_item('/admin/users', 'fa-users', 'Benutzer', path == '/admin/users') }}
-            {{ m.nav_item('/admin/notifications', 'fa-envelope', 'Benachrichtigungen', path == '/admin/notifications') }}
+            {% if user.is_admin %}{{ m.nav_item('/admin/recordings', 'fa-file-audio', 'Aufnahmen', path == '/admin/recordings' or path.startswith('/recordings')) }}{% endif %}
+            {{ m.nav_item('/admin/users', 'fa-users', 'Benutzer &amp; Gruppen'|safe, path == '/admin/users') }}
+            {% if user.is_admin %}
+            {{ m.nav_item('/admin/modules', 'fa-puzzle-piece', 'Module', path == '/admin/modules') }}
+            {{ m.nav_item('/admin/notifications', 'fa-envelope', 'Benachrichtigungen', path.startswith('/admin/notifications')) }}
             {{ m.nav_item('/admin/templates', 'fa-envelope-open-text', 'E-Mail-Vorlagen', path == '/admin/templates') }}
             {{ m.nav_item('/admin/speechmind', 'fa-wand-magic-sparkles', 'SpeechMind', path == '/admin/speechmind') }}
             {{ m.nav_item('/admin/https', 'fa-shield-halved', 'HTTPS &amp; Zertifikat'|safe, path.startswith('/admin/https')) }}
             {{ m.nav_item('/admin/design', 'fa-palette', 'Design &amp; Branding'|safe, path == '/admin/design') }}
+            {% endif %}
             {% endif %}
           </ul>
         </div>
@@ -123,5 +145,6 @@
 <script src="/static/vendor/sweetalert2/sweetalert2.min.js"></script>
 <script src="/static/vendor/coloris/coloris.min.js"></script>
 <script src="/static/app.js"></script>
+{% block scripts %}{% endblock %}
 </body>
 </html>

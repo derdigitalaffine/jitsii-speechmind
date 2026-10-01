@@ -199,6 +199,53 @@
     });
   });
 
+  /* Text direkt aus dem Attribut kopieren (z. B. Kurzlinks in Tabellen) */
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('[data-copy-text]');
+    if (!btn) { return; }
+    ev.preventDefault();
+    var text = btn.dataset.copyText;
+    var done = function () {
+      var old = btn.innerHTML;
+      btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+      setTimeout(function () { btn.innerHTML = old; }, 1500);
+    };
+    if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(done); return; }
+    var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } finally { ta.remove(); }
+  });
+
+  /* ---- QR-Codes: Vorschau und Download --------------------------------- */
+  $('.js-qr').forEach(function (box) {
+    var img = box.querySelector('.js-qr-img');
+    var textField = box.dataset.qrText ? document.querySelector(box.dataset.qrText) : null;
+    var timer = null;
+    var url = function (fmt, download) {
+      var params = new URLSearchParams();
+      $('.js-qr-opt', box).forEach(function (el) { params.set(el.name, el.value); });
+      if (textField) { params.set('text', textField.value.trim()); }
+      if (download) { params.set('download', '1'); }
+      var base = box.dataset.qrUrl.replace('{fmt}', fmt);
+      return base + (base.indexOf('?') >= 0 ? '&' : '?') + params.toString();
+    };
+    var update = function () {
+      var empty = textField && !textField.value.trim();
+      img.style.visibility = empty ? 'hidden' : 'visible';
+      if (!empty) { img.src = url('svg', false); }
+      $('.js-qr-dl', box).forEach(function (a) {
+        a.classList.toggle('disabled', !!empty);
+        a.href = empty ? '#' : url(a.dataset.fmt, true);
+      });
+      var size = box.querySelector('[name="size"]');
+      var px = box.querySelector('.js-qr-px');
+      if (size && px) { px.textContent = size.value; }
+    };
+    var later = function () { clearTimeout(timer); timer = setTimeout(update, 250); };
+    $('.js-qr-opt', box).forEach(function (el) { el.addEventListener('input', later); el.addEventListener('change', later); });
+    if (textField) { textField.addEventListener('input', later); }
+    update();
+  });
+
   /* ---- Passwort anzeigen --------------------------------------------- */
   $('[data-toggle-password]').forEach(function (btn) {
     btn.addEventListener('click', function () {

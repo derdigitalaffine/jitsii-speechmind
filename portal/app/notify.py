@@ -130,8 +130,9 @@ def _build(cfg: dict[str, str], to_addr: str, subject: str, body: str,
             msg.add_attachment(att["content"].encode("utf-8"), maintype="application", subtype="ics",
                                filename=att["filename"])
         else:
-            msg.add_attachment(att["content"].encode("utf-8"), maintype="application",
-                               subtype="octet-stream", filename=att["filename"])
+            maintype, _, subtype = (att.get("mime") or "application/octet-stream").partition("/")
+            msg.add_attachment(att["content"].encode("utf-8"), maintype=maintype,
+                               subtype=subtype or "octet-stream", filename=att["filename"])
     return msg
 
 

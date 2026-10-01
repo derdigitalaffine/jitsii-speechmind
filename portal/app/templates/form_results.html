@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Antworten · {{ form.title }}{% endblock %}
+{% macro value_html(q, value, resp) -%}
+{%- if q.type == 'file' and value -%}
+  {%- for f in value %}<a href="/forms/{{ form.id }}/responses/{{ resp.id }}/files/{{ f.file }}" class="d-block text-truncate"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a>{% endfor -%}
+{%- elif q.type == 'color' and value -%}<span class="d-inline-block rounded border me-1 align-middle" style="width:1rem;height:1rem;background:{{ value }}"></span>{{ value }}
+{%- else -%}{{ display(q, value) }}{%- endif -%}
+{%- endmacro %}
+{% block content %}
+{% include "_form_head.html" %}
+{% if not responses %}
+<div class="text-center text-secondary py-5"><i class="fa-regular fa-hourglass fa-3x mb-3"></i>
+  <p>Noch keine Antworten. {% if not public_url and not form.invites and level >= 2 %}Unter <a href="/forms/{{ form.id }}/share">Teilen</a> erzeugen Sie einen Link oder laden Personen ein.{% endif %}</p></div>
+{% else %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a class="btn btn-outline-primary" href="/forms/{{ form.id }}/export.csv"><i class="fa-solid fa-file-csv me-1"></i>CSV (Excel)</a>
+  <a class="btn btn-outline-primary" href="/forms/{{ form.id }}/export.json"><i class="fa-solid fa-file-code me-1"></i>JSON</a>
+  {% if level >= 3 %}<form method="post" action="/forms/{{ form.id }}/responses/delete-all" class="ms-auto"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="btn btn-outline-danger" data-confirm-title="Alle {{ responses | length }} Antworten löschen?" data-confirm="Auch hochgeladene Dateien werden gelöscht. Eingeladene können danach erneut antworten."><i class="fa-regular fa-trash-can me-1"></i>Alle löschen</button></form>{% endif %}
+</div>
+
+<ul class="nav nav-pills mb-3" role="tablist">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#zusammenfassung" type="button"><i class="fa-solid fa-chart-pie me-1"></i>Zusammenfassung</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#antworten" type="button" id="antworten-tab"><i class="fa-solid fa-table me-1"></i>Einzelne Antworten</button></li>
+</ul>
+<div class="tab-content">
+  <div class="tab-pane fade show active" id="zusammenfassung"><div class="row g-3">
+    {% for s in summary %}
+    <div class="col-12 {{ 'col-xl-6' if s.chart }}"><div class="card h-100">
+      <div class="card-header d-flex justify-content-between gap-2"><span class="fw-semibold">{{ s.q.title or types[s.q.type][0] }}</span>
+        <span class="small text-secondary text-nowrap">{{ s.count }} von {{ s.total }} beantwortet</span></div>
+      <div class="card-body">
+        {% if s.chart %}
+        <div style="height: {{ [140, 34 * (s.chart['labels'] | length) + 40] | max if s.chart.horizontal else 220 }}px"><canvas data-chart='{{ s.chart | tojson }}' aria-label="Diagramm"></canvas></div>
+        {% if s.get('average') is not none %}<div class="small mt-2">Durchschnitt: <strong>{{ '%.1f' | format(s.average) | replace('.', ',') }}</strong></div>{% endif %}
+        {% if s.others %}<div class="small text-secondary mt-2">Sonstiges: {{ s.others | join(' · ') }}</div>{% endif %}
+        {% else %}
+          {% if s.get('average') is not none %}<div class="small mb-2">Durchschnitt <strong>{{ '%.2f' | format(s.average) | replace('.', ',') }}</strong>{% if s.minmax %} · kleinster Wert {{ s.minmax[0] | round(2) }} · größter Wert {{ s.minmax[1] | round(2) }}{% endif %}</div>{% endif %}
+          {% if s.latest %}<div class="small text-secondary mb-1">Neueste Antworten:</div>
+          <ul class="list-unstyled small mb-0">{% for v in s.latest %}<li class="border-start border-3 ps-2 mb-1 text-break">{{ v }}</li>{% endfor %}</ul>
+          {% else %}<span class="text-secondary small">Keine Antworten</span>{% endif %}
+        {% endif %}
+      </div>
+    </div></div>
+    {% endfor %}
+  </div></div>
+
+  <div class="tab-pane fade" id="antworten"><div class="card"><div class="card-body">
+    <table class="table table-hover align-middle js-table w-100" data-order='[[0,"desc"]]' data-page-length="25">
+      <thead><tr><th>Nr.</th><th>Eingang</th><th>Von</th>{% for q in items[:6] %}<th class="small">{{ (q.title or types[q.type][0]) | truncate(40) }}</th>{% endfor %}<th class="no-sort col-actions"></th></tr></thead>
+      <tbody>
+      {% for r in responses %}{% set a = r.answers %}
+      <tr>
+        <td data-order="{{ loop.index }}"><a href="/forms/{{ form.id }}/responses/{{ r.id }}">{{ loop.index }}</a></td>
+        <td class="small" data-order="{{ r.created_at.isoformat() }}">{{ r.created_at | local }}</td>
+        <td class="small">{{ r.name or r.email or 'anonym' }}</td>
+        {% for q in items[:6] %}<td class="small text-break">{{ value_html(q, a.get(q.id), r) | truncate(120) if q.type != 'file' else value_html(q, a.get(q.id), r) }}</td>{% endfor %}
+        <td class="col-actions"><a class="btn btn-sm btn-outline-primary" href="/forms/{{ form.id }}/responses/{{ r.id }}" title="Ansehen" aria-label="Ansehen"><i class="fa-regular fa-eye"></i></a></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% if items | length > 6 %}<div class="form-text">Die Tabelle zeigt die ersten 6 Fragen; alle Angaben stehen in der Einzelansicht und im Export.</div>{% endif %}
+  </div></div></div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/chartjs/chart.umd.min.js"></script>
+<script src="/static/charts.js"></script>
+{% endblock %}

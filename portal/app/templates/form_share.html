@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Teilen · {{ form.title }}{% endblock %}
+{% block content %}
+{% include "_form_head.html" %}
+<div class="row g-4">
+  <div class="col-12 col-xxl-5"><div class="card h-100">
+    <div class="card-header"><i class="fa-solid fa-globe me-2"></i>Öffentlicher Link</div>
+    <div class="card-body">
+      {% if public_url %}
+      <p class="small text-secondary">Jede:r mit diesem Link kann das Formular ausfüllen, ohne Anmeldung.</p>
+      <div class="input-group mb-3"><input class="form-control" id="pub" readonly value="{{ public_url }}">
+        <button class="btn btn-outline-primary" type="button" data-copy="#pub"><i class="fa-regular fa-copy"></i> Kopieren</button></div>
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        {% if user.can('shortlinks') and 'shortlinks' in modules %}<a class="btn btn-sm btn-outline-secondary" href="{{ shortlink_url }}"><i class="fa-solid fa-link me-1"></i>Kurzlink erzeugen</a>{% endif %}
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#qrbox"><i class="fa-solid fa-qrcode me-1"></i>QR-Code</button>
+        <form method="post" action="/forms/{{ form.id }}/public"><input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-sm btn-outline-secondary" name="action" value="renew" data-confirm-title="Neuen Link erzeugen?" data-confirm="Der bisherige öffentliche Link funktioniert danach nicht mehr."><i class="fa-solid fa-rotate me-1"></i>Neuer Link</button>
+          <button class="btn btn-sm btn-outline-danger" name="action" value="disable"><i class="fa-solid fa-ban me-1"></i>Abschalten</button></form>
+      </div>
+      <div class="collapse" id="qrbox">{% set qr_url = '/forms/' ~ form.id ~ '/qr.{fmt}' %}{% set qr_text_field = '' %}{% include "_qr_panel.html" %}</div>
+      {% else %}
+      <p class="small text-secondary">Aus: Nur eingeladene Personen können das Formular über ihren persönlichen Link ausfüllen.</p>
+      <form method="post" action="/forms/{{ form.id }}/public"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn btn-primary" name="action" value="enable"><i class="fa-solid fa-globe me-1"></i>Öffentlichen Link erzeugen</button></form>
+      {% endif %}
+    </div>
+  </div></div>
+
+  <div class="col-12 col-xxl-7"><div class="card h-100">
+    <div class="card-header"><i class="fa-solid fa-envelope-open-text me-2"></i>Per E-Mail einladen</div>
+    <div class="card-body">
+      {% if not mail_ready %}<div class="alert alert-warning small py-2"><i class="fa-solid fa-triangle-exclamation me-1"></i>Mailversand ist nicht eingerichtet. Eingeladene erscheinen trotzdem unten mit ihrem persönlichen Link zum Weitergeben.</div>{% endif %}
+      <form method="post" action="/forms/{{ form.id }}/invite" class="row g-3">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="col-md-6"><label class="form-label" for="iu">Benutzer:innen</label>
+          <select class="form-select js-select" id="iu" name="users" multiple data-search="1">{% for u in users %}<option value="{{ u.id }}">{{ u.name }} ({{ u.email }})</option>{% endfor %}</select></div>
+        <div class="col-md-6"><label class="form-label" for="ig">Gruppen</label>
+          <select class="form-select js-select" id="ig" name="groups" multiple data-search="1">{% for g in groups %}<option value="{{ g.id }}">{{ g.name }} ({{ g.members | length }})</option>{% endfor %}</select>
+          <div class="form-text">Alle aktuellen Mitglieder werden einzeln eingeladen.</div></div>
+        <div class="col-12"><label class="form-label" for="ie">Gäste (E-Mail-Adressen)</label>
+          <input class="js-emails" id="ie" name="emails" placeholder="Adressen eintippen oder einfügen"></div>
+        <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-paper-plane me-1"></i>Einladen</button>
+          <span class="form-text ms-2">Jede Person bekommt einen persönlichen Link. Wer schon eingeladen ist, wird übersprungen.</span></div>
+      </form>
+    </div>
+  </div></div>
+
+  {% if level >= 4 %}
+  <div class="col-12" id="freigaben"><div class="card">
+    <div class="card-header"><i class="fa-solid fa-user-group me-2"></i>Im Portal freigeben <span class="text-secondary small fw-normal">– für Kolleg:innen, die mit auswerten, einladen oder bearbeiten sollen</span></div>
+    <div class="card-body">
+      <form method="post" action="/forms/{{ form.id }}/shares" class="row g-3 align-items-end mb-3">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="col-md-4"><label class="form-label" for="su">Personen</label>
+          <select class="form-select js-select" id="su" name="users" multiple data-search="1">{% for u in users if u.id != form.owner_id %}<option value="{{ u.id }}">{{ u.name }} ({{ u.email }})</option>{% endfor %}</select></div>
+        <div class="col-md-3"><label class="form-label" for="sg">Gruppen</label>
+          <select class="form-select js-select" id="sg" name="groups" multiple data-search="1">{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><label class="form-label" for="sl">Berechtigung</label>
+          <select class="form-select" id="sl" name="level">{% for k, v in levels.items() %}<option value="{{ k }}">{{ k }} – {{ v[0] }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100" type="submit"><i class="fa-solid fa-share-nodes me-1"></i>Freigeben</button></div>
+      </form>
+      <div class="row g-2 small text-secondary mb-3">{% for k, v in levels.items() %}<div class="col-md-4"><strong class="text-body">{{ k }} – {{ v[0] }}:</strong> {{ v[1] }}</div>{% endfor %}</div>
+      {% if form.shares %}
+      <table class="table align-middle mb-0">
+        <thead><tr><th>Für</th><th>Berechtigung</th><th class="col-actions"></th></tr></thead>
+        <tbody>
+        {% for sh in form.shares %}
+        <tr>
+          <td>{% if sh.group %}<i class="fa-solid fa-people-group me-1 text-secondary"></i>Gruppe {{ sh.group.name }} <span class="small text-secondary">({{ sh.group.members | length }})</span>{% elif sh.user %}<i class="fa-regular fa-user me-1 text-secondary"></i>{{ sh.user.name }} <span class="small text-secondary">{{ sh.user.email }}</span>{% endif %}</td>
+          <td><form method="post" action="/forms/{{ form.id }}/shares/{{ sh.id }}" class="d-flex gap-2"><input type="hidden" name="csrf" value="{{ csrf }}">
+            <select class="form-select form-select-sm" name="level" style="max-width: 16rem" onchange="this.form.requestSubmit()" aria-label="Berechtigung">{% for k, v in levels.items() %}<option value="{{ k }}" {% if k == sh.level %}selected{% endif %}>{{ k }} – {{ v[0] }}</option>{% endfor %}</select></form></td>
+          <td class="col-actions"><form method="post" action="/forms/{{ form.id }}/shares/{{ sh.id }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="btn btn-sm btn-outline-danger" name="action" value="delete" title="Freigabe entfernen" aria-label="Freigabe entfernen"><i class="fa-solid fa-xmark"></i></button></form></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<p class="text-secondary small mb-0">Noch keine Freigaben – nur Sie{{ ' und Admins' }} sehen dieses Formular.</p>{% endif %}
+    </div>
+  </div></div>
+  {% endif %}
+
+  <div class="col-12" id="einladungen"><div class="card">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span><i class="fa-solid fa-user-check me-2"></i>Eingeladene ({{ form.invites | selectattr('submitted_at') | list | length }} von {{ form.invites | length }} haben geantwortet)</span>
+      {% if form.invites %}<form method="post" action="/forms/{{ form.id }}/remind"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn btn-sm btn-outline-primary" data-confirm-title="Erinnerung senden?" data-confirm="Alle, die noch nicht geantwortet haben, bekommen eine Erinnerung." data-confirm-button="Senden"><i class="fa-regular fa-bell me-1"></i>Alle Offenen erinnern</button></form>{% endif %}
+    </div>
+    <div class="card-body">
+    {% if form.invites %}
+    <table class="table table-hover align-middle js-table w-100" data-order='[[0,"asc"]]'>
+      <thead><tr><th>Person</th><th>Über</th><th>Eingeladen</th><th>Status</th><th class="no-sort col-actions">Aktionen</th></tr></thead>
+      <tbody>
+      {% for inv in form.invites %}
+      <tr>
+        <td>{{ inv.name or inv.email }}{% if inv.name %}<div class="small text-secondary">{{ inv.email }}</div>{% endif %}</td>
+        <td class="small">{{ ('Gruppe ' ~ inv.via) if inv.via else ('Konto' if inv.user_id else 'Gast') }}</td>
+        <td class="small" data-order="{{ inv.invited_at.isoformat() if inv.invited_at else '' }}">{{ inv.invited_at | local if inv.invited_at else 'nicht verschickt' }}{% if inv.reminded_at %}<div class="text-secondary">erinnert {{ inv.reminded_at | local('%d.%m.') }}</div>{% endif %}</td>
+        <td>{% if inv.submitted_at %}<span class="badge text-bg-success">geantwortet {{ inv.submitted_at | local('%d.%m. %H:%M') }}</span>{% else %}<span class="badge text-bg-warning">offen</span>{% endif %}</td>
+        <td class="col-actions"><div class="d-inline-flex gap-1">
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-copy-text="{{ invite_link(inv) }}" title="Persönlichen Link kopieren" aria-label="Link kopieren"><i class="fa-regular fa-copy"></i></button>
+          <form method="post" action="/forms/{{ form.id }}/invites/{{ inv.id }}" class="d-inline-flex gap-1"><input type="hidden" name="csrf" value="{{ csrf }}">
+            {% if not inv.submitted_at %}<button class="btn btn-sm btn-outline-secondary" name="action" value="resend" title="Erinnern" aria-label="Erinnern"><i class="fa-regular fa-bell"></i></button>{% endif %}
+            <button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm-title="Einladung entfernen?" data-confirm="Der persönliche Link von {{ inv.email }} funktioniert danach nicht mehr. Bereits abgegebene Antworten bleiben." title="Entfernen" aria-label="Entfernen"><i class="fa-regular fa-trash-can"></i></button>
+          </form></div></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="text-secondary mb-0">Noch niemand eingeladen.</p>{% endif %}
+    </div>
+  </div></div>
+</div>
+{% endblock %}

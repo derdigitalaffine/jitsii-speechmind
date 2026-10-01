@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ poll.title }} · Terminumfragen{% endblock %}
+{% block content %}
+{% call m.page_head(poll.title, poll.location) %}
+  <a class="btn btn-outline-secondary" href="/polls/{{ poll.id }}/edit"><i class="fa-solid fa-pen me-1"></i>Bearbeiten</a>
+  <div class="dropdown"><button class="btn btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Weitere Aktionen"><i class="fa-solid fa-ellipsis"></i></button>
+    <ul class="dropdown-menu dropdown-menu-end">
+      <li><a class="dropdown-item" href="/polls/{{ poll.id }}/export.csv"><i class="fa-solid fa-file-csv fa-fw me-2"></i>Export (CSV)</a></li>
+      <li><form method="post" action="/polls/{{ poll.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item"><i class="fa-regular fa-copy fa-fw me-2"></i>Kopie anlegen</button></form></li>
+      <li><form method="post" action="/polls/{{ poll.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}">
+        {% if poll.closed %}<button class="dropdown-item" name="action" value="reopen"><i class="fa-solid fa-lock-open fa-fw me-2"></i>Abstimmung wieder öffnen</button>{% else %}<button class="dropdown-item" name="action" value="close"><i class="fa-solid fa-lock fa-fw me-2"></i>Abstimmung beenden</button>{% endif %}</form></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><form method="post" action="/polls/{{ poll.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item text-danger" data-confirm-title="Terminumfrage löschen?" data-confirm="Alle Antworten werden gelöscht, die Links funktionieren nicht mehr."><i class="fa-regular fa-trash-can fa-fw me-2"></i>Löschen</button></form></li>
+    </ul></div>
+{% endcall %}
+
+<div class="d-flex flex-wrap gap-2 mb-3 small align-items-center">
+  {% if poll.final_option %}<span class="badge text-bg-success">Termin festgelegt</span>{% elif is_open %}<span class="badge text-bg-primary">Abstimmung läuft</span>{% else %}<span class="badge text-bg-secondary">Abstimmung beendet</span>{% endif %}
+  {% if poll.expires_at %}<span class="text-secondary"><i class="fa-regular fa-hourglass-half me-1"></i>bis {{ poll.expires_at | local }} Uhr</span>{% endif %}
+  {% if poll.hidden %}<span class="badge text-bg-light border"><i class="fa-solid fa-eye-slash me-1"></i>verdeckt</span>{% endif %}
+  {% if poll.single_choice %}<span class="badge text-bg-light border">nur ein Termin</span>{% endif %}
+  {% if poll.max_per_option %}<span class="badge text-bg-light border">{{ poll.max_per_option }} Plätze je Termin</span>{% endif %}
+</div>
+{% if poll.description %}<p class="text-secondary">{{ poll.description | richtext }}</p>{% endif %}
+
+{% if poll.final_option %}
+<div class="alert alert-success d-flex flex-wrap align-items-center gap-3">
+  {{ m.date_tile(parts(poll.final_option), True) }}
+  <div class="flex-grow-1"><div class="small">Festgelegter Termin</div><div class="h5 mb-0">{{ parts(poll.final_option).label }}</div></div>
+  {% if poll.meeting_id %}<a class="btn btn-success" href="/meetings/{{ poll.meeting_id }}"><i class="fa-solid fa-video me-1"></i>Zur Besprechung</a>{% endif %}
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">{{ m.stat('fa-user-check', answered | length, 'Antworten') }}</div>
+  <div class="col-6 col-lg-3">{{ m.stat('fa-hourglass-half', waiting | length, 'Eingeladene ohne Antwort') }}</div>
+  <div class="col-6 col-lg-3">{{ m.stat('fa-calendar-days', poll.options | length, 'Vorschläge') }}</div>
+  <div class="col-6 col-lg-3">{{ m.stat('fa-star', (ranking[0].yes if ranking else 0), 'Zusagen beim besten Termin') }}</div>
+</div>
+
+{% if ranking and answered %}
+<div class="card mb-4 poll-rank"><div class="card-header"><i class="fa-solid fa-ranking-star me-2"></i>Am besten passen</div>
+  <ul class="list-group list-group-flush">
+  {% for r in ranking %}{% set pp = parts(r.option) %}
+    <li class="list-group-item d-flex flex-wrap align-items-center gap-3">
+      <span class="fs-5 fw-bold text-secondary" style="width:1.5rem">{{ loop.index }}.</span>
+      {{ m.date_tile(pp, r.option.id == poll.final_option_id) }}
+      <div class="flex-grow-1" style="min-width: 12rem">
+        <div class="fw-semibold">{{ pp.time }}{% if r.option.note %} <span class="small text-secondary fw-normal">· {{ r.option.note }}</span>{% endif %}</div>
+        <div class="progress mt-1" role="progressbar" aria-label="Zusagen">
+          <div class="progress-bar bg-success" style="width: {{ r.yes_pct }}%"></div><div class="progress-bar bg-warning" style="width: {{ r.maybe_pct }}%"></div></div>
+        <div class="small text-secondary mt-1">{{ r.yes }} Ja{% if poll.allow_maybe %} · {{ r.maybe }} wenn nötig{% endif %} · {{ r.no }} Nein{% if r.missing %} · {{ r.missing }} ohne Angabe{% endif %}</div>
+      </div>
+      {% if not poll.final_option %}<form method="post" action="/polls/{{ poll.id }}/final"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="option_id" value="{{ r.option.id }}"><input type="hidden" name="notify" value="1">
+        <button class="btn btn-sm btn-outline-success" type="button" data-bs-toggle="modal" data-bs-target="#final-modal" data-final-option="{{ r.option.id }}"><i class="fa-regular fa-calendar-check me-1"></i>Festlegen</button></form>{% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="card mb-4"><div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+  <span><i class="fa-solid fa-table-cells me-2"></i>Ergebnis ({{ answered | length }} Antwort{{ '' if answered | length == 1 else 'en' }})</span>
+  {% if poll.options %}<button class="btn btn-sm btn-success" type="button" data-bs-toggle="modal" data-bs-target="#final-modal"><i class="fa-regular fa-calendar-check me-1"></i>{{ 'Termin ändern' if poll.final_option else 'Termin festlegen' }}</button>{% endif %}
+</div><div class="card-body">
+  {% set rows = answered %}{% include "_poll_grid.html" %}
+  {% if not answered %}<p class="text-secondary small mt-3 mb-0">Noch keine Antworten. Teilen Sie den Link oder laden Sie Personen ein.</p>{% endif %}
+  {% set comments = answered | selectattr('comment') | list %}
+  {% if comments %}<div class="mt-3"><div class="small fw-semibold mb-1">Kommentare</div>{% for p in comments %}<div class="small border-start border-3 ps-2 mb-1"><strong>{{ p.name }}:</strong> {{ p.comment }}</div>{% endfor %}</div>{% endif %}
+</div></div>
+
+<div class="row g-4">
+  <div class="col-12 col-xxl-6" id="teilen"><div class="card h-100"><div class="card-header"><i class="fa-solid fa-share-nodes me-2"></i>Link zur Abstimmung</div><div class="card-body">
+    {% if public_url %}
+    <p class="small text-secondary">Wer diesen Link hat, kann mit Namen abstimmen – ohne Konto. Danach bekommt jede Person einen Link, um ihre Antwort zu ändern.</p>
+    <div class="input-group mb-3"><input class="form-control" id="pub" readonly value="{{ public_url }}"><button class="btn btn-outline-primary" type="button" data-copy="#pub"><i class="fa-regular fa-copy"></i> Kopieren</button></div>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      {% if user.can('shortlinks') and 'shortlinks' in modules %}<a class="btn btn-sm btn-outline-secondary" href="{{ shortlink_url }}"><i class="fa-solid fa-link me-1"></i>Kurzlink</a>{% endif %}
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#qrbox"><i class="fa-solid fa-qrcode me-1"></i>QR-Code</button>
+      <a class="btn btn-sm btn-outline-secondary" href="{{ public_url }}" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Öffnen</a>
+      <form method="post" action="/polls/{{ poll.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn btn-sm btn-outline-secondary" name="action" value="renew" data-confirm-title="Neuen Link erzeugen?" data-confirm="Der bisherige Link funktioniert danach nicht mehr. Persönliche Links bleiben gültig."><i class="fa-solid fa-rotate me-1"></i>Neuer Link</button>
+        <button class="btn btn-sm btn-outline-danger" name="action" value="disable_link"><i class="fa-solid fa-ban me-1"></i>Abschalten</button></form>
+    </div>
+    <div class="collapse" id="qrbox">{% set qr_url = '/polls/' ~ poll.id ~ '/qr.{fmt}' %}{% set qr_text_field = '' %}{% include "_qr_panel.html" %}</div>
+    {% else %}
+    <p class="small text-secondary">Der öffentliche Link ist abgeschaltet – nur Eingeladene können über ihren persönlichen Link abstimmen.</p>
+    <form method="post" action="/polls/{{ poll.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-primary" name="action" value="enable_link"><i class="fa-solid fa-globe me-1"></i>Link erzeugen</button></form>
+    {% endif %}
+  </div></div></div>
+
+  <div class="col-12 col-xxl-6"><div class="card h-100"><div class="card-header"><i class="fa-solid fa-envelope-open-text me-2"></i>Per E-Mail einladen</div><div class="card-body">
+    <form method="post" action="/polls/{{ poll.id }}/invite" class="row g-3">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="col-md-6"><label class="form-label" for="iu">Benutzer:innen</label>
+        <select class="form-select js-select" id="iu" name="users" multiple data-search="1">{% for u in users %}<option value="{{ u.id }}">{{ u.name }} ({{ u.email }})</option>{% endfor %}</select></div>
+      <div class="col-md-6"><label class="form-label" for="ig">Gruppen</label>
+        <select class="form-select js-select" id="ig" name="groups" multiple data-search="1">{% for g in groups %}<option value="{{ g.id }}">{{ g.name }} ({{ g.members | length }})</option>{% endfor %}</select></div>
+      <div class="col-12"><label class="form-label" for="ie">Gäste (E-Mail-Adressen)</label><input class="js-emails" id="ie" name="emails" placeholder="Adressen eintippen oder einfügen"></div>
+      <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-paper-plane me-1"></i>Einladen</button>
+        <span class="form-text ms-2">Jede Person bekommt einen persönlichen Link; Sie sehen, wer noch nicht abgestimmt hat.</span></div>
+    </form>
+  </div></div></div>
+
+  <div class="col-12" id="teilnehmende"><div class="card"><div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span><i class="fa-solid fa-user-check me-2"></i>Teilnehmende ({{ answered | length }} geantwortet{% if waiting %}, {{ waiting | length }} offen{% endif %})</span>
+    {% if waiting %}<form method="post" action="/polls/{{ poll.id }}/remind"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-primary" data-confirm-title="Erinnerung senden?" data-confirm="Alle Eingeladenen ohne Antwort bekommen eine Erinnerung." data-confirm-button="Senden"><i class="fa-regular fa-bell me-1"></i>Offene erinnern</button></form>{% endif %}
+  </div><div class="card-body">
+  {% if poll.participants %}
+  <table class="table table-hover align-middle js-table w-100" data-order='[[0,"asc"]]'>
+    <thead><tr><th>Name</th><th>E-Mail</th><th>Status</th><th class="no-sort col-actions"></th></tr></thead>
+    <tbody>{% for p in poll.participants %}
+      <tr><td>{{ p.name }}</td><td class="small">{{ p.email }}</td>
+        <td>{% if p.answered_at %}<span class="badge text-bg-success">geantwortet {{ p.answered_at | local('%d.%m. %H:%M') }}</span>{% else %}<span class="badge text-bg-warning">offen</span>{% if p.reminded_at %} <span class="small text-secondary">erinnert {{ p.reminded_at | local('%d.%m.') }}</span>{% endif %}{% endif %}</td>
+        <td class="col-actions"><div class="d-inline-flex gap-1">
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-copy-text="{{ personal_link(p) }}" title="Persönlichen Link kopieren" aria-label="Link kopieren"><i class="fa-regular fa-copy"></i></button>
+          <form method="post" action="/polls/{{ poll.id }}/participants/{{ p.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" data-confirm-title="{{ p.name }} entfernen?" data-confirm="Die Antworten dieser Person werden gelöscht." title="Entfernen" aria-label="Entfernen"><i class="fa-regular fa-trash-can"></i></button></form>
+        </div></td></tr>
+    {% endfor %}</tbody>
+  </table>
+  {% else %}<p class="text-secondary mb-0">Noch niemand dabei.</p>{% endif %}
+  </div></div></div>
+</div>
+
+<div class="modal fade" id="final-modal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content">
+  <form method="post" action="/polls/{{ poll.id }}/final">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="modal-header"><h2 class="modal-title h5">Termin festlegen</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+    <div class="modal-body">
+      <p class="small text-secondary">Die Abstimmung wird damit beendet. Mit Stern: die Vorschläge mit den meisten Zusagen.</p>
+      <div class="list-group mb-3">
+      {% set first_best = (poll.options | selectattr('id', 'in', best) | first) %}
+      {% for o in poll.options %}{% set c = counts[o.id] %}
+        <label class="list-group-item d-flex align-items-center gap-2">
+          <input class="form-check-input" type="radio" name="option_id" value="{{ o.id }}" required {% if (poll.final_option_id == o.id) or (not poll.final_option_id and first_best and first_best.id == o.id) %}checked{% endif %}>
+          <span class="flex-grow-1">{{ parts(o).label }}{% if o.note %} <span class="text-secondary small">({{ o.note }})</span>{% endif %}</span>
+          {% if o.id in best %}<i class="fa-solid fa-star text-warning"></i>{% endif %}
+          <span class="badge text-bg-success">{{ c.yes }} Ja</span>{% if poll.allow_maybe %}<span class="badge text-bg-warning">{{ c.maybe }} ?</span>{% endif %}
+        </label>
+      {% endfor %}
+      </div>
+      <div class="border rounded p-3">
+        <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="fm-mail" value="mail" checked onclick="document.getElementById('fm-n').value='1';document.getElementById('fm-c').value=''">
+          <label class="form-check-label" for="fm-mail"><strong>Teilnehmende per Mail informieren</strong><div class="form-text mt-0">Alle mit E-Mail-Adresse bekommen den Termin mit Kalenderdatei (.ics).</div></label></div>
+        {% if user.can('video') %}
+        <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="fm-meet" value="meeting" onclick="document.getElementById('fm-n').value='';document.getElementById('fm-c').value='1'">
+          <label class="form-check-label" for="fm-meet"><strong>Besprechung anlegen und einladen</strong><div class="form-text mt-0">Legt einen Konferenzraum mit diesem Termin an und schickt allen Teilnehmenden mit E-Mail-Adresse eine Outlook-Besprechungsanfrage mit persönlichem Einwahllink.</div></label>
+          <div class="form-check ms-4 mt-1"><input class="form-check-input" type="checkbox" name="only_yes" value="1" id="fm-y" checked><label class="form-check-label small" for="fm-y">nur Personen, die für diesen Termin „Ja“ oder „Wenn nötig“ gewählt haben</label></div></div>
+        {% endif %}
+        <div class="form-check"><input class="form-check-input" type="radio" name="mode" id="fm-none" value="none" onclick="document.getElementById('fm-n').value='';document.getElementById('fm-c').value=''">
+          <label class="form-check-label" for="fm-none">Nur festlegen, niemanden benachrichtigen</label></div>
+        <input type="hidden" name="notify" id="fm-n" value="1"><input type="hidden" name="create_meeting" id="fm-c" value="">
+      </div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+      <button type="submit" class="btn btn-success"><i class="fa-regular fa-calendar-check me-1"></i>Festlegen</button></div>
+  </form>
+</div></div></div>
+{% endblock %}
+{% block scripts %}<script>
+document.addEventListener('click', function (ev) {
+  var b = ev.target.closest('[data-final-option]'); if (!b) { return; }
+  var r = document.querySelector('#final-modal input[name="option_id"][value="' + b.dataset.finalOption + '"]'); if (r) { r.checked = true; }
+});
+</script>{% endblock %}

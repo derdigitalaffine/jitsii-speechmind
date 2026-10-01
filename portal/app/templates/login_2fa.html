@@ -1,0 +1,32 @@
+{% extends "auth.html" %}
+{% block title %}Bestätigung{% endblock %}
+{% block auth %}
+{% set active = request.query_params.get('m') or methods[0] %}
+<div class="card shadow-sm"><div class="card-body p-4">
+  <h1 class="h5 mb-1"><i class="fa-solid fa-shield-halved me-2 text-primary"></i>Anmeldung bestätigen</h1>
+  <p class="small text-secondary">Ihr Konto ist mit einem zweiten Faktor geschützt.</p>
+  {% if methods | length > 1 or has_recovery %}
+  <ul class="nav nav-pills nav-fill small mb-3">
+    {% if 'totp' in methods %}<li class="nav-item"><a class="nav-link {{ 'active' if active == 'totp' }}" href="?m=totp"><i class="fa-solid fa-mobile-screen me-1"></i>App</a></li>{% endif %}
+    {% if 'email' in methods %}<li class="nav-item"><a class="nav-link {{ 'active' if active == 'email' }}" href="?m=email"><i class="fa-regular fa-envelope me-1"></i>E-Mail</a></li>{% endif %}
+    {% if has_recovery %}<li class="nav-item"><a class="nav-link {{ 'active' if active == 'recovery' }}" href="?m=recovery"><i class="fa-solid fa-life-ring me-1"></i>Notfallcode</a></li>{% endif %}
+  </ul>
+  {% endif %}
+  {% if active == 'email' and not sent %}
+    <p class="small">Wir schicken einen sechsstelligen Code an <strong>{{ email_hint }}</strong>.</p>
+    <form method="post" action="/login/2fa/send"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn btn-primary w-100" type="submit"><i class="fa-regular fa-paper-plane me-1"></i>Code per E-Mail senden</button></form>
+  {% else %}
+  <form method="post" action="/login/2fa">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="method" value="{{ active }}">
+    <label class="form-label" for="code">{% if active == 'totp' %}Code aus der Authenticator-App{% elif active == 'email' %}Code aus der E-Mail an {{ email_hint }}{% else %}Einer Ihrer Wiederherstellungscodes{% endif %}</label>
+    <input class="form-control form-control-lg text-center font-monospace mb-3" id="code" name="code" required autofocus
+      {% if active == 'recovery' %}placeholder="xxxx-xxxx-xxxx" autocomplete="off"{% else %}inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123456"{% endif %}>
+    <button class="btn btn-primary w-100" type="submit">Bestätigen</button>
+  </form>
+  {% if active == 'email' %}<form method="post" action="/login/2fa/send" class="text-center mt-2"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-link btn-sm" type="submit">Neuen Code senden</button></form>{% endif %}
+  {% endif %}
+  <div class="text-center mt-3 small"><a href="/login">Abbrechen</a></div>
+</div></div>
+<p class="text-center small text-secondary mt-3">Kein Zugriff mehr auf App und Notfallcodes? Die Verwaltung des Portals kann die Zwei-Faktor-Anmeldung zurücksetzen.</p>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% call m.page_head(form.title, '') %}
+  <a class="btn btn-outline-secondary" href="/forms/{{ form.id }}/preview" target="_blank"><i class="fa-regular fa-eye me-1"></i>Vorschau</a>
+  {% if public_url and is_open %}<a class="btn btn-outline-secondary" href="{{ public_url }}" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Öffnen</a>{% endif %}
+  <div class="dropdown">
+    <button class="btn btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Weitere Aktionen"><i class="fa-solid fa-ellipsis"></i></button>
+    <ul class="dropdown-menu dropdown-menu-end">
+      {% if user.can('forms') %}<li><form method="post" action="/forms/{{ form.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item" type="submit"><i class="fa-regular fa-copy fa-fw me-2"></i>Kopie anlegen</button></form></li>{% endif %}
+      {% if level >= 3 %}<li><hr class="dropdown-divider"></li>
+      <li><form method="post" action="/forms/{{ form.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item text-danger" type="submit" data-confirm-title="Formular löschen?" data-confirm="Das Formular wird mit allen {{ response_count }} Antworten und hochgeladenen Dateien gelöscht. Links funktionieren danach nicht mehr."><i class="fa-regular fa-trash-can fa-fw me-2"></i>Löschen</button></form></li>{% endif %}
+    </ul>
+  </div>
+{% endcall %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3 small">
+  {% if is_open %}<span class="badge text-bg-success">nimmt Antworten an</span>{% else %}<span class="badge text-bg-secondary">geschlossen</span>{% endif %}
+  {% if form.expires_at %}<span class="text-secondary"><i class="fa-regular fa-hourglass-half me-1"></i>bis {{ form.expires_at | local }} Uhr</span>{% endif %}
+  {% if form.anonymous %}<span class="badge text-bg-light border"><i class="fa-solid fa-user-secret me-1"></i>anonym</span>{% endif %}
+  {% if public_url %}<span class="badge text-bg-light border"><i class="fa-solid fa-globe me-1"></i>öffentlicher Link</span>{% endif %}
+  {% if level < 4 %}<span class="badge text-bg-info"><i class="fa-solid fa-share-nodes me-1"></i>für Sie freigegeben: {{ levels[level][0] }}{% if form.owner %} (von {{ form.owner.name }}){% endif %}</span>{% elif form.shares %}<span class="badge text-bg-light border"><i class="fa-solid fa-user-group me-1"></i>{{ form.shares | length }} Freigabe(n)</span>{% endif %}
+</div>
+<ul class="nav nav-tabs mb-4">
+  {% for key, href, icon, label, need in (('build', '', 'fa-pen-ruler', 'Fragen', 3), ('settings', '/settings', 'fa-sliders', 'Einstellungen', 3), ('share', '/share', 'fa-share-nodes', 'Teilen', 2), ('results', '/results', 'fa-chart-pie', 'Antworten', 1)) if level >= need %}
+  <li class="nav-item"><a class="nav-link {{ 'active' if tab == key }}" href="/forms/{{ form.id }}{{ href }}"><i class="fa-solid {{ icon }} me-1"></i>{{ label }}{% if key == 'results' %} <span class="badge rounded-pill text-bg-primary">{{ response_count }}</span>{% endif %}</a></li>
+  {% endfor %}
+</ul>

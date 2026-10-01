@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Terminumfragen{% endblock %}
+{% block content %}
+{% call m.page_head('Terminumfragen', 'Einen gemeinsamen Termin finden wie mit Doodle: Termine vorschlagen, Link verschicken oder Personen einladen, alle stimmen mit Ja, Wenn nötig oder Nein ab. Danach legen Sie den Termin fest – auf Wunsch direkt als Besprechung mit Einladungen.') %}
+  <a class="btn btn-primary" href="/polls/new"><i class="fa-solid fa-plus me-1"></i>Neue Terminumfrage</a>
+  {% if user.is_admin %}<a class="btn btn-outline-secondary" href="?{{ '' if show_all else 'all=1' }}">{{ 'Nur meine' if show_all else 'Alle anzeigen' }}</a>{% endif %}
+{% endcall %}
+{% if polls %}
+<div class="row g-3">
+  {% for p in polls %}{% set n = counts.get(p.id, 0) %}
+  <div class="col-12 col-md-6 col-xxl-4"><div class="card h-100"><div class="card-body d-flex flex-column">
+    <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+      <a class="h6 mb-0 text-decoration-none" href="/polls/{{ p.id }}">{{ p.title }}</a>
+      {% if p.final_option %}<span class="badge text-bg-success">festgelegt</span>{% elif is_open(p) %}<span class="badge text-bg-primary">läuft</span>{% else %}<span class="badge text-bg-secondary">beendet</span>{% endif %}
+    </div>
+    <div class="d-flex gap-1 my-2 overflow-hidden">{% if p.final_option %}{{ m.date_tile(parts(p.final_option), True) }}{% else %}{% for o in p.options[:5] %}{{ m.date_tile(parts(o)) }}{% endfor %}{% if p.options | length > 5 %}<span class="align-self-center small text-secondary ms-1">+{{ p.options | length - 5 }}</span>{% endif %}{% endif %}</div>
+    <div class="small text-secondary mb-3">
+      {% if p.final_option %}<i class="fa-regular fa-calendar-check me-1"></i>{{ parts(p.final_option).label }}{% else %}{{ p.options | length }} Vorschläge{% if p.options %} · {{ parts(p.options[0]).date }} – {{ parts(p.options[-1]).date }}{% endif %}{% endif %}
+      {% if p.location %}<br><i class="fa-solid fa-location-dot me-1"></i>{{ p.location }}{% endif %}
+      {% if show_all and p.owner %}<br>{{ p.owner.name }}{% endif %}
+    </div>
+    <div class="mt-auto d-flex flex-wrap gap-2">
+      <a class="btn btn-sm btn-primary" href="/polls/{{ p.id }}"><i class="fa-solid fa-table-cells me-1"></i>{{ n }} Antwort{{ '' if n == 1 else 'en' }}</a>
+      <a class="btn btn-sm btn-outline-secondary" href="/polls/{{ p.id }}/edit"><i class="fa-solid fa-pen me-1"></i>Bearbeiten</a>
+    </div>
+  </div></div></div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-secondary py-5"><i class="fa-solid fa-calendar-check fa-3x mb-3"></i><p>Noch keine Terminumfragen.</p>
+  <a class="btn btn-primary" href="/polls/new"><i class="fa-solid fa-plus me-1"></i>Erste Terminumfrage anlegen</a></div>
+{% endif %}
+{% endblock %}

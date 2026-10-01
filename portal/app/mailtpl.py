@@ -40,6 +40,49 @@ _RECORDING_VARS = {
     "fehler": "Fehlermeldung (nur bei Fehlern)",
 }
 
+_FORM_VARS = {
+    "name": "Name der eingeladenen Person",
+    "titel": "Titel des Formulars",
+    "beschreibung": "Beschreibung des Formulars",
+    "link": "Persönlicher Link zum Ausfüllen",
+    "absender": "Name der Person, die einlädt",
+    "frist": "Hinweis auf die Frist (leer, wenn keine gesetzt ist)",
+}
+
+_POLL_VARS = {
+    "name": "Name der eingeladenen Person",
+    "titel": "Titel der Umfrage",
+    "beschreibung": "Beschreibung",
+    "ort": "Ort bzw. Hinweis zum Ort",
+    "link": "Persönlicher Link zur Abstimmung",
+    "absender": "Name der planenden Person",
+    "frist": "Hinweis auf die Frist (leer, wenn keine gesetzt ist)",
+    "vorschlaege": "Anzahl der Terminvorschläge",
+}
+
+_BOOKING_VARS = {
+    "name": "Name des Gastes",
+    "titel": "Titel der Buchungsseite",
+    "termin": "Termin, z. B. Dienstag, 13.10.2026, 09:00–09:30 Uhr",
+    "ort": "Ort (leer bei Videokonferenz)",
+    "videolink": "Persönlicher Einwahllink (nur bei Videokonferenz)",
+    "verwalten": "Link zum Verschieben oder Absagen",
+    "absagefrist": "Bis wann vorher abgesagt werden kann",
+    "hinweis": "Zusatztext der Buchungsseite",
+    "anbieter": "Name der anbietenden Person",
+}
+
+_BOOKING_INVITE_VARS = {
+    "name": "Name der eingeladenen Person",
+    "titel": "Titel der Buchungsseite",
+    "beschreibung": "Beschreibung",
+    "link": "Persönlicher Link zur Terminauswahl",
+    "absender": "Name der einladenden Person",
+    "zeitraum": "Zeitraum der freien Termine",
+    "dauer": "Dauer eines Termins",
+    "ort": "Ort bzw. Hinweis auf Videokonferenz",
+}
+
 TEMPLATES: dict[str, dict] = {
     "account_invite": {
         "group": "Konten", "label": "Einladung zum Konto",
@@ -62,6 +105,15 @@ TEMPLATES: dict[str, dict] = {
                  "vergeben Sie ein neues Passwort:\n\n{link}\n\n"
                  "Der Link ist {gueltig_stunden} Stunden gültig. Haben Sie das nicht angefordert, "
                  "können Sie diese Nachricht ignorieren.\n\n{fusszeile}"),
+    },
+    "login_code": {
+        "group": "Konten", "label": "Anmeldecode (Zwei-Faktor per E-Mail)",
+        "vars": {"name": "Name der Person", "code": "Sechsstelliger Einmalcode", "minuten": "Gültigkeit in Minuten"},
+        "subject": "Ihr Anmeldecode: {code}",
+        "body": ("Guten Tag {name},\n\n"
+                 "Ihr Code für die Anmeldung im {produkt} lautet:\n\n    {code}\n\n"
+                 "Er ist {minuten} Minuten gültig und kann nur einmal verwendet werden. Haben Sie sich nicht gerade "
+                 "angemeldet, ändern Sie bitte Ihr Passwort – jemand kennt es.\n\n{fusszeile}"),
     },
     "meeting_invite": {
         "group": "Besprechungen", "label": "Einladung zur Besprechung",
@@ -140,6 +192,137 @@ TEMPLATES: dict[str, dict] = {
         "subject": "Aufnahme ohne Ton: {aufnahme}",
         "body": "Die Aufnahme „{aufnahme}“ enthält keinen hörbaren Ton.\n\n{fehler}\n\nDetails:\n{link}\n\n{fusszeile}",
     },
+    "form_invite": {
+        "group": "Formulare", "label": "Einladung zum Ausfüllen",
+        "vars": _FORM_VARS,
+        "subject": "Bitte ausfüllen: {titel}",
+        "body": ("Guten Tag {name},\n\n"
+                 "{absender} bittet Sie, das Formular „{titel}“ auszufüllen.\n\n"
+                 "{beschreibung}\n\n"
+                 "Zum Formular (persönlicher Link):\n{link}\n\n"
+                 "{frist}\n\n{fusszeile}"),
+    },
+    "form_reminder": {
+        "group": "Formulare", "label": "Erinnerung zum Ausfüllen",
+        "vars": _FORM_VARS,
+        "subject": "Erinnerung: {titel}",
+        "body": ("Guten Tag {name},\n\n"
+                 "das Formular „{titel}“ ist noch nicht ausgefüllt. Hier geht es direkt dazu:\n{link}\n\n"
+                 "{frist}\n\n{fusszeile}"),
+    },
+    "form_response": {
+        "group": "Formulare", "label": "Neue Antwort (an die Verantwortlichen)",
+        "vars": {"titel": "Titel des Formulars", "nummer": "Laufende Nummer der Antwort",
+                 "zeitpunkt": "Eingang der Antwort", "von": "Wer geantwortet hat (oder „anonym“)",
+                 "antworten": "Die Antworten als Text (abschaltbar in den Formular-Einstellungen)",
+                 "anzahl": "Anzahl aller Antworten", "link": "Link zur Antwort im Portal"},
+        "subject": "Neue Antwort Nr. {nummer}: {titel}",
+        "body": ("Zum Formular „{titel}“ ist eine neue Antwort eingegangen ({zeitpunkt}, von {von}).\n\n"
+                 "{antworten}\n\n"
+                 "Antworten insgesamt: {anzahl}\nIm Portal ansehen: {link}\n\n{fusszeile}"),
+    },
+    "form_confirmation": {
+        "group": "Formulare", "label": "Eingangsbestätigung (an die ausfüllende Person)",
+        "vars": {"name": "Name der Person", "titel": "Titel des Formulars", "zeitpunkt": "Eingang der Antwort",
+                 "antworten": "Kopie der Antworten als Text"},
+        "subject": "Eingangsbestätigung: {titel}",
+        "body": ("Guten Tag {name},\n\n"
+                 "vielen Dank, Ihre Angaben zum Formular „{titel}“ sind am {zeitpunkt} eingegangen. "
+                 "Zur Kontrolle eine Kopie:\n\n{antworten}\n\n{fusszeile}"),
+    },
+    "poll_invite": {
+        "group": "Terminumfragen", "label": "Einladung zur Terminumfrage",
+        "vars": _POLL_VARS,
+        "subject": "Terminumfrage: {titel}",
+        "body": ("Guten Tag {name},\n\n"
+                 "{absender} sucht einen Termin für „{titel}“ und bittet Sie, anzugeben, wann Sie können "
+                 "({vorschlaege} Vorschläge).\n\n{beschreibung}\n\n"
+                 "Zur Abstimmung (persönlicher Link, Ihre Antwort lässt sich später ändern):\n{link}\n\n"
+                 "{frist}\n\n{fusszeile}"),
+    },
+    "poll_reminder": {
+        "group": "Terminumfragen", "label": "Erinnerung zur Terminumfrage",
+        "vars": _POLL_VARS,
+        "subject": "Erinnerung: Terminumfrage {titel}",
+        "body": ("Guten Tag {name},\n\n"
+                 "für die Terminumfrage „{titel}“ fehlt noch Ihre Antwort. Hier geht es direkt dazu:\n{link}\n\n"
+                 "{frist}\n\n{fusszeile}"),
+    },
+    "poll_vote": {
+        "group": "Terminumfragen", "label": "Neue Antwort (an die planende Person)",
+        "vars": {"name": "Name der planenden Person", "titel": "Titel der Umfrage",
+                 "teilnehmer": "Name und Adresse der antwortenden Person", "aktion": "„hat abgestimmt“ oder „hat die Antwort geändert“",
+                 "antworten": "Antworten je Termin", "kommentar": "Kommentar der Person",
+                 "stand": "Termine mit den meisten Zusagen", "anzahl": "Anzahl Antworten",
+                 "link": "Link zur Umfrage im Portal"},
+        "subject": "{teilnehmer} {aktion}: {titel}",
+        "body": ("Guten Tag {name},\n\n{teilnehmer} {aktion} („{titel}“):\n\n{antworten}\n\n{kommentar}\n\n"
+                 "Bisher {anzahl} Antwort(en). Am besten passt: {stand}\n\nÜbersicht: {link}\n\n{fusszeile}"),
+    },
+    "poll_final": {
+        "group": "Terminumfragen", "label": "Termin steht fest (an die Teilnehmenden)",
+        "vars": {**_POLL_VARS, "termin": "Der festgelegte Termin"},
+        "subject": "Termin steht fest: {titel} – {termin}",
+        "body": ("Guten Tag {name},\n\n"
+                 "vielen Dank fürs Abstimmen. Für „{titel}“ steht der Termin fest:\n\n    {termin}\n\n"
+                 "{ort}\n\nDen Termin können Sie mit der angehängten Datei in Ihren Kalender übernehmen.\n\n"
+                 "{fusszeile}"),
+    },
+    "booking_confirm": {
+        "group": "Terminbuchung", "label": "Buchungsbestätigung (an den Gast)",
+        "vars": _BOOKING_VARS,
+        "subject": "Terminbestätigung: {titel} – {termin}",
+        "body": ("Guten Tag {name},\n\nvielen Dank für Ihre Buchung. Ihr Termin:\n\n    {termin}\n\n"
+                 "{ort}\n\n{videolink}\n\n{hinweis}\n\n"
+                 "Mit der angehängten Datei übernehmen Sie den Termin in Ihren Kalender.\n"
+                 "Termin verschieben oder absagen (bis {absagefrist} vorher):\n{verwalten}\n\n{fusszeile}"),
+    },
+    "booking_update": {
+        "group": "Terminbuchung", "label": "Termin verschoben (an den Gast)",
+        "vars": _BOOKING_VARS,
+        "subject": "Termin verschoben: {titel} – {termin}",
+        "body": ("Guten Tag {name},\n\nIhr Termin wurde verschoben. Neuer Termin:\n\n    {termin}\n\n"
+                 "{ort}\n\n{videolink}\n\nDer Kalendereintrag im Anhang ersetzt den bisherigen.\n"
+                 "Verschieben oder absagen: {verwalten}\n\n{fusszeile}"),
+    },
+    "booking_cancelled": {
+        "group": "Terminbuchung", "label": "Termin abgesagt (an den Gast)",
+        "vars": {**_BOOKING_VARS, "wer": "„Sie haben“ oder „<Anbieter> hat“", "grund": "Begründung (falls angegeben)"},
+        "subject": "Abgesagt: {titel} – {termin}",
+        "body": ("Guten Tag {name},\n\n{wer} den Termin am {termin} abgesagt.\n\n{grund}\n\n"
+                 "Mit der angehängten Datei wird der Termin aus Ihrem Kalender entfernt.\n\n{fusszeile}"),
+    },
+    "booking_reminder": {
+        "group": "Terminbuchung", "label": "Erinnerung an den Termin (an den Gast)",
+        "vars": _BOOKING_VARS,
+        "subject": "Erinnerung: {titel} – {termin}",
+        "body": ("Guten Tag {name},\n\nwir erinnern an Ihren Termin:\n\n    {termin}\n\n{ort}\n\n{videolink}\n\n"
+                 "Falls Sie nicht kommen können: {verwalten}\n\n{fusszeile}"),
+    },
+    "booking_owner": {
+        "group": "Terminbuchung", "label": "Neue Buchung, Verschiebung, Absage (an die anbietende Person)",
+        "vars": {"name": "Name der anbietenden Person", "ereignis": "Neue Buchung, Termin verschoben oder Absage",
+                 "titel": "Titel der Buchungsseite", "termin": "Termin", "gast": "Name, E-Mail und Telefon des Gastes",
+                 "nachricht": "Nachricht des Gastes", "frei": "Noch freie Plätze", "link": "Link zur Buchungsseite im Portal"},
+        "subject": "{ereignis}: {gast} – {termin}",
+        "body": ("Guten Tag {name},\n\n{ereignis} für „{titel}“:\n\n    {termin}\n    {gast}\n\n{nachricht}\n\n"
+                 "Noch {frei} freie Plätze. Übersicht: {link}\n\n{fusszeile}"),
+    },
+    "booking_invite": {
+        "group": "Terminbuchung", "label": "Einladung zur Terminbuchung",
+        "vars": _BOOKING_INVITE_VARS,
+        "subject": "Bitte wählen Sie Ihren Termin: {titel}",
+        "body": ("Guten Tag {name},\n\n{absender} lädt Sie ein, einen Termin für „{titel}“ zu wählen "
+                 "(Dauer {dauer}, {zeitraum}).\n\n{beschreibung}\n\n{ort}\n\n"
+                 "Zur Terminauswahl (persönlicher Link):\n{link}\n\n{fusszeile}"),
+    },
+    "booking_invite_reminder": {
+        "group": "Terminbuchung", "label": "Erinnerung an die Terminbuchung",
+        "vars": _BOOKING_INVITE_VARS,
+        "subject": "Erinnerung: Bitte wählen Sie Ihren Termin – {titel}",
+        "body": ("Guten Tag {name},\n\nfür „{titel}“ haben Sie noch keinen Termin gewählt. Hier geht es direkt "
+                 "zur Auswahl:\n{link}\n\n{fusszeile}"),
+    },
 }
 
 SAMPLE = {
@@ -152,6 +335,15 @@ SAMPLE = {
     "antwort_link": "https://portal.example.org/rsvp/beispiel",
     "teilnehmer": "Erika Mustermann <erika.mustermann@example.org>", "antwort": "Zugesagt",
     "kommentar": "Ich komme etwas später.", "stand": "3 zugesagt, 1 abgesagt, 2 offen",
+    "absender": "Max Muster", "frist": "Bitte bis Freitag, 09.10.2026, 12:00 Uhr ausfüllen.",
+    "code": "482913", "minuten": "10", "nummer": "17", "zeitpunkt": "01.10.2026, 14:32 Uhr", "von": "Erika Mustermann <erika.mustermann@example.org>",
+    "antworten": "Teilnahme: Ja\nEssen: Vegetarisch", "anzahl": "17", "ort": "Rathaus, Sitzungssaal",
+    "vorschlaege": "6", "termin": "Dienstag, 13.10.2026, 14:00–15:30 Uhr", "aktion": "hat abgestimmt",
+    "videolink": "Teilnahme per Videokonferenz:\nhttps://portal.example.org/join/beispiel",
+    "verwalten": "https://portal.example.org/b/m/beispiel", "absagefrist": "24 Stunden",
+    "hinweis": "Bitte bringen Sie Ihre Zeugnisse mit.", "anbieter": "Max Muster", "wer": "Sie haben",
+    "grund": "", "ereignis": "Neue Buchung", "gast": "Erika Mustermann <erika@example.org>", "nachricht": "",
+    "frei": "11", "zeitraum": "13.10.2026 bis 15.10.2026",
 }
 
 

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Link nicht verfügbar{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-md-8 col-lg-6"><div class="card mt-4"><div class="card-body text-center p-5">
+  <i class="fa-solid fa-link-slash fa-3x text-secondary mb-3"></i>
+  <h1 class="h4">Dieser Link ist nicht verfügbar</h1>
+  <p class="text-secondary mb-0">{% if reason == 'unbekannt' %}Den Kurzlink gibt es nicht (mehr). Bitte prüfen Sie die Schreibweise.{% elif reason == 'noch nicht gültig' %}Der Link ist noch nicht freigeschaltet. Bitte versuchen Sie es später erneut.{% else %}Der Link ist abgelaufen oder wurde deaktiviert.{% endif %}</p>
+</div></div></div></div>
+{% endblock %}

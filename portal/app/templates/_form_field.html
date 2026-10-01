@@ -1,0 +1,74 @@
+{# Ein Element im Ausfüllformular. Erwartet: item, values, errors, other #}
+{% set qid = item.id %}{% set name = 'q_' ~ qid %}{% set err = errors.get(qid) %}{% set val = values.get(qid) %}
+{% if item.type == 'heading' %}
+  <h2 class="h4 mt-3 mb-1">{{ item.title }}</h2>{% if item.description %}<p class="text-secondary">{{ item.description | richtext }}</p>{% endif %}
+{% elif item.type == 'subheading' %}
+  <h3 class="h5 mt-2 mb-1">{{ item.title }}</h3>{% if item.description %}<p class="text-secondary small">{{ item.description | richtext }}</p>{% endif %}
+{% elif item.type == 'text' %}
+  <div class="alert alert-light border mb-0">{% if item.title %}<div class="fw-semibold mb-1">{{ item.title }}</div>{% endif %}{{ item.description | richtext }}</div>
+{% elif item.type == 'divider' %}
+  <hr class="my-1">
+{% else %}
+<div class="card question {{ 'has-error' if err }}" id="frage-{{ qid }}"><div class="card-body">
+  {% set label_for = name if item.type in ('short', 'long', 'dropdown', 'date', 'time', 'datetime', 'color', 'file') else '' %}
+  <{{ 'label' if label_for else 'div' }} class="form-label fw-semibold d-block" {% if label_for %}for="{{ name }}"{% else %}id="lbl-{{ qid }}"{% endif %}>{{ item.title or types[item.type][0] }}{% if item.required %} <span class="req" title="Pflichtfeld">*</span>{% endif %}</{{ 'label' if label_for else 'div' }}>
+  {% if item.description %}<div class="form-text mt-0 mb-2">{{ item.description | richtext }}</div>{% endif %}
+
+  {% if item.type == 'short' %}
+    {% set st = item.subtype %}
+    <input class="form-control {{ 'is-invalid' if err }}" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" maxlength="1000"
+      type="{{ {'email': 'email', 'phone': 'tel', 'number': 'number'}.get(st, 'text') }}"
+      {% if st == 'number' %}step="any" {% if item.min is not none %}min="{{ item.min }}"{% endif %} {% if item.max is not none %}max="{{ item.max }}"{% endif %}{% endif %}
+      {% if st == 'regex' and item.pattern %}pattern="{{ item.pattern }}" title="{{ item.pattern_hint }}"{% endif %}
+      {% if st == 'email' %}autocomplete="email"{% elif st == 'phone' %}autocomplete="tel"{% endif %}
+      placeholder="{{ item.placeholder or '' }}" {% if item.required %}required{% endif %}>
+  {% elif item.type == 'long' %}
+    <textarea class="form-control {{ 'is-invalid' if err }}" id="{{ name }}" name="{{ name }}" rows="4" placeholder="{{ item.placeholder or '' }}" {% if item.max_length %}maxlength="{{ item.max_length }}"{% endif %} {% if item.required %}required{% endif %}>{{ val or '' }}</textarea>
+  {% elif item.type in ('radio', 'checkbox') %}
+    {% set chosen = val if val is iterable and val is not string else [val] %}
+    {% set labels = item.options | map(attribute='label') | list %}
+    {% set other_val = values.get(qid ~ '__other') %}
+    <div role="group" aria-labelledby="lbl-{{ qid }}" class="{{ 'js-check-group' if item.type == 'checkbox' }}" {% if item.type == 'checkbox' and item.required %}data-required="1"{% endif %} {% if item.min %}data-min="{{ item.min }}"{% endif %} {% if item.max %}data-max="{{ item.max }}"{% endif %}>
+    {% for o in item.options %}
+      <div class="form-check"><input class="form-check-input" type="{{ item.type }}" name="{{ name }}" id="{{ name }}-{{ o.id }}" value="{{ o.label }}" {% if o.label in chosen %}checked{% endif %} {% if item.type == 'radio' and item.required %}required{% endif %}>
+        <label class="form-check-label" for="{{ name }}-{{ o.id }}">{{ o.label }}</label></div>
+    {% endfor %}
+    {% if item.other %}
+      <div class="form-check d-flex align-items-center gap-2"><input class="form-check-input flex-none" type="{{ item.type }}" name="{{ name }}" id="{{ name }}-other" value="{{ other }}" {% if other in chosen or other_val %}checked{% endif %}>
+        <label class="form-check-label" for="{{ name }}-other">Sonstiges:</label>
+        <input class="form-control form-control-sm js-other" name="{{ name }}__other" value="{{ other_val or '' }}" maxlength="500" aria-label="Sonstiges" data-for="{{ name }}-other"></div>
+    {% endif %}
+    </div>
+    {% if item.type == 'checkbox' and (item.min or item.max) %}<div class="form-text">{% if item.min %}mindestens {{ item.min }}{% endif %}{% if item.min and item.max %}, {% endif %}{% if item.max %}höchstens {{ item.max }}{% endif %} auswählen</div>{% endif %}
+  {% elif item.type == 'dropdown' %}
+    <select class="form-select {{ 'is-invalid' if err }}" id="{{ name }}" name="{{ name }}" {% if item.required %}required{% endif %}>
+      <option value="">Bitte wählen …</option>
+      {% for o in item.options %}<option {% if o.label == val %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+    </select>
+  {% elif item.type == 'date' %}
+    <input class="form-control {{ 'is-invalid' if err }}" style="max-width: 14rem" type="date" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" {% if item.min %}min="{{ item.min }}"{% endif %} {% if item.max %}max="{{ item.max }}"{% endif %} {% if item.required %}required{% endif %}>
+  {% elif item.type == 'time' %}
+    <input class="form-control {{ 'is-invalid' if err }}" style="max-width: 10rem" type="time" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" {% if item.required %}required{% endif %}>
+  {% elif item.type == 'datetime' %}
+    <input class="form-control {{ 'is-invalid' if err }}" style="max-width: 18rem" type="datetime-local" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" {% if item.min %}min="{{ item.min }}T00:00"{% endif %} {% if item.max %}max="{{ item.max }}T23:59"{% endif %} {% if item.required %}required{% endif %}>
+  {% elif item.type == 'scale' %}
+    <div class="d-flex flex-wrap align-items-center gap-2" role="radiogroup" aria-labelledby="lbl-{{ qid }}">
+      {% if item.low_label %}<span class="small text-secondary">{{ item.low_label }}</span>{% endif %}
+      <div class="btn-group flex-wrap scale-options">
+      {% for n in range(item.min, item.max + 1) %}
+        <input type="radio" class="btn-check" name="{{ name }}" id="{{ name }}-{{ n }}" value="{{ n }}" {% if val|string == n|string %}checked{% endif %} {% if item.required %}required{% endif %}>
+        <label class="btn btn-outline-primary" for="{{ name }}-{{ n }}">{{ n }}</label>
+      {% endfor %}
+      </div>
+      {% if item.high_label %}<span class="small text-secondary">{{ item.high_label }}</span>{% endif %}
+    </div>
+  {% elif item.type == 'color' %}
+    <input class="form-control form-control-color" type="color" id="{{ name }}" name="{{ name }}" value="{{ val or '#1f5fa8' }}" {% if item.required %}required{% endif %}>
+  {% elif item.type == 'file' %}
+    <input class="form-control {{ 'is-invalid' if err }}" type="file" id="{{ name }}" name="{{ name }}" {% if item.max_files > 1 %}multiple{% endif %}
+      {% if item.file_types %}accept=".{{ item.file_types | join(',.') }}"{% endif %} data-max-mb="{{ item.max_size_mb }}" data-max-files="{{ item.max_files }}" {% if item.required %}required{% endif %}>
+    <div class="form-text">{% if item.file_types %}Erlaubt: {{ item.file_types | join(', ') }} · {% endif %}max. {{ item.max_size_mb }} MB{% if item.max_files > 1 %} je Datei, bis zu {{ item.max_files }} Dateien{% endif %}</div>
+  {% endif %}
+  {% if err %}<div class="text-danger small mt-2"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ err }}</div>{% endif %}
+</div></div>
+{% endif %}
