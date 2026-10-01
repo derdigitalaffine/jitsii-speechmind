@@ -55,10 +55,12 @@ done
 rm -f .env.bak
 chmod 600 .env
 
-mkdir -p data/{web/crontabs,transcripts,prosody/config,prosody/prosody-plugins-custom,jicofo,jvb,jibri,recordings,portal,caddy/data,caddy/config,caddy/conf}
+mkdir -p data/{web/crontabs,transcripts,prosody/config,prosody/prosody-plugins-custom,jicofo,jvb,jibri,recordings,portal,caddy/data,caddy/config,caddy/conf,portal-rooms,portal-chat}
 chmod +x jibri/finalize.sh
 # Jibri schreibt als eigener Benutzer in das Aufnahmeverzeichnis
 chmod 777 data/recordings
+# Prosody schreibt die Chatprotokolle als eigener Benutzer
+chmod 1777 data/portal-chat
 
 echo
 echo "Fertig. .env wurde erzeugt."

@@ -11,7 +11,7 @@ Für alle, die den Videokonferenzserver der Verbandsgemeinde Otterbach-Otterberg
 5. [E-Mail-Vorlagen](#e-mail-vorlagen)
 6. [HTTPS und Zertifikat](#https-und-zertifikat)
 7. [Design & Branding](#design--branding)
-8. [Konferenzen ohne Anmeldung](#konferenzen-ohne-anmeldung)
+8. [Räume und Zugang](#räume-und-zugang)
 9. [E-Mail einrichten](#e-mail-einrichten)
 10. [SpeechMind einrichten](#speechmind-einrichten)
 11. [Aufnahme ohne Ton](#aufnahme-ohne-ton)
@@ -69,6 +69,15 @@ Auf dem Handy öffnet das Symbol mit den drei Strichen oben links das Menü.
 
 Eine MP3 ist bei Fehlern fast immer schon vorhanden und weiter herunterladbar. „Erneut versuchen“ lädt nichts doppelt hoch, wenn der Upload schon gelungen war.
 
+### Chatprotokoll
+
+Was während einer Aufnahme im Konferenz-Chat geschrieben wurde (Gruppenchat, keine privaten Nachrichten), hängt das Portal als **Chatprotokoll** an die Aufnahme: mit Uhrzeit und Namen, lesbar in der Aufnahme und als TXT herunterladbar. In der Aufnahmenliste zeigt ein Sprechblasen-Symbol mit Zahl, wie viele Nachrichten es sind.
+
+- Mitgeschrieben wird nur in **Portal-Räumen**. Den Chat von freien Räumen speichert das Portal nie.
+- Chatnachrichten ohne Aufnahme werden nach **48 Stunden** automatisch gelöscht. Dauerhaft bleibt nur, was zu einer Aufnahme gehört.
+- Beim Löschen „Nur Video und MP3“ bleibt das Chatprotokoll erhalten. Die beiden anderen Löschoptionen entfernen es.
+- Weisen Sie die Teilnehmenden darauf hin, dass der Chat zusammen mit der Aufnahme gespeichert wird.
+
 ### Aufnahmen löschen
 
 Löschen geht an drei Stellen: über das Papierkorb-Symbol in jeder Tabellenzeile, über **Löschen** in der Aufnahme selbst und für viele Aufnahmen auf einmal (Kästchen links anhaken, das Kästchen in der Kopfzeile wählt alle gefilterten aus, dann **Ausgewählte löschen**).
@@ -77,7 +86,7 @@ Ein Dialog fragt, was gelöscht werden soll. Angeboten wird nur, was bei der Auf
 
 | Auswahl | Was passiert | Danach |
 |---|---|---|
-| **Nur Video und MP3 löschen, Transkript behalten** | Mediendateien weg, Protokoll und Wortlaut bleiben im Portal | Etikett „Medien gelöscht“, Transkript weiter lesbar und als TXT ladbar |
+| **Nur Video und MP3 löschen, Transkript und Chatprotokoll behalten** | Mediendateien weg, Protokoll, Wortlaut und Chatprotokoll bleiben im Portal | Etikett „Medien gelöscht“, Transkript weiter lesbar und als TXT ladbar |
 | **Alles hier löschen, bei SpeechMind abrufbar** | Mediendateien und Transkript weg, der Verweis auf das Protokoll bei SpeechMind bleibt | Status „Bei SpeechMind abrufbar“, Knopf **Protokoll von SpeechMind abrufen** holt es jederzeit zurück |
 | **Alles löschen** | Eintrag samt Video, MP3 und Transkript weg | Nicht wiederherstellbar. Das Protokoll in SpeechMind selbst bleibt dort bestehen |
 
@@ -121,7 +130,7 @@ Menü **Besprechung planen** (für alle angemeldeten Benutzer:innen).
 3. **Kopie an mich** (empfohlen): Sie erhalten den Termin selbst als Kalendereintrag.
 4. **Planen und einladen**.
 
-Das Portal legt einen Konferenzraum an und schickt **jeder Person eine eigene Mail**. Sie enthält den Einwahllink und den Termin als **Outlook-Besprechungsanfrage** (Annehmen/Ablehnen direkt in Outlook) plus Datei `einladung.ics` für alle anderen Kalender (Thunderbird, Apple, Google). Die Empfänger sehen die anderen Adressen nicht. Zu-/Absagen aus Outlook gehen an die planende Person.
+Das Portal legt einen Konferenzraum an und schickt **jeder Person eine eigene Mail**. Sie enthält einen **persönlichen Einwahllink** (Zutritt ohne Konto, aber ohne Aufnahmerecht; siehe [Räume und Zugang](#räume-und-zugang)) und den Termin als **Outlook-Besprechungsanfrage** (Annehmen/Ablehnen direkt in Outlook) plus Datei `einladung.ics` für alle anderen Kalender (Thunderbird, Apple, Google). Die Empfänger sehen die anderen Adressen nicht. Zu-/Absagen aus Outlook gehen an die planende Person.
 
 **Auf der Seite des Meetings** (Bereich „Termin & Einladungen“):
 
@@ -230,15 +239,33 @@ Menü **Design & Branding**. Links stellen Sie ein, rechts sehen Sie sofort eine
 
 **Farbschema:** Steht es auf „Immer hell“ oder „Immer dunkel“, gilt das für alle, und der Umschalter oben rechts wird ausgeblendet. Bei „Automatisch“ kann jede Person selbst umschalten.
 
-## Konferenzen ohne Anmeldung
+## Räume und Zugang
 
-Unter **Benutzer** gibt es den Kasten „Konferenzen ohne Anmeldung“ mit einem Schalter.
+Es gibt zwei Arten von Konferenzräumen:
 
-- **Freigegeben (Standard):** Auf der Anmeldeseite erscheint „Konferenz ohne Anmeldung starten“. Die Person gibt ihren Namen ein, bekommt sofort einen eigenen Raum (Name beginnt mit `offen-`) und kann den Link weitergeben. Angemeldete Benutzer finden im Dashboard den Knopf **Schnellkonferenz**.
-- **Keine Aufnahmen:** In diesen Räumen fehlt das Aufnahme-Recht. Sollte jemand die Aufnahme trotzdem auslösen, **verwirft das Portal sie automatisch** (Eintrag im Log: „Aufnahme eines offenen Raums … verworfen“). Offene Räume tauchen nie unter „Aufnahmen“ auf.
-- **Wer ist Gastgeber:in?** Nur die Person, die den Raum im Portal eröffnet hat (an ihren Browser gebunden, 12 Stunden). Wer den Link nur kennt, kommt als Gast hinein, sobald die Gastgeberin oder der Gastgeber da ist. Ruft jemand anderes den Raum zuerst als Moderator auf, sieht er den Hinweis „Bitte warten“.
-- **Missbrauchsschutz:** Pro Adresse sind nur wenige Raumstarts in kurzer Zeit möglich. Wenn Sie keine offenen Konferenzen wünschen, schalten Sie den Schalter aus; dann sind sie sofort gesperrt.
-- Normale Räume bleiben davon unberührt: Wer dort moderieren oder aufnehmen will, braucht ein Konto.
+| | **Freie Räume** | **Portal-Räume** |
+|---|---|---|
+| Wie entstehen sie? | Jede:r ruft die Konferenzadresse mit einem beliebigen Namen auf, z. B. `https://meet.…/elternabend`, oder nutzt „Konferenz ohne Anmeldung starten“ auf der Anmeldeseite | Im Portal: **Meeting anlegen** oder **Besprechung planen** |
+| Wer kommt hinein? | Jede:r mit der Adresse, ohne Konto | Nur **angemeldete Benutzer:innen** und **Gäste mit Link** (Gastlink oder persönlicher Link aus der Einladung) |
+| Wer moderiert? | Die erste Person im Raum | Angemeldete Benutzer:innen |
+| **Aufnahme** | **nie** | ja, durch angemeldete Benutzer:innen (nicht durch Gäste) |
+| Chatprotokoll | nie | ja, zusammen mit einer Aufnahme |
+
+**Wer ohne Link oder Anmeldung einen Portal-Raum aufruft**, sieht in Jitsi „Warten auf den Gastgeber“. Dort führt „Ich bin der Gastgeber“ zur Portal-Anmeldung. Ohne Konto kommt man nicht hinein, auch nicht, wenn die Gastgeberin schon im Raum ist.
+
+**Gastzugänge zu Portal-Räumen**
+
+- **Gastlink** (auf der Seite des Meetings, „Einladungslink für Gäste“): Wer ihn öffnet, gibt seinen Namen ein und ist als Gast im Raum. Ist ein Link in falsche Hände geraten: **Neuen Gastlink erzeugen**, der alte funktioniert dann nicht mehr.
+- **Persönlicher Link**: Jede Person, die per **Besprechung planen** eingeladen wird, bekommt einen eigenen Link (in der Mail und im Kalendereintrag). Er funktioniert, bis die Person ausgeladen oder die Besprechung abgesagt wird.
+- Gäste dürfen **nicht aufnehmen** und sind keine Moderator:innen.
+- **Nach der Umstellung (Oktober 2026):** Einladungen, die vorher verschickt wurden, enthalten noch die direkte Konferenzadresse. Externe Gäste kommen damit nicht mehr in Portal-Räume. Für anstehende Besprechungen deshalb einmal **„Einladung erneut senden“** klicken, dann haben alle ihren persönlichen Link.
+
+**Schalter „Konferenzen ohne Anmeldung“** (unter **Benutzer**):
+
+- **Freigegeben** (Standard): freie Räume wie oben beschrieben.
+- **Gesperrt**: Auch jeder freie Raum verlangt eine Anmeldung oder einen Gastlink. Die Einstellung wirkt sofort, ohne Neustart.
+
+**Technischer Hintergrund (für die Betreuung):** Jitsi lässt Verbindungen ohne Token zu (`JWT_ALLOW_EMPTY=1`, keine Gast-Domain). Zwei kleine Prosody-Module aus dem Ordner `prosody/` setzen die Regeln durch: `mod_portal_access` beantwortet Raumanfragen ohne Token für Portal-Räume mit „Anmeldung erforderlich“ und lässt Aufnahmen nur in Portal-Räumen und nur mit Token mit Aufnahmerecht zu. `mod_portal_access_muc` weist direkte Beitritte ohne Token ab und schreibt das Chatprotokoll. Die Liste der Portal-Räume schreibt das Portal nach `data/portal-rooms/rooms.json`. Fehlt die Datei, verlangt Prosody für alle Räume eine Anmeldung (sicherer Zustand). Aufnahmen, die trotzdem aus einem freien Raum stammen, verwirft das Portal.
 
 ## E-Mail einrichten
 

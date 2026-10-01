@@ -100,6 +100,8 @@ class Meeting(Base):
     ics_uid: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ics_sequence: Mapped[int] = mapped_column(Integer, default=0)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Allgemeiner Gastlink (/g/<token>): Gäste geben ihren Namen ein und kommen ohne Konto hinein
+    guest_token: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
     owner: Mapped[User] = relationship(back_populates="meetings")
     recordings: Mapped[list["Recording"]] = relationship(
@@ -125,6 +127,8 @@ class Invitee(Base):
     email: Mapped[str] = mapped_column(String(255))
     name: Mapped[str] = mapped_column(String(255), default="")
     invited_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Persönlicher Einwahllink (/join/<token>) aus der Einladung
+    join_token: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     # Antwort auf die Einladung (aus dem IMAP-Postfach): accepted | declined | tentative | delegated | counter
     rsvp_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
     rsvp_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -162,6 +166,16 @@ class Recording(Base):
     audio_max_db: Mapped[float | None] = mapped_column(Float, nullable=True)
     # Zeitpunkt, zu dem Video und MP3 gelöscht wurden (Transkript bzw. SpeechMind-Verweis bleiben)
     media_deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Chatprotokoll aus der Konferenz während der Aufnahme: JSON-Liste [{time, name, text}]
+    chat_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    @property
+    def chat(self) -> list[dict]:
+        import json as _json
+        try:
+            return _json.loads(self.chat_json) if self.chat_json else []
+        except ValueError:
+            return []
     participants: Mapped[str] = mapped_column(Text, default="[]")
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
@@ -281,12 +295,14 @@ _NEW_COLUMNS = {
         "token_hash": "VARCHAR(64)",
         "token_expires_at": "DATETIME",
     },
-    "recordings": {"audio_path": "VARCHAR(1024)", "audio_max_db": "FLOAT", "media_deleted_at": "DATETIME"},
+    "recordings": {"audio_path": "VARCHAR(1024)", "audio_max_db": "FLOAT", "media_deleted_at": "DATETIME",
+                   "chat_json": "TEXT"},
     "meetings": {"starts_at": "DATETIME", "duration_minutes": "INTEGER", "description": "TEXT",
                  "ics_uid": "VARCHAR(255)", "ics_sequence": "INTEGER NOT NULL DEFAULT 0",
-                 "cancelled_at": "DATETIME"},
+                 "cancelled_at": "DATETIME", "guest_token": "VARCHAR(64)"},
     "notifications": {"reply_to": "VARCHAR(255)", "attachments_json": "TEXT"},
-    "invitees": {"rsvp_status": "VARCHAR(16)", "rsvp_at": "DATETIME", "rsvp_comment": "TEXT"},
+    "invitees": {"rsvp_status": "VARCHAR(16)", "rsvp_at": "DATETIME", "rsvp_comment": "TEXT",
+                 "join_token": "VARCHAR(64)"},
 }
 
 

@@ -40,6 +40,10 @@ class Settings:
     proxy_host = _env("PROXY_HOST", "caddy")
     public_ips = [ip.strip() for ip in _env("PUBLIC_IP").split(",") if ip.strip()]
     acme_email = _env("ACME_EMAIL").lower()
+    # Mit Prosody geteilte Raumliste (Portal-Räume nur mit Anmeldung, siehe access.py)
+    portal_rooms_file = Path(_env("PORTAL_ROOMS_FILE", "/portal-rooms/rooms.json"))
+    # Von Prosody geschriebene Chatnachrichten aus Portal-Räumen (siehe chat.py)
+    portal_chat_dir = Path(_env("PORTAL_CHAT_DIR", "/portal-chat"))
 
     invite_ttl_hours = int(_env("INVITE_TTL_HOURS", "72") or 72)
     reset_ttl_hours = int(_env("RESET_TTL_HOURS", "2") or 2)

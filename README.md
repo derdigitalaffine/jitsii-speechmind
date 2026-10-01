@@ -20,8 +20,8 @@ Name und Produktbezeichnung lassen sich über `BRAND_NAME` und `BRAND_PRODUCT` i
 
 ## Funktionen
 
-- **Anmeldung:** Jitsi läuft mit JWT-Authentifizierung. Nur Portal-Benutzer:innen können Räume eröffnen und moderieren. Wer `meet.example.com/raum` direkt aufruft, wird zum Portal-Login umgeleitet.
-- **Gäste** brauchen kein Konto. Sie treten über den Einladungslink bei, sobald eine Moderatorin oder ein Moderator im Raum ist.
+- **Anmeldung:** Jitsi läuft mit JWT-Authentifizierung über das Portal. Portal-Räume betreten nur angemeldete Benutzer:innen und Gäste mit Link; wer einen Portal-Raum ohne Link aufruft, wird zur Portal-Anmeldung geschickt.
+- **Gäste** brauchen kein Konto. Sie treten über den Gastlink des Meetings oder ihren persönlichen Link aus der Einladung bei.
 - **Aufnahme** über Jibri (Server-Aufzeichnung). Recht zum Aufzeichnen haben nur angemeldete Benutzer:innen.
 - **SpeechMind-Anbindung per Web-GUI:** API-Key hinterlegen (verschlüsselt gespeichert), Verbindung testen, Projekt auswählen oder anlegen, Protokollart und Sprache festlegen.
 - **Transkription auf Knopfdruck** (nie automatisch), mit sichtbarem Verarbeitungsstand (Aufgezeichnet → Audiospur → Upload → SpeechMind → Transkript).
@@ -33,7 +33,8 @@ Name und Produktbezeichnung lassen sich über `BRAND_NAME` und `BRAND_PRODUCT` i
 - **Benutzerverwaltung** für Admins mit **Einladung per E-Mail**: Die eingeladene Person legt ihr Passwort über einen Einmal-Link selbst fest. „Passwort vergessen“ nutzt denselben Weg. Optional eigene SpeechMind-Keys pro Benutzer:in.
 - **Benachrichtigungen per E-Mail** (SMTP, optional IMAP-Ablage): Einladungen, Passwort-Links und Hinweise zu neuen Aufnahmen, fertigen Transkripten und Fehlern. Nachrichten laufen über eine Warteschlange mit automatischen Wiederholungen und sichtbarem Protokoll.
 - **HTTPS mit Reverse Proxy (Caddy):** Start mit selbst signiertem Zertifikat, sofort lauffähig. **Let's Encrypt** (automatische Beantragung und Erneuerung) schaltet man bei Bedarf in der Admin-Oberfläche unter „HTTPS & Zertifikat“ ein – ohne Dateien zu bearbeiten, mit DNS-Prüfung, Testumgebung und Statusanzeige.
-- **Konferenzen ohne Anmeldung:** Wer kein Konto hat, kann über die Anmeldeseite sofort einen eigenen Raum eröffnen und Gäste einladen. **Aufnahmen sind dort ausgeschlossen** (Aufnahme-Recht fehlt im Token; Aufnahmen solcher Räume werden zusätzlich serverseitig verworfen). Im Admin-Bereich abschaltbar.
+- **Freie Räume und geschützte Portal-Räume:** Jede:r kann ohne Konto unter beliebigem Namen einen Raum eröffnen (abschaltbar), dort gibt es aber **keine Aufnahme**. Im Portal angelegte Räume sind **nur mit Anmeldung** oder per **Gastlink / persönlichem Einladungslink** erreichbar; aufnehmen dürfen dort nur angemeldete Benutzer:innen. Durchgesetzt von zwei kleinen Prosody-Modulen (`prosody/`).
+- **Chatprotokoll:** Der Gruppenchat während einer Aufnahme wird mit der Aufnahme gespeichert (lesbar und als TXT); Chat ohne Aufnahme wird nach 48 Stunden gelöscht.
 - **Moderne Admin-Oberfläche** (Bootstrap 5, Font Awesome 7): Seitenleiste, hell/dunkel, durchsuchbare und sortierbare Tabellen (DataTables), Mehrfach-Einladung per E-Mail-Tags (Tagify), Bestätigungsdialoge (SweetAlert2). Alle Bibliotheken liegen lokal im Repository – keine Verbindung zu Drittanbietern.
 - **Design & Branding** im Admin-Bereich: Name, Hauptfarbe, Kopfleiste, Farbschema, Rundungen, Logo, Favicon, Anmelde-Hinweis, Fußzeile, Impressum-/Datenschutz-Links, mit Live-Vorschau; Farben und Logo lassen sich ein- und ausschalten und auf Standard zurücksetzen. Auf Wunsch übernimmt auch die Konferenzoberfläche (und damit die Videoaufnahme) Logo und Farbe.
 - **Standard-Admin** beim ersten Start, der beim ersten Login ein eigenes Passwort vergeben muss.
@@ -142,9 +143,9 @@ Grundlage ist die [SpeechMind API v2](https://www.speechmind.com/docs/introducti
 | | Eigene Meetings & Aufnahmen | Fremde Aufnahmen | Einstellungen & Benutzer |
 |---|---|---|---|
 | Benutzer:in | ✓ | – | eigenes Profil |
-| Admin | ✓ | ✓ (auch Räume ohne Meeting) | ✓ |
+| Admin | ✓ | ✓ | ✓ |
 
-Ein Raum, der direkt über die Meet-Domain eröffnet wird, wird automatisch als Meeting der anmeldenden Person angelegt.
+Räume, die direkt über die Konferenzadresse eröffnet werden (freie Räume), gehören nicht zum Portal: keine Aufnahme, kein Chatprotokoll.
 
 ## Konfiguration
 
@@ -184,6 +185,8 @@ Alles Persistente liegt unter `data/` (konfigurierbar über `CONFIG`):
 - `data/portal/audio/` – erzeugte MP3-Dateien
 - `data/portal/branding/` – hochgeladenes Logo und Favicon
 - `data/recordings/` – Jibri-Aufnahmen
+- `data/portal-rooms/` – Liste der Portal-Räume für Prosody (wird automatisch erzeugt)
+- `data/portal-chat/` – Chat-Rohdaten aus Portal-Räumen (nach 48 Stunden gelöscht)
 - `data/caddy/` – Zertifikate und die vom Portal verwaltete Proxy-Konfiguration (`conf/Caddyfile`)
 - übrige Ordner – Jitsi-Konfiguration (wird beim Start neu erzeugt)
 
@@ -251,6 +254,8 @@ portal/app/
 ├── mailtpl.py       Bearbeitbare E-Mail-Vorlagen
 ├── planning.py      Besprechungen planen, Einladungen versenden
 ├── ics.py           Kalendereinladungen (iCalendar, RFC 5545)
+├── access.py        Liste der Portal-Räume für Prosody
+├── chat.py          Chatprotokolle aus Portal-Räumen
 ├── rsvp.py          Zu-/Absagen aus dem IMAP-Postfach auswerten
 ├── branding.py      Design & Branding (Farben, Logo, Theme-CSS)
 ├── proxy.py         Reverse Proxy: Caddyfile erzeugen, Zertifikate prüfen

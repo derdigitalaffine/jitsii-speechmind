@@ -16,7 +16,11 @@
       <input id="guest" class="form-control" type="text" value="{{ guest_url }}" readonly>
       <button type="button" class="btn btn-outline-primary" data-copy="#guest"><i class="fa-regular fa-copy"></i> Kopieren</button>
     </div>
-    <div class="form-text">Gäste kommen in den Raum, sobald Sie als Moderator:in drin sind.</div>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-1">
+      <div class="form-text m-0">Wer diesen Link hat, kommt nach Eingabe seines Namens als Gast in den Raum (ohne Aufnahmerecht). Eingeladene erhalten zusätzlich einen persönlichen Link. Ohne Link oder Anmeldung ist der Raum nicht erreichbar.</div>
+      <form method="post" action="/meetings/{{ meeting.id }}/guest-link"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn btn-sm btn-outline-secondary" type="submit" data-confirm-title="Neuen Gastlink erzeugen?" data-confirm="Der bisherige Link funktioniert danach nicht mehr. Persönliche Links aus Einladungen bleiben gültig." data-confirm-button="Neu erzeugen"><i class="fa-solid fa-rotate me-1"></i>Neuen Gastlink erzeugen</button></form>
+    </div>
   </div>
 </div>
 

@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session, joinedload
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import branding, mailtpl, notify, planning, proxy, worker
+from . import access, branding, chat, mailtpl, notify, planning, proxy, worker
 from .planning import EMAIL_RE, name_from_email
 from .config import settings
 from .db import (
@@ -31,7 +31,7 @@ from .db import (
 )
 from .security import (
     clean_room, csrf_token, csrf_valid, decrypt, encrypt, hash_password, hash_token,
-    is_open_room, jitsi_token, mask_secret, new_open_room, new_token, open_room_token, room_slug,
+    guest_token, jitsi_token, mask_secret, new_link_token, new_token, room_slug,
     verify_password,
 )
 from .speechmind import SpeechMindClient, SpeechMindError
@@ -87,6 +87,8 @@ async def lifespan(_app: FastAPI):
     bootstrap_admin()
     with SessionLocal() as db:
         proxy.sync(get_settings(db))
+        access.sync(db)
+    chat.prepare_dir()
     task = asyncio.create_task(worker.run_forever())
     yield
     task.cancel()
@@ -229,16 +231,26 @@ def own_recording(db: Session, rec_id: int, user: User) -> Recording:
 
 
 def unique_room(db: Session, base: str) -> str:
-    if is_open_room(base):
-        base = "m-" + base  # Präfix offener Räume ist reserviert
-    room = base
-    while db.scalar(select(Meeting).where(Meeting.room == room)) is not None:
-        room = f"{base}-{secrets.token_hex(2)}"
-    return room
+    """Raumname für einen Portal-Raum. Der Zufallsanhang verhindert, dass jemand ohne Anmeldung
+    den Namen vorher besetzt (anonyme Räume kann jede:r unter beliebigem Namen eröffnen)."""
+    while True:
+        room = f"{base[:52]}-{secrets.token_hex(3)}"
+        if db.scalar(select(Meeting).where(Meeting.room == room)) is None:
+            return room
 
 
-def join_url(user: User, room: str) -> str:
-    return f"{settings.meet_base_url}/{room}?{urlencode({'jwt': jitsi_token(user, room)})}"
+def join_url(user: User, room: str, recording: bool = True) -> str:
+    return f"{settings.meet_base_url}/{room}?{urlencode({'jwt': jitsi_token(user, room, recording)})}"
+
+
+def guest_join_url(name: str, room: str, uid: str, email: str = "") -> str:
+    return f"{settings.meet_base_url}/{room}?{urlencode({'jwt': guest_token(name, room, uid, email)})}"
+
+
+def ensure_guest_token(meeting: Meeting) -> str:
+    if not meeting.guest_token:
+        meeting.guest_token = new_link_token()
+    return meeting.guest_token
 
 
 def speechmind_ready(db: Session, user: User | None = None) -> bool:
@@ -361,10 +373,6 @@ def anonymous_allowed(db: Session) -> bool:
     return get_settings(db).get("allow_anonymous") == "1"
 
 
-def open_join_url(name: str, room: str) -> str:
-    return f"{settings.meet_base_url}/{room}?{urlencode({'jwt': open_room_token(name, room)})}"
-
-
 def session_user(request: Request, db: Session) -> User | None:
     uid = request.session.get("uid")
     user = db.get(User, uid) if uid else None
@@ -373,46 +381,85 @@ def session_user(request: Request, db: Session) -> User | None:
 
 @app.get("/jitsi/auth")
 def jitsi_auth(request: Request, room: str = "", db: Session = Depends(get_db)):
-    """Ziel von TOKEN_AUTH_URL: Jitsi schickt Moderatoren ohne Token hierher."""
+    """Ziel von TOKEN_AUTH_URL: Jitsi schickt hierher, wenn ein Raum Anmeldung verlangt
+    ("Ich bin der Gastgeber"). Das betrifft Portal-Räume und, falls Räume ohne Anmeldung
+    gesperrt sind, alle Räume."""
     room = clean_room(room)
     if not room:
         return redirect("/")
-    if is_open_room(room):
-        # Offene Konferenz: nur die Person, die sie eröffnet hat, wird Moderator:in
-        user = session_user(request, db)
-        if anonymous_allowed(db) and room in request.session.get("open_rooms", []):
-            return redirect(open_join_url(user.name if user else request.session.get("open_name", "Gastgeber:in"), room))
-        return render(request, "open.html", user, mode="foreign", enabled=anonymous_allowed(db))
     user = current_user(request, db)
     meeting = db.scalar(select(Meeting).where(Meeting.room == room))
-    if meeting is None:
-        meeting = Meeting(owner_id=user.id, title=room.replace("-", " ").title(), room=room)
-        db.add(meeting)
-        db.commit()
-    return redirect(join_url(user, room))
+    # Aufnehmen nur in Portal-Räumen
+    return redirect(join_url(user, room, recording=meeting is not None))
+
+
+def _display_hash(name: str) -> str:
+    """Jitsi-URL-Parameter für den Anzeigenamen (#userInfo.displayName="...")."""
+    return "#" + urlencode({"userInfo.displayName": json.dumps(name)}) if name else ""
 
 
 @app.get("/open")
 def open_form(request: Request, db: Session = Depends(get_db)):
     user = session_user(request, db)
-    return render(request, "open.html", user, mode="form", enabled=anonymous_allowed(db))
+    return render(request, "open.html", user, mode="form", enabled=anonymous_allowed(db),
+                  meet_host=settings.meet_base_url)
 
 
 @app.post("/open", dependencies=[Depends(check_csrf)])
-def open_start(request: Request, name: str = Form(""), db: Session = Depends(get_db)):
-    """Konferenz ohne Konto starten – ohne Aufnahmefunktion."""
+def open_start(request: Request, name: str = Form(""), room: str = Form(""), db: Session = Depends(get_db)):
+    """Konferenz ohne Konto eröffnen – ohne Aufnahmefunktion. Führt direkt in Jitsi, ohne Token."""
     if not anonymous_allowed(db):
         raise HTTPException(403, "Konferenzen ohne Anmeldung sind derzeit nicht freigegeben.")
-    rate_limit(request, "open", limit=10)
+    rate_limit(request, "open", limit=20)
     user = session_user(request, db)
     name = " ".join(name.split())[:60] or (user.name if user else "")
+    slug = room_slug(room) if room.strip() else ""
+    if slug and db.scalar(select(Meeting).where(Meeting.room == slug)) is not None:
+        flash(request, "Dieser Raumname gehört zu einem Portal-Raum. Bitte wählen Sie einen anderen.", "error")
+        return redirect("/open")
+    slug = slug or f"konferenz-{secrets.token_hex(4)}"
+    return redirect(f"{settings.meet_base_url}/{slug}{_display_hash(name)}")
+
+
+# --- Gastzugang zu Portal-Räumen --------------------------------------------
+
+@app.get("/join/{token}")
+def join_personal(request: Request, token: str, db: Session = Depends(get_db)):
+    """Persönlicher Einwahllink aus der Einladung: gilt als angemeldet, ohne Aufnahmerecht."""
+    inv = db.scalar(select(Invitee).where(Invitee.join_token == token)) if len(token) > 10 else None
+    if inv is None:
+        return render(request, "guest.html", session_user(request, db), mode="invalid")
+    meeting = inv.meeting
+    if meeting.cancelled_at:
+        return render(request, "guest.html", session_user(request, db), mode="cancelled", meeting=meeting)
+    user = session_user(request, db)
+    if user is not None and user.email == inv.email:
+        return redirect(join_url(user, meeting.room))
+    return redirect(guest_join_url(inv.name or inv.email, meeting.room, f"guest-{inv.id}", inv.email))
+
+
+@app.get("/g/{token}")
+def join_guest_form(request: Request, token: str, db: Session = Depends(get_db)):
+    meeting = db.scalar(select(Meeting).where(Meeting.guest_token == token)) if len(token) > 10 else None
+    user = session_user(request, db)
+    if meeting is None:
+        return render(request, "guest.html", user, mode="invalid")
+    if user is not None:
+        return redirect(join_url(user, meeting.room))
+    return render(request, "guest.html", None, mode="form", meeting=meeting, token=token)
+
+
+@app.post("/g/{token}", dependencies=[Depends(check_csrf)])
+def join_guest(request: Request, token: str, name: str = Form(""), db: Session = Depends(get_db)):
+    rate_limit(request, "guest", limit=30)
+    meeting = db.scalar(select(Meeting).where(Meeting.guest_token == token)) if len(token) > 10 else None
+    if meeting is None:
+        return redirect(f"/g/{token}")
+    name = " ".join(name.split())[:60]
     if not name:
         flash(request, "Bitte geben Sie Ihren Namen an.", "error")
-        return redirect("/open")
-    room = new_open_room()
-    rooms = (request.session.get("open_rooms", []) + [room])[-20:]
-    request.session["open_rooms"], request.session["open_name"] = rooms, name
-    return redirect(open_join_url(name, room))
+        return redirect(f"/g/{token}")
+    return redirect(guest_join_url(name, meeting.room, "guest-" + secrets.token_hex(4)))
 
 
 # --- Dashboard & Meetings -----------------------------------------------------
@@ -436,8 +483,10 @@ def create_meeting(request: Request, title: str = Form(...),
                    user: User = Depends(current_user), db: Session = Depends(get_db)):
     title = title.strip()[:200] or "Besprechung"
     meeting = Meeting(owner_id=user.id, title=title, room=unique_room(db, room_slug(title)))
+    ensure_guest_token(meeting)
     db.add(meeting)
     db.commit()
+    access.sync(db)
     flash(request, f"Meeting „{title}“ angelegt.")
     return redirect(f"/meetings/{meeting.id}")
 
@@ -488,12 +537,14 @@ def meeting_plan(request: Request, title: str = Form(...), start: str = Form("")
     meeting = Meeting(owner_id=user.id, title=title, room=unique_room(db, room_slug(title)),
                       starts_at=starts_at, duration_minutes=minutes,
                       description=description.strip()[:5000] or None, ics_sequence=0)
+    ensure_guest_token(meeting)
     db.add(meeting)
     db.flush()
     planning.ensure_uid(meeting)
     added = planning.add_invitees(db, meeting, emails)
     count, mail_ready = planning.send(db, meeting, added, "invite", user, copy_to_organizer=copy_me == "1")
     db.commit()
+    access.sync(db)
     worker.wake()
     flash(request, f"Besprechung „{title}“ geplant.")
     _flash_sent(request, count, mail_ready, meeting, "Die Einladung")
@@ -504,10 +555,13 @@ def meeting_plan(request: Request, title: str = Form(...), start: str = Form("")
 def meeting_detail(request: Request, meeting_id: int, user: User = Depends(current_user),
                    db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
+    if not meeting.guest_token:
+        ensure_guest_token(meeting)
+        db.commit()
     return render(request, "meeting.html", user, meeting=meeting,
                   durations=planning.DURATIONS, users_json=_users_json(db),
                   mail_ready=notify.mail_configured(get_settings(db)),
-                  guest_url=f"{settings.meet_base_url}/{meeting.room}",
+                  guest_url=f"{settings.portal_base_url}/g/{ensure_guest_token(meeting)}",
                   document_types=DOCUMENT_TYPES, languages=LANGUAGES,
                   sm_ready=speechmind_ready(db, meeting.owner))
 
@@ -537,8 +591,20 @@ def meeting_delete(request: Request, meeting_id: int, user: User = Depends(curre
         rec.meeting_id = None
     db.delete(meeting)
     db.commit()
+    access.sync(db)
     flash(request, "Meeting gelöscht. Vorhandene Aufnahmen bleiben für Admins sichtbar.")
     return redirect("/")
+
+
+@app.post("/meetings/{meeting_id}/guest-link", dependencies=[Depends(check_csrf)])
+def meeting_guest_link_reset(request: Request, meeting_id: int, user: User = Depends(current_user),
+                             db: Session = Depends(get_db)):
+    """Neuen allgemeinen Gastlink erzeugen; der alte funktioniert danach nicht mehr."""
+    meeting = own_meeting(db, meeting_id, user)
+    meeting.guest_token = new_link_token()
+    db.commit()
+    flash(request, "Neuer Gastlink erzeugt. Der bisherige Link funktioniert nicht mehr.")
+    return redirect(f"/meetings/{meeting.id}")
 
 
 @app.get("/meetings/{meeting_id}/join")
@@ -770,6 +836,18 @@ def recording_video(rec_id: int, user: User = Depends(current_user), db: Session
     return FileResponse(path, media_type="video/mp4", filename=path.name)
 
 
+@app.get("/recordings/{rec_id}/chat.txt", response_class=PlainTextResponse)
+def recording_chat_txt(rec_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    rec = own_recording(db, rec_id, user)
+    if not rec.chat:
+        raise HTTPException(404, "Zu dieser Aufnahme gibt es kein Chatprotokoll.")
+    title = rec.meeting.title if rec.meeting else rec.room
+    filename = f"chatprotokoll-{room_slug(title)}-{to_local(rec.created_at):%Y%m%d-%H%M}.txt"
+    head = f"Chatprotokoll: {title}, Aufnahme vom {to_local(rec.created_at):%d.%m.%Y %H:%M} Uhr\n\n"
+    return PlainTextResponse(head + chat.as_text(rec.chat, to_local),
+                             headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
 @app.get("/recordings/{rec_id}/transcript.txt", response_class=PlainTextResponse)
 def recording_transcript_txt(rec_id: int, user: User = Depends(current_user),
                              db: Session = Depends(get_db)):
@@ -790,7 +868,7 @@ def recording_transcript_txt(rec_id: int, user: User = Depends(current_user),
 
 
 DELETE_MODES = {
-    "media": "Nur Video und MP3 löschen, Transkript behalten",
+    "media": "Nur Video und MP3 löschen, Transkript und Chatprotokoll behalten",
     "keep_link": "Alles hier löschen, Protokoll bei SpeechMind später wieder abrufbar",
     "all": "Alles löschen",
 }
@@ -815,12 +893,12 @@ def delete_recording(db: Session, rec: Recording, mode: str) -> str:
     if rec.status in ACTIVE_STATUSES:
         return "busy"
     _remove_media(rec)
-    if mode == "media" and (rec.transcript_json or rec.sm_protocol_slug):
+    if mode == "media" and (rec.transcript_json or rec.sm_protocol_slug or rec.chat_json):
         if rec.status != STATUS_DONE:
             rec.error = None
         return "media"
     if mode == "keep_link" and rec.sm_protocol_slug:
-        rec.transcript_json = rec.summary_json = None
+        rec.transcript_json = rec.summary_json = rec.chat_json = None
         rec.status, rec.error = STATUS_REMOTE, None
         return "remote"
     db.delete(rec)
@@ -829,7 +907,7 @@ def delete_recording(db: Session, rec: Recording, mode: str) -> str:
 
 DELETE_MESSAGES = {
     "removed": "Aufnahme vollständig gelöscht (ein Protokoll in SpeechMind bleibt dort bestehen).",
-    "media": "Video und MP3 gelöscht, das Transkript bleibt erhalten.",
+    "media": "Video und MP3 gelöscht, Transkript und Chatprotokoll bleiben erhalten.",
     "remote": "Aufnahme hier gelöscht. Das Protokoll kann jederzeit wieder von SpeechMind abgerufen werden.",
     "busy": "Die Aufnahme wird gerade verarbeitet und kann erst danach gelöscht werden.",
 }
@@ -1080,6 +1158,7 @@ def admin_users_update(request: Request, uid: int, action: str = Form(...),
         db.delete(target)
         flash(request, f"{target.email} gelöscht.")
     db.commit()
+    access.sync(db)
     return redirect("/admin/users")
 
 
@@ -1266,6 +1345,7 @@ def admin_access(request: Request, allow_anonymous: str = Form(""), user: User =
                  db: Session = Depends(get_db)):
     set_setting(db, "allow_anonymous", "1" if allow_anonymous == "1" else "0")
     db.commit()
+    access.sync(db)
     flash(request, "Konferenzen ohne Anmeldung sind " + ("freigegeben." if allow_anonymous == "1" else "gesperrt."))
     return redirect("/admin/users")
 

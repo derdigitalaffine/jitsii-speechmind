@@ -27,7 +27,7 @@ _MEETING_VARS = {
     "datum": "Datum, z. B. Donnerstag, 01.10.2026",
     "uhrzeit": "Uhrzeit, z. B. 10:00–11:00 Uhr",
     "dauer": "Dauer, z. B. 60 Minuten",
-    "link": "Einwahllink zur Konferenz",
+    "link": "Persönlicher Einwahllink der Person",
     "beschreibung": "Beschreibung bzw. Tagesordnung",
     "organisator": "Name der planenden Person",
     "organisator_email": "E-Mail der planenden Person",
@@ -69,7 +69,8 @@ TEMPLATES: dict[str, dict] = {
         "body": ("Guten Tag {name},\n\n"
                  "{organisator} lädt Sie zur Videokonferenz „{titel}“ ein.\n\n"
                  "Wann:      {datum}, {uhrzeit}\n"
-                 "Einwahl:   {link}\n\n"
+                 "Einwahl:   {link}\n"
+                 "(persönlicher Link, bitte nicht weitergeben)\n\n"
                  "{beschreibung}\n\n"
                  "So nehmen Sie teil: Öffnen Sie kurz vor Beginn den Einwahllink im Browser "
                  "(Chrome, Edge, Firefox oder Safari). Eine Installation ist nicht nötig.\n"
