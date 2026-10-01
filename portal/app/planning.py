@@ -60,6 +60,12 @@ def personal_link(inv: Invitee) -> str:
     return f"{settings.portal_base_url}/join/{inv.join_token}"
 
 
+def rsvp_link(inv: Invitee) -> str:
+    """Seite zum Zu-/Absagen im Browser (für Mailprogramme ohne Kalenderfunktion)."""
+    personal_link(inv)
+    return f"{settings.portal_base_url}/rsvp/{inv.join_token}"
+
+
 def guest_link(meeting: Meeting) -> str:
     if not meeting.guest_token:
         meeting.guest_token = new_link_token()
@@ -135,6 +141,14 @@ def _calendar(meeting: Meeting, method: str, attendees: list[tuple[str, str]],
     )
 
 
+def invitee_calendar(meeting: Meeting, inv: Invitee) -> str:
+    """Kalenderdatei für eine eingeladene Person zum Importieren (z. B. von der Antwortseite)."""
+    with SessionLocal() as db:
+        cfg = get_settings(db)
+    return _calendar(meeting, "PUBLISH", [(inv.name, inv.email)], organizer_identity(cfg, meeting.owner),
+                     personal_link(inv))
+
+
 def calendar_file(meeting: Meeting) -> str:
     """ICS zum Herunterladen (für den eigenen Kalender oder zum Weiterleiten)."""
     attendees = [(i.name, i.email) for i in meeting.invitees]
@@ -156,7 +170,7 @@ def send(db, meeting: Meeting, invitees: list[Invitee], kind: str, organizer: Us
     ensure_uid(meeting)
     method = "CANCEL" if kind == "cancel" else "REQUEST"
     filename = "absage.ics" if kind == "cancel" else "einladung.ics"
-    base = {**when(meeting), "titel": meeting.title, "link": join_link(meeting),
+    base = {**when(meeting), "titel": meeting.title, "link": join_link(meeting), "antwort_link": "",
             "beschreibung": meeting.description or "", "organisator": organizer.name,
             "organisator_email": organizer.email}
     org = organizer_identity(cfg, organizer)
@@ -168,7 +182,7 @@ def send(db, meeting: Meeting, invitees: list[Invitee], kind: str, organizer: Us
                 inv.rsvp_status, inv.rsvp_at, inv.rsvp_comment = None, None, None
         link = personal_link(inv)
         subject, body = mailtpl.render(db, f"meeting_{kind}", {**base, "name": inv.name or inv.email,
-                                                               "link": link}, cfg)
+                                                               "link": link, "antwort_link": rsvp_link(inv)}, cfg)
         ics_text = _calendar(meeting, method, [(inv.name, inv.email)], org, link)
         if notify.enqueue(db, inv.email, subject, body, f"meeting_{kind}", cfg, reply_to=organizer.email,
                           attachments=[{"filename": filename, "content": ics_text, "calendar_method": method}]):

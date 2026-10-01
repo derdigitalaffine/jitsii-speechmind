@@ -112,11 +112,11 @@ def apply_reply(db, reply: dict) -> str | None:
         comment = f"Vorschlag: {_proposed_text(reply['proposed'])}" + (f" – {comment}" if comment else "")
     inv.rsvp_status, inv.rsvp_at, inv.rsvp_comment = reply["status"], utcnow(), comment or None
     db.flush()
-    _notify_organizer(db, meeting, inv)
+    notify_organizer(db, meeting, inv)
     return f"{inv.email}: {reply['status']} ({meeting.title})"
 
 
-def _notify_organizer(db, meeting: Meeting, inv: Invitee) -> None:
+def notify_organizer(db, meeting: Meeting, inv: Invitee) -> None:
     from . import planning  # vermeidet Importzyklus
     cfg = get_settings(db)
     owner = meeting.owner

@@ -442,6 +442,47 @@ def join_personal(request: Request, token: str, db: Session = Depends(get_db)):
     return redirect(guest_join_url(inv.name or inv.email, meeting.room, f"guest-{inv.id}", inv.email))
 
 
+def _invitee_by_token(db: Session, token: str) -> Invitee | None:
+    return db.scalar(select(Invitee).where(Invitee.join_token == token)) if len(token) > 10 else None
+
+
+@app.get("/rsvp/{token}")
+def rsvp_page(request: Request, token: str, db: Session = Depends(get_db)):
+    """Zu-/Absagen im Browser. Nur Anzeige: Link-Scanner von Mailservern rufen Links automatisch
+    auf, deshalb wird die Antwort erst mit dem Knopf (POST) gespeichert."""
+    inv = _invitee_by_token(db, token)
+    return render(request, "rsvp.html", None, inv=inv, meeting=inv.meeting if inv else None, token=token)
+
+
+@app.post("/rsvp/{token}", dependencies=[Depends(check_csrf)])
+def rsvp_answer(request: Request, token: str, status: str = Form(...), comment: str = Form(""),
+                db: Session = Depends(get_db)):
+    from . import rsvp
+    rate_limit(request, "rsvp", limit=30)
+    inv = _invitee_by_token(db, token)
+    if inv is None or inv.meeting.cancelled_at or status not in ("accepted", "tentative", "declined"):
+        return redirect(f"/rsvp/{token}")
+    inv.rsvp_status, inv.rsvp_at = status, utcnow()
+    inv.rsvp_comment = " ".join(comment.split())[:300] or None
+    db.flush()
+    rsvp.notify_organizer(db, inv.meeting, inv)
+    db.commit()
+    worker.wake()
+    flash(request, f"Danke, Ihre Antwort „{planning.RSVP_LABELS[status]}“ wurde gespeichert.")
+    return redirect(f"/rsvp/{token}")
+
+
+@app.get("/rsvp/{token}/calendar.ics")
+def rsvp_calendar(token: str, db: Session = Depends(get_db)):
+    inv = _invitee_by_token(db, token)
+    if inv is None or inv.meeting.starts_at is None:
+        raise HTTPException(404)
+    planning.ensure_uid(inv.meeting)
+    db.commit()
+    return Response(planning.invitee_calendar(inv.meeting, inv), media_type="text/calendar; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{room_slug(inv.meeting.title)}.ics"'})
+
+
 @app.get("/g/{token}")
 def join_guest_form(request: Request, token: str, db: Session = Depends(get_db)):
     meeting = db.scalar(select(Meeting).where(Meeting.guest_token == token)) if len(token) > 10 else None
@@ -1249,6 +1290,36 @@ async def admin_notifications_test_imap(request: Request, user: User = Depends(a
         flash(request, str(exc), "error")
     else:
         flash(request, info)
+    return redirect("/admin/notifications")
+
+
+@app.post("/admin/notifications/test-invite", dependencies=[Depends(check_csrf)])
+async def admin_notifications_test_invite(request: Request, user: User = Depends(admin_user),
+                                          db: Session = Depends(get_db)):
+    """Schickt eine echte Testeinladung (Besprechungsanfrage) an die eigene Adresse."""
+    import uuid as _uuid
+    from . import ics
+    cfg = get_settings(db)
+    start = (utcnow() + timedelta(days=1)).replace(minute=0, second=0, microsecond=0)
+    org = (branding.load()["name"], cfg.get("mail_from", ""))
+    cal = ics.build(method="REQUEST", uid=f"test-{_uuid.uuid4().hex}@portal", sequence=0, start=start, minutes=30,
+                    title="Testeinladung Videokonferenz", description="Testeinladung aus dem Portal.",
+                    location=settings.portal_base_url, url=settings.portal_base_url, organizer=org,
+                    attendees=[(user.name, user.email)])
+    subject, body = mailtpl.render(db, "meeting_invite", {
+        **mailtpl.SAMPLE, "name": user.name, "titel": "Testeinladung Videokonferenz",
+        "link": settings.portal_base_url, "antwort_link": settings.portal_base_url,
+        "organisator": org[0], "beschreibung": "Dies ist eine Testeinladung.",
+        "datum": planning.when(Meeting(starts_at=start, duration_minutes=30))["datum"],
+        "uhrzeit": planning.when(Meeting(starts_at=start, duration_minutes=30))["uhrzeit"]}, cfg)
+    try:
+        await asyncio.to_thread(notify.deliver, cfg, user.email, "[Test] " + subject, body,
+                                [{"filename": "einladung.ics", "content": cal, "calendar_method": "REQUEST"}])
+    except notify.MailError as exc:
+        flash(request, str(exc), "error")
+    else:
+        flash(request, f"Testeinladung an {user.email} verschickt. In Outlook sollte sie als Besprechungsanfrage "
+              "mit „Annehmen/Ablehnen“ erscheinen (ggf. auch im Junk-Ordner nachsehen).")
     return redirect("/admin/notifications")
 
 

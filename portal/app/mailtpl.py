@@ -31,6 +31,7 @@ _MEETING_VARS = {
     "beschreibung": "Beschreibung bzw. Tagesordnung",
     "organisator": "Name der planenden Person",
     "organisator_email": "E-Mail der planenden Person",
+    "antwort_link": "Link zum Zu- oder Absagen im Browser (funktioniert in jedem Mailprogramm)",
 }
 
 _RECORDING_VARS = {
@@ -71,6 +72,7 @@ TEMPLATES: dict[str, dict] = {
                  "Wann:      {datum}, {uhrzeit}\n"
                  "Einwahl:   {link}\n"
                  "(persönlicher Link, bitte nicht weitergeben)\n\n"
+                 "Zu- oder absagen: {antwort_link}\n\n"
                  "{beschreibung}\n\n"
                  "So nehmen Sie teil: Öffnen Sie kurz vor Beginn den Einwahllink im Browser "
                  "(Chrome, Edge, Firefox oder Safari). Eine Installation ist nicht nötig.\n"
@@ -84,6 +86,7 @@ TEMPLATES: dict[str, dict] = {
                  "die Videokonferenz „{titel}“ wurde geändert. Es gilt jetzt:\n\n"
                  "Wann:      {datum}, {uhrzeit}\n"
                  "Einwahl:   {link}\n\n"
+                 "Bitte antworten Sie erneut: {antwort_link}\n\n"
                  "{beschreibung}\n\n"
                  "Der aktualisierte Kalendereintrag hängt an dieser Mail.\n\n{fusszeile}"),
     },
@@ -145,6 +148,7 @@ SAMPLE = {
     "beschreibung": "Tagesordnung:\n1. Bericht\n2. Termine", "organisator": "Max Muster",
     "organisator_email": "max.muster@example.org", "aufnahme": "Teamrunde Bauamt, 01.10.2026 10:00 Uhr",
     "fehler": "Beispiel einer Fehlermeldung",
+    "antwort_link": "https://portal.example.org/rsvp/beispiel",
     "teilnehmer": "Erika Mustermann <erika.mustermann@example.org>", "antwort": "Zugesagt",
     "kommentar": "Ich komme etwas später.", "stand": "3 zugesagt, 1 abgesagt, 2 offen",
 }

@@ -145,6 +145,13 @@ Das Portal legt einen Konferenzraum an und schickt **jeder Person eine eigene Ma
 
 ### Zu- und Absagen verfolgen
 
+**Zwei Wege zu antworten:**
+
+1. **Im Kalenderprogramm** (Outlook, Thunderbird, Apple, Google): Die Einladung erscheint als Besprechungsanfrage mit „Annehmen/Ablehnen“. Ausgewertet wird das per IMAP (siehe unten).
+2. **Per Link in der Mail** („Zu- oder absagen: …“): Er öffnet eine Seite mit **Zusagen / Mit Vorbehalt / Absagen** und optionalem Kommentar. Das funktioniert in jedem Mailprogramm und auch ohne IMAP-Auswertung. Die Antwort wird erst mit dem Knopf gespeichert (automatische Link-Prüfungen von Mailservern lösen also nichts aus). Auf derselben Seite gibt es den Termin als `.ics` für den eigenen Kalender.
+
+Haben Sie die Vorlagen „Einladung zur Besprechung“ oder „Geänderte Besprechung“ früher angepasst, fügen Sie dort den Platzhalter `{antwort_link}` ein; neue Standardtexte enthalten ihn bereits.
+
 Bei jeder Person steht in der Spalte **Antwort**, ob sie **zugesagt**, **abgesagt**, **mit Vorbehalt** geantwortet oder einen **neuen Zeitvorschlag** gemacht hat, mit Zeitpunkt und Kommentar. Darüber steht die Zusammenfassung („3 zugesagt, 1 abgesagt, 2 offen“), ebenso auf der Startseite. Die planende Person bekommt zu jeder Antwort eine Mail (abschaltbar).
 
 Voraussetzung: Unter **Benachrichtigungen** ist IMAP eingerichtet und **„Antworten im Postfach auswerten“** eingeschaltet (siehe [E-Mail einrichten](#e-mail-einrichten)). So funktioniert es:
@@ -449,6 +456,7 @@ Platz sparen: Aufnahmen nach Gebrauch in der Oberfläche löschen oder unter **S
 | Beitritt endet in einer Schleife auf der Login-Seite | `JWT_*`-Werte in `.env` geändert? Dann `docker compose up -d --force-recreate` |
 | MP3 ist stumm, Etikett „kein Ton“ | Siehe [Aufnahme ohne Ton](#aufnahme-ohne-ton): `./scripts/diagnose-recording.sh` |
 | Im Video ist ein Fensterrahmen (IceWM) zu sehen, Konferenz füllt nicht das Bild | Chrome in Jibri läuft ohne Vollbild (`--kiosk`). Ursache war dieselbe falsche Einstellung wie bei stummen Aufnahmen; mit aktueller `docker-compose.yml` behoben. Prüfen: `./scripts/diagnose-recording.sh` |
+| Einladungen kommen in Outlook nicht an bzw. nicht als Besprechungsanfrage | Unter **Benachrichtigungen** „Testeinladung (Kalender) an mich“ an ein Outlook-Postfach schicken. Steht im Versandprotokoll „gesendet“, aber im Posteingang ist nichts: **Junk-E-Mail-Ordner** und bei Microsoft 365 die **Quarantäne** prüfen (Kalendereinladungen von schlecht authentifizierten Absendern werden dort gern abgefangen). Abhilfe: Für die Absenderdomain **SPF und DKIM** beim Mailanbieter einrichten bzw. den Absender in Exchange als vertrauenswürdig eintragen. Bis Oktober 2026 hatte der Kalenderteil zudem falsche Zeilenenden, die Outlook verwirft: aktuelle Version einspielen |
 | Zu-/Absagen erscheinen nicht | Unter **Benachrichtigungen** „Antworten im Postfach auswerten“ an? IMAP-Konto = Postfach der Absenderadresse? Fehlermeldung unter dem Kasten lesen, „Antworten jetzt abrufen“ testen. Alte Einladungen ggf. erneut senden |
 | Designänderungen sind nicht zu sehen | Schalter „Eigenes Design“ oben auf der Seite einschalten und speichern. Für die Konferenz zusätzlich „Auch in der Konferenz anwenden“ |
 | Aufnahme-Knopf fehlt | Nur angemeldete Benutzer dürfen aufnehmen; Jibri-Log prüfen (`docker compose logs jibri`) |

@@ -1,0 +1,36 @@
+{% extends "auth.html" %}
+{% block title %}Antwort auf Einladung{% endblock %}
+{% block auth %}
+<div class="card shadow-sm"><div class="card-body p-4">
+{% if not inv %}
+  <h1 class="h5"><i class="fa-solid fa-link-slash text-danger me-2"></i>Link ungültig</h1>
+  <p>Dieser Link ist ungültig. Bitte wenden Sie sich an die Person, die Sie eingeladen hat.</p>
+{% else %}{% set w = planning_when(meeting) %}
+  <h1 class="h5 mb-1">{{ meeting.title }}</h1>
+  <div class="text-secondary mb-3"><i class="fa-regular fa-clock me-1"></i>{{ w.datum }}, {{ w.uhrzeit }}<br><i class="fa-regular fa-user me-1"></i>eingeladen von {{ meeting.owner.name }}</div>
+  {% if meeting.cancelled_at %}
+  <div class="alert alert-danger mb-0"><i class="fa-solid fa-ban me-2"></i>Diese Besprechung wurde abgesagt.</div>
+  {% else %}
+  {% if inv.rsvp_status %}<div class="alert alert-info py-2">Ihre bisherige Antwort: <strong>{{ rsvp_labels.get(inv.rsvp_status) }}</strong>{% if inv.rsvp_comment %} – „{{ inv.rsvp_comment }}“{% endif %}</div>{% endif %}
+  <p class="mb-2">Guten Tag {{ inv.name }}, nehmen Sie teil?</p>
+  <form method="post" action="/rsvp/{{ token }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="mb-3">
+      <label class="form-label small" for="c">Kommentar (optional)</label>
+      <input class="form-control" id="c" name="comment" type="text" maxlength="300" value="{{ inv.rsvp_comment or '' }}" placeholder="z. B. Ich komme etwas später">
+    </div>
+    <div class="d-grid gap-2">
+      <button class="btn btn-success" name="status" value="accepted" type="submit"><i class="fa-solid fa-check me-1"></i>Zusagen</button>
+      <button class="btn btn-outline-warning" name="status" value="tentative" type="submit"><i class="fa-solid fa-question me-1"></i>Mit Vorbehalt</button>
+      <button class="btn btn-outline-danger" name="status" value="declined" type="submit"><i class="fa-solid fa-xmark me-1"></i>Absagen</button>
+    </div>
+  </form>
+  <hr>
+  <div class="d-flex flex-wrap gap-2 small">
+    <a class="btn btn-sm btn-outline-secondary" href="/rsvp/{{ token }}/calendar.ics"><i class="fa-solid fa-calendar-plus me-1"></i>In meinen Kalender (.ics)</a>
+    <a class="btn btn-sm btn-outline-primary" href="/join/{{ token }}"><i class="fa-solid fa-video me-1"></i>Zur Konferenz</a>
+  </div>
+  {% endif %}
+{% endif %}
+</div></div>
+{% endblock %}
