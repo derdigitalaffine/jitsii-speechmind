@@ -34,7 +34,7 @@
         <li>Den angezeigten sechsstelligen Code unten eingeben.</li>
       </ol>
       <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
-        <div class="bg-white p-2 border rounded" style="width: 200px">{{ setup.qr | safe }}</div>
+        <div class="bg-white p-2 border rounded qr-svg" style="width: 200px">{{ setup.qr | safe }}</div>
         <div class="small">Scannen nicht möglich? Schlüssel von Hand eingeben:<div class="font-monospace fw-semibold mt-1">{{ setup.secret }}</div><div class="text-secondary">zeitbasiert, 6 Ziffern, 30 Sekunden</div></div>
       </div>
       <form method="post" action="/profile/security/totp" class="d-flex gap-2" style="max-width: 22rem">

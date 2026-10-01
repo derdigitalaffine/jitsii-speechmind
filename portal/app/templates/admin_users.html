@@ -78,9 +78,9 @@
       <label class="form-check-label" for="mfa-t"><strong>Authenticator-App (TOTP)</strong><div class="form-text mt-0">Microsoft/Google Authenticator, FreeOTP u. a.</div></label></div></div>
     <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="mfa-e" name="mfa_email_allowed" value="1" {% if cfg.mfa_email_allowed == '1' %}checked{% endif %}>
       <label class="form-check-label" for="mfa-e"><strong>Code per E-Mail</strong><div class="form-text mt-0">Braucht eingerichteten Mailversand</div></label></div></div>
-    <div class="col-md-3"><label class="form-label" for="mfa-r">Zwei-Faktor ist</label>
+    <div class="col-md-4"><label class="form-label" for="mfa-r">Zwei-Faktor ist</label>
       <select class="form-select" id="mfa-r" name="mfa_required">{% for k, v in mfa_required.items() %}<option value="{{ k }}" {% if cfg.mfa_required == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
-    <div class="col-md-1"><button class="btn btn-outline-primary w-100" type="submit">Speichern</button></div>
+    <div class="col-12"><button class="btn btn-outline-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div>
     <div class="col-12 form-text mt-1">Freiwillig: Jede Person schaltet es unter Profil › Sicherheit selbst ein. Pflicht: Ohne eingerichtete App wird automatisch ein Code per E-Mail verlangt; ist der nicht erlaubt, muss die App direkt nach der Anmeldung eingerichtet werden. Passwort vergessen: Link per E-Mail über „Passwort vergessen?“ auf der Anmeldeseite – der zweite Faktor wird danach trotzdem abgefragt.</div>
   </form>
 </div></div>

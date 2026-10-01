@@ -116,3 +116,4 @@ footer.app-footer { border-top: 1px solid var(--bs-border-color); color: var(--b
 .form-fill .scale-options .btn { min-width: 2.75rem; }
 .form-fill .req { color: var(--bs-danger); }
 .fill-progress { height: .4rem; }
+.qr-svg svg { width: 100%; height: auto; display: block; }
