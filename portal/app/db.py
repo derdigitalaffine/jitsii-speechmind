@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import (
@@ -93,11 +93,40 @@ class Meeting(Base):
     document_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     language: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # Geplante Besprechung (Kalendereinladung); starts_at in UTC
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ics_uid: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ics_sequence: Mapped[int] = mapped_column(Integer, default=0)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     owner: Mapped[User] = relationship(back_populates="meetings")
     recordings: Mapped[list["Recording"]] = relationship(
         back_populates="meeting", order_by="Recording.created_at.desc()"
     )
+    invitees: Mapped[list["Invitee"]] = relationship(
+        back_populates="meeting", order_by="Invitee.email", cascade="all, delete-orphan"
+    )
+
+    @property
+    def ends_at(self) -> datetime | None:
+        if self.starts_at is None:
+            return None
+        return self.starts_at + timedelta(minutes=self.duration_minutes or 60)
+
+
+class Invitee(Base):
+    """Eingeladene Person einer geplanten Besprechung (Portal-Benutzer oder externer Gast)."""
+    __tablename__ = "invitees"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    meeting_id: Mapped[int] = mapped_column(ForeignKey("meetings.id"), index=True)
+    email: Mapped[str] = mapped_column(String(255))
+    name: Mapped[str] = mapped_column(String(255), default="")
+    invited_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    meeting: Mapped[Meeting] = relationship(back_populates="invitees")
 
 
 # Status-Abfolge einer Aufnahme
@@ -178,6 +207,9 @@ class Notification(Base):
     next_attempt_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reply_to: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # JSON-Liste von Anhängen: {"filename", "content", "calendar_method"?}
+    attachments_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 DEFAULT_SETTINGS = {
@@ -241,6 +273,10 @@ _NEW_COLUMNS = {
         "token_expires_at": "DATETIME",
     },
     "recordings": {"audio_path": "VARCHAR(1024)", "audio_max_db": "FLOAT", "media_deleted_at": "DATETIME"},
+    "meetings": {"starts_at": "DATETIME", "duration_minutes": "INTEGER", "description": "TEXT",
+                 "ics_uid": "VARCHAR(255)", "ics_sequence": "INTEGER NOT NULL DEFAULT 0",
+                 "cancelled_at": "DATETIME"},
+    "notifications": {"reply_to": "VARCHAR(255)", "attachments_json": "TEXT"},
 }
 
 

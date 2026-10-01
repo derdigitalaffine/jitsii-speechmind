@@ -27,6 +27,8 @@ Name und Produktbezeichnung lassen sich über `BRAND_NAME` und `BRAND_PRODUCT` i
 - **Transkription auf Knopfdruck** (nie automatisch), mit sichtbarem Verarbeitungsstand (Aufgezeichnet → Audiospur → Upload → SpeechMind → Transkript).
 - **Ergebnis im Portal:** Protokoll, Aufgaben und Wortlaut mit Zeitmarken; Download als TXT.
 - **MP3-Übersicht** im Admin-Bereich: alle Aufnahmen mit Dauer, Größe und Status, MP3-Download, Übergabe an SpeechMind.
+- **Besprechungen planen:** Termin, Dauer, Tagesordnung und Teilnehmende (Portal-Benutzer werden vorgeschlagen, externe Gäste per Adresse). Jede Person bekommt eine eigene Einladung als Outlook-Besprechungsanfrage mit ICS-Anhang und Einwahllink; Änderungen, Ausladungen und Absagen aktualisieren die Kalender automatisch.
+- **Bearbeitbare E-Mail-Vorlagen** für alle Mails (Einladungen, Passwort-Links, Besprechungen, Aufnahmen) mit Platzhaltern, Live-Vorschau und Testmail.
 - **Aufnahmen löschen** einzeln oder per Mehrfachauswahl: nur Video und MP3 (Transkript bleibt), alles außer dem Verweis auf SpeechMind (Protokoll später wieder abrufbar) oder alles.
 - **Benutzerverwaltung** für Admins mit **Einladung per E-Mail**: Die eingeladene Person legt ihr Passwort über einen Einmal-Link selbst fest. „Passwort vergessen“ nutzt denselben Weg. Optional eigene SpeechMind-Keys pro Benutzer:in.
 - **Benachrichtigungen per E-Mail** (SMTP, optional IMAP-Ablage): Einladungen, Passwort-Links und Hinweise zu neuen Aufnahmen, fertigen Transkripten und Fehlern. Nachrichten laufen über eine Warteschlange mit automatischen Wiederholungen und sichtbarem Protokoll.
@@ -245,7 +247,10 @@ Projektstruktur:
 portal/app/
 ├── main.py          Routen (Login, Meetings, Aufnahmen, Admin)
 ├── worker.py        Aufnahmen finden, MP3 erzeugen, Upload, Statusabfrage
-├── notify.py        Benachrichtigungs-Engine (SMTP/IMAP, Warteschlange)
+├── notify.py        Benachrichtigungs-Engine (SMTP/IMAP, Warteschlange, Anhänge)
+├── mailtpl.py       Bearbeitbare E-Mail-Vorlagen
+├── planning.py      Besprechungen planen, Einladungen versenden
+├── ics.py           Kalendereinladungen (iCalendar, RFC 5545)
 ├── branding.py      Design & Branding (Farben, Logo, Theme-CSS)
 ├── proxy.py         Reverse Proxy: Caddyfile erzeugen, Zertifikate prüfen
 ├── cli.py           Notfall-Werkzeug (Passwort setzen, Admin machen)

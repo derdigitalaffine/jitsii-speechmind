@@ -5,13 +5,15 @@ import logging
 import secrets
 import shutil
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import (
+    FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
@@ -19,10 +21,11 @@ from sqlalchemy.orm import Session, joinedload
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import branding, notify, proxy, worker
+from . import branding, mailtpl, notify, planning, proxy, worker
+from .planning import EMAIL_RE, name_from_email
 from .config import settings
 from .db import (
-    ACTIVE_STATUSES, STATUS_DONE, STATUS_FAILED, STATUS_PROCESSING, STATUS_QUEUED, STATUS_RECORDED,
+    ACTIVE_STATUSES, Invitee, STATUS_DONE, STATUS_FAILED, STATUS_PROCESSING, STATUS_QUEUED, STATUS_RECORDED,
     STATUS_REMOTE, Meeting,
     Notification, Recording, SessionLocal, User, get_settings, init_db, set_setting, to_local, utcnow,
 )
@@ -102,6 +105,8 @@ app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")
 templates.env.globals.update(brand=settings.brand_name, product=settings.brand_product)
 templates.env.globals["themes"] = branding.THEMES
+templates.env.globals.update(planning_when=planning.when, local_input=planning.local_input,
+                             is_upcoming=planning.is_upcoming)
 templates.env.filters["filesize"] = lambda n: (
     "" if not n else f"{n / 1_000_000:.1f} MB".replace(".", ",") if n >= 1_000_000 else f"{max(n // 1000, 1)} kB")
 templates.env.filters["local"] = lambda dt, fmt="%d.%m.%Y, %H:%M": to_local(dt).strftime(fmt) if dt else ""
@@ -283,7 +288,7 @@ def issue_link(db: Session, target: User, kind: str) -> str:
 def send_link(db: Session, target: User, kind: str) -> tuple[str, bool]:
     """Link erzeugen und per Mail einreihen. Gibt (Link, Mail eingereiht?) zurück."""
     link = issue_link(db, target, kind)
-    subject, body = (notify.invite_text if kind == "invite" else notify.reset_text)(target, link)
+    subject, body = notify.account_link_mail(db, target, link, kind)
     queued = notify.enqueue(db, target.email, subject, body, kind)
     return link, queued
 
@@ -419,7 +424,8 @@ def dashboard(request: Request, user: User = Depends(current_user), db: Session 
         select(Recording).join(Meeting).where(Meeting.owner_id == user.id)
         .order_by(Recording.created_at.desc()).limit(8)
     ).all()
-    return render(request, "dashboard.html", user, meetings=meetings, recent=recent,
+    upcoming = sorted((mt for mt in meetings if planning.is_upcoming(mt)), key=lambda mt: mt.starts_at)
+    return render(request, "dashboard.html", user, meetings=meetings, recent=recent, upcoming=upcoming,
                   sm_ready=speechmind_ready(db, user), anonymous=anonymous_allowed(db))
 
 
@@ -434,11 +440,71 @@ def create_meeting(request: Request, title: str = Form(...),
     return redirect(f"/meetings/{meeting.id}")
 
 
+# --- Besprechungen planen ---------------------------------------------------
+
+def _users_json(db: Session) -> list[dict]:
+    """Vorschläge für die Teilnehmer-Eingabe (aktive Portal-Benutzer)."""
+    return [{"value": u.email, "name": u.name}
+            for u in db.scalars(select(User).where(User.active.is_(True)).order_by(User.name))]
+
+
+def _plan_values(start: str, duration: str) -> tuple[datetime | None, int, str | None]:
+    starts_at = planning.parse_local(start)
+    minutes = int(duration) if duration.isdigit() and 5 <= int(duration) <= 1440 else 60
+    if starts_at is None:
+        return None, minutes, "Bitte Datum und Uhrzeit angeben."
+    return starts_at, minutes, None
+
+
+def _flash_sent(request: Request, count: int, mail_ready: bool, meeting: Meeting, what: str) -> None:
+    if not mail_ready:
+        flash(request, "E-Mail-Versand ist nicht eingerichtet: Es wurden keine Mails verschickt. Laden Sie den "
+              "Termin als ICS-Datei herunter und versenden Sie ihn selbst, oder richten Sie unter "
+              "Benachrichtigungen den Mailversand ein.", "error")
+    elif count:
+        flash(request, f"{what} an {count} Person(en) wird verschickt.")
+
+
+@app.get("/meetings/plan")
+def meeting_plan_form(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    start = to_local(utcnow() + timedelta(days=1)).replace(minute=0, second=0, microsecond=0)
+    return render(request, "plan.html", user, durations=planning.DURATIONS, users_json=_users_json(db),
+                  default_start=start.strftime("%Y-%m-%dT%H:%M"),
+                  mail_ready=notify.mail_configured(get_settings(db)))
+
+
+@app.post("/meetings/plan", dependencies=[Depends(check_csrf)])
+def meeting_plan(request: Request, title: str = Form(...), start: str = Form(""), duration: str = Form("60"),
+                 description: str = Form(""), invitees: str = Form(""), copy_me: str = Form(""),
+                 user: User = Depends(current_user), db: Session = Depends(get_db)):
+    title = title.strip()[:200] or "Besprechung"
+    starts_at, minutes, error = _plan_values(start, duration)
+    emails, bad = planning.parse_emails(invitees)
+    if error or bad:
+        flash(request, error or ("Ungültige E-Mail-Adresse: " + ", ".join(bad)), "error")
+        return redirect("/meetings/plan")
+    meeting = Meeting(owner_id=user.id, title=title, room=unique_room(db, room_slug(title)),
+                      starts_at=starts_at, duration_minutes=minutes,
+                      description=description.strip()[:5000] or None, ics_sequence=0)
+    db.add(meeting)
+    db.flush()
+    planning.ensure_uid(meeting)
+    added = planning.add_invitees(db, meeting, emails)
+    count, mail_ready = planning.send(db, meeting, added, "invite", user, copy_to_organizer=copy_me == "1")
+    db.commit()
+    worker.wake()
+    flash(request, f"Besprechung „{title}“ geplant.")
+    _flash_sent(request, count, mail_ready, meeting, "Die Einladung")
+    return redirect(f"/meetings/{meeting.id}")
+
+
 @app.get("/meetings/{meeting_id}")
 def meeting_detail(request: Request, meeting_id: int, user: User = Depends(current_user),
                    db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
     return render(request, "meeting.html", user, meeting=meeting,
+                  durations=planning.DURATIONS, users_json=_users_json(db),
+                  mail_ready=notify.mail_configured(get_settings(db)),
                   guest_url=f"{settings.meet_base_url}/{meeting.room}",
                   document_types=DOCUMENT_TYPES, languages=LANGUAGES,
                   sm_ready=speechmind_ready(db, meeting.owner))
@@ -462,6 +528,9 @@ def meeting_settings(request: Request, meeting_id: int, title: str = Form(...),
 def meeting_delete(request: Request, meeting_id: int, user: User = Depends(current_user),
                    db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
+    if planning.is_upcoming(meeting) and meeting.invitees:
+        meeting.ics_sequence = (meeting.ics_sequence or 0) + 1
+        planning.send(db, meeting, list(meeting.invitees), "cancel", meeting.owner)
     for rec in meeting.recordings:
         rec.meeting_id = None
     db.delete(meeting)
@@ -474,6 +543,156 @@ def meeting_delete(request: Request, meeting_id: int, user: User = Depends(curre
 def meeting_join(meeting_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
     return redirect(join_url(user, meeting.room))
+
+
+@app.post("/meetings/{meeting_id}/schedule", dependencies=[Depends(check_csrf)])
+def meeting_schedule(request: Request, meeting_id: int, start: str = Form(""), duration: str = Form("60"),
+                     description: str = Form(""), notify_invitees: str = Form(""),
+                     user: User = Depends(current_user), db: Session = Depends(get_db)):
+    meeting = own_meeting(db, meeting_id, user)
+    starts_at, minutes, error = _plan_values(start, duration)
+    if error:
+        flash(request, error, "error")
+        return redirect(f"/meetings/{meeting.id}")
+    first_time = meeting.starts_at is None
+    meeting.starts_at, meeting.duration_minutes = starts_at, minutes
+    meeting.description = description.strip()[:5000] or None
+    meeting.cancelled_at = None
+    planning.ensure_uid(meeting)
+    if not first_time:
+        meeting.ics_sequence = (meeting.ics_sequence or 0) + 1
+    count, mail_ready = 0, True
+    if meeting.invitees and notify_invitees == "1":
+        count, mail_ready = planning.send(db, meeting, list(meeting.invitees),
+                                          "invite" if first_time else "update", meeting.owner)
+    db.commit()
+    worker.wake()
+    flash(request, "Termin gespeichert.")
+    _flash_sent(request, count, mail_ready, meeting, "Die Änderung")
+    return redirect(f"/meetings/{meeting.id}")
+
+
+@app.post("/meetings/{meeting_id}/invitees", dependencies=[Depends(check_csrf)])
+def meeting_add_invitees(request: Request, meeting_id: int, invitees: str = Form(""),
+                         user: User = Depends(current_user), db: Session = Depends(get_db)):
+    meeting = own_meeting(db, meeting_id, user)
+    emails, bad = planning.parse_emails(invitees)
+    if bad or not emails:
+        flash(request, ("Ungültige E-Mail-Adresse: " + ", ".join(bad)) if bad else "Bitte E-Mail-Adressen angeben.", "error")
+        return redirect(f"/meetings/{meeting.id}")
+    added = planning.add_invitees(db, meeting, emails)
+    count, mail_ready = (0, True)
+    if planning.is_upcoming(meeting):
+        count, mail_ready = planning.send(db, meeting, added, "invite", meeting.owner)
+    db.commit()
+    worker.wake()
+    flash(request, f"{len(added)} Person(en) hinzugefügt.")
+    _flash_sent(request, count, mail_ready, meeting, "Die Einladung")
+    return redirect(f"/meetings/{meeting.id}")
+
+
+@app.post("/meetings/{meeting_id}/invitees/{invitee_id}/delete", dependencies=[Depends(check_csrf)])
+def meeting_remove_invitee(request: Request, meeting_id: int, invitee_id: int,
+                           user: User = Depends(current_user), db: Session = Depends(get_db)):
+    meeting = own_meeting(db, meeting_id, user)
+    inv = db.get(Invitee, invitee_id)
+    if inv is None or inv.meeting_id != meeting.id:
+        raise HTTPException(404)
+    if planning.is_upcoming(meeting) and inv.invited_at:
+        planning.send(db, meeting, [inv], "cancel", meeting.owner)
+    db.delete(inv)
+    db.commit()
+    worker.wake()
+    flash(request, f"{inv.email} ausgeladen" + (" (Absage wird verschickt)." if inv.invited_at else "."))
+    return redirect(f"/meetings/{meeting.id}")
+
+
+@app.post("/meetings/{meeting_id}/resend", dependencies=[Depends(check_csrf)])
+def meeting_resend(request: Request, meeting_id: int, user: User = Depends(current_user),
+                   db: Session = Depends(get_db)):
+    meeting = own_meeting(db, meeting_id, user)
+    count, mail_ready = planning.send(db, meeting, list(meeting.invitees), "invite", meeting.owner)
+    db.commit()
+    worker.wake()
+    _flash_sent(request, count, mail_ready, meeting, "Die Einladung")
+    return redirect(f"/meetings/{meeting.id}")
+
+
+@app.post("/meetings/{meeting_id}/cancel", dependencies=[Depends(check_csrf)])
+def meeting_cancel(request: Request, meeting_id: int, user: User = Depends(current_user),
+                   db: Session = Depends(get_db)):
+    meeting = own_meeting(db, meeting_id, user)
+    if meeting.starts_at is None or meeting.cancelled_at:
+        return redirect(f"/meetings/{meeting.id}")
+    meeting.ics_sequence = (meeting.ics_sequence or 0) + 1
+    count, mail_ready = planning.send(db, meeting, list(meeting.invitees), "cancel", meeting.owner)
+    meeting.cancelled_at = utcnow()
+    db.commit()
+    worker.wake()
+    flash(request, "Besprechung abgesagt. Der Raum bleibt bestehen.")
+    _flash_sent(request, count, mail_ready, meeting, "Die Absage")
+    return redirect(f"/meetings/{meeting.id}")
+
+
+@app.get("/meetings/{meeting_id}/calendar.ics")
+def meeting_calendar(meeting_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    meeting = own_meeting(db, meeting_id, user)
+    if meeting.starts_at is None:
+        raise HTTPException(404, "Für dieses Meeting ist kein Termin geplant.")
+    planning.ensure_uid(meeting)
+    db.commit()
+    return Response(planning.calendar_file(meeting), media_type="text/calendar; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{room_slug(meeting.title)}.ics"'})
+
+
+# --- Admin: E-Mail-Vorlagen ----------------------------------------------------
+
+@app.get("/admin/templates")
+def admin_templates(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    cfg = get_settings(db)
+    items = []
+    for key, t in mailtpl.TEMPLATES.items():
+        subject, body = mailtpl.current(cfg, key)
+        items.append({"key": key, **t, "cur_subject": subject, "cur_body": body,
+                      "custom": bool(cfg.get(f"tpl_{key}_subject") or cfg.get(f"tpl_{key}_body"))})
+    sample = {**mailtpl.common_vars(), **mailtpl.SAMPLE}
+    return render(request, "admin_templates.html", user, items=items, common_vars=mailtpl.COMMON_VARS,
+                  sample=sample, open_key=request.query_params.get("t", ""))
+
+
+@app.post("/admin/templates/{key}", dependencies=[Depends(check_csrf)])
+async def admin_templates_save(request: Request, key: str, subject: str = Form(""), body: str = Form(""),
+                               action: str = Form("save"), user: User = Depends(admin_user),
+                               db: Session = Depends(get_db)):
+    if key not in mailtpl.TEMPLATES:
+        raise HTTPException(404)
+    t = mailtpl.TEMPLATES[key]
+    if action == "reset":
+        set_setting(db, f"tpl_{key}_subject", "")
+        set_setting(db, f"tpl_{key}_body", "")
+        db.commit()
+        flash(request, f"Vorlage „{t['label']}“ auf den Standardtext zurückgesetzt.")
+        return redirect(f"/admin/templates?t={key}#{key}")
+    subject, body = subject.strip()[:300], body.replace("\r\n", "\n").strip()[:20000]
+    if not subject or not body:
+        flash(request, "Betreff und Text dürfen nicht leer sein.", "error")
+        return redirect(f"/admin/templates?t={key}#{key}")
+    # Standardtext nicht als eigene Fassung speichern (sonst greifen spätere Verbesserungen nicht)
+    set_setting(db, f"tpl_{key}_subject", "" if subject == t["subject"] else subject)
+    set_setting(db, f"tpl_{key}_body", "" if body == t["body"] else body)
+    db.commit()
+    if action == "test":
+        cfg = get_settings(db)
+        s, b = mailtpl.render(db, key, mailtpl.SAMPLE, cfg)
+        try:
+            await asyncio.to_thread(notify.deliver, cfg, user.email, "[Test] " + s, b)
+        except notify.MailError as exc:
+            flash(request, f"Gespeichert, aber die Testmail ging nicht raus: {exc}", "error")
+        else:
+            flash(request, f"Gespeichert. Testmail mit Beispieldaten an {user.email} verschickt.")
+    else:
+        flash(request, f"Vorlage „{t['label']}“ gespeichert.")
+    return redirect(f"/admin/templates?t={key}#{key}")
 
 
 # --- Aufnahmen & Transkripte --------------------------------------------------
@@ -796,13 +1015,6 @@ def admin_users(request: Request, user: User = Depends(admin_user), db: Session 
                   mail_ready=notify.mail_configured(get_settings(db)),
                   invite_ttl=settings.invite_ttl_hours,
                   allow_anonymous=anonymous_allowed(db))
-
-
-EMAIL_RE = re.compile(r"^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$")
-
-
-def name_from_email(email: str) -> str:
-    return " ".join(p.capitalize() for p in re.split(r"[._\-+]+", email.split("@")[0]) if p) or email
 
 
 @app.post("/admin/users", dependencies=[Depends(check_csrf)])

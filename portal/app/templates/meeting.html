@@ -20,6 +20,82 @@
   </div>
 </div>
 
+<div class="card mb-4" id="termin">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span><i class="fa-regular fa-calendar me-2"></i>Termin &amp; Einladungen</span>
+    {% if meeting.cancelled_at %}<span class="badge text-bg-danger">abgesagt</span>
+    {% elif meeting.starts_at and is_upcoming(meeting) %}<span class="badge text-bg-info">geplant</span>
+    {% elif meeting.starts_at %}<span class="badge text-bg-secondary">vorbei</span>{% endif %}
+  </div>
+  <div class="card-body">
+    {% if meeting.starts_at %}{% set w = planning_when(meeting) %}
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+      <div>
+        <div class="h5 mb-1">{{ w.datum }}, {{ w.uhrzeit }}</div>
+        {% if meeting.description %}<div class="text-secondary small" style="white-space: pre-line">{{ meeting.description }}</div>{% endif %}
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-outline-secondary btn-sm" href="/meetings/{{ meeting.id }}/calendar.ics"><i class="fa-solid fa-file-arrow-down me-1"></i>ICS herunterladen</a>
+        {% if meeting.invitees and not meeting.cancelled_at %}
+        <form method="post" action="/meetings/{{ meeting.id }}/resend"><input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-outline-secondary btn-sm" type="submit"><i class="fa-solid fa-paper-plane me-1"></i>Einladung erneut senden</button></form>
+        {% endif %}
+        {% if not meeting.cancelled_at %}
+        <form method="post" action="/meetings/{{ meeting.id }}/cancel"><input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-outline-danger btn-sm" type="submit" data-confirm-title="Besprechung absagen?" data-confirm="Alle Eingeladenen erhalten eine Absage, der Termin verschwindet aus ihren Kalendern. Der Raum bleibt bestehen." data-confirm-button="Absagen"><i class="fa-solid fa-ban me-1"></i>Absagen</button></form>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <p class="text-secondary">Für diesen Raum ist noch kein Termin geplant. Legen Sie einen fest, um Teilnehmende per Kalendereinladung einzuladen.</p>
+    {% endif %}
+
+    <details class="mb-3" {% if not meeting.starts_at %}open{% endif %}>
+      <summary class="fw-semibold mb-2">{{ 'Termin ändern' if meeting.starts_at else 'Termin festlegen' }}</summary>
+      <form method="post" action="/meetings/{{ meeting.id }}/schedule" class="row g-3">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="col-md-6"><label class="form-label" for="s">Beginn</label>
+          <input class="form-control" id="s" name="start" type="datetime-local" required value="{{ local_input(meeting.starts_at) }}"></div>
+        <div class="col-md-6"><label class="form-label" for="dur">Dauer</label>
+          <select class="form-select js-select" id="dur" name="duration">
+            {% for d in durations %}<option value="{{ d }}" {% if d == (meeting.duration_minutes or 60) %}selected{% endif %}>{{ d }} Minuten</option>{% endfor %}
+          </select></div>
+        <div class="col-12"><label class="form-label" for="ds">Beschreibung / Tagesordnung</label>
+          <textarea class="form-control" id="ds" name="description" rows="4" maxlength="5000">{{ meeting.description or '' }}</textarea></div>
+        <div class="col-12"><div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch" id="ni" name="notify_invitees" value="1" checked>
+          <label class="form-check-label" for="ni">Eingeladene über die Änderung informieren (aktualisierter Kalendereintrag)</label></div></div>
+        <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Termin speichern</button></div>
+      </form>
+    </details>
+
+    <h3 class="h6 mt-4">Eingeladen ({{ meeting.invitees | length }})</h3>
+    {% if meeting.invitees %}
+    <table class="table table-sm align-middle js-table w-100" data-order='[[0,"asc"]]' data-page-length="25">
+      <thead><tr><th>Name</th><th>E-Mail</th><th>Eingeladen</th><th class="no-sort col-actions"></th></tr></thead>
+      <tbody>
+      {% for inv in meeting.invitees %}
+      <tr>
+        <td>{{ inv.name }}</td><td>{{ inv.email }}</td>
+        <td data-order="{{ inv.invited_at.isoformat() if inv.invited_at else '' }}">{{ inv.invited_at | local if inv.invited_at else '–' }}</td>
+        <td class="col-actions"><form method="post" action="/meetings/{{ meeting.id }}/invitees/{{ inv.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-sm btn-outline-danger" type="submit" data-confirm-title="{{ inv.email }} ausladen?" data-confirm="Die Person erhält eine Absage für diesen Termin." data-confirm-button="Ausladen" data-bs-toggle="tooltip" title="Ausladen" aria-label="Ausladen"><i class="fa-solid fa-user-minus"></i></button></form></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="text-secondary small">Noch niemand eingeladen.</p>{% endif %}
+
+    <form method="post" action="/meetings/{{ meeting.id }}/invitees" class="row g-2 align-items-end mt-1">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="col-12 col-lg"><label class="form-label" for="ai">Weitere Personen einladen</label>
+        <input class="js-emails" id="ai" name="invitees" placeholder="Name oder Adresse eintippen" data-suggest='{{ users_json | tojson | forceescape }}'></div>
+      <div class="col-12 col-lg-auto"><button class="btn btn-outline-primary" type="submit"><i class="fa-solid fa-user-plus me-1"></i>Einladen</button></div>
+      {% if not mail_ready %}<div class="col-12 form-text text-warning">E-Mail-Versand ist nicht eingerichtet: Es werden keine Mails verschickt.</div>{% endif %}
+    </form>
+  </div>
+</div>
+
 <div class="card mb-4">
   <div class="card-header"><i class="fa-solid fa-file-audio me-2"></i>Aufnahmen</div>
   <div class="card-body">

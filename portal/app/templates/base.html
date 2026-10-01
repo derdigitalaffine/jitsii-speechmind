@@ -87,12 +87,14 @@
         </div>
         <div class="offcanvas-body d-block p-2">
           <ul class="nav flex-column gap-1">
-            {{ m.nav_item('/', 'fa-video', 'Meetings', path == '/' or path.startswith('/meetings')) }}
+            {{ m.nav_item('/', 'fa-video', 'Meetings', path == '/' or (path.startswith('/meetings') and path != '/meetings/plan')) }}
+            {{ m.nav_item('/meetings/plan', 'fa-calendar-plus', 'Besprechung planen', path == '/meetings/plan') }}
             {% if user.is_admin %}
             <li class="nav-section">Verwaltung</li>
             {{ m.nav_item('/admin/recordings', 'fa-file-audio', 'Aufnahmen', path == '/admin/recordings' or path.startswith('/recordings')) }}
             {{ m.nav_item('/admin/users', 'fa-users', 'Benutzer', path == '/admin/users') }}
             {{ m.nav_item('/admin/notifications', 'fa-envelope', 'Benachrichtigungen', path == '/admin/notifications') }}
+            {{ m.nav_item('/admin/templates', 'fa-envelope-open-text', 'E-Mail-Vorlagen', path == '/admin/templates') }}
             {{ m.nav_item('/admin/speechmind', 'fa-wand-magic-sparkles', 'SpeechMind', path == '/admin/speechmind') }}
             {{ m.nav_item('/admin/https', 'fa-shield-halved', 'HTTPS &amp; Zertifikat'|safe, path.startswith('/admin/https')) }}
             {{ m.nav_item('/admin/design', 'fa-palette', 'Design &amp; Branding'|safe, path == '/admin/design') }}
