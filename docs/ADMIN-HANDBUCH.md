@@ -134,6 +134,19 @@ Das Portal legt einen Konferenzraum an und schickt **jeder Person eine eigene Ma
 | **Absagen** | Alle bekommen eine Absage; der Raum bleibt bestehen |
 | **ICS herunterladen** | Termin als Datei, z. B. zum Weiterleiten aus dem eigenen Mailprogramm |
 
+### Zu- und Absagen verfolgen
+
+Bei jeder Person steht in der Spalte **Antwort**, ob sie **zugesagt**, **abgesagt**, **mit Vorbehalt** geantwortet oder einen **neuen Zeitvorschlag** gemacht hat, mit Zeitpunkt und Kommentar. Darüber steht die Zusammenfassung („3 zugesagt, 1 abgesagt, 2 offen“), ebenso auf der Startseite. Die planende Person bekommt zu jeder Antwort eine Mail (abschaltbar).
+
+Voraussetzung: Unter **Benachrichtigungen** ist IMAP eingerichtet und **„Antworten im Postfach auswerten“** eingeschaltet (siehe [E-Mail einrichten](#e-mail-einrichten)). So funktioniert es:
+
+- In neuen Einladungen steht die **Absenderadresse des Portals** als Organisator (angezeigt mit dem Namen der planenden Person). Klickt jemand in Outlook auf „Annehmen“, geht die Antwort an dieses Postfach.
+- Das Portal sieht alle zwei Minuten nach, liest nur neue Nachrichten und verbucht die Antworten. Erkannte Antworten werden als gelesen markiert und auf Wunsch in einen Ordner verschoben. Alle anderen Mails bleiben unberührt.
+- Wird der Termin geändert, gelten frühere Antworten nicht mehr (wie in Outlook); die Spalte steht wieder auf „Offen“, bis neu geantwortet wird.
+- Antwortet jemand, an den die Einladung weitergeleitet wurde, erscheint er mit seiner Antwort in der Liste.
+- Wer in Outlook „Antwort nicht senden“ wählt, bleibt auf „Offen“.
+- Einladungen, die **vor** dem Einschalten verschickt wurden, schicken ihre Antworten weiterhin direkt an die planende Person; dafür ggf. „Einladung erneut senden“.
+
 Auch für einen bestehenden Raum lässt sich nachträglich ein Termin festlegen. Wird ein Meeting mit anstehendem Termin gelöscht, erhalten die Eingeladenen automatisch eine Absage. Anstehende Besprechungen stehen auf der Startseite unter **Meetings**.
 
 **Ohne eingerichteten E-Mail-Versand** wird die Besprechung trotzdem angelegt, es gehen aber keine Mails raus. Laden Sie dann die ICS-Datei herunter und versenden Sie sie selbst.
@@ -260,6 +273,17 @@ Diese Werte nennt Ihnen die IT oder der E-Mail-Anbieter.
 Nur nötig, wenn **Kopien aller verschickten Mails im Ordner „Gesendet“** des Postfachs landen sollen (Nachvollziehbarkeit). Server, Port (meist 993/SSL), Benutzername und Passwort eintragen, „Kopie gesendeter Nachrichten ablegen“ ankreuzen und den Ordnernamen angeben (oft `Sent`, `Gesendet` oder `INBOX.Sent`). **Speichern → „IMAP testen“.** Das Portal prüft dabei auch, ob der Ordner existiert.
 
 Scheitert nur die Ablage, geht die Mail trotzdem raus; der Fehler steht im Log (`docker compose logs portal`).
+
+### Zu- und Absagen auswerten (IMAP)
+
+Im Kasten **„Zu- und Absagen auf Besprechungseinladungen“**:
+
+1. **„Antworten im Postfach auswerten“** einschalten. Das IMAP-Konto muss **das Postfach der Absenderadresse** sein (dorthin schicken Outlook & Co. die Antworten).
+2. **Ordner mit den Antworten:** normalerweise `INBOX`.
+3. Optional **„Verarbeitete Antworten verschieben nach“**, z. B. `Termin-Antworten` (Ordner vorher im Postfach anlegen). Leer lassen = nur als gelesen markieren.
+4. **Speichern**, dann unten **„Antworten jetzt abrufen“** zum Testen.
+
+Unter dem Kasten steht, wann zuletzt abgerufen wurde und ob dabei ein Fehler auftrat. Beim ersten Abruf werden die Nachrichten der letzten 14 Tage geprüft, danach nur noch neue.
 
 ### Welche Hinweise werden verschickt
 
@@ -398,6 +422,7 @@ Platz sparen: Aufnahmen nach Gebrauch in der Oberfläche löschen oder unter **S
 | Beitritt endet in einer Schleife auf der Login-Seite | `JWT_*`-Werte in `.env` geändert? Dann `docker compose up -d --force-recreate` |
 | MP3 ist stumm, Etikett „kein Ton“ | Siehe [Aufnahme ohne Ton](#aufnahme-ohne-ton): `./scripts/diagnose-recording.sh` |
 | Im Video ist ein Fensterrahmen (IceWM) zu sehen, Konferenz füllt nicht das Bild | Chrome in Jibri läuft ohne Vollbild (`--kiosk`). Ursache war dieselbe falsche Einstellung wie bei stummen Aufnahmen; mit aktueller `docker-compose.yml` behoben. Prüfen: `./scripts/diagnose-recording.sh` |
+| Zu-/Absagen erscheinen nicht | Unter **Benachrichtigungen** „Antworten im Postfach auswerten“ an? IMAP-Konto = Postfach der Absenderadresse? Fehlermeldung unter dem Kasten lesen, „Antworten jetzt abrufen“ testen. Alte Einladungen ggf. erneut senden |
 | Designänderungen sind nicht zu sehen | Schalter „Eigenes Design“ oben auf der Seite einschalten und speichern. Für die Konferenz zusätzlich „Auch in der Konferenz anwenden“ |
 | Aufnahme-Knopf fehlt | Nur angemeldete Benutzer dürfen aufnehmen; Jibri-Log prüfen (`docker compose logs jibri`) |
 | Aufnahme erscheint nicht unter „Aufnahmen“ | In `data/recordings/<sitzung>/` muss eine Datei `.finalized` liegen. Fehlt sie: `chmod +x jibri/finalize.sh`, Jibri neu starten |

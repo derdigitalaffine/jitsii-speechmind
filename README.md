@@ -27,7 +27,7 @@ Name und Produktbezeichnung lassen sich über `BRAND_NAME` und `BRAND_PRODUCT` i
 - **Transkription auf Knopfdruck** (nie automatisch), mit sichtbarem Verarbeitungsstand (Aufgezeichnet → Audiospur → Upload → SpeechMind → Transkript).
 - **Ergebnis im Portal:** Protokoll, Aufgaben und Wortlaut mit Zeitmarken; Download als TXT.
 - **MP3-Übersicht** im Admin-Bereich: alle Aufnahmen mit Dauer, Größe und Status, MP3-Download, Übergabe an SpeechMind.
-- **Besprechungen planen:** Termin, Dauer, Tagesordnung und Teilnehmende (Portal-Benutzer werden vorgeschlagen, externe Gäste per Adresse). Jede Person bekommt eine eigene Einladung als Outlook-Besprechungsanfrage mit ICS-Anhang und Einwahllink; Änderungen, Ausladungen und Absagen aktualisieren die Kalender automatisch.
+- **Besprechungen planen:** Termin, Dauer, Tagesordnung und Teilnehmende (Portal-Benutzer werden vorgeschlagen, externe Gäste per Adresse). Jede Person bekommt eine eigene Einladung als Outlook-Besprechungsanfrage mit ICS-Anhang und Einwahllink; Änderungen, Ausladungen und Absagen aktualisieren die Kalender automatisch. **Zu- und Absagen** (auch „Mit Vorbehalt“ und neue Zeitvorschläge) liest das Portal per IMAP aus dem Postfach und zeigt sie beim Termin an; die planende Person wird per Mail informiert.
 - **Bearbeitbare E-Mail-Vorlagen** für alle Mails (Einladungen, Passwort-Links, Besprechungen, Aufnahmen) mit Platzhaltern, Live-Vorschau und Testmail.
 - **Aufnahmen löschen** einzeln oder per Mehrfachauswahl: nur Video und MP3 (Transkript bleibt), alles außer dem Verweis auf SpeechMind (Protokoll später wieder abrufbar) oder alles.
 - **Benutzerverwaltung** für Admins mit **Einladung per E-Mail**: Die eingeladene Person legt ihr Passwort über einen Einmal-Link selbst fest. „Passwort vergessen“ nutzt denselben Weg. Optional eigene SpeechMind-Keys pro Benutzer:in.
@@ -251,6 +251,7 @@ portal/app/
 ├── mailtpl.py       Bearbeitbare E-Mail-Vorlagen
 ├── planning.py      Besprechungen planen, Einladungen versenden
 ├── ics.py           Kalendereinladungen (iCalendar, RFC 5545)
+├── rsvp.py          Zu-/Absagen aus dem IMAP-Postfach auswerten
 ├── branding.py      Design & Branding (Farben, Logo, Theme-CSS)
 ├── proxy.py         Reverse Proxy: Caddyfile erzeugen, Zertifikate prüfen
 ├── cli.py           Notfall-Werkzeug (Passwort setzen, Admin machen)

@@ -41,7 +41,7 @@
     <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
       <div>
         <a class="fw-semibold text-decoration-none" href="/meetings/{{ mt.id }}">{{ mt.title }}</a>
-        <div class="small text-secondary"><i class="fa-regular fa-clock me-1"></i>{{ w.datum }}, {{ w.uhrzeit }} · <i class="fa-solid fa-user-group ms-1 me-1"></i>{{ mt.invitees | length }} eingeladen</div>
+        <div class="small text-secondary"><i class="fa-regular fa-clock me-1"></i>{{ w.datum }}, {{ w.uhrzeit }} · <i class="fa-solid fa-user-group ms-1 me-1"></i>{{ mt.invitees | length }} eingeladen{% if mt.invitees %}{% set c = rsvp_summary(mt) %} · <span class="text-success">{{ c.accepted }} zugesagt</span>{% if c.declined %} · <span class="text-danger">{{ c.declined }} abgesagt</span>{% endif %}{% endif %}</div>
       </div>
       <a class="btn btn-sm btn-primary" href="/meetings/{{ mt.id }}/join"><i class="fa-solid fa-video me-1"></i>Beitreten</a>
     </li>

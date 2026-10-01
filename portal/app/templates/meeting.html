@@ -70,13 +70,25 @@
     </details>
 
     <h3 class="h6 mt-4">Eingeladen ({{ meeting.invitees | length }})</h3>
+    {% if meeting.invitees %}{% set c = rsvp_summary(meeting) %}
+    <div class="d-flex flex-wrap gap-2 mb-2 small">
+      <span class="badge text-bg-success"><i class="fa-solid fa-check me-1"></i>{{ c.accepted }} zugesagt</span>
+      <span class="badge text-bg-danger"><i class="fa-solid fa-xmark me-1"></i>{{ c.declined }} abgesagt</span>
+      {% if c.tentative %}<span class="badge text-bg-warning"><i class="fa-solid fa-question me-1"></i>{{ c.tentative }} mit Vorbehalt</span>{% endif %}
+      <span class="badge text-bg-secondary"><i class="fa-regular fa-clock me-1"></i>{{ c.open }} offen</span>
+    </div>
+    {% endif %}
     {% if meeting.invitees %}
     <table class="table table-sm align-middle js-table w-100" data-order='[[0,"asc"]]' data-page-length="25">
-      <thead><tr><th>Name</th><th>E-Mail</th><th>Eingeladen</th><th class="no-sort col-actions"></th></tr></thead>
+      <thead><tr><th>Name</th><th>E-Mail</th><th>Antwort</th><th>Eingeladen</th><th class="no-sort col-actions"></th></tr></thead>
       <tbody>
       {% for inv in meeting.invitees %}
       <tr>
         <td>{{ inv.name }}</td><td>{{ inv.email }}</td>
+        {% set rc = {'accepted': 'success', 'declined': 'danger', 'tentative': 'warning', 'counter': 'info', 'delegated': 'info'} %}
+        <td data-order="{{ inv.rsvp_status or 'zz' }}"><span class="badge text-bg-{{ rc.get(inv.rsvp_status, 'secondary') }}">{{ rsvp_labels.get(inv.rsvp_status, inv.rsvp_status) }}</span>
+          {% if inv.rsvp_at %}<div class="small text-secondary">{{ inv.rsvp_at | local }}</div>{% endif %}
+          {% if inv.rsvp_comment %}<div class="small fst-italic">„{{ inv.rsvp_comment }}“</div>{% endif %}</td>
         <td data-order="{{ inv.invited_at.isoformat() if inv.invited_at else '' }}">{{ inv.invited_at | local if inv.invited_at else '–' }}</td>
         <td class="col-actions"><form method="post" action="/meetings/{{ meeting.id }}/invitees/{{ inv.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}">
           <button class="btn btn-sm btn-outline-danger" type="submit" data-confirm-title="{{ inv.email }} ausladen?" data-confirm="Die Person erhält eine Absage für diesen Termin." data-confirm-button="Ausladen" data-bs-toggle="tooltip" title="Ausladen" aria-label="Ausladen"><i class="fa-solid fa-user-minus"></i></button></form></td>

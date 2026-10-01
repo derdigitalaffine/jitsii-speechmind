@@ -125,6 +125,10 @@ class Invitee(Base):
     email: Mapped[str] = mapped_column(String(255))
     name: Mapped[str] = mapped_column(String(255), default="")
     invited_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Antwort auf die Einladung (aus dem IMAP-Postfach): accepted | declined | tentative | delegated | counter
+    rsvp_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    rsvp_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    rsvp_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     meeting: Mapped[Meeting] = relationship(back_populates="invitees")
 
@@ -236,6 +240,11 @@ DEFAULT_SETTINGS = {
     "imap_password_enc": "",
     "imap_sent_folder": "Sent",
     "imap_save_sent": "0",
+    # Zu-/Absagen auf Besprechungseinladungen per IMAP auswerten
+    "imap_rsvp": "0",
+    "imap_rsvp_folder": "INBOX",
+    "imap_rsvp_move": "",
+    "notify_rsvp": "1",
     "notify_new_recording": "1",
     "notify_done": "1",
     "notify_failed": "1",
@@ -277,6 +286,7 @@ _NEW_COLUMNS = {
                  "ics_uid": "VARCHAR(255)", "ics_sequence": "INTEGER NOT NULL DEFAULT 0",
                  "cancelled_at": "DATETIME"},
     "notifications": {"reply_to": "VARCHAR(255)", "attachments_json": "TEXT"},
+    "invitees": {"rsvp_status": "VARCHAR(16)", "rsvp_at": "DATETIME", "rsvp_comment": "TEXT"},
 }
 
 

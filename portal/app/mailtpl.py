@@ -95,6 +95,19 @@ TEMPLATES: dict[str, dict] = {
                  "Der Termin wird aus Ihrem Kalender entfernt, wenn Sie die angehängte Absage übernehmen.\n\n"
                  "{fusszeile}"),
     },
+    "meeting_rsvp": {
+        "group": "Besprechungen", "label": "Antwort auf Einladung (an die planende Person)",
+        "vars": {"name": "Name der planenden Person", "teilnehmer": "Name und Adresse der antwortenden Person",
+                 "antwort": "Zugesagt, Abgesagt, Mit Vorbehalt …", "kommentar": "Kommentar aus der Antwort",
+                 "titel": "Titel der Besprechung", "datum": "Datum", "uhrzeit": "Uhrzeit",
+                 "stand": "Übersicht aller Antworten", "link": "Link zur Besprechung im Portal"},
+        "subject": "{antwort}: {teilnehmer} – {titel}",
+        "body": ("Guten Tag {name},\n\n"
+                 "{teilnehmer} hat auf Ihre Einladung zu „{titel}“ ({datum}, {uhrzeit}) geantwortet: {antwort}.\n\n"
+                 "{kommentar}\n\n"
+                 "Stand der Antworten: {stand}\n"
+                 "Übersicht: {link}\n\n{fusszeile}"),
+    },
     "recording_new": {
         "group": "Aufnahmen", "label": "Neue Aufnahme liegt vor",
         "vars": _RECORDING_VARS,
@@ -131,6 +144,8 @@ SAMPLE = {
     "beschreibung": "Tagesordnung:\n1. Bericht\n2. Termine", "organisator": "Max Muster",
     "organisator_email": "max.muster@example.org", "aufnahme": "Teamrunde Bauamt, 01.10.2026 10:00 Uhr",
     "fehler": "Beispiel einer Fehlermeldung",
+    "teilnehmer": "Erika Mustermann <erika.mustermann@example.org>", "antwort": "Zugesagt",
+    "kommentar": "Ich komme etwas später.", "stand": "3 zugesagt, 1 abgesagt, 2 offen",
 }
 
 
