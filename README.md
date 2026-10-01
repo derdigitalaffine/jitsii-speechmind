@@ -27,12 +27,13 @@ Name und Produktbezeichnung lassen sich über `BRAND_NAME` und `BRAND_PRODUCT` i
 - **Transkription auf Knopfdruck** (nie automatisch), mit sichtbarem Verarbeitungsstand (Aufgezeichnet → Audiospur → Upload → SpeechMind → Transkript).
 - **Ergebnis im Portal:** Protokoll, Aufgaben und Wortlaut mit Zeitmarken; Download als TXT.
 - **MP3-Übersicht** im Admin-Bereich: alle Aufnahmen mit Dauer, Größe und Status, MP3-Download, Übergabe an SpeechMind.
+- **Aufnahmen löschen** einzeln oder per Mehrfachauswahl: nur Video und MP3 (Transkript bleibt), alles außer dem Verweis auf SpeechMind (Protokoll später wieder abrufbar) oder alles.
 - **Benutzerverwaltung** für Admins mit **Einladung per E-Mail**: Die eingeladene Person legt ihr Passwort über einen Einmal-Link selbst fest. „Passwort vergessen“ nutzt denselben Weg. Optional eigene SpeechMind-Keys pro Benutzer:in.
 - **Benachrichtigungen per E-Mail** (SMTP, optional IMAP-Ablage): Einladungen, Passwort-Links und Hinweise zu neuen Aufnahmen, fertigen Transkripten und Fehlern. Nachrichten laufen über eine Warteschlange mit automatischen Wiederholungen und sichtbarem Protokoll.
 - **HTTPS mit Reverse Proxy (Caddy):** Start mit selbst signiertem Zertifikat, sofort lauffähig. **Let's Encrypt** (automatische Beantragung und Erneuerung) schaltet man bei Bedarf in der Admin-Oberfläche unter „HTTPS & Zertifikat“ ein – ohne Dateien zu bearbeiten, mit DNS-Prüfung, Testumgebung und Statusanzeige.
 - **Konferenzen ohne Anmeldung:** Wer kein Konto hat, kann über die Anmeldeseite sofort einen eigenen Raum eröffnen und Gäste einladen. **Aufnahmen sind dort ausgeschlossen** (Aufnahme-Recht fehlt im Token; Aufnahmen solcher Räume werden zusätzlich serverseitig verworfen). Im Admin-Bereich abschaltbar.
 - **Moderne Admin-Oberfläche** (Bootstrap 5, Font Awesome 7): Seitenleiste, hell/dunkel, durchsuchbare und sortierbare Tabellen (DataTables), Mehrfach-Einladung per E-Mail-Tags (Tagify), Bestätigungsdialoge (SweetAlert2). Alle Bibliotheken liegen lokal im Repository – keine Verbindung zu Drittanbietern.
-- **Design & Branding** im Admin-Bereich: Name, Hauptfarbe, Kopfleiste, Farbschema, Rundungen, Logo, Favicon, Anmelde-Hinweis, Fußzeile, Impressum-/Datenschutz-Links, mit Live-Vorschau; Farben und Logo lassen sich ein- und ausschalten und auf Standard zurücksetzen.
+- **Design & Branding** im Admin-Bereich: Name, Hauptfarbe, Kopfleiste, Farbschema, Rundungen, Logo, Favicon, Anmelde-Hinweis, Fußzeile, Impressum-/Datenschutz-Links, mit Live-Vorschau; Farben und Logo lassen sich ein- und ausschalten und auf Standard zurücksetzen. Auf Wunsch übernimmt auch die Konferenzoberfläche (und damit die Videoaufnahme) Logo und Farbe.
 - **Standard-Admin** beim ersten Start, der beim ersten Login ein eigenes Passwort vergeben muss.
 - **Datensparsam:** keine externen Schriften oder Skripte im Portal; Videos können nach fertigem Transkript automatisch gelöscht werden.
 

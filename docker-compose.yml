@@ -61,6 +61,8 @@ services:
       - APP_NAME=${BRAND_NAME:-Verbandsgemeinde Otterbach-Otterberg}
       - NATIVE_APP_NAME=${BRAND_NAME:-Verbandsgemeinde Otterbach-Otterberg}
       - PROVIDER_NAME=${BRAND_NAME:-Verbandsgemeinde Otterbach-Otterberg}
+      # Farben und Logo aus der Portal-Oberfläche (Admin > Design & Branding) in der Konferenz
+      - DYNAMIC_BRANDING_URL=https://${MEET_DOMAIN}/branding/jitsi.json
     volumes:
       - ${CONFIG}/web:/config:Z
       - ${CONFIG}/web/crontabs:/var/spool/cron/crontabs:Z

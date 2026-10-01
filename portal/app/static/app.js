@@ -56,7 +56,7 @@
     heads.forEach(function (th, i) { if (th.classList.contains('no-sort')) { plain.push(i); } });
     var order = [];
     try { order = JSON.parse(table.dataset.order || '[]'); } catch (e) { order = []; }
-    new DataTable(table, {
+    table.dtApi = new DataTable(table, {
       language: DE,
       responsive: true,
       stateSave: true,
@@ -69,6 +69,87 @@
         bottomStart: 'info', bottomEnd: 'paging'
       }
     });
+  });
+
+  /* ---- Aufnahmen löschen (einzeln und mehrere) ---------------------- */
+  var csrfToken = (document.querySelector('meta[name="csrf"]') || {}).content || '';
+  var DELETE_OPTIONS = {
+    media: 'Nur Video und MP3 löschen, <strong>Transkript behalten</strong>',
+    keep_link: 'Alles hier löschen, Protokoll <strong>bei SpeechMind später wieder abrufbar</strong>',
+    all: '<strong>Alles löschen</strong> (Video, MP3, Transkript)'
+  };
+  function postForm(url, fields) {
+    var f = document.createElement('form');
+    f.method = 'post'; f.action = url; f.hidden = true;
+    fields.push(['csrf', csrfToken]);
+    fields.forEach(function (kv) {
+      var i = document.createElement('input'); i.type = 'hidden'; i.name = kv[0]; i.value = kv[1]; f.appendChild(i);
+    });
+    document.body.appendChild(f); f.submit();
+  }
+  function askDeleteMode(title, keys, text) {
+    var html = '<div class="text-start">' + (text ? '<p class="small text-secondary">' + text + '</p>' : '') +
+      keys.map(function (k, i) {
+        return '<div class="form-check mb-2"><input class="form-check-input" type="radio" name="dmode" id="dm-' + k +
+          '" value="' + k + '"' + (i === 0 ? ' checked' : '') + '><label class="form-check-label" for="dm-' + k + '">' +
+          DELETE_OPTIONS[k] + '</label></div>';
+      }).join('') + '</div>';
+    return Swal.fire({
+      title: title, html: html, icon: 'warning', showCancelButton: true,
+      confirmButtonText: 'Löschen', cancelButtonText: 'Abbrechen', reverseButtons: true, buttonsStyling: false,
+      customClass: { confirmButton: 'btn btn-danger ms-2', cancelButton: 'btn btn-outline-secondary' },
+      preConfirm: function () {
+        var c = Swal.getPopup().querySelector('input[name="dmode"]:checked');
+        return c ? c.value : 'all';
+      }
+    });
+  }
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('[data-delete-url]');
+    if (!btn) { return; }
+    var keys = [];
+    if (btn.dataset.hasTranscript === '1' || btn.dataset.hasLink === '1') {
+      if (btn.dataset.hasMedia === '1') { keys.push('media'); }
+    }
+    if (btn.dataset.hasLink === '1') { keys.push('keep_link'); }
+    keys.push('all');
+    askDeleteMode(btn.dataset.title + ' löschen?', keys,
+      keys.length === 1 ? 'Video, MP3 und Transkript werden vom Server gelöscht.' : 'Was soll gelöscht werden?')
+      .then(function (res) { if (res.isConfirmed) { postForm(btn.dataset.deleteUrl, [['mode', res.value]]); } });
+  });
+  $('[data-bulk-delete]').forEach(function (btn) {
+    var table = document.querySelector(btn.dataset.bulkDelete);
+    if (!table) { return; }
+    var rows = function () { return table.dtApi ? table.dtApi.rows().nodes().toArray() : $('tbody tr', table); };
+    var checked = function () {
+      var ids = [];
+      rows().forEach(function (tr) { var c = tr.querySelector('[data-select]'); if (c && c.checked) { ids.push(c.value); } });
+      return ids;
+    };
+    var update = function () {
+      var n = checked().length;
+      btn.disabled = n === 0;
+      btn.querySelector('[data-bulk-count]').textContent = n;
+    };
+    table.addEventListener('change', function (ev) {
+      if (ev.target.matches('[data-select-all]')) {
+        var nodes = table.dtApi ? table.dtApi.rows({ search: 'applied' }).nodes().toArray() : rows();
+        nodes.forEach(function (tr) { var c = tr.querySelector('[data-select]'); if (c && !c.disabled) { c.checked = ev.target.checked; } });
+      }
+      update();
+    });
+    btn.addEventListener('click', function () {
+      var ids = checked();
+      if (!ids.length) { return; }
+      askDeleteMode(ids.length + ' Aufnahme(n) löschen?', ['media', 'keep_link', 'all'],
+        'Gilt für jede ausgewählte Aufnahme, soweit möglich. Was danach nichts mehr enthält, wird ganz entfernt.')
+        .then(function (res) {
+          if (!res.isConfirmed) { return; }
+          postForm('/recordings/bulk-delete', ids.map(function (id) { return ['ids', id]; })
+            .concat([['mode', res.value], ['next', location.pathname]]));
+        });
+    });
+    update();
   });
 
   /* ---- Kopieren ------------------------------------------------------- */
@@ -167,6 +248,16 @@
       name.textContent = form.elements.ui_brand_name.value || name.dataset.default;
       name.hidden = !form.elements.ui_show_name.checked && !!logo;
     };
+    var master = form.elements.ui_custom;
+    var designFields = ['ui_primary', 'ui_navbar', 'ui_theme', 'ui_radius', 'ui_logo_height', 'ui_show_name', 'logo', 'favicon', 'ui_jitsi'];
+    var autoEnable = function (ev) {
+      if (!master || master.checked || !ev.target || designFields.indexOf(ev.target.name) < 0) { return; }
+      master.checked = true;
+      var note = document.getElementById('design-autoenabled');
+      if (note) { note.hidden = false; }
+    };
+    form.addEventListener('input', autoEnable);
+    form.addEventListener('change', autoEnable);
     form.addEventListener('input', update);
     form.addEventListener('change', update);
     document.addEventListener('coloris:pick', update);

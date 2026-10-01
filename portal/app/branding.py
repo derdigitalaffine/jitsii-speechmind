@@ -49,6 +49,11 @@ def _luminance(h: str) -> float:
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
+def shade(color: str, amount: float) -> str:
+    """Farbe in Richtung Schwarz abdunkeln (amount 0..1)."""
+    return _mix(color, "#000000", amount)
+
+
 def on_color(bg: str) -> str:
     """Schriftfarbe mit gutem Kontrast auf bg."""
     return "#000000" if _luminance(bg) > 0.33 else "#ffffff"

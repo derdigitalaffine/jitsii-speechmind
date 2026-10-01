@@ -26,12 +26,19 @@
       {% if has_audio %}<a class="btn btn-outline-secondary" href="/recordings/{{ rec.id }}/audio.mp3"><i class="fa-solid fa-download me-1"></i>MP3 ({{ rec.audio_size | filesize }})</a>{% endif %}
       {% if rec.status == 'done' %}<a class="btn btn-outline-secondary" href="/recordings/{{ rec.id }}/transcript.txt"><i class="fa-solid fa-file-arrow-down me-1"></i>Transkript (TXT)</a>{% endif %}
       {% if has_video %}<a class="btn btn-outline-secondary" href="/recordings/{{ rec.id }}/video"><i class="fa-solid fa-film me-1"></i>Video</a>{% endif %}
+      {% if rec.sm_protocol_slug and rec.status in ('remote', 'done', 'failed') %}
+      <form method="post" action="/recordings/{{ rec.id }}/fetch"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn {{ 'btn-primary' if rec.status == 'remote' else 'btn-outline-secondary' }}" type="submit"><i class="fa-solid fa-cloud-arrow-down me-1"></i>{{ 'Protokoll von SpeechMind abrufen' if rec.status == 'remote' else 'Neu von SpeechMind laden' }}</button></form>
+      {% endif %}
       {% if rec.sm_protocol_slug %}<a class="btn btn-outline-secondary" href="https://app.speechmind.com/" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>In SpeechMind öffnen</a>{% endif %}
+      {{ m.delete_button(rec, 'Löschen', 'btn') }}
     </div>
   </div>
   {{ m.track(rec) }}
   {% if rec.error %}<div class="alert alert-{{ 'warning' if rec.audio_silent else 'danger' }} mt-3 mb-0"><i class="fa-solid {{ 'fa-volume-xmark' if rec.audio_silent else 'fa-triangle-exclamation' }} me-2"></i>{{ rec.error }}</div>{% endif %}
   {% if has_audio %}<audio class="w-100 mt-3" controls preload="none" src="/recordings/{{ rec.id }}/audio.mp3"></audio>{% endif %}
+  {% if rec.media_deleted_at %}<div class="alert alert-light border mt-3 mb-0"><i class="fa-solid fa-file-circle-minus me-2"></i>Video und MP3 wurden am {{ rec.media_deleted_at | local }} Uhr gelöscht.</div>{% endif %}
+  {% if rec.status == 'remote' %}<div class="alert alert-info mt-3 mb-0"><i class="fa-solid fa-cloud me-2"></i>Das Transkript wurde hier gelöscht, liegt aber noch bei SpeechMind. Mit „Protokoll von SpeechMind abrufen“ holen Sie es zurück.</div>{% endif %}
 </div></div>
 
 {% if rec.status == 'done' %}
@@ -77,11 +84,6 @@
 <p class="text-secondary"><i class="fa-solid fa-circle-notch fa-spin me-1"></i>SpeechMind braucht erfahrungsgemäß etwa die halbe Aufnahmedauer. Diese Seite aktualisiert sich von selbst.</p>
 {% endif %}
 
-{% if rec.status not in active_statuses %}
-<form class="mt-5" method="post" action="/recordings/{{ rec.id }}/delete">
-  <input type="hidden" name="csrf" value="{{ csrf }}">
-  <button type="submit" class="btn btn-outline-danger" data-confirm-title="Aufnahme wirklich löschen?" data-confirm="Video, MP3 und Transkript werden hier gelöscht. Das Protokoll in SpeechMind bleibt bestehen."><i class="fa-regular fa-trash-can me-1"></i>Aufnahme löschen</button>
-</form>
-{% endif %}
+
 </div>
 {% endblock %}

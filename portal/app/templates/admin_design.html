@@ -7,6 +7,22 @@
 <form id="design-form" method="post" action="/admin/design" enctype="multipart/form-data" class="row g-4">
   <input type="hidden" name="csrf" value="{{ csrf }}">
 
+  <div class="col-12">
+    <div class="card {{ 'border-success' if cfg.ui_custom == '1' else 'border-warning' }}">
+      <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+          <div class="h5 mb-1">Eigenes Design {% if cfg.ui_custom == '1' %}<span class="badge text-bg-success align-middle">aktiv</span>{% else %}<span class="badge text-bg-warning align-middle">ausgeschaltet</span>{% endif %}</div>
+          <div class="text-secondary small">Farben, Logo, Favicon, Farbschema und Rundungen wirken nur, wenn dieser Schalter an ist. Ändern Sie unten etwas, schaltet er sich automatisch ein.</div>
+        </div>
+        <div class="form-check form-switch fs-4 m-0">
+          <input class="form-check-input" type="checkbox" role="switch" id="uc" name="ui_custom" value="1" {% if cfg.ui_custom == '1' %}checked{% endif %}>
+          <label class="form-check-label fs-6" for="uc">Eingeschaltet</label>
+        </div>
+      </div>
+      <div id="design-autoenabled" class="alert alert-info mx-3 mb-3" hidden><i class="fa-solid fa-circle-info me-2"></i>Das eigene Design wurde eingeschaltet, weil Sie etwas geändert haben. Mit „Design speichern“ übernehmen.</div>
+    </div>
+  </div>
+
   <div class="col-12 col-xl-7">
     <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-signature me-2"></i>Name &amp; Texte <span class="text-secondary fw-normal small">– gilt immer</span></div>
     <div class="card-body row g-3">
@@ -25,10 +41,7 @@
         <input class="form-control" id="pr" name="ui_privacy_url" type="url" value="{{ cfg.ui_privacy_url }}" placeholder="https://…"></div>
     </div></div>
 
-    <div class="card"><div class="card-header d-flex justify-content-between align-items-center">
-      <span><i class="fa-solid fa-palette me-2"></i>Eigenes Design</span>
-      <div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" role="switch" id="uc" name="ui_custom" value="1" {% if cfg.ui_custom == '1' %}checked{% endif %}><label class="form-check-label" for="uc">Eingeschaltet</label></div>
-    </div>
+    <div class="card"><div class="card-header"><i class="fa-solid fa-palette me-2"></i>Farben, Logo &amp; Darstellung</div>
     <div class="card-body row g-3">
       <div class="col-md-6"><label class="form-label" for="pc">Hauptfarbe</label>
         <input class="form-control js-color" id="pc" name="ui_primary" type="text" value="{{ cfg.ui_primary }}" data-coloris maxlength="7" pattern="#[0-9a-fA-F]{6}">
@@ -60,6 +73,12 @@
         <div class="form-text">PNG, ICO oder SVG, höchstens 256 kB.</div>
         {% if favicon_url %}<div class="mt-2 d-flex align-items-center gap-3"><img src="{{ favicon_url }}" alt="Aktuelles Favicon" style="height:24px">
           <div class="form-check"><input class="form-check-input" type="checkbox" id="rf" name="remove_favicon" value="1"><label class="form-check-label" for="rf">Entfernen</label></div></div>{% endif %}</div>
+      <div class="col-12"><hr class="my-1"></div>
+      <div class="col-12"><div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch" id="uj" name="ui_jitsi" value="1" {% if cfg.ui_jitsi == '1' %}checked{% endif %}>
+        <label class="form-check-label" for="uj"><strong>Auch in der Konferenz anwenden</strong>
+          <div class="form-text mt-0">Logo als Wasserzeichen oben links, Hintergrund in der Hauptfarbe – in der Konferenzoberfläche und damit auch in den Videoaufnahmen. Gilt beim nächsten Betreten einer Konferenz.</div></label>
+      </div></div>
     </div></div>
   </div>
 

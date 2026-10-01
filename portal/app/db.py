@@ -108,6 +108,7 @@ STATUS_CONVERTING = "converting"    # Audiospur wird extrahiert
 STATUS_UPLOADING = "uploading"      # Upload zu SpeechMind
 STATUS_PROCESSING = "processing"    # SpeechMind transkribiert
 STATUS_DONE = "done"
+STATUS_REMOTE = "remote"            # lokal gelöscht, Protokoll bei SpeechMind wieder abrufbar
 STATUS_FAILED = "failed"
 
 SILENCE_DB = -50.0  # lauteste Stelle darunter = kein hörbarer Ton
@@ -126,6 +127,8 @@ class Recording(Base):
     audio_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     # Lauteste Stelle der MP3 in dB (0 = Vollaussteuerung, -91 = digitale Stille); None = nicht gemessen
     audio_max_db: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Zeitpunkt, zu dem Video und MP3 gelöscht wurden (Transkript bzw. SpeechMind-Verweis bleiben)
+    media_deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     participants: Mapped[str] = mapped_column(Text, default="[]")
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
@@ -204,6 +207,7 @@ DEFAULT_SETTINGS = {
     "notify_new_recording": "1",
     "notify_done": "1",
     "notify_failed": "1",
+    "ui_jitsi": "1",              # Design auch in der Konferenzoberfläche (Jitsi) anwenden
     # HTTPS / Reverse Proxy
     "tls_mode": "selfsigned",     # selfsigned | letsencrypt
     "tls_email": "",
@@ -236,7 +240,7 @@ _NEW_COLUMNS = {
         "token_hash": "VARCHAR(64)",
         "token_expires_at": "DATETIME",
     },
-    "recordings": {"audio_path": "VARCHAR(1024)", "audio_max_db": "FLOAT"},
+    "recordings": {"audio_path": "VARCHAR(1024)", "audio_max_db": "FLOAT", "media_deleted_at": "DATETIME"},
 }
 
 

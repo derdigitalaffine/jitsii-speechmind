@@ -27,7 +27,7 @@
   <div class="alert alert-warning small"><strong>SpeechMind ist noch nicht verbunden.</strong> Aufnahmen werden gespeichert und können später transkribiert werden.</div>
   {% endif %}
   {% if meeting.recordings %}
-    {{ m.rec_table(meeting.recordings, csrf, show_room=false) }}
+    {{ m.rec_table(meeting.recordings, csrf, show_room=false, table_id='recs-meeting') }}
   {% else %}
     <p class="text-secondary mb-0">Noch keine Aufnahme. Starten Sie in der Konferenz über „…“ › „Aufnahme starten“. Sobald Sie die Aufnahme beenden, taucht sie hier auf und liegt als MP3 bereit. Die Transkription starten Sie danach selbst.</p>
   {% endif %}
