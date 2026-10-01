@@ -70,6 +70,22 @@
   {% endif %}
 </div>
 
+{% if user.is_admin %}
+<div class="card mb-4" id="sicherheit"><div class="card-header"><i class="fa-solid fa-shield-halved me-2"></i>Anmeldung &amp; Zwei-Faktor</div><div class="card-body">
+  <form method="post" action="/admin/security" class="row g-3 align-items-end">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="mfa-t" name="mfa_totp_allowed" value="1" {% if cfg.mfa_totp_allowed == '1' %}checked{% endif %}>
+      <label class="form-check-label" for="mfa-t"><strong>Authenticator-App (TOTP)</strong><div class="form-text mt-0">Microsoft/Google Authenticator, FreeOTP u. a.</div></label></div></div>
+    <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="mfa-e" name="mfa_email_allowed" value="1" {% if cfg.mfa_email_allowed == '1' %}checked{% endif %}>
+      <label class="form-check-label" for="mfa-e"><strong>Code per E-Mail</strong><div class="form-text mt-0">Braucht eingerichteten Mailversand</div></label></div></div>
+    <div class="col-md-3"><label class="form-label" for="mfa-r">Zwei-Faktor ist</label>
+      <select class="form-select" id="mfa-r" name="mfa_required">{% for k, v in mfa_required.items() %}<option value="{{ k }}" {% if cfg.mfa_required == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+    <div class="col-md-1"><button class="btn btn-outline-primary w-100" type="submit">Speichern</button></div>
+    <div class="col-12 form-text mt-1">Freiwillig: Jede Person schaltet es unter Profil › Sicherheit selbst ein. Pflicht: Ohne eingerichtete App wird automatisch ein Code per E-Mail verlangt; ist der nicht erlaubt, muss die App direkt nach der Anmeldung eingerichtet werden. Passwort vergessen: Link per E-Mail über „Passwort vergessen?“ auf der Anmeldeseite – der zweite Faktor wird danach trotzdem abgefragt.</div>
+  </form>
+</div></div>
+{% endif %}
+
 <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-users me-2"></i>Benutzer</div><div class="card-body">
 <table class="table table-hover align-middle js-table w-100" data-order='[[0,"asc"]]'>
   <thead><tr><th>Name</th><th>E-Mail</th><th>Rechte</th><th>Gruppen</th><th>Status</th><th>Angelegt</th><th class="no-sort col-actions">Aktionen</th></tr></thead>
@@ -81,7 +97,7 @@
     <td>{% if u.is_admin %}<span class="badge text-bg-primary"><i class="fa-solid fa-user-shield me-1"></i>Admin</span>
         {% else %}{% for key, p in permissions.items() if key in u.perms %}<span class="badge text-bg-light border me-1" title="{{ p[2] }}"><i class="fa-solid {{ p[1] }} me-1"></i>{{ p[0] }}</span>{% else %}<span class="text-secondary small">keine</span>{% endfor %}{% endif %}</td>
     <td>{% for g in u.groups %}<span class="badge text-bg-secondary me-1">{{ g.name }}</span>{% endfor %}</td>
-    <td>{% if not u.active %}<span class="badge text-bg-danger">gesperrt</span>{% elif not u.password_set %}<span class="badge text-bg-warning">eingeladen</span>{% else %}<span class="badge text-bg-success">aktiv</span>{% endif %}</td>
+    <td>{% if u.totp_enabled or u.mfa_email %}<i class="fa-solid fa-shield-halved text-success me-1" title="Zwei-Faktor eingerichtet"></i>{% endif %}{% if not u.active %}<span class="badge text-bg-danger">gesperrt</span>{% elif not u.password_set %}<span class="badge text-bg-warning">eingeladen</span>{% else %}<span class="badge text-bg-success">aktiv</span>{% endif %}</td>
     <td data-order="{{ u.created_at.isoformat() }}">{{ u.created_at | local('%d.%m.%Y') }}</td>
     <td class="col-actions">
       {% if user.is_admin or not u.is_admin %}
@@ -91,6 +107,7 @@
         {% if u.id != user.id %}
         <button class="btn btn-sm btn-outline-secondary" name="action" value="invite" data-bs-toggle="tooltip" title="{{ 'Einladung erneut senden' if not u.password_set else 'Passwort-Link senden' }}" aria-label="Link senden"><i class="fa-solid fa-paper-plane"></i></button>
         {% if user.is_admin %}<button class="btn btn-sm btn-outline-secondary" name="action" value="toggle_admin" data-bs-toggle="tooltip" title="{{ 'Admin-Recht entziehen' if u.is_admin else 'Zum Admin machen' }}" aria-label="Rolle ändern"><i class="fa-solid fa-user-shield"></i></button>{% endif %}
+        {% if u.totp_enabled or u.mfa_email or u.recovery_json %}<button class="btn btn-sm btn-outline-secondary" name="action" value="reset_2fa" data-confirm-title="Zwei-Faktor zurücksetzen?" data-confirm="App, E-Mail-Code und Notfallcodes von {{ u.email }} werden entfernt – z. B. bei verlorenem Telefon." data-confirm-button="Zurücksetzen" data-bs-toggle="tooltip" title="Zwei-Faktor zurücksetzen" aria-label="Zwei-Faktor zurücksetzen"><i class="fa-solid fa-shield-halved"></i></button>{% endif %}
         <button class="btn btn-sm btn-outline-secondary" name="action" value="toggle_active" data-bs-toggle="tooltip" title="{{ 'Sperren' if u.active else 'Entsperren' }}" aria-label="Sperren oder entsperren"><i class="fa-solid {{ 'fa-lock' if u.active else 'fa-lock-open' }}"></i></button>
         <button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm-title="{{ u.email }} löschen?" data-confirm="Konto und zugehörige Meetings werden gelöscht. Aufnahmen bleiben für Admins sichtbar, Kurzlinks und Formulare bleiben erhalten (dann nur für Admins sichtbar)." data-bs-toggle="tooltip" title="Löschen" aria-label="Löschen"><i class="fa-regular fa-trash-can"></i></button>
         {% else %}<span class="text-secondary small align-self-center ms-1">Ihr Konto</span>{% endif %}

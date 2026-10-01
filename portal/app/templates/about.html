@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Über dieses Portal{% endblock %}
+{% block content %}
+{{ m.page_head('Über dieses Portal', product ~ ' der ' ~ brand) }}
+<div class="row g-4 mb-4">
+  <div class="col-12 col-xl-5"><div class="card h-100"><div class="card-body">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <span class="avatar" style="width:3.5rem;height:3.5rem;font-size:1.2rem">{{ m.initials(author) }}</span>
+      <div><div class="small text-secondary">Konzeption &amp; Programmierung</div><div class="h4 mb-0">{{ author }}</div></div>
+    </div>
+    <p class="mb-2">Das Portal verbindet Videokonferenzen (Jitsi Meet) mit Aufnahme, Transkription über SpeechMind, Besprechungsplanung mit Kalendereinladungen, Kurzlinks mit QR-Codes und einem Formularserver.</p>
+    <p class="small text-secondary mb-0">Alle Bibliotheken der Oberfläche werden vom Server selbst ausgeliefert – ohne Aufrufe an Drittanbieter (CDN). Daten verlassen den Server nur an die unten genannten, ausdrücklich eingeschalteten Dienste.</p>
+  </div></div></div>
+  <div class="col-12 col-xl-7"><div class="card h-100"><div class="card-body">
+    <h2 class="h6"><i class="fa-solid fa-scale-balanced me-2 text-primary"></i>Open-Source-Software</h2>
+    <p class="small">Dieses Portal baut auf freier Software auf. Wir danken allen Entwicklerinnen und Entwicklern. Die Lizenztexte liegen den jeweiligen Paketen bei bzw. sind auf den verlinkten Projektseiten abrufbar.</p>
+    <div class="d-flex flex-wrap gap-2">{% for group, rows in components.items() %}<span class="badge text-bg-light border">{{ group }}: {{ rows | length }}</span>{% endfor %}</div>
+  </div></div></div>
+</div>
+
+{% for group, rows in components.items() %}
+<div class="card mb-3"><div class="card-header fw-semibold">{{ group }}</div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Komponente</th><th>Version</th><th>Lizenz</th><th>Wofür</th></tr></thead>
+    <tbody>{% for name, version, license, purpose, url in rows %}
+      <tr><td><a href="{{ url }}" target="_blank" rel="noopener">{{ name }}</a></td><td class="small text-secondary">{{ version }}</td><td><span class="badge text-bg-light border">{{ license }}</span></td><td class="small">{{ purpose }}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+</div>
+{% endfor %}
+<div class="card mb-3"><div class="card-header fw-semibold">Externe Dienste (optional)</div>
+  <ul class="list-group list-group-flush">{% for name, license, purpose, url in services %}
+    <li class="list-group-item"><a href="{{ url }}" target="_blank" rel="noopener">{{ name }}</a> <span class="small text-secondary">– {{ purpose }} · {{ license }}</span></li>
+  {% endfor %}</ul>
+</div>
+{% endblock %}

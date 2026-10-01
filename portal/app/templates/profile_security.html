@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Sicherheit{% endblock %}
+{% macro pw(id) %}<input class="form-control form-control-sm" id="{{ id }}" name="password" type="password" autocomplete="current-password" placeholder="Ihr Passwort zur Bestätigung" required>{% endmacro %}
+{% block content %}
+{% call m.page_head('Sicherheit', 'Zwei-Faktor-Anmeldung: Zusätzlich zum Passwort wird bei jeder Anmeldung ein Einmalcode abgefragt – aus einer App auf Ihrem Telefon oder per E-Mail.') %}
+  <a class="btn btn-outline-secondary" href="/profile"><i class="fa-regular fa-user me-1"></i>Profil</a>
+{% endcall %}
+<div class="d-flex flex-wrap gap-2 mb-4">
+  {% if methods %}<span class="badge text-bg-success fs-6"><i class="fa-solid fa-shield-halved me-1"></i>Zwei-Faktor aktiv: {{ methods | map('replace', 'totp', 'App') | map('replace', 'email', 'E-Mail-Code') | join(', ') }}</span>
+  {% else %}<span class="badge text-bg-warning fs-6"><i class="fa-solid fa-shield me-1"></i>Nur Passwort</span>{% endif %}
+  {% if required %}<span class="badge text-bg-info fs-6">für Ihr Konto Pflicht</span>{% endif %}
+</div>
+
+{% if new_codes %}
+<div class="alert alert-warning" id="wiederherstellung">
+  <div class="fw-semibold mb-2"><i class="fa-solid fa-life-ring me-1"></i>Ihre Wiederherstellungscodes – jetzt sicher aufbewahren!</div>
+  <p class="small">Jeder Code funktioniert einmal, falls Telefon oder Postfach nicht greifbar sind. Sie werden nur jetzt angezeigt.</p>
+  <div class="row row-cols-2 row-cols-md-5 g-2 font-monospace mb-2">{% for c in new_codes %}<div class="col"><span class="d-block border rounded bg-body px-2 py-1 text-center">{{ c }}</span></div>{% endfor %}</div>
+  <button class="btn btn-sm btn-outline-dark" type="button" data-copy-text="{{ new_codes | join('\n') }}"><i class="fa-regular fa-copy me-1"></i>Kopieren</button>
+  <button class="btn btn-sm btn-outline-dark" type="button" onclick="window.print()"><i class="fa-solid fa-print me-1"></i>Drucken</button>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  {% if allowed.totp %}
+  <div class="col-12 col-xl-6"><div class="card h-100">
+    <div class="card-header"><i class="fa-solid fa-mobile-screen me-2"></i>Authenticator-App {% if user.totp_enabled %}<span class="badge text-bg-success ms-1">eingerichtet</span>{% endif %}</div>
+    <div class="card-body">
+      {% if setup %}
+      <ol class="small ps-3">
+        <li>App öffnen, z. B. Microsoft Authenticator, Google Authenticator, FreeOTP oder die Passwortverwaltung.</li>
+        <li>Neues Konto hinzufügen und diesen QR-Code scannen.</li>
+        <li>Den angezeigten sechsstelligen Code unten eingeben.</li>
+      </ol>
+      <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
+        <div class="bg-white p-2 border rounded" style="width: 200px">{{ setup.qr | safe }}</div>
+        <div class="small">Scannen nicht möglich? Schlüssel von Hand eingeben:<div class="font-monospace fw-semibold mt-1">{{ setup.secret }}</div><div class="text-secondary">zeitbasiert, 6 Ziffern, 30 Sekunden</div></div>
+      </div>
+      <form method="post" action="/profile/security/totp" class="d-flex gap-2" style="max-width: 22rem">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="enable">
+        <input class="form-control text-center font-monospace" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123456" required aria-label="Code aus der App">
+        <button class="btn btn-primary text-nowrap" type="submit">Bestätigen</button>
+      </form>
+      {% elif user.totp_enabled %}
+      <p class="small text-secondary">Bei jeder Anmeldung wird der Code aus Ihrer App abgefragt. Neues Telefon? Zuerst hier entfernen, dann neu einrichten.</p>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-outline-primary btn-sm" href="?setup=totp"><i class="fa-solid fa-rotate me-1"></i>Neues Gerät einrichten</a>
+      </div>
+      <form method="post" action="/profile/security/totp" class="d-flex gap-2 mt-3" style="max-width: 28rem">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="disable">
+        {{ pw('pw-totp') }}<button class="btn btn-outline-danger btn-sm text-nowrap" type="submit">App entfernen</button>
+      </form>
+      {% else %}
+      <p class="small text-secondary">Am sichersten: Die App erzeugt alle 30 Sekunden einen neuen Code, auch ohne Internet.</p>
+      <a class="btn btn-primary" href="?setup=totp"><i class="fa-solid fa-qrcode me-1"></i>App einrichten</a>
+      {% endif %}
+    </div>
+  </div></div>
+  {% endif %}
+
+  {% if allowed.email %}
+  <div class="col-12 col-xl-6"><div class="card h-100">
+    <div class="card-header"><i class="fa-regular fa-envelope me-2"></i>Code per E-Mail {% if 'email' in methods %}<span class="badge text-bg-success ms-1">aktiv</span>{% endif %}</div>
+    <div class="card-body">
+      <p class="small text-secondary">Bei der Anmeldung schickt das Portal einen Code an {{ user.email }}, gültig 10 Minuten.{% if required and not user.totp_enabled %} Weil Zwei-Faktor für Sie Pflicht ist, wird dieses Verfahren automatisch verwendet, solange keine App eingerichtet ist.{% endif %}</p>
+      {% if not mail_ready %}<div class="alert alert-warning small py-2">Der Mailversand ist nicht eingerichtet – Codes könnten nicht ankommen.</div>{% endif %}
+      <form method="post" action="/profile/security/email" class="d-flex gap-2" style="max-width: 28rem">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="enable" value="{{ '0' if user.mfa_email else '1' }}">
+        {{ pw('pw-mail') }}
+        <button class="btn btn-sm text-nowrap {{ 'btn-outline-danger' if user.mfa_email else 'btn-primary' }}" type="submit">{{ 'Ausschalten' if user.mfa_email else 'Einschalten' }}</button>
+      </form>
+    </div>
+  </div></div>
+  {% endif %}
+
+  {% if not allowed.totp and not allowed.email %}
+  <div class="col-12"><div class="alert alert-light border">Die Zwei-Faktor-Anmeldung ist auf diesem Server nicht freigeschaltet.</div></div>
+  {% endif %}
+
+  <div class="col-12" id="wiederherstellung"><div class="card">
+    <div class="card-header"><i class="fa-solid fa-life-ring me-2"></i>Wiederherstellungscodes</div>
+    <div class="card-body">
+      <p class="small text-secondary">Für den Notfall (Telefon verloren, Postfach nicht erreichbar). Noch <strong>{{ recovery_left }}</strong> unbenutzte Codes.</p>
+      <form method="post" action="/profile/security/recovery" class="d-flex gap-2" style="max-width: 28rem">
+        <input type="hidden" name="csrf" value="{{ csrf }}">{{ pw('pw-rec') }}
+        <button class="btn btn-outline-primary btn-sm text-nowrap" type="submit">Neue Codes erzeugen</button>
+      </form>
+    </div>
+  </div></div>
+</div>
+{% endblock %}

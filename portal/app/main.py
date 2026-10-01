@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session, joinedload
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import access, branding, chat, mailtpl, notify, planning, proxy, worker
+from . import access, branding, chat, mailtpl, notify, planning, proxy, twofa, worker
 from .planning import EMAIL_RE, name_from_email
 from .config import settings
 from .db import (
@@ -208,6 +208,12 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
     if user.must_change_password and request.url.path != "/profile":
         flash(request, "Bitte vergeben Sie zuerst ein eigenes Passwort.", "error")
         raise ForcedRedirect("/profile")
+    if request.session.get("mfa_setup") and not request.url.path.startswith("/profile"):
+        if twofa.needs_setup(user, get_settings(db)):
+            flash(request, "Für Ihr Konto ist die Zwei-Faktor-Anmeldung Pflicht. Bitte richten Sie jetzt die "
+                           "Authenticator-App ein.", "error")
+            raise ForcedRedirect("/profile/security")
+        request.session.pop("mfa_setup", None)
     return user
 
 
@@ -362,12 +368,98 @@ def login(request: Request, email: str = Form(...), password: str = Form(...),
     if user is None or not user.active or not verify_password(user.password_hash, password):
         flash(request, "E-Mail oder Passwort ist falsch.", "error")
         return redirect(f"/login?next={quote(safe_next(next))}")
+    return start_session(request, db, user, safe_next(next))
+
+
+def start_session(request: Request, db: Session, user: User, target: str) -> RedirectResponse:
+    """Nach geprüftem Passwort: anmelden oder zuerst den zweiten Faktor verlangen."""
+    cfg = get_settings(db)
     request.session.clear()
-    request.session["uid"] = user.id
-    target = safe_next(next)
     if target == "/":
         target = "/admin/recordings" if user.is_admin else home_for(user)
+    found = twofa.methods(user, cfg)
+    if found:
+        request.session.update({"mfa_uid": user.id, "mfa_next": target, "mfa_at": time.time(), "mfa_tries": 0})
+        if found == ["email"]:
+            twofa.send_email_code(db, user)
+            db.commit()
+            worker.wake()
+            request.session["mfa_sent"] = True
+        return redirect("/login/2fa")
+    request.session["uid"] = user.id
+    if twofa.needs_setup(user, cfg):
+        request.session["mfa_setup"] = True
     return redirect(target)
+
+
+def _pending_mfa(request: Request, db: Session) -> User | None:
+    uid = request.session.get("mfa_uid")
+    if not uid or time.time() - float(request.session.get("mfa_at", 0)) > 600:
+        return None
+    user = db.get(User, uid)
+    return user if user and user.active else None
+
+
+@app.get("/login/2fa")
+def login_2fa_form(request: Request, db: Session = Depends(get_db)):
+    user = _pending_mfa(request, db)
+    if user is None:
+        flash(request, "Die Anmeldung ist abgelaufen. Bitte erneut anmelden.", "error")
+        return redirect("/login")
+    found = twofa.methods(user, get_settings(db))
+    return render(request, "login_2fa.html", None, methods=found, sent=request.session.get("mfa_sent", False),
+                  email_hint=re.sub(r"(?<=.).(?=[^@]*@)", "•", user.email), has_recovery=twofa.recovery_left(user) > 0)
+
+
+@app.post("/login/2fa/send", dependencies=[Depends(check_csrf)])
+def login_2fa_send(request: Request, db: Session = Depends(get_db)):
+    rate_limit(request, "mfa-mail", limit=4)
+    user = _pending_mfa(request, db)
+    if user is None or "email" not in twofa.methods(user, get_settings(db)):
+        return redirect("/login")
+    twofa.send_email_code(db, user)
+    db.commit()
+    worker.wake()
+    request.session["mfa_sent"] = True
+    flash(request, "Ein neuer Code ist unterwegs. Er ist 10 Minuten gültig.")
+    return redirect("/login/2fa?m=email")
+
+
+@app.post("/login/2fa", dependencies=[Depends(check_csrf)])
+def login_2fa(request: Request, code: str = Form(""), method: str = Form("totp"), db: Session = Depends(get_db)):
+    rate_limit(request, "mfa", limit=20)
+    user = _pending_mfa(request, db)
+    if user is None:
+        flash(request, "Die Anmeldung ist abgelaufen. Bitte erneut anmelden.", "error")
+        return redirect("/login")
+    found = twofa.methods(user, get_settings(db))
+    ok = False
+    if method == "totp" and "totp" in found:
+        step = twofa.check_totp(twofa.user_secret(user), code, user.totp_last_step)
+        if step is not None:
+            user.totp_last_step, ok = step, True
+    elif method == "email" and "email" in found:
+        ok = twofa.check_email_code(user, code)
+    elif method == "recovery":
+        ok = twofa.use_recovery_code(user, code)
+    if not ok:
+        tries = int(request.session.get("mfa_tries", 0)) + 1
+        request.session["mfa_tries"] = tries
+        db.commit()
+        if tries >= twofa.MAX_TRIES:
+            request.session.clear()
+            flash(request, "Zu viele falsche Codes. Bitte melden Sie sich erneut an.", "error")
+            return redirect("/login")
+        flash(request, "Der Code stimmt nicht oder ist abgelaufen.", "error")
+        return redirect(f"/login/2fa?m={method}")
+    target = request.session.get("mfa_next") or "/"
+    db.commit()
+    request.session.clear()
+    request.session["uid"] = user.id
+    if method == "recovery":
+        flash(request, f"Wiederherstellungscode verbraucht – noch {twofa.recovery_left(user)} übrig. "
+                       "Richten Sie unter Profil › Sicherheit neue Codes oder ein neues Gerät ein.", "error")
+    return redirect(safe_next(target))
 
 
 # --- Einladung & Passwort zurücksetzen ----------------------------------------
@@ -421,10 +513,9 @@ def invite_accept(request: Request, token: str, password: str = Form(...), passw
     target.password_set, target.must_change_password = True, False
     target.token_hash = target.token_expires_at = None
     db.commit()
-    request.session.clear()
-    request.session["uid"] = target.id
-    flash(request, "Passwort gespeichert. Sie sind angemeldet.")
-    return redirect("/")
+    response = start_session(request, db, target, "/")
+    flash(request, "Passwort gespeichert." + ("" if "mfa_uid" in request.session else " Sie sind angemeldet."))
+    return response
 
 
 @app.get("/forgot")
@@ -1149,6 +1240,109 @@ def profile_save(request: Request, name: str = Form(...), current_password: str 
     return redirect("/profile")
 
 
+# --- Über dieses Portal -----------------------------------------------------------
+
+@app.get("/about")
+def about_page(request: Request, db: Session = Depends(get_db)):
+    from . import about
+    return render(request, "about.html", session_user(request, db), author=about.AUTHOR,
+                  components=about.COMPONENTS, services=about.SERVICES)
+
+
+# --- Profil: Sicherheit (Zwei-Faktor-Anmeldung) ---------------------------------
+
+@app.get("/profile/security")
+def profile_security(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    cfg = get_settings(db)
+    setup = None
+    if request.query_params.get("setup") == "totp" or (twofa.needs_setup(user, cfg) and not user.totp_enabled):
+        secret = request.session.get("totp_setup") or twofa.new_secret()
+        request.session["totp_setup"] = secret
+        uri = twofa.provisioning_uri(secret, user)
+        setup = {"secret": " ".join(secret[i:i + 4] for i in range(0, len(secret), 4)), "qr": twofa.qr_svg(uri)}
+    return render(request, "profile_security.html", user, allowed=twofa.allowed(cfg), required=twofa.required(user, cfg),
+                  methods=twofa.methods(user, cfg), setup=setup, recovery_left=twofa.recovery_left(user),
+                  new_codes=request.session.pop("recovery_codes", None), mail_ready=notify.mail_configured(cfg))
+
+
+def _confirm_password(request: Request, user: User, password: str) -> bool:
+    if verify_password(user.password_hash, password):
+        return True
+    flash(request, "Das Passwort stimmt nicht.", "error")
+    return False
+
+
+@app.post("/profile/security/totp", dependencies=[Depends(check_csrf)])
+def profile_totp(request: Request, action: str = Form(...), code: str = Form(""), password: str = Form(""),
+                 user: User = Depends(current_user), db: Session = Depends(get_db)):
+    user = db.get(User, user.id)
+    cfg = get_settings(db)
+    if action == "enable":
+        secret = request.session.get("totp_setup")
+        step = twofa.check_totp(secret, code) if secret and twofa.allowed(cfg)["totp"] else None
+        if step is None:
+            flash(request, "Der Code stimmt nicht. Prüfen Sie die Uhrzeit des Telefons und geben Sie den aktuellen "
+                           "Code ein.", "error")
+            return redirect("/profile/security?setup=totp")
+        twofa.enable_totp(user, secret)
+        user.totp_last_step = step
+        request.session.pop("totp_setup", None)
+        request.session.pop("mfa_setup", None)
+        if not twofa.recovery_left(user):
+            request.session["recovery_codes"] = twofa.new_recovery_codes(user)
+        flash(request, "Authenticator-App eingerichtet. Ab der nächsten Anmeldung wird ein Code abgefragt.")
+    elif action == "disable" and _confirm_password(request, user, password):
+        if twofa.required(user, cfg) and not (twofa.allowed(cfg)["email"]):
+            flash(request, "Die App kann nicht entfernt werden: Zwei-Faktor ist Pflicht und Codes per E-Mail sind "
+                           "nicht erlaubt. Richten Sie stattdessen ein neues Gerät ein.", "error")
+            return redirect("/profile/security")
+        user.totp_enabled, user.totp_secret_enc, user.totp_last_step = False, None, None
+        flash(request, "Authenticator-App entfernt.")
+    db.commit()
+    return redirect("/profile/security")
+
+
+@app.post("/profile/security/email", dependencies=[Depends(check_csrf)])
+def profile_mfa_email(request: Request, enable: str = Form(""), password: str = Form(""),
+                      user: User = Depends(current_user), db: Session = Depends(get_db)):
+    user = db.get(User, user.id)
+    if not _confirm_password(request, user, password):
+        return redirect("/profile/security")
+    if enable == "1" and not twofa.allowed(get_settings(db))["email"]:
+        raise HTTPException(403)
+    user.mfa_email = enable == "1"
+    if user.mfa_email and not twofa.recovery_left(user):
+        request.session["recovery_codes"] = twofa.new_recovery_codes(user)
+    db.commit()
+    flash(request, "Code per E-Mail eingeschaltet." if user.mfa_email else "Code per E-Mail ausgeschaltet.")
+    return redirect("/profile/security")
+
+
+@app.post("/profile/security/recovery", dependencies=[Depends(check_csrf)])
+def profile_recovery(request: Request, password: str = Form(""), user: User = Depends(current_user),
+                     db: Session = Depends(get_db)):
+    user = db.get(User, user.id)
+    if _confirm_password(request, user, password):
+        request.session["recovery_codes"] = twofa.new_recovery_codes(user)
+        db.commit()
+        flash(request, "Neue Wiederherstellungscodes erzeugt. Die alten gelten nicht mehr.")
+    return redirect("/profile/security#wiederherstellung")
+
+
+@app.post("/admin/security", dependencies=[Depends(check_csrf)])
+def admin_security(request: Request, mfa_email_allowed: str = Form(""), mfa_totp_allowed: str = Form(""),
+                   mfa_required: str = Form("off"), user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    if mfa_required != "off" and mfa_email_allowed != "1" and mfa_totp_allowed != "1":
+        flash(request, "Für eine Pflicht muss mindestens ein Verfahren erlaubt sein.", "error")
+        return redirect("/admin/users#sicherheit")
+    set_setting(db, "mfa_email_allowed", "1" if mfa_email_allowed == "1" else "0")
+    set_setting(db, "mfa_totp_allowed", "1" if mfa_totp_allowed == "1" else "0")
+    set_setting(db, "mfa_required", mfa_required if mfa_required in twofa.REQUIRED else "off")
+    db.commit()
+    flash(request, "Anmelde-Einstellungen gespeichert. Sie gelten ab der nächsten Anmeldung.")
+    return redirect("/admin/users#sicherheit")
+
+
 # --- Admin: SpeechMind --------------------------------------------------------
 
 @app.get("/admin/speechmind")
@@ -1251,7 +1445,7 @@ def admin_users(request: Request, user: User = Depends(users_manager), db: Sessi
                   invite_links=request.session.pop("invite_links", None),
                   mail_ready=notify.mail_configured(get_settings(db)),
                   invite_ttl=settings.invite_ttl_hours,
-                  allow_anonymous=anonymous_allowed(db))
+                  allow_anonymous=anonymous_allowed(db), cfg=get_settings(db), mfa_required=twofa.REQUIRED)
 
 
 @app.post("/admin/users", dependencies=[Depends(check_csrf)])
@@ -1318,6 +1512,10 @@ async def admin_users_update(request: Request, uid: int, action: str = Form(...)
         target.permissions = _perm_value(perms)
         _set_groups(db, target, form.getlist("groups"))
         flash(request, f"{target.email} gespeichert.")
+    elif action == "reset_2fa":
+        twofa.reset(target)
+        flash(request, f"Zwei-Faktor-Anmeldung von {target.email} zurückgesetzt. Bei Pflicht wird bei der "
+                       "nächsten Anmeldung neu eingerichtet bzw. ein Code per E-Mail verwendet.")
     elif action == "toggle_active":
         target.active = not target.active
     elif action in ("invite", "reset_password"):

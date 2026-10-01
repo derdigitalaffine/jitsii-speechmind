@@ -72,6 +72,15 @@ TEMPLATES: dict[str, dict] = {
                  "Der Link ist {gueltig_stunden} Stunden gültig. Haben Sie das nicht angefordert, "
                  "können Sie diese Nachricht ignorieren.\n\n{fusszeile}"),
     },
+    "login_code": {
+        "group": "Konten", "label": "Anmeldecode (Zwei-Faktor per E-Mail)",
+        "vars": {"name": "Name der Person", "code": "Sechsstelliger Einmalcode", "minuten": "Gültigkeit in Minuten"},
+        "subject": "Ihr Anmeldecode: {code}",
+        "body": ("Guten Tag {name},\n\n"
+                 "Ihr Code für die Anmeldung im {produkt} lautet:\n\n    {code}\n\n"
+                 "Er ist {minuten} Minuten gültig und kann nur einmal verwendet werden. Haben Sie sich nicht gerade "
+                 "angemeldet, ändern Sie bitte Ihr Passwort – jemand kennt es.\n\n{fusszeile}"),
+    },
     "meeting_invite": {
         "group": "Besprechungen", "label": "Einladung zur Besprechung",
         "vars": _MEETING_VARS,
@@ -200,7 +209,7 @@ SAMPLE = {
     "teilnehmer": "Erika Mustermann <erika.mustermann@example.org>", "antwort": "Zugesagt",
     "kommentar": "Ich komme etwas später.", "stand": "3 zugesagt, 1 abgesagt, 2 offen",
     "absender": "Max Muster", "frist": "Bitte bis Freitag, 09.10.2026, 12:00 Uhr ausfüllen.",
-    "nummer": "17", "zeitpunkt": "01.10.2026, 14:32 Uhr", "von": "Erika Mustermann <erika.mustermann@example.org>",
+    "code": "482913", "minuten": "10", "nummer": "17", "zeitpunkt": "01.10.2026, 14:32 Uhr", "von": "Erika Mustermann <erika.mustermann@example.org>",
     "antworten": "Teilnahme: Ja\nEssen: Vegetarisch", "anzahl": "17",
 }
 

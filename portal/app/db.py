@@ -72,6 +72,14 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     # Freigeschaltete Bereiche, kommagetrennt (siehe PERMISSIONS). Admins dürfen immer alles.
     permissions: Mapped[str] = mapped_column(String(255), default="video")
+    # Zwei-Faktor-Anmeldung (siehe twofa.py)
+    totp_secret_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    totp_last_step: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mfa_email: Mapped[bool] = mapped_column(Boolean, default=False)
+    recovery_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    email_code_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    email_code_expires: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     meetings: Mapped[list["Meeting"]] = relationship(back_populates="owner")
     groups: Mapped[list["Group"]] = relationship(secondary="group_members", back_populates="members",
@@ -467,6 +475,10 @@ DEFAULT_SETTINGS = {
     "tls_staging": "0",
     # Zugang
     "allow_anonymous": "1",
+    # Zwei-Faktor-Anmeldung
+    "mfa_email_allowed": "1",
+    "mfa_totp_allowed": "1",
+    "mfa_required": "off",        # off | admins | all
     # Design & Branding (siehe branding.py)
     "ui_custom": "0",
     "ui_brand_name": "",
@@ -500,6 +512,9 @@ _NEW_COLUMNS = {
         "token_hash": "VARCHAR(64)",
         "token_expires_at": "DATETIME",
         "permissions": "VARCHAR(255) NOT NULL DEFAULT 'video'",
+        "totp_secret_enc": "TEXT", "totp_enabled": "BOOLEAN NOT NULL DEFAULT 0", "totp_last_step": "INTEGER",
+        "mfa_email": "BOOLEAN NOT NULL DEFAULT 0", "recovery_json": "TEXT", "email_code_hash": "VARCHAR(64)",
+        "email_code_expires": "DATETIME",
     },
     "recordings": {"audio_path": "VARCHAR(1024)", "audio_max_db": "FLOAT", "media_deleted_at": "DATETIME",
                    "chat_json": "TEXT", "polls_json": "TEXT"},
