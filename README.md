@@ -43,13 +43,14 @@ Name und Produktbezeichnung lassen sich über `BRAND_NAME` und `BRAND_PRODUCT` i
 | Wer den Server **installiert und betreibt** | diese Seite, danach [docs/ADMIN-HANDBUCH.md](docs/ADMIN-HANDBUCH.md) |
 | Wer **Konferenzen hält** (Mitarbeitende) | [docs/BENUTZERANLEITUNG.md](docs/BENUTZERANLEITUNG.md) |
 
-## Installation in 11 Schritten
+## Installation in 12 Schritten
 
 Sie brauchen: einen Linux-Server (Ubuntu/Debian), Zugriff per SSH mit `sudo`, und jemanden, der DNS-Einträge anlegen kann. **Rechnen Sie mit 30–60 Minuten.**
 
 ### Vorher klären (Checkliste)
 
 - [ ] **Server:** mindestens 4 Kerne und 12 GB RAM, 100 GB Platz (Aufnahmen brauchen Speicher). Jitsi allein käme mit 2 Kernen / 4 GB aus, **Jibri** (die Aufnahme) braucht zusätzlich etwa 4 Kerne / 8 GB und nimmt **eine** Konferenz gleichzeitig auf.
+- [ ] **Kernel mit Modul `snd-aloop`** (für den Ton der Aufnahmen; Schritt 4 richtet es ein). Das geht auf Servern mit eigenem Kernel (KVM/Root-Server), nicht in LXC-/OpenVZ-Containern.
 - [ ] **Öffentliche IP-Adresse** des Servers (`curl https://api.ipify.org` auf dem Server zeigt sie).
 - [ ] **Zwei Domainnamen**, die beide auf diese IP zeigen (DNS-Eintrag „A“), z. B. `meet.vg-otterbach-otterberg.example` und `portal.vg-otterbach-otterberg.example`. Den DNS-Eintrag legt Ihre IT oder der Domain-Anbieter an; es dauert bis zu einigen Stunden, bis er überall gilt.
 - [ ] **Firewall** (auch die des Rechenzentrums/Routers): **TCP 80, TCP 443 und UDP 10000** müssen von außen offen sein. UDP 10000 vergessen Leute am häufigsten, dann gibt es kein Bild und keinen Ton.
@@ -58,7 +59,7 @@ Sie brauchen: einen Linux-Server (Ubuntu/Debian), Zugriff per SSH mit `sudo`, un
 
 ### Schritt für Schritt
 
-> Für den allerersten Start brauchen Sie **keine** öffentliche Domain: Mit selbst signiertem Zertifikat läuft alles. Let's Encrypt kommt erst in Schritt 11 dazu.
+> Für den allerersten Start brauchen Sie **keine** öffentliche Domain: Mit selbst signiertem Zertifikat läuft alles. Let's Encrypt kommt erst in Schritt 12 dazu.
 
 **1. Docker installieren** (einmalig, falls noch nicht vorhanden):
 
@@ -83,7 +84,15 @@ cd jitsii-speechmind
 
 Beantworten Sie die Fragen (Domains, E-Mail für Zertifikate, öffentliche IP, Admin-E-Mail). **Am Ende zeigt er das Startpasswort des Admins. Notieren Sie es jetzt**, es wird nicht wieder angezeigt.
 
-**4. Starten:**
+**4. Ton für Aufnahmen einrichten** (wichtig, sonst sind die Aufnahmen stumm):
+
+```bash
+./scripts/setup-recording-audio.sh
+```
+
+Das Skript lädt auf dem Server das Kernelmodul `snd-aloop` (eine virtuelle Soundkarte, über die Jibri den Ton aufnimmt), sorgt dafür, dass es nach jedem Neustart wieder geladen wird, und startet Jibri neu. Bricht es mit „snd-aloop ist nicht verfügbar“ ab, folgen Sie der Meldung im Skript (meist: `sudo apt install linux-modules-extra-$(uname -r)`). Bei einem gemieteten Server muss es ein echter virtueller Server (KVM) sein, kein Container (LXC/OpenVZ).
+
+**5. Starten:**
 
 ```bash
 docker compose up -d --build
@@ -91,25 +100,25 @@ docker compose up -d --build
 
 Das erste Mal dauert einige Minuten (Bilder werden geladen und gebaut).
 
-**5. Prüfen, ob alles läuft:**
+**6. Prüfen, ob alles läuft:**
 
 ```bash
 docker compose ps
 ```
 
-Alle Zeilen sollten „running“ oder „Up“ zeigen. Der Proxy startet mit **selbst signierten Zertifikaten**: Das Portal läuft sofort, der Browser zeigt aber eine Zertifikatswarnung (einmal „Trotzdem fortfahren“ wählen). Das richten Sie in Schritt 11 sauber ein.
+Alle Zeilen sollten „running“ oder „Up“ zeigen. Der Proxy startet mit **selbst signierten Zertifikaten**: Das Portal läuft sofort, der Browser zeigt aber eine Zertifikatswarnung (einmal „Trotzdem fortfahren“ wählen). Das richten Sie in Schritt 12 sauber ein.
 
-**6. Portal öffnen:** `https://<Ihre Portal-Domain>` im Browser. Anmelden mit der Admin-E-Mail und dem Startpasswort aus Schritt 3.
+**7. Portal öffnen:** `https://<Ihre Portal-Domain>` im Browser. Anmelden mit der Admin-E-Mail und dem Startpasswort aus Schritt 3.
 
-**7. Eigenes Passwort vergeben.** Das Portal verlangt das sofort (alte Passwort = Startpasswort, neues mindestens 10 Zeichen). Erst danach sind die anderen Seiten erreichbar.
+**8. Eigenes Passwort vergeben.** Das Portal verlangt das sofort (alte Passwort = Startpasswort, neues mindestens 10 Zeichen). Erst danach sind die anderen Seiten erreichbar.
 
-**8. E-Mail einrichten:** Oben auf **Benachrichtigungen** klicken, SMTP-Daten eintragen, **Speichern**, dann **Testmail senden**. Kommt die Mail an, ist alles in Ordnung. Wie die Felder auszufüllen sind, steht im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#e-mail-einrichten).
+**9. E-Mail einrichten:** Oben auf **Benachrichtigungen** klicken, SMTP-Daten eintragen, **Speichern**, dann **Testmail senden**. Kommt die Mail an, ist alles in Ordnung. Wie die Felder auszufüllen sind, steht im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#e-mail-einrichten).
 
-**9. SpeechMind verbinden:** Oben auf **SpeechMind**, API-Key eintragen, **Speichern**, **Verbindung testen**, ein Projekt auswählen, **Speichern**.
+**10. SpeechMind verbinden:** Oben auf **SpeechMind**, API-Key eintragen, **Speichern**, **Verbindung testen**, ein Projekt auswählen, **Speichern**.
 
-**10. Kolleginnen und Kollegen einladen:** Oben auf **Benutzer**, Name und E-Mail eintragen, **Einladen**. Die Person bekommt eine Mail mit einem Link und legt ihr Passwort selbst fest.
+**11. Kolleginnen und Kollegen einladen:** Oben auf **Benutzer**, Name und E-Mail eintragen, **Einladen**. Die Person bekommt eine Mail mit einem Link und legt ihr Passwort selbst fest.
 
-**11. Öffentliches Zertifikat (Let's Encrypt) einschalten:** Sind DNS-Einträge und Ports 80/443 bereit, im Portal links auf **HTTPS & Zertifikat**, **Let's Encrypt** wählen, E-Mail prüfen, **Speichern und anwenden**. Nach etwa einer Minute steht oben „vertrauenswürdig“ und die Browser-Warnung ist weg. Zum gefahrlosen Üben vorher „Testumgebung“ einschalten. Details im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#https-und-zertifikat).
+**12. Öffentliches Zertifikat (Let's Encrypt) einschalten:** Sind DNS-Einträge und Ports 80/443 bereit, im Portal links auf **HTTPS & Zertifikat**, **Let's Encrypt** wählen, E-Mail prüfen, **Speichern und anwenden**. Nach etwa einer Minute steht oben „vertrauenswürdig“ und die Browser-Warnung ist weg. Zum gefahrlosen Üben vorher „Testumgebung“ einschalten. Details im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#https-und-zertifikat).
 
 **Probelauf (empfohlen):** Legen Sie ein Meeting an, treten Sie bei, starten Sie über „…“ › „Aufnahme starten“, sprechen Sie ein paar Sätze, beenden Sie die Aufnahme. Nach kurzer Zeit erscheint sie unter **Aufnahmen** mit MP3.
 
@@ -210,7 +219,9 @@ docker compose logs -f jibri
 
 **„Authentifizierung erforderlich“ endet in einer Schleife** – `JWT_APP_SECRET`, `JWT_APP_ID`/`JWT_ACCEPTED_ISSUERS` und `JWT_ACCEPTED_AUDIENCES` müssen zueinander passen. Nach Änderungen an `.env`: `docker compose up -d --force-recreate`. Bei hartnäckigen Problemen `data/prosody` löschen; die Konfiguration wird neu erzeugt.
 
-**Aufnahme-Button fehlt oder Aufnahme startet nicht** – `docker compose logs jibri` prüfen. Häufige Ursachen: zu wenig Arbeitsspeicher, Jibri ist noch mit einer anderen Aufnahme beschäftigt, oder Jibri erreicht `https://MEET_DOMAIN` nicht. Ältere Jitsi-Versionen benötigen zusätzlich das Kernelmodul `snd-aloop` auf dem Host (`sudo modprobe snd-aloop`).
+**Aufnahme-Button fehlt oder Aufnahme startet nicht** – `docker compose logs jibri` prüfen. Häufige Ursachen: zu wenig Arbeitsspeicher, Jibri ist noch mit einer anderen Aufnahme beschäftigt, oder Jibri erreicht `https://MEET_DOMAIN` nicht. Ohne das Kernelmodul `snd-aloop` auf dem Host nimmt Jibri keinen Ton auf (siehe nächster Punkt).
+
+**Aufnahme ist stumm / MP3 ohne Ton** – Das Portal markiert solche Aufnahmen mit „kein Ton“. Ursache ist fast immer der fehlende Host-Ton für Jibri. Beheben: `./scripts/setup-recording-audio.sh` (Details im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#aufnahme-ohne-ton)). Bereits stumm aufgenommene Konferenzen lassen sich nicht retten.
 
 **Aufnahme erscheint nicht im Portal** – Prüfen, ob in `data/recordings/<sitzung>/` eine `.finalized`-Datei liegt. Fehlt sie, wurde `finalize.sh` nicht ausgeführt: Ausführungsrecht prüfen (`chmod +x jibri/finalize.sh`) und `docker compose logs jibri` ansehen.
 

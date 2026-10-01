@@ -19,6 +19,10 @@
         <button class="btn {{ 'btn-outline-danger' if rec.status == 'failed' else 'btn-primary' }}" type="submit"><i class="fa-solid {{ 'fa-rotate-right' if rec.status == 'failed' else 'fa-wand-magic-sparkles' }} me-1"></i>{{ 'Erneut versuchen' if rec.status == 'failed' else 'In SpeechMind bearbeiten' }}</button>
       </form>
       {% endif %}
+      {% if has_video and rec.status not in active_statuses %}
+      <form method="post" action="/recordings/{{ rec.id }}/reconvert"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn btn-outline-secondary" type="submit" title="Erzeugt die MP3 aus dem Video neu und misst den Ton erneut"><i class="fa-solid fa-arrows-rotate me-1"></i>MP3 neu erzeugen</button></form>
+      {% endif %}
       {% if has_audio %}<a class="btn btn-outline-secondary" href="/recordings/{{ rec.id }}/audio.mp3"><i class="fa-solid fa-download me-1"></i>MP3 ({{ rec.audio_size | filesize }})</a>{% endif %}
       {% if rec.status == 'done' %}<a class="btn btn-outline-secondary" href="/recordings/{{ rec.id }}/transcript.txt"><i class="fa-solid fa-file-arrow-down me-1"></i>Transkript (TXT)</a>{% endif %}
       {% if has_video %}<a class="btn btn-outline-secondary" href="/recordings/{{ rec.id }}/video"><i class="fa-solid fa-film me-1"></i>Video</a>{% endif %}
@@ -26,7 +30,7 @@
     </div>
   </div>
   {{ m.track(rec) }}
-  {% if rec.error %}<div class="alert alert-danger mt-3 mb-0">{{ rec.error }}</div>{% endif %}
+  {% if rec.error %}<div class="alert alert-{{ 'warning' if rec.audio_silent else 'danger' }} mt-3 mb-0"><i class="fa-solid {{ 'fa-volume-xmark' if rec.audio_silent else 'fa-triangle-exclamation' }} me-2"></i>{{ rec.error }}</div>{% endif %}
   {% if has_audio %}<audio class="w-100 mt-3" controls preload="none" src="/recordings/{{ rec.id }}/audio.mp3"></audio>{% endif %}
 </div></div>
 

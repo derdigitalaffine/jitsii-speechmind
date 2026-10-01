@@ -50,7 +50,7 @@
 {% macro status_badge(rec) -%}
 {%- set colors = {'new': 'info', 'recorded': 'primary', 'queued': 'info', 'converting': 'info', 'uploading': 'info', 'processing': 'warning', 'done': 'success', 'failed': 'danger'} -%}
 {%- set icons = {'new': 'fa-gear fa-spin', 'recorded': 'fa-file-audio', 'queued': 'fa-hourglass-half', 'converting': 'fa-gear fa-spin', 'uploading': 'fa-cloud-arrow-up', 'processing': 'fa-wand-magic-sparkles', 'done': 'fa-circle-check', 'failed': 'fa-triangle-exclamation'} -%}
-<span class="badge text-bg-{{ colors.get(rec.status, 'secondary') }}"><i class="fa-solid {{ icons.get(rec.status, 'fa-circle') }} me-1"></i>{{ status_labels.get(rec.status, rec.status) }}</span>
+<span class="badge text-bg-{{ colors.get(rec.status, 'secondary') }}"><i class="fa-solid {{ icons.get(rec.status, 'fa-circle') }} me-1"></i>{{ status_labels.get(rec.status, rec.status) }}</span>{% if rec.audio_silent %} <span class="badge text-bg-warning" title="Die Aufnahme enthält keinen hörbaren Ton"><i class="fa-solid fa-volume-xmark me-1"></i>kein Ton</span>{% endif %}
 {%- endmacro %}
 
 {# Fortschrittsanzeige der Verarbeitungsschritte #}
