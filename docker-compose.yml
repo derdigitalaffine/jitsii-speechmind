@@ -111,8 +111,12 @@ services:
       - JIBRI_RECORDING_DIR=/config/recordings
       - JIBRI_FINALIZE_RECORDING_SCRIPT_PATH=/config/finalize.sh
       # Jibri öffnet die eigene Konferenz-Adresse. Mit selbst signiertem Zertifikat würde Chrome
-      # sonst abbrechen. Bei Let's Encrypt in .env JIBRI_CHROMIUM_FLAGS= (leer) setzen.
-      - CHROMIUM_FLAGS=${JIBRI_CHROMIUM_FLAGS---ignore-certificate-errors}
+      # sonst abbrechen. Diese Option behält alle Standard-Flags von Jibri und ergänzt nur
+      # --ignore-certificate-errors. NICHT CHROMIUM_FLAGS verwenden: das ersetzt alle Flags,
+      # u. a. --autoplay-policy=no-user-gesture-required, und die Aufnahmen werden stumm.
+      # Bei Let's Encrypt kann in .env JIBRI_IGNORE_CERTIFICATE_ERRORS=false gesetzt werden.
+      - IGNORE_CERTIFICATE_ERRORS=${JIBRI_IGNORE_CERTIFICATE_ERRORS:-true}
+      - CHROMIUM_FLAGS=
     volumes:
       - ${CONFIG}/jibri:/config:Z
       - ./jibri/finalize.sh:/config/finalize.sh:ro

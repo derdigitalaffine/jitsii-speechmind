@@ -132,7 +132,7 @@ Rechts auf der Seite gibt es **Root-Zertifikat herunterladen**. Dieses Zertifika
 
 ### Gut zu wissen
 
-- **Aufnahmen** funktionieren in beiden Modi. Jibri ist so eingestellt, dass es auch selbst signierte Zertifikate akzeptiert (nur für den Aufruf der eigenen Konferenzseite). Wollen Sie das bei Let's Encrypt abstellen, setzen Sie in der `.env` `JIBRI_CHROMIUM_FLAGS=` (leer) und starten mit `docker compose up -d` neu.
+- **Aufnahmen** funktionieren in beiden Modi. Jibri ist so eingestellt, dass es auch selbst signierte Zertifikate akzeptiert (nur für den Aufruf der eigenen Konferenzseite). Wollen Sie das bei Let's Encrypt abstellen, setzen Sie in der `.env` `JIBRI_IGNORE_CERTIFICATE_ERRORS=false` und starten mit `docker compose up -d` neu. (Bitte nicht `CHROMIUM_FLAGS` setzen: das ersetzt alle Chrome-Einstellungen von Jibri, und die Aufnahmen werden stumm.)
 - **HSTS** (Browser merkt sich „nur HTTPS“) wird nur bei Let's Encrypt gesendet. Bei selbst signierten Zertifikaten würde es die Warnung unüberwindbar machen.
 - Die vom Portal erzeugte Konfiguration liegt in `data/caddy/conf/Caddyfile`. Bitte nicht von Hand ändern; das Portal überschreibt sie. Fehlerhafte Konfigurationen lädt der Proxy nicht, er bleibt dann bei der letzten funktionierenden.
 - Die Domains selbst (`MEET_DOMAIN`, `PORTAL_DOMAIN`) ändern Sie weiterhin in der `.env`.
@@ -251,6 +251,14 @@ Das Skript prüft die neueste Aufnahme (hat das Video eine Tonspur, wie laut ist
 | „Enthält hörbaren Ton“ | Video ist in Ordnung | In der Aufnahme auf **„MP3 neu erzeugen“** klicken |
 | „Tonspur vorhanden, aber STUMM“ | Es war nichts zu hören, oder Jibri erfasst den Ton nicht | Test wie oben mit zwei Geräten wiederholen. Bleibt es stumm: Ausgabe des Skripts weitergeben |
 | „Video hat KEINE Tonspur“ | Jibri hat den Ton nicht erfasst | Ausgabe (Abschnitte 4 und 5) weitergeben: dort steht, ob das Tonsystem im Container läuft |
+
+**Bekannte Ursache (bis Oktober 2026 in diesem Projekt):** Die `docker-compose.yml` setzte für Jibri `CHROMIUM_FLAGS`. Das ersetzt alle Chrome-Einstellungen von Jibri, auch die Freigabe, Ton ohne Mausklick abzuspielen (`--autoplay-policy=no-user-gesture-required`). Chrome spielte den Ton der Teilnehmenden dann gar nicht ab, und Jibri nahm Stille auf. Behoben durch `IGNORE_CERTIFICATE_ERRORS=true`. Prüfen:
+
+```bash
+docker compose exec jibri sh -c 'cat /etc/jitsi/jibri/jibri.conf' | grep -A12 "chrome {"
+```
+
+In der Ausgabe muss `--autoplay-policy=no-user-gesture-required` stehen. Das Diagnoseskript prüft das ebenfalls.
 
 **Wichtig zu wissen:** Aktuelle Jibri-Versionen nehmen den Ton über PulseAudio im Container auf. Das Kernelmodul `snd-aloop` auf dem Server wird dafür **nicht** gebraucht. Nur ältere Jibri-Versionen (ALSA) brauchen es.
 
