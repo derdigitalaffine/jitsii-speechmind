@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m with context %}
 {% block title %}{{ poll.title if poll else 'Terminumfrage' }}{% endblock %}
 {% block content %}
 <div class="form-fill" style="max-width: 60rem">
@@ -19,7 +20,7 @@
   </div></div>
 
   {% if poll.final_option %}
-  <div class="alert alert-success d-flex align-items-center gap-3"><i class="fa-regular fa-calendar-check fa-2x"></i>
+  <div class="alert alert-success d-flex align-items-center gap-3">{{ m.date_tile(parts(poll.final_option), True) }}
     <div><div class="small">Der Termin steht fest</div><div class="h5 mb-0">{{ parts(poll.final_option).label }}</div></div></div>
   {% elif not is_open %}
   <div class="alert alert-secondary"><i class="fa-solid fa-lock me-1"></i>Die Abstimmung ist beendet.</div>
@@ -47,11 +48,15 @@
         <div class="col-md-6"><label class="form-label" for="pe">E-Mail {% if not poll.require_email %}<span class="text-secondary">(optional, für die Terminbestätigung)</span>{% endif %}</label>
           <input class="form-control" id="pe" name="email" type="email" maxlength="255" value="{{ participant.email if participant else (member.email if member else '') }}" autocomplete="email" {% if poll.require_email and not (participant and participant.email) %}required{% endif %}></div>
       </div>
+      {% if not poll.single_choice %}<div class="d-flex flex-wrap gap-2 mb-2 small"><span class="text-secondary">Für alle Termine:</span>
+        <button type="button" class="btn btn-sm btn-outline-success py-0" data-poll-all="yes"><i class="fa-solid fa-check me-1"></i>Ja</button>
+        {% if poll.allow_maybe %}<button type="button" class="btn btn-sm btn-outline-warning py-0" data-poll-all="maybe"><i class="fa-solid fa-question me-1"></i>Wenn nötig</button>{% endif %}
+        <button type="button" class="btn btn-sm btn-outline-danger py-0" data-poll-all="no"><i class="fa-solid fa-xmark me-1"></i>Nein</button></div>{% endif %}
       <p class="small text-secondary mb-2">{% if poll.single_choice %}Bitte wählen Sie <strong>einen</strong> Termin.{% else %}Wählen Sie für jeden Vorschlag: <span class="text-success"><i class="fa-solid fa-check"></i> Ja</span>{% if poll.allow_maybe %}, <span class="text-warning-emphasis"><i class="fa-solid fa-question"></i> Wenn nötig</span>{% endif %} oder <span class="text-danger"><i class="fa-solid fa-xmark"></i> Nein</span>.{% endif %}</p>
       <div class="list-group mb-3">
       {% for o in poll.options %}{% set pp = parts(o) %}{% set v = mine.get(o.id|string, 'no') %}{% set c = counts[o.id] %}{% set is_full = o.id in full and v != 'yes' %}
         <div class="list-group-item d-flex flex-wrap align-items-center gap-2 poll-option-row {{ 'is-full' if is_full }}">
-          <div class="text-center" style="width:3.2rem"><div class="small text-secondary">{{ pp.weekday }}</div><div class="fs-5 lh-1">{{ pp.day }}</div><div class="small text-secondary">{{ pp.month }}</div></div>
+          {{ m.date_tile(pp) }}
           <div class="flex-grow-1"><div class="fw-semibold">{{ pp.time }}</div>
             <div class="small text-secondary">{% if o.note %}{{ o.note }} · {% endif %}{% if not poll.hidden %}{{ c.yes }} Ja{% if poll.allow_maybe and c.maybe %}, {{ c.maybe }} wenn nötig{% endif %}{% endif %}
               {% if poll.max_per_option %} · {{ [poll.max_per_option - c.yes + (1 if v == 'yes' else 0), 0] | max }} von {{ poll.max_per_option }} Plätzen frei{% endif %}
@@ -82,3 +87,9 @@
 {% endif %}
 </div>
 {% endblock %}
+{% block scripts %}<script>
+document.addEventListener('click', function (ev) {
+  var b = ev.target.closest('[data-poll-all]'); if (!b) { return; }
+  document.querySelectorAll('.poll-answer input[value="' + b.dataset.pollAll + '"]:not(:disabled)').forEach(function (i) { i.checked = true; });
+});
+</script>{% endblock %}

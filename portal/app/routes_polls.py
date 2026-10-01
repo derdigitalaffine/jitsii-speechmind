@@ -105,7 +105,13 @@ def poll_detail(request: Request, poll_id: int, user: User = Depends(poll_user),
     users = db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all()
     groups = db.scalars(select(Group).order_by(Group.name)).all()
     public = pl.public_link(poll) if poll.public_token else ""
-    return render(request, "poll.html", user, poll=poll, counts=counts, best=pl.best(poll, counts),
+    answered_n = sum(1 for p in poll.participants if p.answered_at) or 1
+    ranking = []
+    for o in sorted(poll.options, key=lambda o: (-counts[o.id]["yes"], -counts[o.id]["maybe"], o.starts_at))[:3]:
+        c = counts[o.id]
+        ranking.append({"option": o, **c, "missing": max(answered_n - c["yes"] - c["maybe"] - c["no"], 0),
+                        "yes_pct": round(100 * c["yes"] / answered_n), "maybe_pct": round(100 * c["maybe"] / answered_n)})
+    return render(request, "poll.html", user, poll=poll, counts=counts, best=pl.best(poll, counts), ranking=ranking,
                   parts=pl.option_parts, answers=pl.ANSWERS, is_open=pl.is_open(poll), public_url=public,
                   personal_link=pl.personal_link, users=users, groups=groups, errors=sl.QR_ERRORS,
                   answered=[p for p in poll.participants if p.answered_at],

@@ -128,3 +128,35 @@ footer.app-footer { border-top: 1px solid var(--bs-border-color); color: var(--b
 .poll-answer .btn { min-width: 2.8rem; }
 .poll-option-row.is-full { opacity: .6; }
 .alert { overflow-wrap: anywhere; }
+/* Terminbuchung */
+.fc { --fc-border-color: var(--bs-border-color); --fc-page-bg-color: var(--bs-body-bg); --fc-neutral-bg-color: var(--bs-tertiary-bg);
+      --fc-today-bg-color: rgba(var(--bs-primary-rgb), .06); --fc-now-indicator-color: var(--bs-danger); font-size: .9rem; }
+.fc .fc-button-primary { --fc-button-bg-color: var(--bs-primary); --fc-button-border-color: var(--bs-primary);
+      --fc-button-hover-bg-color: var(--bs-primary); --fc-button-active-bg-color: var(--bs-primary); }
+.fc .bk-window { background: rgba(var(--bs-success-rgb), .28) !important; opacity: 1; cursor: pointer; }
+.fc .bk-booking { background: var(--bs-primary); border-color: var(--bs-primary); cursor: pointer; }
+.fc .fc-non-business { background: rgba(var(--bs-secondary-rgb), .07); }
+.bk-legend { display: inline-block; width: .9rem; height: .9rem; border-radius: .2rem; vertical-align: -.1rem; margin-right: .3rem; }
+.bk-legend-window { background: rgba(var(--bs-success-rgb), .35); }
+.bk-legend-booking { background: var(--bs-primary); }
+.bk-day { scroll-margin-top: 5rem; }
+.bk-slot .btn { min-width: 5rem; }
+.bk-slot .btn-check:checked + .btn { box-shadow: 0 0 0 .2rem rgba(var(--bs-primary-rgb), .3); }
+/* Kalenderblatt (Terminumfragen, Terminbuchung) */
+.date-tile { display: inline-flex; flex-direction: column; align-items: center; width: 3.5rem; border: 1px solid var(--bs-border-color);
+  border-radius: .55rem; overflow: hidden; background: var(--bs-body-bg); box-shadow: 0 1px 2px rgba(0,0,0,.06); flex: none; }
+.date-tile .dt-month { background: var(--bs-primary); color: #fff; font-size: .66rem; font-weight: 600; width: 100%; text-align: center;
+  text-transform: uppercase; letter-spacing: .06em; padding: .08rem 0; }
+.date-tile .dt-day { font-size: 1.35rem; font-weight: 700; line-height: 1.15; color: var(--bs-body-color); }
+.date-tile .dt-wd { font-size: .7rem; color: var(--bs-secondary-color); padding-bottom: .15rem; }
+.date-tile.is-final { border-color: var(--bs-success); }
+.date-tile.is-final .dt-month { background: var(--bs-success); }
+.poll-grid thead th { vertical-align: bottom; background: var(--bs-body-bg); }
+.poll-grid .poll-time { font-size: .75rem; white-space: nowrap; margin-top: .25rem; }
+.poll-grid tbody tr.is-own td { font-weight: 600; }
+.poll-rank .progress { height: .55rem; }
+.poll-option-row { transition: background-color .15s; border-left: 4px solid transparent; }
+.poll-option-row:has(input[value="yes"]:checked), .poll-option-row:has(input[name="choice"]:checked) { background: rgba(var(--bs-success-rgb), .09); border-left-color: var(--bs-success); }
+.poll-option-row:has(input[value="maybe"]:checked) { background: rgba(var(--bs-warning-rgb), .12); border-left-color: var(--bs-warning); }
+.poll-option-row:has(input[value="no"]:checked) { border-left-color: rgba(var(--bs-danger-rgb), .45); }
+.poll-answer .btn { min-width: 3rem; padding-top: .45rem; padding-bottom: .45rem; }

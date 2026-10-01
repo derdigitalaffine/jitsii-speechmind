@@ -5,7 +5,7 @@ Spalten (englisch, Groß-/Kleinschreibung egal, Reihenfolge beliebig):
   name         Anzeigename (leer: aus der Adresse abgeleitet)
   password     Startpasswort (leer: Konto ohne Passwort, auf Wunsch Einladung per Mail)
   groups       Gruppen, getrennt durch ; oder | (fehlende Gruppen werden angelegt)
-  permissions  video;shortlinks;forms;polls;users (leer: video)
+  permissions  video;shortlinks;forms;polls;bookings;users (leer: video)
   admin        yes/no (wird nur bei Import durch Admins beachtet)
 
 Trennzeichen Komma oder Semikolon (Excel speichert in Deutschland mit Semikolon; dann Gruppen

@@ -380,6 +380,7 @@ def reset_interrupted() -> None:
 RSVP_INTERVAL_SECONDS = 120
 _last_rsvp = [0.0]
 _last_chat_prune = [0.0]
+_last_booking_reminder = [0.0]
 
 
 def _poll_rsvp() -> None:
@@ -404,6 +405,11 @@ async def run_forever() -> None:
                 _last_rsvp[0] = time.monotonic()
                 await asyncio.to_thread(_poll_rsvp)
             await asyncio.to_thread(notify.process_queue)  # Hinweise zu neuen Antworten gleich verschicken
+            if time.monotonic() - _last_booking_reminder[0] >= 300:
+                _last_booking_reminder[0] = time.monotonic()
+                from . import bookings
+                if await asyncio.to_thread(bookings.send_reminders):
+                    await asyncio.to_thread(notify.process_queue)
             if time.monotonic() - _last_chat_prune[0] >= 3600:
                 _last_chat_prune[0] = time.monotonic()
                 await asyncio.to_thread(chat.prune)

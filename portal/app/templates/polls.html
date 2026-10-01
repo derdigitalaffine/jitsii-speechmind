@@ -14,6 +14,7 @@
       <a class="h6 mb-0 text-decoration-none" href="/polls/{{ p.id }}">{{ p.title }}</a>
       {% if p.final_option %}<span class="badge text-bg-success">festgelegt</span>{% elif is_open(p) %}<span class="badge text-bg-primary">läuft</span>{% else %}<span class="badge text-bg-secondary">beendet</span>{% endif %}
     </div>
+    <div class="d-flex gap-1 my-2 overflow-hidden">{% if p.final_option %}{{ m.date_tile(parts(p.final_option), True) }}{% else %}{% for o in p.options[:5] %}{{ m.date_tile(parts(o)) }}{% endfor %}{% if p.options | length > 5 %}<span class="align-self-center small text-secondary ms-1">+{{ p.options | length - 5 }}</span>{% endif %}{% endif %}</div>
     <div class="small text-secondary mb-3">
       {% if p.final_option %}<i class="fa-regular fa-calendar-check me-1"></i>{{ parts(p.final_option).label }}{% else %}{{ p.options | length }} Vorschläge{% if p.options %} · {{ parts(p.options[0]).date }} – {{ parts(p.options[-1]).date }}{% endif %}{% endif %}
       {% if p.location %}<br><i class="fa-solid fa-location-dot me-1"></i>{{ p.location }}{% endif %}

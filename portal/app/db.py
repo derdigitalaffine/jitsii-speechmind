@@ -99,6 +99,7 @@ PERMISSIONS = {
     "shortlinks": ("Kurzlinks", "fa-link", "Kurzlinks anlegen und auswerten"),
     "forms": ("Formulare", "fa-clipboard-list", "Formulare erstellen, verteilen und auswerten"),
     "polls": ("Terminumfragen", "fa-calendar-check", "Terminumfragen (wie Doodle) erstellen und auswerten"),
+    "bookings": ("Terminbuchung", "fa-calendar-plus", "Buchungsseiten mit freien Zeitfenstern anbieten (z. B. Vorstellungsgespräche)"),
     "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
 }
 
@@ -516,6 +517,98 @@ class PollParticipant(Base):
         return data if isinstance(data, dict) else {}
 
 
+class BookingPage(Base):
+    """Terminbuchung: In festgelegten Zeitbereichen buchen Gäste selbst freie Zeitfenster (Slots)."""
+    __tablename__ = "booking_pages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
+                                                 index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(Text, default="")
+    location: Mapped[str] = mapped_column(String(255), default="")
+    slot_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    pause_minutes: Mapped[int] = mapped_column(Integer, default=0)       # Puffer nach jedem Termin
+    capacity: Mapped[int] = mapped_column(Integer, default=1)            # Personen je Zeitfenster
+    min_notice_hours: Mapped[int] = mapped_column(Integer, default=12)   # frühestens so viele Stunden vorher buchbar
+    cancel_hours: Mapped[int] = mapped_column(Integer, default=24)       # bis so viele Stunden vorher selbst absagbar
+    max_per_person: Mapped[int] = mapped_column(Integer, default=1)      # aktive Buchungen je E-Mail-Adresse
+    invite_only: Mapped[bool] = mapped_column(Boolean, default=False)    # nur mit persönlichem Einladungslink
+    ask_phone: Mapped[bool] = mapped_column(Boolean, default=False)
+    online: Mapped[bool] = mapped_column(Boolean, default=False)         # je Buchung eine Videokonferenz
+    notify_owner: Mapped[bool] = mapped_column(Boolean, default=True)
+    reminder_hours: Mapped[int] = mapped_column(Integer, default=24)     # 0 = keine Erinnerung
+    confirm_text: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    public_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    # Geheimer Link zum Abonnieren der Buchungen im eigenen Kalender (None = aus)
+    feed_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    owner: Mapped[User | None] = relationship()
+    windows: Mapped[list["BookingWindow"]] = relationship(back_populates="page", cascade="all, delete-orphan",
+                                                          order_by="BookingWindow.starts_at", passive_deletes=True)
+    bookings: Mapped[list["Booking"]] = relationship(back_populates="page", cascade="all, delete-orphan",
+                                                     order_by="Booking.starts_at", passive_deletes=True)
+    invites: Mapped[list["BookingInvite"]] = relationship(back_populates="page", cascade="all, delete-orphan",
+                                                          order_by="BookingInvite.email", passive_deletes=True)
+
+
+class BookingWindow(Base):
+    """Zeitbereich, in dem gebucht werden kann (UTC). Wird in Zeitfenster der Slot-Dauer geteilt."""
+    __tablename__ = "booking_windows"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("booking_pages.id", ondelete="CASCADE"), index=True)
+    starts_at: Mapped[datetime] = mapped_column(DateTime)
+    ends_at: Mapped[datetime] = mapped_column(DateTime)
+
+    page: Mapped[BookingPage] = relationship(back_populates="windows")
+
+
+class Booking(Base):
+    __tablename__ = "bookings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("booking_pages.id", ondelete="CASCADE"), index=True)
+    starts_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    ends_at: Mapped[datetime] = mapped_column(DateTime)
+    name: Mapped[str] = mapped_column(String(120))
+    email: Mapped[str] = mapped_column(String(255))
+    phone: Mapped[str] = mapped_column(String(60), default="")
+    note: Mapped[str] = mapped_column(Text, default="")
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    invite_id: Mapped[int | None] = mapped_column(ForeignKey("booking_invites.id", ondelete="SET NULL"),
+                                                  nullable=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)   # Verwalten / Absagen
+    status: Mapped[str] = mapped_column(String(16), default="booked")         # booked | cancelled
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cancelled_by: Mapped[str] = mapped_column(String(16), default="")          # guest | owner
+    cancel_reason: Mapped[str] = mapped_column(Text, default="")
+    sequence: Mapped[int] = mapped_column(Integer, default=0)
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    meeting_id: Mapped[int | None] = mapped_column(ForeignKey("meetings.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    page: Mapped[BookingPage] = relationship(back_populates="bookings")
+
+
+class BookingInvite(Base):
+    """Persönliche Einladung zum Buchen (z. B. Bewerber:innen), mit vorausgefülltem Namen."""
+    __tablename__ = "booking_invites"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("booking_pages.id", ondelete="CASCADE"), index=True)
+    email: Mapped[str] = mapped_column(String(255))
+    name: Mapped[str] = mapped_column(String(120), default="")
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    invited_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    page: Mapped[BookingPage] = relationship(back_populates="invites")
+
+
 DEFAULT_SETTINGS = {
     "sm_api_url": "https://api-v2.speechmind.com/external/v2/graphql",
     "sm_api_key_enc": "",
@@ -579,6 +672,7 @@ DEFAULT_SETTINGS = {
     "module_shortlinks": "1",
     "module_forms": "1",
     "module_polls": "1",
+    "module_bookings": "1",
     # Kurzlinks
     "short_domain": "",           # optional eigene Kurz-Domain, z. B. kurz.example.de
     "short_fallback_url": "",     # Ziel für unbekannte Kurzlinks und die Startseite der Kurz-Domain

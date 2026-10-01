@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}{{ page.title if page else 'Terminbuchung' }}{% endblock %}
+{% macro header(page) %}
+<div class="card mb-3 border-top border-primary border-4"><div class="card-body">
+  <div class="small text-secondary mb-1"><i class="fa-solid fa-calendar-plus me-1"></i>Terminbuchung{% if page.owner %} bei {{ page.owner.name }}{% endif %}</div>
+  <h1 class="h3 mb-2">{{ page.title }}</h1>
+  {% if page.description %}<div class="text-secondary mb-2">{{ page.description | richtext }}</div>{% endif %}
+  <div class="small text-secondary d-flex flex-wrap gap-3">
+    <span><i class="fa-regular fa-clock me-1"></i>{{ page.slot_minutes }} Minuten</span>
+    {% if page.online %}<span><i class="fa-solid fa-video me-1"></i>Videokonferenz im Browser</span>{% elif page.location %}<span><i class="fa-solid fa-location-dot me-1"></i>{{ page.location }}</span>{% endif %}
+  </div>
+</div></div>
+{% endmacro %}
+{% block content %}
+<div class="form-fill" style="max-width: 56rem">
+{% if mode == 'missing' %}
+  <div class="card mt-3"><div class="card-body p-5 text-center"><i class="fa-solid fa-link-slash fa-3x text-secondary mb-3"></i>
+    <h1 class="h4">Link nicht gefunden</h1><p class="text-secondary mb-0">Der Link ist ungültig oder wurde ersetzt. Bitte wenden Sie sich an die Stelle, die Ihnen den Link geschickt hat.</p></div></div>
+{% elif mode == 'paused' %}
+  {{ header(page) }}<div class="alert alert-secondary"><i class="fa-solid fa-pause me-1"></i>Zurzeit können keine Termine gebucht werden.</div>
+{% elif mode == 'invite_only' %}
+  {{ header(page) }}<div class="alert alert-info"><i class="fa-solid fa-envelope me-1"></i>Diese Termine sind nur mit persönlicher Einladung buchbar. Bitte verwenden Sie den Link aus Ihrer Einladungsmail.</div>
+
+{% elif mode == 'book' %}
+  {{ header(page) }}
+  {% if not days %}
+  <div class="alert alert-warning"><i class="fa-regular fa-calendar-xmark me-1"></i>Zurzeit sind alle Termine vergeben. Bitte versuchen Sie es später noch einmal{% if page.owner %} oder melden Sie sich bei {{ page.owner.name }}{% endif %}.</div>
+  {% else %}
+  <form method="post" class="mb-5" id="bk-form">
+    <input type="hidden" name="csrf" value="{{ csrf }}">{% if invite %}<input type="hidden" name="i" value="{{ invite.token }}">{% endif %}
+    <div class="d-none" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
+    <div class="card mb-3"><div class="card-header fw-semibold"><span class="badge rounded-pill text-bg-primary me-2">1</span>Termin wählen</div><div class="card-body">
+      <div class="d-flex flex-wrap gap-1 mb-3" role="navigation" aria-label="Tage">
+        {% for d in days %}<a class="btn btn-sm btn-outline-secondary" href="#tag-{{ d.key }}">{{ d.weekday }} {{ d.date }} <span class="badge text-bg-light">{{ d.slots | length }}</span></a>{% endfor %}
+      </div>
+      {% for d in days %}
+      <div class="bk-day mb-3" id="tag-{{ d.key }}">
+        <div class="fw-semibold mb-2">{{ d.weekday_long }}, {{ d.full }}</div>
+        <div class="d-flex flex-wrap gap-2 bk-slot">
+          {% for s in d.slots %}{% set val = s.iso ~ '+00:00' %}
+          <input type="radio" class="btn-check" name="slot" id="s-{{ loop.index }}-{{ d.key }}" value="{{ val }}" required {% if selected == val %}checked{% endif %}>
+          <label class="btn btn-outline-primary" for="s-{{ loop.index }}-{{ d.key }}">{{ s.time }}{% if page.capacity > 1 %}<span class="d-block small">{{ s.free }} frei</span>{% endif %}</label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div></div>
+    <div class="card"><div class="card-header fw-semibold"><span class="badge rounded-pill text-bg-primary me-2">2</span>Ihre Angaben</div><div class="card-body row g-3">
+      <div class="col-md-6"><label class="form-label" for="bn">Name</label><input class="form-control" id="bn" name="name" required maxlength="120" autocomplete="name" value="{{ invite.name if invite else (member.name if member else '') }}"></div>
+      <div class="col-md-6"><label class="form-label" for="be">E-Mail <span class="text-secondary">(für die Bestätigung)</span></label>
+        <input class="form-control" id="be" name="email" type="email" required maxlength="255" autocomplete="email" value="{{ invite.email if invite else (member.email if member else '') }}" {% if invite %}readonly{% endif %}></div>
+      {% if page.ask_phone %}<div class="col-md-6"><label class="form-label" for="bp">Telefon</label><input class="form-control" id="bp" name="phone" type="tel" required maxlength="60" autocomplete="tel"></div>{% endif %}
+      <div class="col-12"><label class="form-label" for="bno">Nachricht <span class="text-secondary">(optional)</span></label><textarea class="form-control" id="bno" name="note" rows="2" maxlength="2000"></textarea></div>
+      <div class="col-12 small text-secondary"><i class="fa-solid fa-shield-halved me-1"></i>Ihre Angaben werden nur für diesen Termin verwendet. Absagen oder Verschieben ist bis {{ page.cancel_hours }} Stunden vorher über den Link in der Bestätigung möglich.</div>
+      <div class="col-12"><button class="btn btn-primary btn-lg" type="submit"><i class="fa-solid fa-calendar-check me-1"></i>Termin verbindlich buchen</button></div>
+    </div></div>
+  </form>
+  {% endif %}
+
+{% elif mode == 'manage' %}
+  {{ header(page) }}
+  {% if booking.status == 'cancelled' %}
+  <div class="alert alert-secondary"><i class="fa-solid fa-ban me-1"></i>Dieser Termin ({{ label(booking.starts_at, booking.ends_at) }}) wurde abgesagt.{% if booking.cancel_reason %} Begründung: {{ booking.cancel_reason }}{% endif %}
+    {% if page.active %}<div class="mt-2"><a class="btn btn-sm btn-primary" href="/b/{{ page.public_token }}">Neuen Termin buchen</a></div>{% endif %}</div>
+  {% else %}
+  <div class="card mb-3 {{ 'border-success' if fresh }}"><div class="card-body d-flex flex-wrap align-items-center gap-3">
+    <i class="fa-regular fa-calendar-check fa-2x text-success"></i>
+    <div class="flex-grow-1"><div class="small text-secondary">{{ 'Gebucht – vielen Dank!' if fresh else 'Ihr Termin' }}</div><div class="h5 mb-0">{{ label(booking.starts_at, booking.ends_at) }}</div>
+      <div class="small text-secondary">{{ booking.name }} · {{ booking.email }}</div></div>
+    {% if join %}<a class="btn btn-success" href="{{ join }}"><i class="fa-solid fa-video me-1"></i>Zur Videokonferenz</a>{% endif %}
+  </div>
+  {% if fresh %}<div class="card-footer small">Die Bestätigung mit Kalendereintrag ist per E-Mail unterwegs. <strong>Bewahren Sie diese Seite (Link) auf</strong> – hier können Sie den Termin verschieben oder absagen.</div>{% endif %}
+  {% if page.confirm_text %}<div class="card-footer small">{{ page.confirm_text | richtext }}</div>{% endif %}
+  </div>
+
+  {% if can_cancel %}
+  <div class="row g-3 mb-5">
+    {% if days %}
+    <div class="col-12 col-lg-7"><div class="card h-100"><div class="card-header fw-semibold"><i class="fa-solid fa-arrows-left-right me-2"></i>Verschieben</div><div class="card-body">
+      <form method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="move">
+        <select class="form-select mb-3" name="slot" required aria-label="Neuer Termin"><option value="">Neuen Termin wählen …</option>
+          {% for d in days %}<optgroup label="{{ d.weekday_long }}, {{ d.full }}">{% for s in d.slots if not s.own %}<option value="{{ s.iso }}+00:00">{{ s.time }} Uhr</option>{% endfor %}</optgroup>{% endfor %}
+        </select>
+        <button class="btn btn-primary" type="submit">Verschieben</button></form>
+    </div></div></div>
+    {% endif %}
+    <div class="col-12 col-lg-5"><div class="card h-100"><div class="card-header fw-semibold"><i class="fa-solid fa-ban me-2"></i>Absagen</div><div class="card-body">
+      <form method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="cancel">
+        <textarea class="form-control mb-3" name="reason" rows="2" maxlength="1000" placeholder="Begründung (optional)" aria-label="Begründung"></textarea>
+        <button class="btn btn-outline-danger" type="submit" data-confirm-title="Termin absagen?" data-confirm="Das Zeitfenster wird wieder frei." data-confirm-button="Absagen">Termin absagen</button></form>
+    </div></div></div>
+  </div>
+  {% else %}
+  <p class="small text-secondary">Verschieben oder Absagen ist online nur bis {{ page.cancel_hours }} Stunden vor dem Termin möglich. Bitte wenden Sie sich direkt an {{ page.owner.name if page.owner else 'die anbietende Stelle' }}.</p>
+  {% endif %}
+  {% endif %}
+{% endif %}
+</div>
+{% endblock %}

@@ -26,9 +26,37 @@
 
 {% if poll.final_option %}
 <div class="alert alert-success d-flex flex-wrap align-items-center gap-3">
-  <i class="fa-regular fa-calendar-check fa-2x"></i>
+  {{ m.date_tile(parts(poll.final_option), True) }}
   <div class="flex-grow-1"><div class="small">Festgelegter Termin</div><div class="h5 mb-0">{{ parts(poll.final_option).label }}</div></div>
   {% if poll.meeting_id %}<a class="btn btn-success" href="/meetings/{{ poll.meeting_id }}"><i class="fa-solid fa-video me-1"></i>Zur Besprechung</a>{% endif %}
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">{{ m.stat('fa-user-check', answered | length, 'Antworten') }}</div>
+  <div class="col-6 col-lg-3">{{ m.stat('fa-hourglass-half', waiting | length, 'Eingeladene ohne Antwort') }}</div>
+  <div class="col-6 col-lg-3">{{ m.stat('fa-calendar-days', poll.options | length, 'Vorschläge') }}</div>
+  <div class="col-6 col-lg-3">{{ m.stat('fa-star', (ranking[0].yes if ranking else 0), 'Zusagen beim besten Termin') }}</div>
+</div>
+
+{% if ranking and answered %}
+<div class="card mb-4 poll-rank"><div class="card-header"><i class="fa-solid fa-ranking-star me-2"></i>Am besten passen</div>
+  <ul class="list-group list-group-flush">
+  {% for r in ranking %}{% set pp = parts(r.option) %}
+    <li class="list-group-item d-flex flex-wrap align-items-center gap-3">
+      <span class="fs-5 fw-bold text-secondary" style="width:1.5rem">{{ loop.index }}.</span>
+      {{ m.date_tile(pp, r.option.id == poll.final_option_id) }}
+      <div class="flex-grow-1" style="min-width: 12rem">
+        <div class="fw-semibold">{{ pp.time }}{% if r.option.note %} <span class="small text-secondary fw-normal">· {{ r.option.note }}</span>{% endif %}</div>
+        <div class="progress mt-1" role="progressbar" aria-label="Zusagen">
+          <div class="progress-bar bg-success" style="width: {{ r.yes_pct }}%"></div><div class="progress-bar bg-warning" style="width: {{ r.maybe_pct }}%"></div></div>
+        <div class="small text-secondary mt-1">{{ r.yes }} Ja{% if poll.allow_maybe %} · {{ r.maybe }} wenn nötig{% endif %} · {{ r.no }} Nein{% if r.missing %} · {{ r.missing }} ohne Angabe{% endif %}</div>
+      </div>
+      {% if not poll.final_option %}<form method="post" action="/polls/{{ poll.id }}/final"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="option_id" value="{{ r.option.id }}"><input type="hidden" name="notify" value="1">
+        <button class="btn btn-sm btn-outline-success" type="button" data-bs-toggle="modal" data-bs-target="#final-modal" data-final-option="{{ r.option.id }}"><i class="fa-regular fa-calendar-check me-1"></i>Festlegen</button></form>{% endif %}
+    </li>
+  {% endfor %}
+  </ul>
 </div>
 {% endif %}
 
@@ -130,3 +158,9 @@
   </form>
 </div></div></div>
 {% endblock %}
+{% block scripts %}<script>
+document.addEventListener('click', function (ev) {
+  var b = ev.target.closest('[data-final-option]'); if (!b) { return; }
+  var r = document.querySelector('#final-modal input[name="option_id"][value="' + b.dataset.finalOption + '"]'); if (r) { r.checked = true; }
+});
+</script>{% endblock %}

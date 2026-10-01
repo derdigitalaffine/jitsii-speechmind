@@ -1,8 +1,8 @@
 # Benutzerhandbuch
 
-Für alle, die im Portal der Verbandsgemeinde Otterbach-Otterberg arbeiten: Videokonferenzen abhalten und aufnehmen, Besprechungen planen, Termine per Umfrage finden, Kurzlinks und QR-Codes erstellen, Formulare bauen und auswerten. Sie brauchen nur einen aktuellen Browser (Edge, Chrome, Firefox oder Safari), am Computer oder auf dem Handy.
+Für alle, die im Portal der Verbandsgemeinde Otterbach-Otterberg arbeiten: Videokonferenzen abhalten und aufnehmen, Besprechungen planen, Termine per Umfrage finden, Termine buchen lassen, Kurzlinks und QR-Codes erstellen, Formulare bauen und auswerten. Sie brauchen nur einen aktuellen Browser (Edge, Chrome, Firefox oder Safari), am Computer oder auf dem Handy.
 
-> Welche Bereiche Sie sehen, legt die Verwaltung des Portals fest (Rechte „Videokonferenzen“, „Kurzlinks“, „Formulare“, „Terminumfragen“, „Benutzerverwaltung“). Fehlt Ihnen ein Menüpunkt, den Sie brauchen, wenden Sie sich an sie.
+> Welche Bereiche Sie sehen, legt die Verwaltung des Portals fest (Rechte „Videokonferenzen“, „Kurzlinks“, „Formulare“, „Terminumfragen“, „Terminbuchung“, „Benutzerverwaltung“). Fehlt Ihnen ein Menüpunkt, den Sie brauchen, wenden Sie sich an sie.
 
 ## Inhalt
 
@@ -13,6 +13,7 @@ Für alle, die im Portal der Verbandsgemeinde Otterbach-Otterberg arbeiten: Vide
 5. [In der Konferenz](#5-in-der-konferenz)
 6. [Aufnahme, Chatprotokoll, Umfragen und Transkript](#6-aufnahme-chatprotokoll-umfragen-und-transkript)
 6a. [Terminumfragen (wie Doodle)](#6a-terminumfragen-wie-doodle)
+6b. [Terminbuchung (z. B. Vorstellungsgespräche)](#6b-terminbuchung-z-b-vorstellungsgespräche)
 7. [Kurzlinks und QR-Codes](#7-kurzlinks-und-qr-codes)
 8. [Formulare erstellen](#8-formulare-erstellen)
 9. [Formulare verteilen](#9-formulare-verteilen)
@@ -233,11 +234,11 @@ Menü **Terminumfragen** (Recht „Terminumfragen“). Damit finden Sie einen Te
 
 ### Abstimmen (Sicht der Teilnehmenden)
 
-Link öffnen, **Namen** eintragen (E-Mail je nach Einstellung), je Vorschlag **✓ Ja**, **? Wenn nötig** oder **✕ Nein** antippen, optional einen Kommentar, **Abstimmen**. Danach zeigt die Seite einen persönlichen Link, mit dem die Antwort jederzeit geändert werden kann; im selben Browser erkennt die Umfrage die Person auch beim erneuten Öffnen des allgemeinen Links. Die Seite ist fürs Handy gemacht.
+Link öffnen, **Namen** eintragen (E-Mail je nach Einstellung), je Vorschlag **✓ Ja**, **? Wenn nötig** oder **✕ Nein** antippen (oder mit „Für alle Termine“ alles auf einmal setzen und dann einzelne ändern), optional einen Kommentar, **Abstimmen**. Danach zeigt die Seite einen persönlichen Link, mit dem die Antwort jederzeit geändert werden kann; im selben Browser erkennt die Umfrage die Person auch beim erneuten Öffnen des allgemeinen Links. Die Seite ist fürs Handy gemacht.
 
 ### Auswerten und Termin festlegen
 
-Die Seite der Umfrage zeigt das **Ergebnis-Raster**: Vorschläge als Spalten, Personen als Zeilen, grün = Ja, gelb = Wenn nötig, rot = Nein. Unten stehen die Zusagen je Termin; ein ⭐ markiert die Vorschläge mit den meisten Zusagen. Kommentare stehen darunter. **Export (CSV)** im Menü „…“.
+Oben stehen Kennzahlen und die **drei am besten passenden Termine** mit Balken (grün = Ja, gelb = Wenn nötig) und einem Knopf zum direkten Festlegen. Darunter das **Ergebnis-Raster**: Vorschläge als Spalten, Personen als Zeilen, grün = Ja, gelb = Wenn nötig, rot = Nein. Unten stehen die Zusagen je Termin; ein ⭐ markiert die Vorschläge mit den meisten Zusagen. Kommentare stehen darunter. **Export (CSV)** im Menü „…“.
 
 **Termin festlegen** öffnet einen Dialog: Termin auswählen (der beste ist vorausgewählt) und entscheiden:
 
@@ -246,6 +247,58 @@ Die Seite der Umfrage zeigt das **Ergebnis-Raster**: Vorschläge als Spalten, Pe
 - **Nur festlegen**.
 
 Die Abstimmung ist danach beendet; alle Teilnehmenden sehen den festgelegten Termin. Über „…“ können Sie sie wieder öffnen, eine **Kopie** anlegen (z. B. für die nächste Runde) oder die Umfrage löschen.
+
+---
+
+## 6b. Terminbuchung (z. B. Vorstellungsgespräche)
+
+Menü **Terminbuchung** (Recht „Terminbuchung“). Sie reservieren einen Zeitraum – etwa „Dienstag 9–12 Uhr und Donnerstag 13–16 Uhr“ –, und Bewerber:innen, Bürger:innen oder Kolleg:innen buchen darin **selbst** ein freies Zeitfenster. Wie Microsoft Bookings oder Calendly, aber auf dem eigenen Server.
+
+### Buchungsseite anlegen
+
+1. **Neue Buchungsseite**, Titel (z. B. „Vorstellungsgespräche Sachbearbeitung Bauamt“), Beschreibung, Ort.
+2. **Zeitfenster** festlegen:
+
+   | Einstellung | Bedeutung |
+   |---|---|
+   | Dauer je Termin | z. B. 45 Minuten |
+   | Pause danach | Puffer zwischen zwei Gesprächen, z. B. 15 Minuten (zum Notieren, Lüften, Vorbereiten) |
+   | Plätze je Termin | 1 = Einzeltermin; mehr z. B. für Infoveranstaltungen |
+   | Buchbar bis … Stunden vorher | kurzfristige Buchungen verhindern |
+   | Absagen/Verschieben bis … Stunden vorher | danach nur noch direkt bei Ihnen |
+   | Erinnerung … Stunden vorher | automatische Erinnerungsmail an den Gast (0 = keine) |
+   | Termine je Person | wie viele anstehende Termine eine E-Mail-Adresse gleichzeitig haben darf |
+   | Nur mit persönlicher Einladung | **empfohlen für Vorstellungsgespräche**: nur Eingeladene können buchen |
+   | Als Videokonferenz | für jede Buchung entsteht ein eigener, geschützter Konferenzraum; der Gast bekommt seinen Einwahllink (Recht „Videokonferenzen“ nötig) |
+   | Telefonnummer verlangen, Zusatztext | z. B. „Bitte bringen Sie Ihre Zeugnisse mit“ |
+
+3. **Anlegen und Zeiten festlegen**.
+
+### Zeitbereiche im Kalender festlegen
+
+Im Wochenkalender **mit der Maus über einen Tag ziehen** – der Bereich wird grün und automatisch in Termine geteilt (bei 45 Minuten + 15 Minuten Pause von 9 bis 12 Uhr: 9:00, 10:00, 11:00). **Klick auf einen grünen Bereich** entfernt ihn (gebuchte Termine darin bleiben). Mittagspause: einfach zwei Bereiche ziehen. Mit den Pfeilen blättern Sie wochenweise, „Tag“ und „Monat“ wechseln die Ansicht.
+
+Alternativ unter dem Kalender **„Zeitbereich per Formular hinzufügen“** – mit **wöchentlicher Wiederholung**, z. B. für eine feste Sprechstunde jeden Dienstag.
+
+### Einladen und teilen
+
+- **Persönlich einladen:** Bewerber:innen einfach zeilenweise eintragen – „Erika Mustermann <erika@example.org>“, „adresse; Name“ oder nur die Adresse; auch zwei Spalten aus Excel lassen sich einfügen. Dazu Benutzer:innen oder Gruppen. Jede Person bekommt eine Mail mit ihrem Link; Name und Adresse sind beim Buchen vorausgefüllt. In der Liste sehen Sie, wer schon gebucht hat; **„Ohne Termin erinnern“** hakt nach.
+- **Link zur Buchung** für alle (z. B. für eine offene Sprechstunde) – mit QR-Code und Kurzlink.
+
+### Buchen (Sicht der Gäste)
+
+Link öffnen, oben einen Tag antippen, eine freie Uhrzeit wählen, Name und E-Mail (ggf. Telefon, Nachricht) eintragen, **Termin verbindlich buchen**. Der Gast bekommt sofort eine Bestätigung mit **Kalendereintrag** und einem Link, über den er den Termin **verschieben** oder **absagen** kann (bis zur eingestellten Frist). Belegte Zeitfenster verschwinden automatisch; doppelt buchen ist ausgeschlossen.
+
+### Terminliste, Export und Kalender-Abo
+
+Unter dem Kalender steht die **Terminliste**:
+
+- **Filter:** Status (anstehend, vergangen, abgesagt, alle), Zeitraum von/bis, Suche nach Name, E-Mail, Telefon oder Nachricht, Sortierung. Zusätzlich lassen sich die Spalten anklicken und das Suchfeld der Tabelle nutzen.
+- **Aktionen je Termin:** Videokonferenz betreten (bei Online-Terminen), Verwaltungslink des Gastes kopieren, **verschieben** (der Gast bekommt einen neuen Kalendereintrag), **absagen** mit Begründung (das Zeitfenster wird wieder frei).
+- **Export (gefiltert):** **iCal** (in Outlook & Co. importieren), **CSV** (Excel), **JSON** (Fachverfahren), **Markdown** (Tabelle für Wiki, Protokoll oder Ticket). Exportiert wird genau die gefilterte Liste.
+- **Im eigenen Kalender abonnieren:** „Abo-Link erzeugen“ – in Outlook unter *Kalender hinzufügen › Aus dem Internet* einfügen. Neue Buchungen erscheinen dann automatisch. Der Link ist geheim (enthält Namen und Kontaktdaten) und lässt sich erneuern oder abschalten.
+
+Über „…“ oben: Buchungen **pausieren**, **neuen Link** erzeugen, **Kopie** anlegen (z. B. für die nächste Ausschreibung) oder **löschen** (anstehenden Gästen wird auf Wunsch abgesagt).
 
 ---
 
@@ -498,5 +551,7 @@ Beim Einrichten zeigt das Portal **zehn Notfallcodes – nur einmal**. Drucken S
 | Code für die Anmeldung kommt nicht | Spam-Ordner, „Neuen Code senden“. Sonst Notfallcode oder die Verwaltung fragen |
 | „Zu viele Versuche“ | Etwa zehn Minuten warten |
 | Terminumfrage: „keine Plätze mehr frei“ | Der Termin ist bereits voll belegt – einen anderen wählen |
+| Buchung: „nicht mehr frei“ | Jemand war schneller – einen anderen Termin wählen |
+| Buchung: Verschieben/Absagen nicht möglich | Die Frist ist vorbei; bitte direkt bei der anbietenden Person melden |
 | Terminumfrage: eigene Antwort ändern | Den persönlichen Link aus der Bestätigung bzw. Einladung öffnen (oder den allgemeinen Link im selben Browser) |
 | Menüpunkt fehlt | Ihnen fehlt das Recht oder das Modul ist abgeschaltet – Verwaltung fragen |

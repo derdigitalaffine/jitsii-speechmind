@@ -13,6 +13,7 @@ Für alle, die das Portal der Verbandsgemeinde Otterbach-Otterberg betreuen: Vid
 7. [Kurzlinks und QR-Codes](#kurzlinks-und-qr-codes)
 8. [Formulare](#formulare)
 8a. [Terminumfragen](#terminumfragen)
+8b. [Terminbuchung](#terminbuchung)
 9. [E-Mail-Vorlagen](#e-mail-vorlagen)
 10. [HTTPS und Zertifikat](#https-und-zertifikat)
 11. [Design & Branding](#design--branding)
@@ -65,6 +66,7 @@ Jede Person bekommt einzeln die Bereiche freigeschaltet, die sie braucht:
 | **Videokonferenzen** | Meetings anlegen, Besprechungen planen, moderieren, aufnehmen, eigene Aufnahmen transkribieren |
 | **Kurzlinks** | Kurzlinks anlegen, auswerten, QR-Codes erzeugen |
 | **Formulare** | Formulare erstellen, verteilen, auswerten (geteilte Formulare und „Zum Ausfüllen“ sehen alle, auch ohne dieses Recht) |
+| **Terminbuchung** | Buchungsseiten anlegen, in denen andere selbst freie Zeitfenster buchen (z. B. Vorstellungsgespräche). Online-Termine mit eigener Videokonferenz brauchen zusätzlich „Videokonferenzen“ |
 | **Terminumfragen** | Terminumfragen wie Doodle anlegen, verteilen und auswerten. Aus dem festgelegten Termin eine Besprechung anlegen geht nur mit zusätzlichem Recht „Videokonferenzen“ |
 | **Benutzerverwaltung** | Benutzer und Gruppen anlegen, bearbeiten, sperren, löschen – aber keine Admin-Konten ändern und niemanden zum Admin machen |
 | **Administrator:in** | Alles, auch Systemeinstellungen (Mail, HTTPS, Design, SpeechMind, Module, Zwei-Faktor) und alle Aufnahmen, Kurzlinks und Formulare |
@@ -92,7 +94,7 @@ Kasten **Benutzer aus CSV importieren**:
    | `name` | Anzeigename; leer = aus der Adresse abgeleitet | `Erika Mustermann` |
    | `password` | Startpasswort (mind. 10 Zeichen); **leer = ohne Passwort**, Einladung per Mail möglich | `Startpasswort-2026` |
    | `groups` | Gruppen, mehrere mit `;` getrennt. Fehlende Gruppen werden angelegt | `Bauamt;Kita` |
-   | `permissions` | `video`, `shortlinks`, `forms`, `polls`, `users`, mehrere mit `;`; leer = `video` | `video;forms` |
+   | `permissions` | `video`, `shortlinks`, `forms`, `polls`, `bookings`, `users`, mehrere mit `;`; leer = `video` | `video;forms` |
    | `admin` | `yes`/`no` – wird nur beachtet, wenn ein Admin importiert | `no` |
 
    Die Vorlage beginnt mit der Zeile `sep=,`, damit Excel die Spalten auch bei deutscher Einstellung richtig trennt; der Import überspringt sie. Speichert Excel die Datei mit Semikolon als Trennzeichen (Standard in Deutschland), trennen Sie mehrere Gruppen bzw. Rechte mit `|` statt `;`. Umlaute sind in UTF-8 und in der Excel-Kodierung (Windows-1252) möglich. Deutsche Spaltennamen (`E-Mail`, `Passwort`, `Gruppen`, `Rechte`) werden ebenfalls erkannt.
@@ -154,7 +156,7 @@ Weitere Schutzmechanismen, die immer aktiv sind: Passwörter als Argon2-Hash, Br
 
 ## Module ein- und ausschalten
 
-Menü **Module** (nur Admins). **Kurzlinks & QR-Codes**, **Formulare** und **Terminumfragen** lassen sich komplett abschalten. Videokonferenzen sind die Kernfunktion und immer aktiv.
+Menü **Module** (nur Admins). **Kurzlinks & QR-Codes**, **Formulare**, **Terminumfragen** und **Terminbuchung** lassen sich komplett abschalten. Videokonferenzen sind die Kernfunktion und immer aktiv.
 
 Ein abgeschaltetes Modul
 
@@ -333,9 +335,22 @@ Menü **Terminumfragen** (Recht „Terminumfragen“). Ein Doodle-Pendant auf de
 - Mail-Vorlagen in der Gruppe „Terminumfragen“: Einladung, Erinnerung, neue Antwort (an die planende Person), Termin steht fest.
 - Jede Person sieht ihre eigenen Umfragen, Admins über „Alle anzeigen“ alle. Gehört eine Umfrage einer gelöschten Person, sehen sie nur noch Admins.
 
+## Terminbuchung
+
+Menü **Terminbuchung** (Recht „Terminbuchung“). Vergleichbar mit Microsoft Bookings oder Calendly; Bedienung im [Benutzerhandbuch](BENUTZERHANDBUCH.md#6b-terminbuchung-z-b-vorstellungsgespräche).
+
+- Zeitbereiche im Wochenkalender aufziehen (FullCalendar) oder per Formular mit wöchentlicher Wiederholung; überlappende Bereiche werden zusammengefasst. Daraus entstehen Zeitfenster aus **Dauer + Pause**, mit einstellbaren **Plätzen** je Fenster.
+- Regeln: Vorlauf für Buchungen, Frist für Absagen/Verschieben, Termine je Person, nur mit persönlicher Einladung, Telefonnummer Pflicht.
+- Gäste bekommen eine Bestätigung mit **Kalendereintrag** (Outlook-Besprechungsanfrage) und einen Verwaltungslink; Verschieben aktualisiert, Absagen entfernt den Kalendereintrag. Doppelbuchungen sind ausgeschlossen (Prüfung beim Speichern).
+- **Online-Termine:** Pro Buchung legt das Portal einen eigenen Portal-Raum an (sichtbar unter „Meetings“ der anbietenden Person); der Gast kommt per persönlichem Link ohne Konto und ohne Aufnahmerecht hinein. Verschieben passt den Raumtermin an, Absagen löscht den Raum.
+- **Erinnerungen** verschickt der Hintergrunddienst automatisch (Prüfung alle 5 Minuten).
+- **Terminliste** mit Filter (Status, Zeitraum, Suche) und Sortierung; Export der gefilterten Liste als **iCal, CSV, JSON und Markdown**; **Kalender-Abo** über einen geheimen Link (`/b/feed/<schlüssel>.ics`, aktualisiert sich selbst, enthält personenbezogene Daten – nur an die zuständige Person).
+- Mail-Vorlagen in der Gruppe „Terminbuchung“: Bestätigung, Verschiebung, Absage, Erinnerung, Hinweis an die anbietende Person, Einladung und Erinnerung zur Buchung.
+- Datenschutz: Gespeichert werden Name, E-Mail, optional Telefon und Nachricht. Löschen Sie Buchungsseiten nach Abschluss (z. B. des Auswahlverfahrens); damit werden alle Buchungen gelöscht.
+
 ## E-Mail-Vorlagen
 
-Menü **E-Mail-Vorlagen** (nur Admins). Hier stehen alle Mails, die das Portal verschickt, gruppiert nach Konten (Einladung, Passwort, Anmeldecode), Besprechungen, Aufnahmen, Formularen und Terminumfragen.
+Menü **E-Mail-Vorlagen** (nur Admins). Hier stehen alle Mails, die das Portal verschickt, gruppiert nach Konten (Einladung, Passwort, Anmeldecode), Besprechungen, Aufnahmen, Formularen, Terminumfragen und Terminbuchung.
 
 - **Betreff** und **Text** sind frei änderbar. Platzhalter in geschweiften Klammern, z. B. `{name}` oder `{link}`, werden beim Versand ersetzt. Ein Klick auf einen Platzhalter unter dem Textfeld fügt ihn an der Cursorposition ein; mit der Maus darüber sehen Sie, was er enthält.
 - Rechts zeigt eine **Vorschau** das Ergebnis mit Beispieldaten, schon während Sie tippen.

@@ -43,6 +43,7 @@ COMPONENTS = {
         ("Coloris", "0.25", "MIT", "Farbwähler", "https://coloris.js.org"),
         ("Chart.js", "4.5", "MIT", "Diagramme", "https://www.chartjs.org"),
         ("SortableJS", "1.15", "MIT", "Ziehen und Ablegen im Formular-Baukasten", "https://sortablejs.github.io/Sortable/"),
+        ("FullCalendar", "6.1", "MIT", "Wochenkalender der Terminbuchung", "https://fullcalendar.io"),
     ],
 }
 

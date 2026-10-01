@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ 'Einstellungen' if page else 'Neue Buchungsseite' }}{% endblock %}
+{% macro sw(name, label, on, help='', disabled=False) %}
+<div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="s-{{ name }}" name="{{ name }}" value="1" {% if on %}checked{% endif %} {% if disabled %}disabled{% endif %}>
+  <label class="form-check-label" for="s-{{ name }}">{{ label }}{% if help %}<div class="form-text mt-0">{{ help }}</div>{% endif %}</label></div>
+{% endmacro %}
+{% macro num(name, label, value, unit, min=0, max=999, help='') %}
+<div class="col-sm-6 col-lg-4"><label class="form-label" for="n-{{ name }}">{{ label }}</label>
+  <div class="input-group"><input class="form-control" type="number" id="n-{{ name }}" name="{{ name }}" min="{{ min }}" max="{{ max }}" value="{{ value }}"><span class="input-group-text">{{ unit }}</span></div>
+  {% if help %}<div class="form-text">{{ help }}</div>{% endif %}</div>
+{% endmacro %}
+{% block content %}
+{% call m.page_head('Einstellungen: ' ~ page.title if page else 'Neue Buchungsseite', '' if page else 'Danach legen Sie im Kalender fest, wann gebucht werden kann.') %}
+  <a class="btn btn-outline-secondary" href="{{ '/bookings/' ~ page.id if page else '/bookings' }}"><i class="fa-solid fa-arrow-left me-1"></i>Zurück</a>
+{% endcall %}
+<form method="post" class="row g-4">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="col-12 col-xl-6"><div class="card h-100"><div class="card-header"><i class="fa-solid fa-circle-info me-2"></i>Was wird gebucht?</div><div class="card-body">
+    <div class="mb-3"><label class="form-label" for="t">Titel</label><input class="form-control" id="t" name="title" required maxlength="255" value="{{ page.title if page else '' }}" placeholder="z. B. Vorstellungsgespräche Sachbearbeitung Bauamt"></div>
+    <div class="mb-3"><label class="form-label" for="d">Beschreibung <span class="text-secondary">(sehen die Gäste)</span></label><textarea class="form-control" id="d" name="description" rows="3" maxlength="5000">{{ page.description if page else '' }}</textarea></div>
+    <div class="mb-3"><label class="form-label" for="l">Ort</label><input class="form-control" id="l" name="location" maxlength="255" value="{{ page.location if page else '' }}" placeholder="z. B. Rathaus Otterberg, Zimmer 12"></div>
+    {{ sw('online', 'Als Videokonferenz', page.online if page else False, 'Für jede Buchung entsteht ein eigener, geschützter Konferenzraum; der Gast bekommt seinen persönlichen Einwahllink mit der Bestätigung.' if can_video else 'Dafür braucht Ihr Konto das Recht „Videokonferenzen“.', not can_video) }}
+    <label class="form-label mt-2" for="ct">Zusatztext in der Bestätigung <span class="text-secondary">(optional)</span></label>
+    <textarea class="form-control" id="ct" name="confirm_text" rows="2" maxlength="2000" placeholder="z. B. Bitte bringen Sie Ihre Zeugnisse und einen Lichtbildausweis mit.">{{ page.confirm_text if page else '' }}</textarea>
+  </div></div></div>
+
+  <div class="col-12 col-xl-6"><div class="card h-100"><div class="card-header"><i class="fa-regular fa-clock me-2"></i>Zeitfenster</div><div class="card-body row g-3">
+    <div class="col-sm-6 col-lg-4"><label class="form-label" for="sm">Dauer je Termin</label>
+      <select class="form-select" id="sm" name="slot_minutes">{% for d in slot_choices %}<option value="{{ d }}" {% if (page.slot_minutes if page else 30) == d %}selected{% endif %}>{{ d }} Minuten</option>{% endfor %}</select></div>
+    <div class="col-sm-6 col-lg-4"><label class="form-label" for="pm">Pause danach</label>
+      <select class="form-select" id="pm" name="pause_minutes">{% for d in pause_choices %}<option value="{{ d }}" {% if (page.pause_minutes if page else 0) == d %}selected{% endif %}>{{ 'keine' if not d else d ~ ' Minuten' }}</option>{% endfor %}</select></div>
+    {{ num('capacity', 'Plätze je Termin', page.capacity if page else 1, 'Pers.', 1, 500, '1 = Einzeltermin') }}
+    {{ num('min_notice_hours', 'Buchbar bis', page.min_notice_hours if page else 12, 'Std. vorher', 0, 1440) }}
+    {{ num('cancel_hours', 'Absagen/Verschieben bis', page.cancel_hours if page else 24, 'Std. vorher', 0, 1440) }}
+    {{ num('reminder_hours', 'Erinnerung', page.reminder_hours if page else 24, 'Std. vorher', 0, 336, '0 = keine Erinnerung') }}
+    {{ num('max_per_person', 'Termine je Person', page.max_per_person if page else 1, 'max.', 1, 50, 'gleichzeitig anstehend, je E-Mail-Adresse') }}
+    <div class="col-12">
+      {{ sw('invite_only', 'Nur mit persönlicher Einladung buchbar', page.invite_only if page else False, 'Empfohlen für Vorstellungsgespräche: Nur eingeladene Personen können buchen, ihr Name und ihre Adresse sind vorausgefüllt.') }}
+      {{ sw('ask_phone', 'Telefonnummer verlangen', page.ask_phone if page else False) }}
+      {{ sw('notify_owner', 'Mich bei jeder Buchung, Verschiebung und Absage per Mail informieren', page.notify_owner if page else True) }}
+    </div>
+  </div></div></div>
+  <div class="col-12"><button class="btn btn-primary btn-lg" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>{{ 'Speichern' if page else 'Anlegen und Zeiten festlegen' }}</button></div>
+</form>
+{% endblock %}

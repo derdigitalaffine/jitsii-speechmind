@@ -60,6 +60,29 @@ _POLL_VARS = {
     "vorschlaege": "Anzahl der Terminvorschläge",
 }
 
+_BOOKING_VARS = {
+    "name": "Name des Gastes",
+    "titel": "Titel der Buchungsseite",
+    "termin": "Termin, z. B. Dienstag, 13.10.2026, 09:00–09:30 Uhr",
+    "ort": "Ort (leer bei Videokonferenz)",
+    "videolink": "Persönlicher Einwahllink (nur bei Videokonferenz)",
+    "verwalten": "Link zum Verschieben oder Absagen",
+    "absagefrist": "Bis wann vorher abgesagt werden kann",
+    "hinweis": "Zusatztext der Buchungsseite",
+    "anbieter": "Name der anbietenden Person",
+}
+
+_BOOKING_INVITE_VARS = {
+    "name": "Name der eingeladenen Person",
+    "titel": "Titel der Buchungsseite",
+    "beschreibung": "Beschreibung",
+    "link": "Persönlicher Link zur Terminauswahl",
+    "absender": "Name der einladenden Person",
+    "zeitraum": "Zeitraum der freien Termine",
+    "dauer": "Dauer eines Termins",
+    "ort": "Ort bzw. Hinweis auf Videokonferenz",
+}
+
 TEMPLATES: dict[str, dict] = {
     "account_invite": {
         "group": "Konten", "label": "Einladung zum Konto",
@@ -245,6 +268,61 @@ TEMPLATES: dict[str, dict] = {
                  "{ort}\n\nDen Termin können Sie mit der angehängten Datei in Ihren Kalender übernehmen.\n\n"
                  "{fusszeile}"),
     },
+    "booking_confirm": {
+        "group": "Terminbuchung", "label": "Buchungsbestätigung (an den Gast)",
+        "vars": _BOOKING_VARS,
+        "subject": "Terminbestätigung: {titel} – {termin}",
+        "body": ("Guten Tag {name},\n\nvielen Dank für Ihre Buchung. Ihr Termin:\n\n    {termin}\n\n"
+                 "{ort}\n\n{videolink}\n\n{hinweis}\n\n"
+                 "Mit der angehängten Datei übernehmen Sie den Termin in Ihren Kalender.\n"
+                 "Termin verschieben oder absagen (bis {absagefrist} vorher):\n{verwalten}\n\n{fusszeile}"),
+    },
+    "booking_update": {
+        "group": "Terminbuchung", "label": "Termin verschoben (an den Gast)",
+        "vars": _BOOKING_VARS,
+        "subject": "Termin verschoben: {titel} – {termin}",
+        "body": ("Guten Tag {name},\n\nIhr Termin wurde verschoben. Neuer Termin:\n\n    {termin}\n\n"
+                 "{ort}\n\n{videolink}\n\nDer Kalendereintrag im Anhang ersetzt den bisherigen.\n"
+                 "Verschieben oder absagen: {verwalten}\n\n{fusszeile}"),
+    },
+    "booking_cancelled": {
+        "group": "Terminbuchung", "label": "Termin abgesagt (an den Gast)",
+        "vars": {**_BOOKING_VARS, "wer": "„Sie haben“ oder „<Anbieter> hat“", "grund": "Begründung (falls angegeben)"},
+        "subject": "Abgesagt: {titel} – {termin}",
+        "body": ("Guten Tag {name},\n\n{wer} den Termin am {termin} abgesagt.\n\n{grund}\n\n"
+                 "Mit der angehängten Datei wird der Termin aus Ihrem Kalender entfernt.\n\n{fusszeile}"),
+    },
+    "booking_reminder": {
+        "group": "Terminbuchung", "label": "Erinnerung an den Termin (an den Gast)",
+        "vars": _BOOKING_VARS,
+        "subject": "Erinnerung: {titel} – {termin}",
+        "body": ("Guten Tag {name},\n\nwir erinnern an Ihren Termin:\n\n    {termin}\n\n{ort}\n\n{videolink}\n\n"
+                 "Falls Sie nicht kommen können: {verwalten}\n\n{fusszeile}"),
+    },
+    "booking_owner": {
+        "group": "Terminbuchung", "label": "Neue Buchung, Verschiebung, Absage (an die anbietende Person)",
+        "vars": {"name": "Name der anbietenden Person", "ereignis": "Neue Buchung, Termin verschoben oder Absage",
+                 "titel": "Titel der Buchungsseite", "termin": "Termin", "gast": "Name, E-Mail und Telefon des Gastes",
+                 "nachricht": "Nachricht des Gastes", "frei": "Noch freie Plätze", "link": "Link zur Buchungsseite im Portal"},
+        "subject": "{ereignis}: {gast} – {termin}",
+        "body": ("Guten Tag {name},\n\n{ereignis} für „{titel}“:\n\n    {termin}\n    {gast}\n\n{nachricht}\n\n"
+                 "Noch {frei} freie Plätze. Übersicht: {link}\n\n{fusszeile}"),
+    },
+    "booking_invite": {
+        "group": "Terminbuchung", "label": "Einladung zur Terminbuchung",
+        "vars": _BOOKING_INVITE_VARS,
+        "subject": "Bitte wählen Sie Ihren Termin: {titel}",
+        "body": ("Guten Tag {name},\n\n{absender} lädt Sie ein, einen Termin für „{titel}“ zu wählen "
+                 "(Dauer {dauer}, {zeitraum}).\n\n{beschreibung}\n\n{ort}\n\n"
+                 "Zur Terminauswahl (persönlicher Link):\n{link}\n\n{fusszeile}"),
+    },
+    "booking_invite_reminder": {
+        "group": "Terminbuchung", "label": "Erinnerung an die Terminbuchung",
+        "vars": _BOOKING_INVITE_VARS,
+        "subject": "Erinnerung: Bitte wählen Sie Ihren Termin – {titel}",
+        "body": ("Guten Tag {name},\n\nfür „{titel}“ haben Sie noch keinen Termin gewählt. Hier geht es direkt "
+                 "zur Auswahl:\n{link}\n\n{fusszeile}"),
+    },
 }
 
 SAMPLE = {
@@ -261,6 +339,11 @@ SAMPLE = {
     "code": "482913", "minuten": "10", "nummer": "17", "zeitpunkt": "01.10.2026, 14:32 Uhr", "von": "Erika Mustermann <erika.mustermann@example.org>",
     "antworten": "Teilnahme: Ja\nEssen: Vegetarisch", "anzahl": "17", "ort": "Rathaus, Sitzungssaal",
     "vorschlaege": "6", "termin": "Dienstag, 13.10.2026, 14:00–15:30 Uhr", "aktion": "hat abgestimmt",
+    "videolink": "Teilnahme per Videokonferenz:\nhttps://portal.example.org/join/beispiel",
+    "verwalten": "https://portal.example.org/b/m/beispiel", "absagefrist": "24 Stunden",
+    "hinweis": "Bitte bringen Sie Ihre Zeugnisse mit.", "anbieter": "Max Muster", "wer": "Sie haben",
+    "grund": "", "ereignis": "Neue Buchung", "gast": "Erika Mustermann <erika@example.org>", "nachricht": "",
+    "frei": "11", "zeitraum": "13.10.2026 bis 15.10.2026",
 }
 
 
