@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Rechtstexte{% endblock %}
+{% block content %}
+{% call m.page_head('Rechtstexte', 'Gesetze, Satzungen und Verordnungen als Markdown einstellen. Veröffentlichte Texte erscheinen öffentlich unter /recht – durchsuchbar, als Volltext oder Paragraf für Paragraf.') %}
+<a class="btn btn-outline-secondary" href="/recht" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Öffentliche Ansicht</a>
+<a class="btn btn-outline-secondary" href="/laws/levels"><i class="fa-solid fa-sitemap me-1"></i>Ebenen</a>
+<a class="btn btn-outline-primary" href="/laws/upload{{ ('?level=' ~ selected.id) if selected }}"><i class="fa-solid fa-file-arrow-up me-1"></i>Dateien hochladen</a>
+<a class="btn btn-primary" href="/laws/new{{ ('?level=' ~ selected.id) if selected }}"><i class="fa-solid fa-plus me-1"></i>Neuer Rechtstext</a>
+{% endcall %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">{{ m.stat('fa-scale-balanced', items | length, 'Rechtstexte' ~ (' in ' ~ selected.name if selected else '')) }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-globe', items | selectattr('published') | list | length, 'veröffentlicht') }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-section', norms.values() | sum, 'Paragrafen / Artikel gesamt') }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-sitemap', level_options | length, 'Ebenen') }}</div>
+</div>
+
+<div class="card">
+  <div class="card-header d-flex flex-wrap align-items-center gap-2">
+    <form method="get" class="d-flex gap-2 align-items-center">
+      <label class="small text-secondary" for="lvl">Ebene</label>
+      <select class="form-select form-select-sm" id="lvl" name="level" onchange="this.form.submit()" style="min-width: 16rem">
+        <option value="">alle</option>
+        {% for lv, depth in level_options %}<option value="{{ lv.id }}" {% if selected and selected.id == lv.id %}selected{% endif %}>{{ '  ' * depth }}{{ lv.name }} ({{ counts.get(lv.id, 0) }})</option>{% endfor %}
+      </select>
+    </form>
+  </div>
+  <div class="card-body">
+    <table class="table table-hover align-middle js-table w-100" data-order='[[0,"asc"]]' data-page-length="25">
+      <thead><tr><th>Titel</th><th>Ebene</th><th>Art</th><th>§§ / Art.</th><th>Stand</th><th>Status</th><th>Geändert</th><th class="no-sort text-end">Aktionen</th></tr></thead>
+      <tbody>
+      {% for law in items %}
+      <tr>
+        <td><a class="fw-semibold" href="/laws/{{ law.id }}/edit">{{ law.title }}</a>{% if law.short_title %} <span class="text-secondary">({{ law.short_title }})</span>{% endif %}<div class="small text-secondary"><code>/recht/{{ law.slug }}</code></div></td>
+        <td class="small">{{ law.level.name if law.level else '–' }}</td>
+        <td class="small">{{ doc_types.get(law.doc_type, law.doc_type) }}</td>
+        <td>{{ norms.get(law.id, 0) }}</td>
+        <td class="small">{{ law.version_note }}</td>
+        <td data-order="{{ 1 if law.published else 0 }}">
+          <form method="post" action="/laws/{{ law.id }}/publish"><input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="btn btn-sm badge border-0 {{ 'text-bg-success' if law.published else 'text-bg-secondary' }}" type="submit" title="Klicken zum Umschalten">{{ 'öffentlich' if law.published else 'Entwurf' }}</button></form>
+        </td>
+        <td data-order="{{ law.updated_at.isoformat() }}" class="small">{{ law.updated_at | local('%d.%m.%Y') }}{% if law.editor %}<div class="text-secondary">{{ law.editor.name }}</div>{% endif %}</td>
+        <td class="text-end text-nowrap">
+          <a class="btn btn-sm btn-outline-secondary" href="/recht/{{ law.slug }}" target="_blank" title="Ansehen"><i class="fa-regular fa-eye"></i></a>
+          <a class="btn btn-sm btn-outline-primary" href="/laws/{{ law.id }}/edit" title="Bearbeiten"><i class="fa-solid fa-pen"></i></a>
+          <form method="post" action="/laws/{{ law.id }}/delete" class="d-inline"><input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="btn btn-sm btn-outline-danger" type="submit" title="Löschen" data-confirm="„{{ law.title }}“ mit allen früheren Fassungen endgültig löschen?" data-confirm-button="Löschen"><i class="fa-solid fa-trash"></i></button></form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

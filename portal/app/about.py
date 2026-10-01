@@ -32,6 +32,8 @@ COMPONENTS = {
         ("tzdata", "2026.4", "Apache-2.0", "Zeitzonen", "https://github.com/python/tzdata"),
         ("Segno", "1.6", "BSD-3-Clause", "QR-Codes", "https://segno.readthedocs.io"),
         ("Pillow", "11.3", "MIT-CMU (HPND)", "Bilder verkleinern, JPG-Ausgabe, Favicon", "https://python-pillow.org"),
+        ("markdown-it-py", "3.0", "MIT", "Rechtstexte aus Markdown setzen", "https://github.com/executablebooks/markdown-it-py"),
+        ("mdurl", "0.1", "MIT", "Links in Markdown prüfen (von markdown-it-py)", "https://github.com/executablebooks/mdurl"),
     ],
     "Portal (Oberfläche)": [
         ("Bootstrap", "5.3.8", "MIT", "Layout und Komponenten", "https://getbootstrap.com"),

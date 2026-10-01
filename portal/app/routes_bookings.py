@@ -8,9 +8,11 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
-from . import access, bookings as bk, shortlinks as sl, worker
+from . import access, bookings as bk, shares as sh, shortlinks as sl, worker
 from .db import Booking, BookingInvite, BookingPage, BookingWindow, Group, User, to_local, utcnow
-from .main import app, check_csrf, flash, get_db, rate_limit, redirect, render, require, session_user
+from .main import (
+    app, check_csrf, current_user, home_for, flash, get_db, rate_limit, redirect, render, require, session_user,
+)
 from .planning import DURATIONS, EMAIL_RE
 from .security import new_link_token, room_slug
 
@@ -19,11 +21,15 @@ SLOT_CHOICES = [10, 15, 20, 30, 45, 60, 90, 120]
 PAUSE_CHOICES = [0, 5, 10, 15, 30]
 
 
-def _own(db: Session, page_id: int, user: User) -> BookingPage:
+def _bpage(db: Session, page_id: int, user: User, need: int) -> tuple[BookingPage, int]:
+    """Buchungsseite mit Zugriffsprüfung. need: sh.VIEW, sh.INVITE, sh.EDIT oder sh.OWNER."""
     page = db.get(BookingPage, page_id)
-    if page is None or (page.owner_id != user.id and not user.is_admin):
+    level = sh.access_level(db, "booking", page, user)
+    if level == 0:
         raise HTTPException(404, "Buchungsseite nicht gefunden.")
-    return page
+    if level < need:
+        raise HTTPException(403, "Für diese Aktion reicht Ihre Freigabe für die Buchungsseite nicht aus.")
+    return page, level
 
 
 def _int(value, lo: int, hi: int, default: int) -> int:
@@ -58,18 +64,23 @@ def _settings_ctx(page: BookingPage | None, user: User) -> dict:
 # --- Verwaltung --------------------------------------------------------------------------
 
 @app.get("/bookings")
-def bookings_list(request: Request, all: str = "", user: User = Depends(booking_user), db: Session = Depends(get_db)):
+def bookings_list(request: Request, all: str = "", user: User = Depends(current_user), db: Session = Depends(get_db)):
     show_all = user.is_admin and all == "1"
+    shared = [] if show_all else sh.shared_with(db, "booking", user)
+    if not user.can("bookings") and not shared:
+        raise HTTPException(403, "Für den Bereich „Terminbuchung“ fehlt die Berechtigung. "
+                                 "Bitte wenden Sie sich an die Verwaltung des Portals.")
     q = select(BookingPage).options(joinedload(BookingPage.owner)).order_by(BookingPage.updated_at.desc())
     if not show_all:
         q = q.where(BookingPage.owner_id == user.id)
-    pages = db.scalars(q).unique().all()
+    pages = db.scalars(q).unique().all() if user.can("bookings") else []
     now = utcnow()
     upcoming = dict(db.execute(select(Booking.page_id, func.count(Booking.id))
                                .where(Booking.status == "booked", Booking.starts_at >= now)
                                .group_by(Booking.page_id)).all())
-    free = {p.id: sum(s["free"] for s in bk.bookable(p)) for p in pages}
-    return render(request, "bookings.html", user, pages=pages, upcoming=upcoming, free=free, show_all=show_all)
+    free = {p.id: sum(s["free"] for s in bk.bookable(p)) for p in list(pages) + [p for p, _ in shared]}
+    return render(request, "bookings.html", user, pages=pages, upcoming=upcoming, free=free, show_all=show_all,
+                  shared=shared, levels=sh.LEVELS["booking"])
 
 
 @app.get("/bookings/new")
@@ -92,8 +103,8 @@ async def booking_create(request: Request, user: User = Depends(booking_user), d
 
 
 @app.get("/bookings/{page_id}")
-def booking_detail(request: Request, page_id: int, user: User = Depends(booking_user), db: Session = Depends(get_db)):
-    page = _own(db, page_id, user)
+def booking_detail(request: Request, page_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    page, level = _bpage(db, page_id, user, sh.VIEW)
     now = utcnow()
     active = bk.active_bookings(page)
     users = db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all()
@@ -118,18 +129,18 @@ def booking_detail(request: Request, page_id: int, user: User = Depends(booking_
                   events=bk.calendar_events(page), initial_date=to_local(first).date().isoformat(),
                   manage_link=bk.manage_link,
                   shortlink_url="/shortlinks?new=" + quote(link) + "&title=" + quote(page.title)
-                  + "&next=" + quote(f"/bookings/{page.id}") + "#neu")
+                  + "&next=" + quote(f"/bookings/{page.id}") + "#neu", level=level, share_levels=sh.LEVELS["booking"])
 
 
 @app.get("/bookings/{page_id}/settings")
-def booking_settings(request: Request, page_id: int, user: User = Depends(booking_user), db: Session = Depends(get_db)):
-    return render(request, "booking_settings.html", user, **_settings_ctx(_own(db, page_id, user), user))
+def booking_settings(request: Request, page_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    return render(request, "booking_settings.html", user, **_settings_ctx(_bpage(db, page_id, user, sh.EDIT)[0], user))
 
 
 @app.post("/bookings/{page_id}/settings", dependencies=[Depends(check_csrf)])
-async def booking_settings_save(request: Request, page_id: int, user: User = Depends(booking_user),
+async def booking_settings_save(request: Request, page_id: int, user: User = Depends(current_user),
                                 db: Session = Depends(get_db)):
-    page = _own(db, page_id, user)
+    page, level = _bpage(db, page_id, user, sh.EDIT)
     data = await request.form()
     before = (page.slot_minutes, page.pause_minutes)
     _apply(page, data)
@@ -144,15 +155,15 @@ async def booking_settings_save(request: Request, page_id: int, user: User = Dep
 
 
 @app.get("/bookings/{page_id}/events.json")
-def booking_events(page_id: int, user: User = Depends(booking_user), db: Session = Depends(get_db)):
-    return JSONResponse(bk.calendar_events(_own(db, page_id, user)))
+def booking_events(page_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    return JSONResponse(bk.calendar_events(_bpage(db, page_id, user, sh.VIEW)[0]))
 
 
 @app.post("/bookings/{page_id}/windows", dependencies=[Depends(check_csrf)])
-async def booking_window_add(request: Request, page_id: int, user: User = Depends(booking_user),
+async def booking_window_add(request: Request, page_id: int, user: User = Depends(current_user),
                              db: Session = Depends(get_db)):
     """Zeitbereich anlegen – aus dem Kalender (start/end, JSON-Antwort) oder aus dem Formular (mit Wiederholung)."""
-    page = _own(db, page_id, user)
+    page, level = _bpage(db, page_id, user, sh.EDIT)
     data = await request.form()
     ajax = request.headers.get("x-requested-with") == "fetch"
     if data.get("date"):
@@ -186,9 +197,9 @@ async def booking_window_add(request: Request, page_id: int, user: User = Depend
 
 
 @app.post("/bookings/{page_id}/windows/{wid}/delete", dependencies=[Depends(check_csrf)])
-def booking_window_delete(request: Request, page_id: int, wid: int, user: User = Depends(booking_user),
+def booking_window_delete(request: Request, page_id: int, wid: int, user: User = Depends(current_user),
                           db: Session = Depends(get_db)):
-    page = _own(db, page_id, user)
+    page, level = _bpage(db, page_id, user, sh.EDIT)
     w = db.get(BookingWindow, wid)
     if w is None or w.page_id != page.id:
         raise HTTPException(404)
@@ -205,9 +216,9 @@ def booking_window_delete(request: Request, page_id: int, wid: int, user: User =
 
 
 @app.post("/bookings/{page_id}/windows/clear", dependencies=[Depends(check_csrf)])
-def booking_windows_clear(request: Request, page_id: int, user: User = Depends(booking_user),
+def booking_windows_clear(request: Request, page_id: int, user: User = Depends(current_user),
                           db: Session = Depends(get_db)):
-    page = _own(db, page_id, user)
+    page, level = _bpage(db, page_id, user, sh.EDIT)
     now = utcnow()
     removed = 0
     for w in list(page.windows):
@@ -222,8 +233,8 @@ def booking_windows_clear(request: Request, page_id: int, user: User = Depends(b
 
 @app.post("/bookings/{page_id}/entries/{bid}", dependencies=[Depends(check_csrf)])
 def booking_entry_action(request: Request, page_id: int, bid: int, action: str = Form(...), reason: str = Form(""),
-                         slot: str = Form(""), user: User = Depends(booking_user), db: Session = Depends(get_db)):
-    page = _own(db, page_id, user)
+                         slot: str = Form(""), user: User = Depends(current_user), db: Session = Depends(get_db)):
+    page, level = _bpage(db, page_id, user, sh.EDIT)
     b = db.get(Booking, bid)
     if b is None or b.page_id != page.id:
         raise HTTPException(404)
@@ -245,9 +256,9 @@ def booking_entry_action(request: Request, page_id: int, bid: int, action: str =
 
 
 @app.post("/bookings/{page_id}/invite", dependencies=[Depends(check_csrf)])
-async def booking_invite(request: Request, page_id: int, user: User = Depends(booking_user),
+async def booking_invite(request: Request, page_id: int, user: User = Depends(current_user),
                          db: Session = Depends(get_db)):
-    page = _own(db, page_id, user)
+    page, level = _bpage(db, page_id, user, sh.INVITE)
     data = await request.form()
     guests, bad = bk.parse_guests(str(data.get("guests", "")))
     if bad:
@@ -266,9 +277,9 @@ async def booking_invite(request: Request, page_id: int, user: User = Depends(bo
 
 
 @app.post("/bookings/{page_id}/invites/remind", dependencies=[Depends(check_csrf)])
-def booking_invites_remind(request: Request, page_id: int, user: User = Depends(booking_user),
+def booking_invites_remind(request: Request, page_id: int, user: User = Depends(current_user),
                            db: Session = Depends(get_db)):
-    page = _own(db, page_id, user)
+    page, level = _bpage(db, page_id, user, sh.INVITE)
     count = bk.remind_invites(db, page, user)
     db.commit()
     worker.wake()
@@ -278,9 +289,9 @@ def booking_invites_remind(request: Request, page_id: int, user: User = Depends(
 
 
 @app.post("/bookings/{page_id}/invites/{iid}/delete", dependencies=[Depends(check_csrf)])
-def booking_invite_delete(request: Request, page_id: int, iid: int, user: User = Depends(booking_user),
+def booking_invite_delete(request: Request, page_id: int, iid: int, user: User = Depends(current_user),
                           db: Session = Depends(get_db)):
-    page = _own(db, page_id, user)
+    page, level = _bpage(db, page_id, user, sh.INVITE)
     inv = db.get(BookingInvite, iid)
     if inv is None or inv.page_id != page.id:
         raise HTTPException(404)
@@ -291,9 +302,9 @@ def booking_invite_delete(request: Request, page_id: int, iid: int, user: User =
 
 
 @app.post("/bookings/{page_id}/state", dependencies=[Depends(check_csrf)])
-def booking_state(request: Request, page_id: int, action: str = Form(...), user: User = Depends(booking_user),
+def booking_state(request: Request, page_id: int, action: str = Form(...), user: User = Depends(current_user),
                   db: Session = Depends(get_db)):
-    page = _own(db, page_id, user)
+    page, level = _bpage(db, page_id, user, sh.INVITE if action == "renew" else sh.EDIT)
     if action == "pause":
         page.active = False
         flash(request, "Buchungen pausiert. Bestehende Termine bleiben, neue Buchungen sind nicht möglich.")
@@ -308,9 +319,9 @@ def booking_state(request: Request, page_id: int, action: str = Form(...), user:
 
 
 @app.post("/bookings/{page_id}/delete", dependencies=[Depends(check_csrf)])
-def booking_delete(request: Request, page_id: int, notify_guests: str = Form(""), user: User = Depends(booking_user),
+def booking_delete(request: Request, page_id: int, notify_guests: str = Form(""), user: User = Depends(current_user),
                    db: Session = Depends(get_db)):
-    page = _own(db, page_id, user)
+    page, level = _bpage(db, page_id, user, sh.EDIT)
     future = [b for b in bk.active_bookings(page) if b.starts_at >= utcnow()]
     for b in future:
         if notify_guests == "1":
@@ -329,12 +340,12 @@ def booking_delete(request: Request, page_id: int, notify_guests: str = Form("")
     worker.wake()
     flash(request, f"Buchungsseite „{page.title}“ gelöscht." + (f" {len(future)} Gäste werden über die Absage "
                                                                   "informiert." if future and notify_guests == "1" else ""))
-    return redirect("/bookings")
+    return redirect("/bookings" if user.can("bookings") else home_for(user))
 
 
 @app.post("/bookings/{page_id}/copy", dependencies=[Depends(check_csrf)])
 def booking_copy(request: Request, page_id: int, user: User = Depends(booking_user), db: Session = Depends(get_db)):
-    page = _own(db, page_id, user)
+    page, level = _bpage(db, page_id, user, sh.VIEW)
     clone = BookingPage(owner_id=user.id, public_token=new_link_token(), title=(page.title + " (Kopie)")[:255])
     for col in ("description", "location", "slot_minutes", "pause_minutes", "capacity", "min_notice_hours",
                 "cancel_hours", "max_per_person", "invite_only", "ask_phone", "online", "notify_owner",
@@ -351,10 +362,10 @@ EXPORTS = {"csv": ("text/csv; charset=utf-8", "csv"), "json": ("application/json
 
 
 @app.get("/bookings/{page_id}/export.{fmt}")
-def booking_export(request: Request, page_id: int, fmt: str, user: User = Depends(booking_user),
+def booking_export(request: Request, page_id: int, fmt: str, user: User = Depends(current_user),
                    db: Session = Depends(get_db)):
     """Terminliste exportieren – mit denselben Filtern wie in der Übersicht."""
-    page = _own(db, page_id, user)
+    page, level = _bpage(db, page_id, user, sh.VIEW)
     if fmt not in EXPORTS:
         raise HTTPException(404)
     qp = request.query_params
@@ -368,9 +379,9 @@ def booking_export(request: Request, page_id: int, fmt: str, user: User = Depend
 
 
 @app.post("/bookings/{page_id}/feed", dependencies=[Depends(check_csrf)])
-def booking_feed(request: Request, page_id: int, action: str = Form(...), user: User = Depends(booking_user),
+def booking_feed(request: Request, page_id: int, action: str = Form(...), user: User = Depends(current_user),
                  db: Session = Depends(get_db)):
-    page = _own(db, page_id, user)
+    page, level = _bpage(db, page_id, user, sh.EDIT)
     if action in ("enable", "renew"):
         page.feed_token = new_link_token()
         flash(request, "Kalender-Abo eingerichtet." if action == "enable" else
@@ -380,6 +391,30 @@ def booking_feed(request: Request, page_id: int, action: str = Form(...), user: 
         flash(request, "Kalender-Abo abgeschaltet.")
     db.commit()
     return redirect(f"/bookings/{page.id}#export")
+
+
+@app.post("/bookings/{page_id}/shares", dependencies=[Depends(check_csrf)])
+async def booking_share_add(request: Request, page_id: int, user: User = Depends(current_user),
+                            db: Session = Depends(get_db)):
+    """Im Portal für Personen oder Gruppen freigeben (nur Besitzer:in bzw. Admin)."""
+    page, _ = _bpage(db, page_id, user, sh.OWNER)
+    added, level = sh.add(db, "booking", page, await request.form())
+    db.commit()
+    flash(request, f"Freigabe für {added} Eintrag/Einträge gespeichert: {sh.LEVELS['booking'][level][0]}." if added
+          else "Bitte Personen oder Gruppen auswählen.", "ok" if added else "error")
+    return redirect(f"/bookings/{page.id}#freigaben")
+
+
+@app.post("/bookings/{page_id}/shares/{share_id}", dependencies=[Depends(check_csrf)])
+def booking_share_update(request: Request, page_id: int, share_id: int, action: str = Form("save"),
+                         level: int = Form(1), user: User = Depends(current_user), db: Session = Depends(get_db)):
+    page, _ = _bpage(db, page_id, user, sh.OWNER)
+    message = sh.update(db, "booking", page, share_id, action, level)
+    if message is None:
+        raise HTTPException(404)
+    db.commit()
+    flash(request, message)
+    return redirect(f"/bookings/{page.id}#freigaben")
 
 
 @app.get("/b/feed/{token}.ics")
@@ -396,9 +431,9 @@ def booking_feed_ics(token: str, db: Session = Depends(get_db)):
 
 @app.get("/bookings/{page_id}/qr.{fmt}")
 def booking_qr(page_id: int, fmt: str, size: int = 10, dark: str = "#000000", light: str = "#ffffff",
-               error: str = "m", border: int = 2, download: str = "", user: User = Depends(booking_user),
+               error: str = "m", border: int = 2, download: str = "", user: User = Depends(current_user),
                db: Session = Depends(get_db)):
-    page = _own(db, page_id, user)
+    page, level = _bpage(db, page_id, user, sh.INVITE)
     opts = sl.qr_options(fmt, size, dark, light, error, border)
     data, media = sl.qr_image(bk.public_link(page), opts)
     headers = {"Cache-Control": "private, max-age=60"}

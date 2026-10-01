@@ -100,6 +100,7 @@ PERMISSIONS = {
     "forms": ("Formulare", "fa-clipboard-list", "Formulare erstellen, verteilen und auswerten"),
     "polls": ("Terminumfragen", "fa-calendar-check", "Terminumfragen (wie Doodle) erstellen und auswerten"),
     "bookings": ("Terminbuchung", "fa-calendar-plus", "Buchungsseiten mit freien Zeitfenstern anbieten (z. B. Vorstellungsgespräche)"),
+    "laws": ("Rechtstexte", "fa-scale-balanced", "Gesetze, Satzungen und Verordnungen einstellen, gliedern und veröffentlichen"),
     "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
 }
 
@@ -122,6 +123,23 @@ class Group(Base):
 
     members: Mapped[list[User]] = relationship(secondary="group_members", back_populates="groups",
                                                order_by="User.name")
+
+
+class UserSession(Base):
+    """Angemeldete Sitzung. Das Cookie trägt nur die zufällige Kennung, hier liegt deren Hash."""
+    __tablename__ = "user_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sid_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    ip: Mapped[str] = mapped_column(String(64), default="")
+    user_agent: Mapped[str] = mapped_column(String(400), default="")
+    last_path: Mapped[str] = mapped_column(String(255), default="")
+    method: Mapped[str] = mapped_column(String(16), default="password")   # password | 2fa | invite
+
+    user: Mapped[User] = relationship()
 
 
 class Setting(Base):
@@ -468,6 +486,8 @@ class Poll(Base):
                                                        order_by="PollOption.starts_at", passive_deletes=True)
     participants: Mapped[list["PollParticipant"]] = relationship(
         back_populates="poll", cascade="all, delete-orphan", order_by="PollParticipant.id", passive_deletes=True)
+    shares: Mapped[list["PollShare"]] = relationship(back_populates="poll", cascade="all, delete-orphan",
+                                                     order_by="PollShare.id", passive_deletes=True)
 
     @property
     def final_option(self) -> "PollOption | None":
@@ -553,6 +573,8 @@ class BookingPage(Base):
                                                      order_by="Booking.starts_at", passive_deletes=True)
     invites: Mapped[list["BookingInvite"]] = relationship(back_populates="page", cascade="all, delete-orphan",
                                                           order_by="BookingInvite.email", passive_deletes=True)
+    shares: Mapped[list["BookingShare"]] = relationship(back_populates="page", cascade="all, delete-orphan",
+                                                        order_by="BookingShare.id", passive_deletes=True)
 
 
 class BookingWindow(Base):
@@ -607,6 +629,152 @@ class BookingInvite(Base):
     reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     page: Mapped[BookingPage] = relationship(back_populates="invites")
+
+
+class PollShare(Base):
+    """Freigabe einer Terminumfrage im Portal (Stufen wie bei Formularen, siehe shares.py)."""
+    __tablename__ = "poll_shares"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    poll_id: Mapped[int] = mapped_column(ForeignKey("polls.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=True,
+                                                 index=True)
+    level: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    poll: Mapped["Poll"] = relationship(back_populates="shares")
+    user: Mapped[User | None] = relationship()
+    group: Mapped[Group | None] = relationship()
+
+
+class BookingShare(Base):
+    """Freigabe einer Buchungsseite im Portal (Stufen wie bei Formularen, siehe shares.py)."""
+    __tablename__ = "booking_shares"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("booking_pages.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=True,
+                                                 index=True)
+    level: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    page: Mapped["BookingPage"] = relationship(back_populates="shares")
+    user: Mapped[User | None] = relationship()
+    group: Mapped[Group | None] = relationship()
+
+
+class LawLevel(Base):
+    """Ebene im Rechtsbaum (EU, Bund, Land, Landkreis, Verbandsgemeinde, Ortsgemeinde …), beliebig verschachtelt."""
+    __tablename__ = "law_levels"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("law_levels.id", ondelete="CASCADE"), nullable=True,
+                                                  index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(20), default="sonstige")   # siehe laws.LEVEL_KINDS
+    description: Mapped[str] = mapped_column(Text, default="")
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+    parent: Mapped["LawLevel | None"] = relationship(remote_side="LawLevel.id", back_populates="children")
+    children: Mapped[list["LawLevel"]] = relationship(back_populates="parent", order_by="(LawLevel.position, LawLevel.name)",
+                                                      cascade="all, delete-orphan", passive_deletes=True)
+    laws: Mapped[list["LawText"]] = relationship(back_populates="level", order_by="LawText.title")
+
+
+class LawText(Base):
+    """Rechtstext (Gesetz, Verordnung, Satzung …) als Markdown; Gliederung wird beim Speichern zerlegt."""
+    __tablename__ = "law_texts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    level_id: Mapped[int | None] = mapped_column(ForeignKey("law_levels.id", ondelete="SET NULL"), nullable=True,
+                                                 index=True)
+    title: Mapped[str] = mapped_column(String(400))
+    short_title: Mapped[str] = mapped_column(String(80), default="")     # Abkürzung, z. B. „HS“ oder „GemO“
+    slug: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    doc_type: Mapped[str] = mapped_column(String(30), default="satzung")
+    body_md: Mapped[str] = mapped_column(Text, default="")
+    version_note: Mapped[str] = mapped_column(String(255), default="")   # z. B. „Fassung vom 12.03.2024“
+    issued_on: Mapped[str] = mapped_column(String(10), default="")       # Ausfertigung (JJJJ-MM-TT)
+    valid_from: Mapped[str] = mapped_column(String(10), default="")      # in Kraft seit
+    valid_until: Mapped[str] = mapped_column(String(10), default="")     # außer Kraft ab
+    published: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    level: Mapped[LawLevel | None] = relationship(back_populates="laws")
+    editor: Mapped[User | None] = relationship(foreign_keys=[updated_by])
+    sections: Mapped[list["LawSection"]] = relationship(back_populates="law", cascade="all, delete-orphan",
+                                                        order_by="LawSection.position", passive_deletes=True)
+    versions: Mapped[list["LawVersion"]] = relationship(back_populates="law", cascade="all, delete-orphan",
+                                                        order_by="LawVersion.saved_at.desc()", passive_deletes=True)
+
+
+class LawSection(Base):
+    """Gliederungseinheit eines Rechtstexts (Teil, Abschnitt, § oder Artikel) – abgeleitet aus body_md."""
+    __tablename__ = "law_sections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    law_id: Mapped[int] = mapped_column(ForeignKey("law_texts.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer)
+    parent_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    depth: Mapped[int] = mapped_column(Integer, default=0)
+    kind: Mapped[str] = mapped_column(String(10))            # intro | group | norm
+    number: Mapped[str] = mapped_column(String(80), default="")
+    title: Mapped[str] = mapped_column(String(400), default="")
+    anchor: Mapped[str] = mapped_column(String(120))
+    html: Mapped[str] = mapped_column(Text, default="")
+    plain: Mapped[str] = mapped_column(Text, default="")
+
+    law: Mapped[LawText] = relationship(back_populates="sections")
+
+
+class LawVersion(Base):
+    """Frühere Fassung eines Rechtstexts (wird bei jeder inhaltlichen Änderung gesichert)."""
+    __tablename__ = "law_versions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    law_id: Mapped[int] = mapped_column(ForeignKey("law_texts.id", ondelete="CASCADE"), index=True)
+    saved_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    saved_by: Mapped[str] = mapped_column(String(255), default="")
+    version_note: Mapped[str] = mapped_column(String(255), default="")
+    body_md: Mapped[str] = mapped_column(Text, default="")
+
+    law: Mapped[LawText] = relationship(back_populates="versions")
+
+
+# Ausgangsstruktur des Rechtsbaums (wird nur angelegt, solange noch keine Ebene existiert)
+DEFAULT_LAW_LEVELS = (
+    "Europäische Union", "eu", [
+        ("Bundesrepublik Deutschland", "bund", [
+            ("Rheinland-Pfalz", "land", [
+                ("Landkreis Kaiserslautern", "landkreis", [
+                    ("Verbandsgemeinde Otterbach-Otterberg", "vg", [
+                        (f"{'Stadt' if n == 'Otterberg' else 'Ortsgemeinde'} {n}", "og", [])
+                        for n in ("Frankelbach", "Hirschhorn/Pfalz", "Katzweiler", "Mehlbach", "Olsbrücken",
+                                  "Otterbach", "Otterberg", "Schallodenbach", "Schneckenhausen", "Sulzbachtal",
+                                  "Untersulzbach")]),
+                ]),
+            ]),
+        ]),
+    ])
+
+
+def seed_law_levels(db) -> None:
+    if db.scalar(select(LawLevel.id).limit(1)) is not None:
+        return
+
+    def add(node, parent, pos):
+        name, kind, children = node
+        level = LawLevel(name=name, kind=kind, parent=parent, position=pos)
+        db.add(level)
+        for i, child in enumerate(children):
+            add(child, level, i)
+
+    add(DEFAULT_LAW_LEVELS, None, 0)
 
 
 DEFAULT_SETTINGS = {
@@ -673,6 +841,7 @@ DEFAULT_SETTINGS = {
     "module_forms": "1",
     "module_polls": "1",
     "module_bookings": "1",
+    "module_laws": "1",
     # Kurzlinks
     "short_domain": "",           # optional eigene Kurz-Domain, z. B. kurz.example.de
     "short_fallback_url": "",     # Ziel für unbekannte Kurzlinks und die Startseite der Kurz-Domain
@@ -722,6 +891,7 @@ def init_db() -> None:
         for key, value in DEFAULT_SETTINGS.items():
             if db.get(Setting, key) is None:
                 db.add(Setting(key=key, value=value))
+        seed_law_levels(db)
         db.commit()
 
 

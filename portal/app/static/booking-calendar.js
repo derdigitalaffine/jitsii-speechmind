@@ -22,6 +22,7 @@
 
   if (!el || !window.FullCalendar) { return; }
   var pageId = el.dataset.page;
+  var readonly = el.dataset.readonly === '1';   // nur ansehen (Freigabe ohne Bearbeiten)
   var events = JSON.parse(document.getElementById('bk-events').textContent || '[]');
 
   function post(url, fields) {
@@ -60,7 +61,7 @@
     slotLabelInterval: '01:00',
     snapDuration: '00:15:00',
     nowIndicator: true,
-    selectable: true,
+    selectable: !readonly,
     selectMirror: true,
     selectMinDistance: 5,
     height: 'auto',
@@ -80,6 +81,7 @@
       }).catch(function () { toast('Verbindung fehlgeschlagen', true); });
     },
     dateClick: function (info) {
+      if (readonly) { return; }
       var w = windowAt(info.date);
       if (!w) { return; }
       var fmt = function (d) { return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); };

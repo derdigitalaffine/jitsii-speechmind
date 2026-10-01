@@ -9,11 +9,11 @@ from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
-from . import access, planning, polls as pl, shortlinks as sl, worker
+from . import access, planning, polls as pl, shares as sh, shortlinks as sl, worker
 from .db import LOCAL_TZ, Group, Meeting, Poll, PollParticipant, User, to_local, utcnow
 from .main import (
-    app, check_csrf, ensure_guest_token, flash, get_db, rate_limit, redirect, render, require, session_user,
-    unique_room,
+    app, check_csrf, current_user, home_for, ensure_guest_token, flash, get_db, rate_limit, redirect, render, require,
+    session_user, unique_room,
 )
 from .planning import parse_emails
 from .security import new_link_token, room_slug
@@ -22,11 +22,15 @@ poll_user = require("polls")
 COOKIE = "jsm_poll_"
 
 
-def _own(db: Session, poll_id: int, user: User) -> Poll:
+def _poll(db: Session, poll_id: int, user: User, need: int) -> tuple[Poll, int]:
+    """Terminumfrage mit Zugriffsprüfung. need: sh.VIEW, sh.INVITE, sh.EDIT oder sh.OWNER."""
     poll = db.get(Poll, poll_id)
-    if poll is None or (poll.owner_id != user.id and not user.is_admin):
+    level = sh.access_level(db, "poll", poll, user)
+    if level == 0:
         raise HTTPException(404, "Terminumfrage nicht gefunden.")
-    return poll
+    if level < need:
+        raise HTTPException(403, "Für diese Aktion reicht Ihre Freigabe für die Terminumfrage nicht aus.")
+    return poll, level
 
 
 def _parse_local(value: str) -> datetime | None:
@@ -63,17 +67,21 @@ def _form_ctx(poll: Poll | None) -> dict:
 # --- Verwaltung ----------------------------------------------------------------------
 
 @app.get("/polls")
-def polls_list(request: Request, all: str = "", user: User = Depends(poll_user), db: Session = Depends(get_db)):
+def polls_list(request: Request, all: str = "", user: User = Depends(current_user), db: Session = Depends(get_db)):
     show_all = user.is_admin and all == "1"
+    shared = [] if show_all else sh.shared_with(db, "poll", user)
+    if not user.can("polls") and not shared:
+        raise HTTPException(403, "Für den Bereich „Terminumfragen“ fehlt die Berechtigung. "
+                                 "Bitte wenden Sie sich an die Verwaltung des Portals.")
     q = select(Poll).options(joinedload(Poll.owner)).order_by(Poll.updated_at.desc())
     if not show_all:
         q = q.where(Poll.owner_id == user.id)
-    items = db.scalars(q).unique().all()
+    items = db.scalars(q).unique().all() if user.can("polls") else []
     counts = dict(db.execute(select(PollParticipant.poll_id, func.count(PollParticipant.id))
                              .where(PollParticipant.answered_at.is_not(None))
                              .group_by(PollParticipant.poll_id)).all())
     return render(request, "polls.html", user, polls=items, counts=counts, show_all=show_all, is_open=pl.is_open,
-                  parts=pl.option_parts)
+                  parts=pl.option_parts, shared=shared, levels=sh.LEVELS["poll"])
 
 
 @app.get("/polls/new")
@@ -99,8 +107,8 @@ async def poll_create(request: Request, user: User = Depends(poll_user), db: Ses
 
 
 @app.get("/polls/{poll_id}")
-def poll_detail(request: Request, poll_id: int, user: User = Depends(poll_user), db: Session = Depends(get_db)):
-    poll = _own(db, poll_id, user)
+def poll_detail(request: Request, poll_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    poll, level = _poll(db, poll_id, user, sh.VIEW)
     counts = pl.tally(poll)
     users = db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all()
     groups = db.scalars(select(Group).order_by(Group.name)).all()
@@ -117,17 +125,18 @@ def poll_detail(request: Request, poll_id: int, user: User = Depends(poll_user),
                   answered=[p for p in poll.participants if p.answered_at],
                   waiting=[p for p in poll.participants if not p.answered_at],
                   shortlink_url=("/shortlinks?new=" + quote(public) + "&title=" + quote(poll.title)
-                                 + "&next=" + quote(f"/polls/{poll.id}") + "#neu") if public else "")
+                                 + "&next=" + quote(f"/polls/{poll.id}") + "#neu") if public else "",
+                  level=level, share_levels=sh.LEVELS["poll"])
 
 
 @app.get("/polls/{poll_id}/edit")
-def poll_edit(request: Request, poll_id: int, user: User = Depends(poll_user), db: Session = Depends(get_db)):
-    return render(request, "poll_edit.html", user, **_form_ctx(_own(db, poll_id, user)))
+def poll_edit(request: Request, poll_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    return render(request, "poll_edit.html", user, **_form_ctx(_poll(db, poll_id, user, sh.EDIT)[0]))
 
 
 @app.post("/polls/{poll_id}/edit", dependencies=[Depends(check_csrf)])
-async def poll_update(request: Request, poll_id: int, user: User = Depends(poll_user), db: Session = Depends(get_db)):
-    poll = _own(db, poll_id, user)
+async def poll_update(request: Request, poll_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    poll, level = _poll(db, poll_id, user, sh.EDIT)
     data = await request.form()
     options = pl.parse_options(str(data.get("options_json", "")))
     if not options:
@@ -141,9 +150,9 @@ async def poll_update(request: Request, poll_id: int, user: User = Depends(poll_
 
 
 @app.post("/polls/{poll_id}/state", dependencies=[Depends(check_csrf)])
-def poll_state(request: Request, poll_id: int, action: str = Form(...), user: User = Depends(poll_user),
+def poll_state(request: Request, poll_id: int, action: str = Form(...), user: User = Depends(current_user),
                db: Session = Depends(get_db)):
-    poll = _own(db, poll_id, user)
+    poll, level = _poll(db, poll_id, user, sh.EDIT if action in ("close", "reopen") else sh.INVITE)
     if action == "close":
         poll.closed = True
         flash(request, "Abstimmung beendet. Die Ergebnisse bleiben sichtbar.")
@@ -165,10 +174,10 @@ def poll_state(request: Request, poll_id: int, action: str = Form(...), user: Us
 
 @app.post("/polls/{poll_id}/final", dependencies=[Depends(check_csrf)])
 def poll_final(request: Request, poll_id: int, option_id: int = Form(...), notify: str = Form(""),
-               create_meeting: str = Form(""), only_yes: str = Form(""), user: User = Depends(poll_user),
+               create_meeting: str = Form(""), only_yes: str = Form(""), user: User = Depends(current_user),
                db: Session = Depends(get_db)):
     """Termin festlegen: Abstimmung schließen, auf Wunsch alle informieren oder eine Besprechung anlegen."""
-    poll = _own(db, poll_id, user)
+    poll, level = _poll(db, poll_id, user, sh.EDIT)
     opt = next((o for o in poll.options if o.id == option_id), None)
     if opt is None:
         raise HTTPException(404)
@@ -202,8 +211,8 @@ def poll_final(request: Request, poll_id: int, option_id: int = Form(...), notif
 
 
 @app.post("/polls/{poll_id}/invite", dependencies=[Depends(check_csrf)])
-async def poll_invite(request: Request, poll_id: int, user: User = Depends(poll_user), db: Session = Depends(get_db)):
-    poll = _own(db, poll_id, user)
+async def poll_invite(request: Request, poll_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    poll, level = _poll(db, poll_id, user, sh.INVITE)
     data = await request.form()
     emails, bad = parse_emails(str(data.get("emails", "")))
     if bad:
@@ -221,8 +230,8 @@ async def poll_invite(request: Request, poll_id: int, user: User = Depends(poll_
 
 
 @app.post("/polls/{poll_id}/remind", dependencies=[Depends(check_csrf)])
-def poll_remind(request: Request, poll_id: int, user: User = Depends(poll_user), db: Session = Depends(get_db)):
-    poll = _own(db, poll_id, user)
+def poll_remind(request: Request, poll_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    poll, level = _poll(db, poll_id, user, sh.INVITE)
     count = pl.remind(db, poll, user)
     db.commit()
     worker.wake()
@@ -232,9 +241,9 @@ def poll_remind(request: Request, poll_id: int, user: User = Depends(poll_user),
 
 
 @app.post("/polls/{poll_id}/participants/{pid}/delete", dependencies=[Depends(check_csrf)])
-def poll_participant_delete(request: Request, poll_id: int, pid: int, user: User = Depends(poll_user),
+def poll_participant_delete(request: Request, poll_id: int, pid: int, user: User = Depends(current_user),
                             db: Session = Depends(get_db)):
-    poll = _own(db, poll_id, user)
+    poll, level = _poll(db, poll_id, user, sh.EDIT)
     p = db.get(PollParticipant, pid)
     if p is None or p.poll_id != poll.id:
         raise HTTPException(404)
@@ -245,8 +254,8 @@ def poll_participant_delete(request: Request, poll_id: int, pid: int, user: User
 
 
 @app.get("/polls/{poll_id}/export.csv")
-def poll_export(poll_id: int, user: User = Depends(poll_user), db: Session = Depends(get_db)):
-    poll = _own(db, poll_id, user)
+def poll_export(poll_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    poll, level = _poll(db, poll_id, user, sh.VIEW)
     name = room_slug(poll.title) or "terminumfrage"
     return Response(pl.to_csv(poll), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{name}.csv"'})
@@ -254,9 +263,9 @@ def poll_export(poll_id: int, user: User = Depends(poll_user), db: Session = Dep
 
 @app.get("/polls/{poll_id}/qr.{fmt}")
 def poll_qr(poll_id: int, fmt: str, size: int = 10, dark: str = "#000000", light: str = "#ffffff",
-            error: str = "m", border: int = 2, download: str = "", user: User = Depends(poll_user),
+            error: str = "m", border: int = 2, download: str = "", user: User = Depends(current_user),
             db: Session = Depends(get_db)):
-    poll = _own(db, poll_id, user)
+    poll, level = _poll(db, poll_id, user, sh.INVITE)
     if not poll.public_token:
         raise HTTPException(404)
     opts = sl.qr_options(fmt, size, dark, light, error, border)
@@ -269,7 +278,7 @@ def poll_qr(poll_id: int, fmt: str, size: int = 10, dark: str = "#000000", light
 
 @app.post("/polls/{poll_id}/copy", dependencies=[Depends(check_csrf)])
 def poll_copy(request: Request, poll_id: int, user: User = Depends(poll_user), db: Session = Depends(get_db)):
-    poll = _own(db, poll_id, user)
+    poll, _ = _poll(db, poll_id, user, sh.VIEW)
     clone = Poll(owner_id=user.id, title=(poll.title + " (Kopie)")[:255], description=poll.description,
                  location=poll.location, duration_minutes=poll.duration_minutes, allow_maybe=poll.allow_maybe,
                  hidden=poll.hidden, single_choice=poll.single_choice, max_per_option=poll.max_per_option,
@@ -283,12 +292,36 @@ def poll_copy(request: Request, poll_id: int, user: User = Depends(poll_user), d
 
 
 @app.post("/polls/{poll_id}/delete", dependencies=[Depends(check_csrf)])
-def poll_delete(request: Request, poll_id: int, user: User = Depends(poll_user), db: Session = Depends(get_db)):
-    poll = _own(db, poll_id, user)
+def poll_delete(request: Request, poll_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    poll, level = _poll(db, poll_id, user, sh.EDIT)
     db.delete(poll)
     db.commit()
     flash(request, f"Terminumfrage „{poll.title}“ gelöscht.")
-    return redirect("/polls")
+    return redirect("/polls" if user.can("polls") else home_for(user))
+
+
+@app.post("/polls/{poll_id}/shares", dependencies=[Depends(check_csrf)])
+async def poll_share_add(request: Request, poll_id: int, user: User = Depends(current_user),
+                         db: Session = Depends(get_db)):
+    """Im Portal für Personen oder Gruppen freigeben (nur Besitzer:in bzw. Admin)."""
+    poll, _ = _poll(db, poll_id, user, sh.OWNER)
+    added, level = sh.add(db, "poll", poll, await request.form())
+    db.commit()
+    flash(request, f"Freigabe für {added} Eintrag/Einträge gespeichert: {sh.LEVELS['poll'][level][0]}." if added else
+          "Bitte Personen oder Gruppen auswählen.", "ok" if added else "error")
+    return redirect(f"/polls/{poll.id}#freigaben")
+
+
+@app.post("/polls/{poll_id}/shares/{share_id}", dependencies=[Depends(check_csrf)])
+def poll_share_update(request: Request, poll_id: int, share_id: int, action: str = Form("save"), level: int = Form(1),
+                      user: User = Depends(current_user), db: Session = Depends(get_db)):
+    poll, _ = _poll(db, poll_id, user, sh.OWNER)
+    message = sh.update(db, "poll", poll, share_id, action, level)
+    if message is None:
+        raise HTTPException(404)
+    db.commit()
+    flash(request, message)
+    return redirect(f"/polls/{poll.id}#freigaben")
 
 
 # --- Abstimmen (öffentlich) ----------------------------------------------------------------

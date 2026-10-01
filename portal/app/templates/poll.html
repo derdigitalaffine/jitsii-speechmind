@@ -3,19 +3,22 @@
 {% block title %}{{ poll.title }} · Terminumfragen{% endblock %}
 {% block content %}
 {% call m.page_head(poll.title, poll.location) %}
-  <a class="btn btn-outline-secondary" href="/polls/{{ poll.id }}/edit"><i class="fa-solid fa-pen me-1"></i>Bearbeiten</a>
+  {% if level >= 3 %}<a class="btn btn-outline-secondary" href="/polls/{{ poll.id }}/edit"><i class="fa-solid fa-pen me-1"></i>Bearbeiten</a>{% endif %}
   <div class="dropdown"><button class="btn btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Weitere Aktionen"><i class="fa-solid fa-ellipsis"></i></button>
     <ul class="dropdown-menu dropdown-menu-end">
       <li><a class="dropdown-item" href="/polls/{{ poll.id }}/export.csv"><i class="fa-solid fa-file-csv fa-fw me-2"></i>Export (CSV)</a></li>
-      <li><form method="post" action="/polls/{{ poll.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item"><i class="fa-regular fa-copy fa-fw me-2"></i>Kopie anlegen</button></form></li>
+      {% if user.can('polls') %}<li><form method="post" action="/polls/{{ poll.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item"><i class="fa-regular fa-copy fa-fw me-2"></i>Kopie anlegen</button></form></li>{% endif %}
+      {% if level >= 3 %}
       <li><form method="post" action="/polls/{{ poll.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}">
         {% if poll.closed %}<button class="dropdown-item" name="action" value="reopen"><i class="fa-solid fa-lock-open fa-fw me-2"></i>Abstimmung wieder öffnen</button>{% else %}<button class="dropdown-item" name="action" value="close"><i class="fa-solid fa-lock fa-fw me-2"></i>Abstimmung beenden</button>{% endif %}</form></li>
       <li><hr class="dropdown-divider"></li>
       <li><form method="post" action="/polls/{{ poll.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item text-danger" data-confirm-title="Terminumfrage löschen?" data-confirm="Alle Antworten werden gelöscht, die Links funktionieren nicht mehr."><i class="fa-regular fa-trash-can fa-fw me-2"></i>Löschen</button></form></li>
+      {% endif %}
     </ul></div>
 {% endcall %}
 
 <div class="d-flex flex-wrap gap-2 mb-3 small align-items-center">
+  {% if level < 4 %}<span class="badge text-bg-info"><i class="fa-solid fa-share-nodes me-1"></i>geteilt von {{ poll.owner.name if poll.owner else '–' }} · {{ share_levels[level][0] }}</span>{% endif %}
   {% if poll.final_option %}<span class="badge text-bg-success">Termin festgelegt</span>{% elif is_open %}<span class="badge text-bg-primary">Abstimmung läuft</span>{% else %}<span class="badge text-bg-secondary">Abstimmung beendet</span>{% endif %}
   {% if poll.expires_at %}<span class="text-secondary"><i class="fa-regular fa-hourglass-half me-1"></i>bis {{ poll.expires_at | local }} Uhr</span>{% endif %}
   {% if poll.hidden %}<span class="badge text-bg-light border"><i class="fa-solid fa-eye-slash me-1"></i>verdeckt</span>{% endif %}
@@ -52,7 +55,7 @@
           <div class="progress-bar bg-success" style="width: {{ r.yes_pct }}%"></div><div class="progress-bar bg-warning" style="width: {{ r.maybe_pct }}%"></div></div>
         <div class="small text-secondary mt-1">{{ r.yes }} Ja{% if poll.allow_maybe %} · {{ r.maybe }} wenn nötig{% endif %} · {{ r.no }} Nein{% if r.missing %} · {{ r.missing }} ohne Angabe{% endif %}</div>
       </div>
-      {% if not poll.final_option %}<form method="post" action="/polls/{{ poll.id }}/final"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="option_id" value="{{ r.option.id }}"><input type="hidden" name="notify" value="1">
+      {% if not poll.final_option and level >= 3 %}<form method="post" action="/polls/{{ poll.id }}/final"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="option_id" value="{{ r.option.id }}"><input type="hidden" name="notify" value="1">
         <button class="btn btn-sm btn-outline-success" type="button" data-bs-toggle="modal" data-bs-target="#final-modal" data-final-option="{{ r.option.id }}"><i class="fa-regular fa-calendar-check me-1"></i>Festlegen</button></form>{% endif %}
     </li>
   {% endfor %}
@@ -62,7 +65,7 @@
 
 <div class="card mb-4"><div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
   <span><i class="fa-solid fa-table-cells me-2"></i>Ergebnis ({{ answered | length }} Antwort{{ '' if answered | length == 1 else 'en' }})</span>
-  {% if poll.options %}<button class="btn btn-sm btn-success" type="button" data-bs-toggle="modal" data-bs-target="#final-modal"><i class="fa-regular fa-calendar-check me-1"></i>{{ 'Termin ändern' if poll.final_option else 'Termin festlegen' }}</button>{% endif %}
+  {% if poll.options and level >= 3 %}<button class="btn btn-sm btn-success" type="button" data-bs-toggle="modal" data-bs-target="#final-modal"><i class="fa-regular fa-calendar-check me-1"></i>{{ 'Termin ändern' if poll.final_option else 'Termin festlegen' }}</button>{% endif %}
 </div><div class="card-body">
   {% set rows = answered %}{% include "_poll_grid.html" %}
   {% if not answered %}<p class="text-secondary small mt-3 mb-0">Noch keine Antworten. Teilen Sie den Link oder laden Sie Personen ein.</p>{% endif %}
@@ -71,6 +74,7 @@
 </div></div>
 
 <div class="row g-4">
+  {% if level >= 2 %}
   <div class="col-12 col-xxl-6" id="teilen"><div class="card h-100"><div class="card-header"><i class="fa-solid fa-share-nodes me-2"></i>Link zur Abstimmung</div><div class="card-body">
     {% if public_url %}
     <p class="small text-secondary">Wer diesen Link hat, kann mit Namen abstimmen – ohne Konto. Danach bekommt jede Person einen Link, um ihre Antwort zu ändern.</p>
@@ -102,10 +106,11 @@
         <span class="form-text ms-2">Jede Person bekommt einen persönlichen Link; Sie sehen, wer noch nicht abgestimmt hat.</span></div>
     </form>
   </div></div></div>
+  {% endif %}
 
   <div class="col-12" id="teilnehmende"><div class="card"><div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
     <span><i class="fa-solid fa-user-check me-2"></i>Teilnehmende ({{ answered | length }} geantwortet{% if waiting %}, {{ waiting | length }} offen{% endif %})</span>
-    {% if waiting %}<form method="post" action="/polls/{{ poll.id }}/remind"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-primary" data-confirm-title="Erinnerung senden?" data-confirm="Alle Eingeladenen ohne Antwort bekommen eine Erinnerung." data-confirm-button="Senden"><i class="fa-regular fa-bell me-1"></i>Offene erinnern</button></form>{% endif %}
+    {% if waiting and level >= 2 %}<form method="post" action="/polls/{{ poll.id }}/remind"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-primary" data-confirm-title="Erinnerung senden?" data-confirm="Alle Eingeladenen ohne Antwort bekommen eine Erinnerung." data-confirm-button="Senden"><i class="fa-regular fa-bell me-1"></i>Offene erinnern</button></form>{% endif %}
   </div><div class="card-body">
   {% if poll.participants %}
   <table class="table table-hover align-middle js-table w-100" data-order='[[0,"asc"]]'>
@@ -114,13 +119,16 @@
       <tr><td>{{ p.name }}</td><td class="small">{{ p.email }}</td>
         <td>{% if p.answered_at %}<span class="badge text-bg-success">geantwortet {{ p.answered_at | local('%d.%m. %H:%M') }}</span>{% else %}<span class="badge text-bg-warning">offen</span>{% if p.reminded_at %} <span class="small text-secondary">erinnert {{ p.reminded_at | local('%d.%m.') }}</span>{% endif %}{% endif %}</td>
         <td class="col-actions"><div class="d-inline-flex gap-1">
-          <button class="btn btn-sm btn-outline-secondary" type="button" data-copy-text="{{ personal_link(p) }}" title="Persönlichen Link kopieren" aria-label="Link kopieren"><i class="fa-regular fa-copy"></i></button>
-          <form method="post" action="/polls/{{ poll.id }}/participants/{{ p.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" data-confirm-title="{{ p.name }} entfernen?" data-confirm="Die Antworten dieser Person werden gelöscht." title="Entfernen" aria-label="Entfernen"><i class="fa-regular fa-trash-can"></i></button></form>
+          {% if level >= 2 %}<button class="btn btn-sm btn-outline-secondary" type="button" data-copy-text="{{ personal_link(p) }}" title="Persönlichen Link kopieren" aria-label="Link kopieren"><i class="fa-regular fa-copy"></i></button>{% endif %}
+          {% if level >= 3 %}<form method="post" action="/polls/{{ poll.id }}/participants/{{ p.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" data-confirm-title="{{ p.name }} entfernen?" data-confirm="Die Antworten dieser Person werden gelöscht." title="Entfernen" aria-label="Entfernen"><i class="fa-regular fa-trash-can"></i></button></form>{% endif %}
         </div></td></tr>
     {% endfor %}</tbody>
   </table>
   {% else %}<p class="text-secondary mb-0">Noch niemand dabei.</p>{% endif %}
   </div></div></div>
+  {% if level >= 4 %}
+  <div class="col-12">{% set share_obj = poll %}{% set share_base = '/polls/' ~ poll.id %}{% set share_noun = 'diese Terminumfrage' %}{% include "_share_panel.html" %}</div>
+  {% endif %}
 </div>
 
 <div class="modal fade" id="final-modal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content">

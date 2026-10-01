@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session, joinedload
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import access, branding, chat, mailtpl, notify, planning, proxy, twofa, worker
+from . import access, branding, chat, mailtpl, notify, planning, proxy, sessions, twofa, worker
 from .planning import EMAIL_RE, name_from_email
 from .config import settings
 from .db import (
@@ -138,6 +138,7 @@ MODULES = {
     "forms": ("Formulare", "module_forms", ("/forms", "/f/")),
     "polls": ("Terminumfragen", "module_polls", ("/polls", "/t/")),
     "bookings": ("Terminbuchung", "module_bookings", ("/bookings", "/b/")),
+    "laws": ("Rechtstexte", "module_laws", ("/laws", "/recht")),
 }
 _module_cache: dict = {"at": 0.0, "enabled": set(MODULES)}
 
@@ -207,6 +208,10 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
     if user is None or not user.active:
         request.session.pop("uid", None)
         raise LoginRequired(str(request.url.path) + (f"?{request.url.query}" if request.url.query else ""))
+    if not sessions.validate(request, db, user):
+        request.session.clear()
+        flash(request, "Ihre Sitzung wurde beendet. Bitte melden Sie sich erneut an.", "error")
+        raise LoginRequired(str(request.url.path) + (f"?{request.url.query}" if request.url.query else ""))
     if user.must_change_password and request.url.path != "/profile":
         flash(request, "Bitte vergeben Sie zuerst ein eigenes Passwort.", "error")
         raise ForcedRedirect("/profile")
@@ -252,6 +257,8 @@ def home_for(user: User) -> str:
         return "/polls"
     if user.can("bookings") and "bookings" in modules:
         return "/bookings"
+    if user.can("laws") and "laws" in modules:
+        return "/laws"
     if user.can("users"):
         return "/admin/users"
     return "/forms/inbox" if "forms" in modules else "/profile"
@@ -283,6 +290,16 @@ def flash(request: Request, message: str, kind: str = "ok") -> None:
     request.session.setdefault("flash", []).append({"kind": kind, "text": message})
 
 
+def _shared_nav(user: User | None) -> set[str]:
+    """Bereiche, die im Menü erscheinen, weil etwas mit der Person geteilt wurde (ohne eigenes Recht)."""
+    if user is None or user.is_admin or (user.can("polls") and user.can("bookings")):
+        return set()
+    from . import shares
+    with SessionLocal() as db:
+        return {kind for kind, perm in (("polls", "poll"), ("bookings", "booking"))
+                if not user.can(kind) and shares.has_any(db, perm, user)}
+
+
 def render(request: Request, name: str, user: User | None = None, **ctx) -> HTMLResponse:
     messages = request.session.pop("flash", [])
     ui = branding.load()
@@ -296,6 +313,7 @@ def render(request: Request, name: str, user: User | None = None, **ctx) -> HTML
         "active_statuses": ACTIVE_STATUSES,
         "meet_base_url": settings.meet_base_url,
         "modules": enabled_modules(),
+        "shared_nav": _shared_nav(user),
         **ctx,
     })
 
@@ -392,7 +410,7 @@ def start_session(request: Request, db: Session, user: User, target: str) -> Red
             worker.wake()
             request.session["mfa_sent"] = True
         return redirect("/login/2fa")
-    request.session["uid"] = user.id
+    sessions.establish(request, db, user)
     if twofa.needs_setup(user, cfg):
         request.session["mfa_setup"] = True
     return redirect(target)
@@ -461,7 +479,7 @@ def login_2fa(request: Request, code: str = Form(""), method: str = Form("totp")
     target = request.session.get("mfa_next") or "/"
     db.commit()
     request.session.clear()
-    request.session["uid"] = user.id
+    sessions.establish(request, db, user, method="2fa")
     if method == "recovery":
         flash(request, f"Wiederherstellungscode verbraucht – noch {twofa.recovery_left(user)} übrig. "
                        "Richten Sie unter Profil › Sicherheit neue Codes oder ein neues Gerät ein.", "error")
@@ -519,6 +537,7 @@ def invite_accept(request: Request, token: str, password: str = Form(...), passw
     target.password_set, target.must_change_password = True, False
     target.token_hash = target.token_expires_at = None
     db.commit()
+    sessions.end_all(db, target.id)  # neues Passwort: alle bisherigen Anmeldungen beenden
     response = start_session(request, db, target, "/")
     flash(request, "Passwort gespeichert." + ("" if "mfa_uid" in request.session else " Sie sind angemeldet."))
     return response
@@ -543,7 +562,8 @@ def forgot_send(request: Request, email: str = Form(...), db: Session = Depends(
 
 
 @app.post("/logout", dependencies=[Depends(check_csrf)])
-def logout(request: Request):
+def logout(request: Request, db: Session = Depends(get_db)):
+    sessions.end(request, db)
     request.session.clear()
     return redirect("/login")
 
@@ -555,7 +575,9 @@ def anonymous_allowed(db: Session) -> bool:
 def session_user(request: Request, db: Session) -> User | None:
     uid = request.session.get("uid")
     user = db.get(User, uid) if uid else None
-    return user if user and user.active else None
+    if user is None or not user.active or not sessions.validate(request, db, user):
+        return None
+    return user
 
 
 @app.get("/jitsi/auth")
@@ -1231,6 +1253,8 @@ def profile_save(request: Request, name: str = Form(...), current_password: str 
             return redirect("/profile")
         user.password_hash = hash_password(new_password)
         user.must_change_password = False
+        if sessions.end_all(db, user.id, keep_hash=sessions.current_hash(request)):
+            flash(request, "Ihre Anmeldungen auf anderen Geräten wurden beendet.")
     elif user.must_change_password:
         flash(request, "Bitte vergeben Sie ein neues Passwort.", "error")
         return redirect("/profile")
@@ -1268,7 +1292,8 @@ def profile_security(request: Request, user: User = Depends(current_user), db: S
         setup = {"secret": " ".join(secret[i:i + 4] for i in range(0, len(secret), 4)), "qr": twofa.qr_svg(uri)}
     return render(request, "profile_security.html", user, allowed=twofa.allowed(cfg), required=twofa.required(user, cfg),
                   methods=twofa.methods(user, cfg), setup=setup, recovery_left=twofa.recovery_left(user),
-                  new_codes=request.session.pop("recovery_codes", None), mail_ready=notify.mail_configured(cfg))
+                  new_codes=request.session.pop("recovery_codes", None), mail_ready=notify.mail_configured(cfg),
+                  my_sessions=sessions.rows(request, sessions.for_user(db, user.id)))
 
 
 def _confirm_password(request: Request, user: User, password: str) -> bool:
@@ -1668,8 +1693,9 @@ async def admin_groups_update(request: Request, gid: int, action: str = Form("sa
 
 @app.get("/admin/modules")
 def admin_modules(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
-    from .db import BookingPage, Form as FormModel, Poll, ShortLink
+    from .db import BookingPage, Form as FormModel, LawText, Poll, ShortLink
     stats = {"bookings": db.scalar(select(func.count(BookingPage.id))),
+             "laws": db.scalar(select(func.count(LawText.id))),
              "shortlinks": db.scalar(select(func.count(ShortLink.id))),
              "forms": db.scalar(select(func.count(FormModel.id))),
              "polls": db.scalar(select(func.count(Poll.id)))}
@@ -2093,3 +2119,5 @@ from . import routes_shortlinks  # noqa: E402,F401
 from . import routes_forms  # noqa: E402,F401
 from . import routes_polls  # noqa: E402,F401
 from . import routes_bookings  # noqa: E402,F401
+from . import routes_sessions  # noqa: E402,F401
+from . import routes_laws  # noqa: E402,F401

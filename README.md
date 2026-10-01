@@ -1,6 +1,6 @@
 # Videokonferenzserver der Verbandsgemeinde Otterbach-Otterberg
 
-**Selbst gehostetes Portal für Verwaltungen:** Videokonferenzen mit [Jitsi Meet](https://jitsi.org/), Aufnahme und Transkription über [SpeechMind](https://www.speechmind.com/), Besprechungsplanung mit Outlook-Einladungen, Terminumfragen wie Doodle, Terminbuchung wie Calendly, Kurzlinks mit QR-Codes und ein Formularserver – alles auf dem eigenen Server, ohne Daten an große Plattformen.
+**Selbst gehostetes Portal für Verwaltungen:** Videokonferenzen mit [Jitsi Meet](https://jitsi.org/), Aufnahme und Transkription über [SpeechMind](https://www.speechmind.com/), Besprechungsplanung mit Outlook-Einladungen, Terminumfragen wie Doodle, Terminbuchung wie Calendly, Kurzlinks mit QR-Codes, ein Formularserver und Rechtstexte (Ortsrecht online) – alles auf dem eigenen Server, ohne Daten an große Plattformen.
 
 Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Software (MIT-Lizenz)** ausdrücklich für alle anderen Verwaltungen gedacht: Verbandsgemeinden, Städte, Kreise, Zweckverbände. Nutzen Sie es, passen Sie es an Ihr Haus an, und teilen Sie Verbesserungen, damit alle davon profitieren. Name, Farben und Logo stellen Sie in der Oberfläche um (Design & Branding), voreingestellt über `BRAND_NAME` und `BRAND_PRODUCT` in `.env`.
 
@@ -10,7 +10,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
                  │ (TLS, LE)  │                                   ├─ jicofo
                  └─────┬──────┘                                   └─ jvb ◄── UDP 10000
                        │
-                       ├── portal.example.com ──► Portal: Meetings, Planung, Kurzlinks, Formulare, Verwaltung
+                       ├── portal.example.com ──► Portal: Meetings, Planung, Kurzlinks, Formulare, Recht
                        │                              ▲          │
                        └── kurz.example.com (opt.)    │          ▼
                                     Jibri ── Aufnahme ┘   ffmpeg → SpeechMind GraphQL API
@@ -39,6 +39,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - Abstimmen mit **Ja / Wenn nötig / Nein** per öffentlichem Link (ohne Konto) oder persönlicher Einladung an Benutzer, Gruppen und Gäste; Antworten jederzeit änderbar, Erinnerungen, Frist.
 - Optionen: nur ein Termin, **Plätze je Termin** (Terminbuchung, z. B. Sprechstunden), verdeckte Umfrage, E-Mail-Pflicht.
 - Ergebnis-Raster mit besten Terminen, CSV-Export; **Termin festlegen** mit Mail und Kalenderdatei an alle oder **direkt als Besprechung mit Outlook-Einladungen**.
+- **Im Portal teilen** mit Personen oder Gruppen in drei Stufen: Ergebnisse einsehen · zusätzlich einladen · zusätzlich bearbeiten und löschen.
 
 ### Terminbuchung wie Calendly (abschaltbares Modul)
 
@@ -46,6 +47,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - Gäste buchen **selbst** freie Zeitfenster – öffentlich oder **nur mit persönlicher Einladung** (ideal für Vorstellungsgespräche; Bewerberliste einfach einfügen).
 - Bestätigung mit Kalendereintrag, **Verschieben und Absagen** durch Gast oder Anbieter, automatische **Erinnerungen**, optional **eigene Videokonferenz je Termin**.
 - **Terminliste mit Filter und Sortierung**, Export als **iCal, CSV, JSON und Markdown**, **Kalender-Abo** für Outlook & Co.
+- **Im Portal teilen** in drei Stufen: Buchungen einsehen · zusätzlich einladen · zusätzlich Zeitbereiche, Termine und Einstellungen bearbeiten.
 
 ### Kurzlinks und QR-Codes (abschaltbares Modul)
 
@@ -63,11 +65,20 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - **Benachrichtigung** bei neuen Antworten, wahlweise mit CSV- und/oder JSON-Anhang – nur die neue Antwort oder jeweils alle.
 - **Im Portal teilen** mit Personen oder Gruppen in drei Stufen: Ergebnisse einsehen · zusätzlich einladen · zusätzlich bearbeiten und löschen.
 
+### Rechtstexte – Ortsrecht online (abschaltbares Modul)
+
+- Gesetze, **Satzungen** und Verordnungen als **Markdown** einfügen oder hochladen (auch viele Dateien auf einmal); aus Word oder Webseiten kopierter Text wird ebenfalls gegliedert.
+- **Rechtsbaum** mit frei bearbeitbaren Ebenen: Europäische Union › Bund › Land › Landkreis › Verbandsgemeinde › Ortsgemeinden (beliebig verschachtelt, sortierbar).
+- Öffentliche Ansicht unter `/recht` in **gesetzestypischer Formatierung** (zentrierte §-Überschriften, nummerierte Absätze): wahlweise **Volltext** oder **Paragraf für Paragraf**, mit **Baum-Inhaltsverzeichnis**, Permalinks je §, Druckansicht und Markdown-Download.
+- **Volltextsuche** über alle Texte, einzelne Ebenen oder einen Text, mit Fundstellen und Hervorhebung; § direkt suchbar („§ 3 Hauptsatzung“).
+- Entwürfe, Stand/Fassung, Ausfertigungs- und Inkrafttretensdaten, **frühere Fassungen** mit Wiederherstellen. Pflege mit eigenem Recht „Rechtstexte“.
+
 ### Verwaltung und Sicherheit
 
-- **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
+- **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Terminumfragen, Terminbuchung, Rechtstexte, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
 - **Zwei-Faktor-Anmeldung** per **Authenticator-App (TOTP)** oder **Code per E-Mail**, mit Notfallcodes; freiwillig oder Pflicht für Admins/alle. „Passwort vergessen“ per Mail-Link.
-- **Module** Kurzlinks, Formulare, Terminumfragen und Terminbuchung komplett abschaltbar.
+- **Module** Kurzlinks, Formulare, Terminumfragen, Terminbuchung und Rechtstexte komplett abschaltbar.
+- **Sitzungen & Cookies:** technische Übersicht, wer angemeldet ist (Gerät, IP, letzte Aktivität), Inhalt und Eigenschaften der Session-Cookies; Sitzungen einzeln, je Person oder alle anderen beenden. Jede:r sieht unter Profil › Sicherheit die eigenen angemeldeten Geräte; ein neues Passwort meldet alle anderen Geräte ab.
 - **E-Mail** über SMTP mit Warteschlange, Wiederholungen und Protokoll; optional Ablage in „Gesendet“ per IMAP. **Alle Mails als Vorlagen bearbeitbar**, mit Platzhaltern und Live-Vorschau.
 - **HTTPS** mit Caddy: Start mit selbst signiertem Zertifikat, **Let's Encrypt** per Klick in der Oberfläche.
 - **Design & Branding:** Name, Farben, Logo (auch große Dateien – der Server verkleinert), Favicon (sonst automatisch aus dem Logo), Fußzeile, Impressum/Datenschutz; auf Wunsch auch in der Konferenzoberfläche und damit in den Aufnahmen.

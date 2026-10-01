@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Ebenen der Rechtstexte{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/laws.css">{% endblock %}
+
+{% macro kind_select(name, selected, id='') -%}
+<select class="form-select form-select-sm" name="{{ name }}" {% if id %}id="{{ id }}"{% endif %}>{% for k, (label, icon) in kinds.items() %}<option value="{{ k }}" {% if k == selected %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+{%- endmacro %}
+
+{% macro parent_select(level) -%}
+<select class="form-select form-select-sm" name="parent_id"><option value="">– oberste Ebene –</option>
+  {% for lv, depth in options %}{% if lv.id != level.id and (lv.id not in level_ids(level)) %}<option value="{{ lv.id }}" {% if level.parent_id == lv.id %}selected{% endif %}>{{ '  ' * depth }}{{ lv.name }}</option>{% endif %}{% endfor %}
+</select>
+{%- endmacro %}
+
+{% macro node(level, first, last) -%}
+<li id="ebene-{{ level.id }}">
+  <div class="lex-level flex-wrap">
+    <span class="lex-kind-icon"><i class="fa-solid {{ kinds.get(level.kind, kinds.sonstige)[1] }}"></i></span>
+    <span>{{ level.name }}</span>
+    <span class="badge text-bg-light border fw-normal">{{ kinds.get(level.kind, kinds.sonstige)[0] }}</span>
+    <a class="badge rounded-pill text-bg-secondary text-decoration-none" href="/laws?level={{ level.id }}" title="Rechtstexte dieser Ebene">{{ counts.get(level.id, 0) }}</a>
+    <span class="ms-auto d-flex gap-1">
+      <form method="post" action="/laws/levels/{{ level.id }}/move"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="direction" value="up">
+        <button class="btn btn-sm btn-outline-secondary" type="submit" title="nach oben" {% if first %}disabled{% endif %}><i class="fa-solid fa-arrow-up"></i></button></form>
+      <form method="post" action="/laws/levels/{{ level.id }}/move"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="direction" value="down">
+        <button class="btn btn-sm btn-outline-secondary" type="submit" title="nach unten" {% if last %}disabled{% endif %}><i class="fa-solid fa-arrow-down"></i></button></form>
+      <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-{{ level.id }}" title="Bearbeiten"><i class="fa-solid fa-pen"></i></button>
+      <button class="btn btn-sm btn-outline-success" type="button" data-bs-toggle="collapse" data-bs-target="#add-{{ level.id }}" title="Unterebene anlegen"><i class="fa-solid fa-plus"></i></button>
+      <a class="btn btn-sm btn-outline-secondary" href="/laws/new?level={{ level.id }}" title="Rechtstext in dieser Ebene anlegen"><i class="fa-solid fa-file-circle-plus"></i></a>
+      <form method="post" action="/laws/levels/{{ level.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn btn-sm btn-outline-danger" type="submit" title="Löschen" data-confirm="Ebene „{{ level.name }}“{% if level.children %} mit allen Unterebenen{% endif %} löschen? Das geht nur, wenn darin keine Rechtstexte liegen." data-confirm-button="Löschen"><i class="fa-solid fa-trash"></i></button></form>
+    </span>
+  </div>
+  <form class="collapse card card-body my-2 ms-4" id="edit-{{ level.id }}" method="post" action="/laws/levels/{{ level.id }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="row g-2">
+      <div class="col-md-5"><label class="form-label small">Name</label><input class="form-control form-control-sm" name="name" value="{{ level.name }}" required maxlength="200"></div>
+      <div class="col-md-3"><label class="form-label small">Art</label>{{ kind_select('kind', level.kind) }}</div>
+      <div class="col-md-4"><label class="form-label small">Liegt unter</label>{{ parent_select(level) }}</div>
+      <div class="col-12"><label class="form-label small">Beschreibung (öffentlich, optional)</label><textarea class="form-control form-control-sm" name="description" rows="2">{{ level.description }}</textarea></div>
+      <div class="col-12"><button class="btn btn-sm btn-primary" type="submit">Speichern</button></div>
+    </div>
+  </form>
+  <form class="collapse card card-body my-2 ms-4" id="add-{{ level.id }}" method="post" action="/laws/levels">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="parent_id" value="{{ level.id }}">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-6"><label class="form-label small">Neue Unterebene von „{{ level.name }}“</label><input class="form-control form-control-sm" name="name" required maxlength="200" placeholder="z. B. Ortsgemeinde Musterdorf"></div>
+      <div class="col-md-4"><label class="form-label small">Art</label>{{ kind_select('kind', {'eu': 'bund', 'bund': 'land', 'land': 'landkreis', 'landkreis': 'vg', 'vg': 'og'}.get(level.kind, 'sonstige')) }}</div>
+      <div class="col-md-2"><button class="btn btn-sm btn-success w-100" type="submit">Anlegen</button></div>
+    </div>
+  </form>
+  {% if level.children %}
+  <ul>{% for c in level.children %}{{ node(c, loop.first, loop.last) }}{% endfor %}</ul>
+  {% endif %}
+</li>
+{%- endmacro %}
+
+{% block content %}
+{% call m.page_head('Ebenen', 'Der Rechtsbaum ordnet die Texte nach Gebietskörperschaften – von der EU über Bund, Land und Landkreis bis zur Verbandsgemeinde und den Ortsgemeinden. Ebenen lassen sich beliebig anlegen, umbenennen, verschachteln und sortieren.') %}
+<a class="btn btn-outline-secondary" href="/laws"><i class="fa-solid fa-arrow-left me-1"></i>Rechtstexte</a>
+{% endcall %}
+<div class="card mb-4"><div class="card-body">
+  <ul class="lex-tree">{% for root in roots %}{{ node(root, loop.first, loop.last) }}{% else %}<li class="text-secondary">Noch keine Ebenen.</li>{% endfor %}</ul>
+</div></div>
+<form method="post" action="/laws/levels" class="card" style="max-width: 46rem">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="parent_id" value="">
+  <div class="card-header"><i class="fa-solid fa-plus me-2"></i>Neue oberste Ebene</div>
+  <div class="card-body row g-2 align-items-end">
+    <div class="col-md-6"><label class="form-label small" for="new-name">Name</label><input class="form-control form-control-sm" id="new-name" name="name" required maxlength="200" placeholder="z. B. Zweckverbände"></div>
+    <div class="col-md-4"><label class="form-label small" for="new-kind">Art</label>{{ kind_select('kind', 'sonstige', 'new-kind') }}</div>
+    <div class="col-md-2"><button class="btn btn-sm btn-success w-100" type="submit">Anlegen</button></div>
+  </div>
+</form>
+{% endblock %}

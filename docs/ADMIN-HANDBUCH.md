@@ -14,6 +14,8 @@ Für alle, die das Portal der Verbandsgemeinde Otterbach-Otterberg betreuen: Vid
 8. [Formulare](#formulare)
 8a. [Terminumfragen](#terminumfragen)
 8b. [Terminbuchung](#terminbuchung)
+8c. [Rechtstexte (Ortsrecht online)](#rechtstexte-ortsrecht-online)
+8d. [Sitzungen & Cookies](#sitzungen--cookies)
 9. [E-Mail-Vorlagen](#e-mail-vorlagen)
 10. [HTTPS und Zertifikat](#https-und-zertifikat)
 11. [Design & Branding](#design--branding)
@@ -68,8 +70,11 @@ Jede Person bekommt einzeln die Bereiche freigeschaltet, die sie braucht:
 | **Formulare** | Formulare erstellen, verteilen, auswerten (geteilte Formulare und „Zum Ausfüllen“ sehen alle, auch ohne dieses Recht) |
 | **Terminbuchung** | Buchungsseiten anlegen, in denen andere selbst freie Zeitfenster buchen (z. B. Vorstellungsgespräche). Online-Termine mit eigener Videokonferenz brauchen zusätzlich „Videokonferenzen“ |
 | **Terminumfragen** | Terminumfragen wie Doodle anlegen, verteilen und auswerten. Aus dem festgelegten Termin eine Besprechung anlegen geht nur mit zusätzlichem Recht „Videokonferenzen“ |
+| **Rechtstexte** | Gesetze, Satzungen und Verordnungen einstellen, ändern, veröffentlichen und den Rechtsbaum (Ebenen) pflegen. Lesen kann jede:r ohne Anmeldung unter `/recht` |
 | **Benutzerverwaltung** | Benutzer und Gruppen anlegen, bearbeiten, sperren, löschen – aber keine Admin-Konten ändern und niemanden zum Admin machen |
 | **Administrator:in** | Alles, auch Systemeinstellungen (Mail, HTTPS, Design, SpeechMind, Module, Zwei-Faktor) und alle Aufnahmen, Kurzlinks und Formulare |
+
+**Geteilte Inhalte:** Formulare, Terminumfragen und Buchungsseiten können ihre Besitzer:innen im Portal mit Personen oder Gruppen teilen – in drei Stufen (1 Ergebnisse einsehen, 2 zusätzlich einladen, 3 zusätzlich bearbeiten und löschen). Wer etwas geteilt bekommt, sieht es unter „Mit mir geteilt“ auch **ohne** das jeweilige Recht; Neues anlegen kann nur, wer das Recht hat. Freigaben verwalten nur Besitzer:in und Admins.
 
 Ohne Recht „Videokonferenzen“ kommt eine angemeldete Person in Portal-Räume nur wie ein Gast (per Link) und kann nicht aufnehmen. Ist ein Modul abgeschaltet (siehe [Module](#module-ein--und-ausschalten)), verschwindet das Recht aus der Auswahl.
 
@@ -156,7 +161,7 @@ Weitere Schutzmechanismen, die immer aktiv sind: Passwörter als Argon2-Hash, Br
 
 ## Module ein- und ausschalten
 
-Menü **Module** (nur Admins). **Kurzlinks & QR-Codes**, **Formulare**, **Terminumfragen** und **Terminbuchung** lassen sich komplett abschalten. Videokonferenzen sind die Kernfunktion und immer aktiv.
+Menü **Module** (nur Admins). **Kurzlinks & QR-Codes**, **Formulare**, **Terminumfragen**, **Terminbuchung** und **Rechtstexte** lassen sich komplett abschalten. Videokonferenzen sind die Kernfunktion und immer aktiv.
 
 Ein abgeschaltetes Modul
 
@@ -333,7 +338,8 @@ Menü **Terminumfragen** (Recht „Terminumfragen“). Ein Doodle-Pendant auf de
 - Termin festlegen: Mail mit Kalenderdatei an alle oder **direkt eine Besprechung anlegen** (Raum, Outlook-Einladungen, persönliche Einwahllinks – wie unter „Besprechung planen“).
 - Export als CSV; Kopie anlegen.
 - Mail-Vorlagen in der Gruppe „Terminumfragen“: Einladung, Erinnerung, neue Antwort (an die planende Person), Termin steht fest.
-- Jede Person sieht ihre eigenen Umfragen, Admins über „Alle anzeigen“ alle. Gehört eine Umfrage einer gelöschten Person, sehen sie nur noch Admins.
+- **Teilen im Portal** (Abschnitt „Im Portal freigeben“ unten auf der Umfrage, nur Besitzer:in/Admins): 1 Ergebnisse einsehen (Raster, Teilnehmende, Export) · 2 zusätzlich einladen, erinnern, Link verwalten · 3 zusätzlich Vorschläge/Einstellungen ändern, Termin festlegen, Teilnehmende entfernen, löschen.
+- Jede Person sieht ihre eigenen und die mit ihr geteilten Umfragen, Admins über „Alle anzeigen“ alle. Gehört eine Umfrage einer gelöschten Person, sehen sie nur noch Admins.
 
 ## Terminbuchung
 
@@ -346,7 +352,48 @@ Menü **Terminbuchung** (Recht „Terminbuchung“). Vergleichbar mit Microsoft 
 - **Erinnerungen** verschickt der Hintergrunddienst automatisch (Prüfung alle 5 Minuten).
 - **Terminliste** mit Filter (Status, Zeitraum, Suche) und Sortierung; Export der gefilterten Liste als **iCal, CSV, JSON und Markdown**; **Kalender-Abo** über einen geheimen Link (`/b/feed/<schlüssel>.ics`, aktualisiert sich selbst, enthält personenbezogene Daten – nur an die zuständige Person).
 - Mail-Vorlagen in der Gruppe „Terminbuchung“: Bestätigung, Verschiebung, Absage, Erinnerung, Hinweis an die anbietende Person, Einladung und Erinnerung zur Buchung.
+- **Teilen im Portal** (z. B. mit der Personalstelle oder dem Auswahlgremium): 1 Buchungen einsehen (Kalender nur lesend, Terminliste, Exporte) · 2 zusätzlich Personen einladen, Buchungslink verwalten · 3 zusätzlich Zeitbereiche, Einstellungen, Kalender-Abo, Termine verschieben/absagen, Seite löschen. Bestätigungen und Hinweise laufen weiter über die anbietende Person.
 - Datenschutz: Gespeichert werden Name, E-Mail, optional Telefon und Nachricht. Löschen Sie Buchungsseiten nach Abschluss (z. B. des Auswahlverfahrens); damit werden alle Buchungen gelöscht.
+
+## Rechtstexte (Ortsrecht online)
+
+Menü **Rechtstexte › Rechtstexte pflegen** (Recht „Rechtstexte“). Die öffentliche Ansicht liegt unter **`/recht`** (z. B. `https://portal.example.de/recht`) und ist ohne Anmeldung erreichbar; im Kopf der Portalseiten erscheint dafür der Link „Rechtstexte“. Verlinken Sie diese Adresse auf Ihrer Homepage.
+
+**Ebenen (Rechtsbaum).** Unter **Ebenen** pflegen Sie die Gliederung nach Gebietskörperschaften. Voreingestellt ist: Europäische Union › Bundesrepublik Deutschland › Rheinland-Pfalz › Landkreis Kaiserslautern › Verbandsgemeinde Otterbach-Otterberg › die elf Ortsgemeinden bzw. die Stadt Otterberg. Andere Verwaltungen benennen die Ebenen einfach um. Jede Ebene hat eine Art (EU, Bund, Land, Landkreis, Verbandsgemeinde, Ortsgemeinde/Stadt, Sonstige – bestimmt das Symbol), kann unter jede andere verschoben, nach oben/unten sortiert und gelöscht werden (nur wenn darin keine Texte mehr liegen). Öffentlich erscheinen nur Ebenen, in denen veröffentlichte Texte liegen.
+
+**Texte anlegen.** **Neuer Rechtstext**: Titel, Abkürzung, Art (Gesetz, Rechtsverordnung, Satzung, Richtlinie, Geschäftsordnung, Vertrag, Bekanntmachung, Sonstiges), Ebene, Stand/Fassung, Ausfertigung, Inkrafttreten, außer Kraft ab, Adresse (`/recht/<adresse>`, sonst automatisch). Den Text fügen Sie als Markdown ein oder laden eine `.md`/`.txt`-Datei (UTF-8 oder Windows-Kodierung, bis 2 MB). **Gliederung prüfen** zeigt vor dem Speichern, welche Teile, Abschnitte und Paragrafen erkannt wurden. **Dateien hochladen** übernimmt viele Dateien auf einmal in eine Ebene (z. B. die komplette Satzungssammlung einer Ortsgemeinde) – Titel aus der ersten Überschrift oder dem Dateinamen, auf Wunsch zunächst als Entwurf.
+
+**So wird gegliedert:**
+
+| Im Text | Ergebnis |
+|---|---|
+| `# Titel` (erste Zeile) | Titel des Rechtstexts |
+| Text vor der ersten Gliederung | Eingangsformel / Präambel (kursiv) |
+| `## Erster Teil – Allgemeines`, `### Abschnitt 2` … | Gliederungsebenen, beliebig tief |
+| `### § 3 Ortsbezirke`, `### Artikel 5 Inkrafttreten` | Norm (Paragraf/Artikel) mit Überschrift |
+| `(1) …`, `(2) …` am Zeilenanfang | nummerierte Absätze mit hängendem Einzug |
+| Listen, Tabellen, **fett**, Links | wie in Markdown üblich (HTML wird nicht übernommen) |
+
+Ohne `#`-Überschriften (aus Word, PDF oder einer Webseite kopiert) erkennt das Portal allein stehende Zeilen wie „§ 3 Ortsbezirke“, „§ 3“ mit der Überschrift in der nächsten Zeile, „Artikel 2“ oder „Zweiter Abschnitt“ selbst. Sätze wie „§ 5 gilt entsprechend.“ bleiben Text.
+
+**Veröffentlichen.** Nur Texte mit Schalter **Öffentlich sichtbar** erscheinen unter `/recht` und in der Suche; Entwürfe sehen ausschließlich Personen mit dem Recht „Rechtstexte“ (mit Hinweis „nicht veröffentlicht“). In der Liste schaltet ein Klick auf „öffentlich/Entwurf“ um.
+
+**Fassungen.** Jede inhaltliche Änderung sichert den bisherigen Text (bis zu 50 Fassungen je Text) mit Datum und Bearbeiter:in. Unter **Frühere Fassungen** lassen sie sich ansehen und wiederherstellen; der aktuelle Stand wird dabei selbst gesichert. Tragen Sie bei Änderungssatzungen den neuen Stand unter „Stand / Fassung“ ein.
+
+**Öffentliche Ansicht.** Volltext oder einzelne Abschnitte (Blättern mit Vor/Zurück), Baum-Inhaltsverzeichnis mit Filter, Permalinks je Paragraf (z. B. `/recht/hauptsatzung/p3`), Druckansicht ohne Menüs, Markdown-Download. Die Suche findet Wörter in Titeln, Überschriften und Text (alle Wörter müssen vorkommen), eingeschränkt auf eine Ebene oder einen Text; Fundstellen werden markiert.
+
+**Rechtsverbindlichkeit.** Die Onlinefassung ist ein Service; maßgeblich bleibt die öffentliche Bekanntmachung nach Ihrer Hauptsatzung. Ein entsprechender Hinweis gehört z. B. in die Beschreibung der obersten Ebene oder in die Eingangsformel.
+
+## Sitzungen & Cookies
+
+Menü **Verwaltung › Sitzungen & Cookies** (nur Admins). Technische Übersicht über alle Anmeldungen:
+
+- **Angemeldete Benutzer** mit Anzahl Sitzungen und letzter Aktivität; grüner Punkt = in den letzten 5 Minuten aktiv. **Alle abmelden** beendet alle Sitzungen einer Person sofort (z. B. bei verlorenem Laptop oder Ausscheiden).
+- **Sitzungen** einzeln: Gerät/Browser, Anmeldezeit, letzte Aktivität, IP-Adresse, zuletzt aufgerufene Seite, Anmeldeart (Passwort oder Passwort + 2FA). **Beenden** wirkt beim nächsten Klick der Person.
+- **Alle anderen abmelden** (oben rechts) beendet alle Sitzungen außer der eigenen – etwa nach einem Sicherheitsvorfall.
+- **Session-Cookie:** Name `jsm_session`, 12 Stunden ab letzter Aktivität, HttpOnly, SameSite=Lax, Secure (sobald `PORTAL_BASE_URL` mit https beginnt), signiert mit `PORTAL_SECRET_KEY`. Der Inhalt des eigenen Cookies wird lesbar angezeigt (Geheimnisse gekürzt), ebenso alle Cookies, die Ihr Browser an den Server schickt, mit ihrem Zweck.
+
+Technisch trägt das Cookie eine zufällige Sitzungskennung; in der Datenbank liegt nur deren Hash. Fehlt der Eintrag (beendet, abgelaufen), gilt das Cookie nicht mehr. Nach einem Passwortwechsel oder „Passwort vergessen“ werden alle anderen Sitzungen der Person automatisch beendet. Jede Person sieht und beendet ihre eigenen Anmeldungen unter **Profil › Sicherheit › Angemeldete Geräte**. Abgelaufene Einträge räumt das Portal selbst auf.
 
 ## E-Mail-Vorlagen
 
