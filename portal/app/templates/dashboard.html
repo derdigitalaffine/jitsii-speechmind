@@ -57,7 +57,7 @@
 {% if recent %}
 <div class="card">
   <div class="card-header"><i class="fa-solid fa-file-audio me-2"></i>Letzte Aufnahmen</div>
-  <div class="card-body">{{ m.rec_table(recent, csrf) }}</div>
+  <div class="card-body">{{ m.rec_table(recent, csrf, table_id='recs-recent') }}</div>
 </div>
 {% endif %}
 </div>

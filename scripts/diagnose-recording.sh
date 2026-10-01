@@ -18,6 +18,9 @@ echo "${FLAGS:-  (jibri.conf nicht lesbar)}"
 if [ -n "$FLAGS" ] && ! printf '%s' "$FLAGS" | grep -q "autoplay-policy=no-user-gesture-required"; then
   NO_AUTOPLAY=1
 fi
+if [ -n "$FLAGS" ] && ! printf '%s' "$FLAGS" | grep -q -- "--kiosk"; then
+  NO_KIOSK=1
+fi
 
 hr "2. Neueste Aufnahme (Dateien)"
 LAST=$(dc exec -T portal sh -c 'ls -1dt /recordings/*/ 2>/dev/null | head -1' | tr -d '\r')
@@ -47,11 +50,15 @@ hr "5. Aufnahme-Protokoll von Jibri (ffmpeg), letzte Zeilen"
 dc exec -T jibri sh -c 'f=$(ls -1t /var/log/jitsi/jibri/ffmpeg*.txt 2>/dev/null | head -1); if [ -n "$f" ]; then echo "$f"; grep -E "Input #|Stream #|Audio|pulse|Error|error|refused|Connection" "$f" | tail -15; else echo "(kein ffmpeg-Protokoll gefunden)"; fi' 2>&1
 
 hr "AUSWERTUNG"
+if [ -n "${NO_KIOSK:-}" ]; then
+  echo "HINWEIS: Chrome läuft ohne --kiosk: Im Video ist dann der Fensterrahmen (IceWM) zu sehen."
+  echo
+fi
 if [ -n "${NO_AUTOPLAY:-}" ]; then
   cat <<'MSG'
 URSACHE GEFUNDEN: Chrome in Jibri läuft OHNE "--autoplay-policy=no-user-gesture-required".
 Dann spielt Chrome den Ton der Konferenz nicht ab, und Jibri nimmt Stille auf.
-Grund ist meist die Variable CHROMIUM_FLAGS (ersetzt alle Standard-Flags).
+Grund ist meist die Variable CHROMIUM_FLAGS (ersetzt alle Standard-Flags, auch --kiosk).
 -> Aktuelle docker-compose.yml holen (git pull), CHROMIUM_FLAGS aus .env entfernen und
    docker compose up -d --force-recreate jibri
 MSG

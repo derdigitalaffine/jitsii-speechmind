@@ -3,11 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf" content="{{ csrf }}">
   <title>{% block title %}{{ product }}{% endblock %} · {{ brand }}</title>
   <script>
     (function () {
       var t = '{{ ui.theme }}';
-      try { t = localStorage.getItem('theme') || t; } catch (e) {}
+      // Ist im Design ein festes Farbschema eingestellt, gilt es für alle; sonst die eigene Wahl
+      if (t === 'auto') { try { t = localStorage.getItem('theme') || t; } catch (e) {} }
       if (t === 'auto') { t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
       document.documentElement.setAttribute('data-bs-theme', t);
     })();
@@ -40,6 +42,7 @@
       </a>
     </div>
     <div class="d-flex align-items-center gap-1">
+      {% if ui.theme == 'auto' %}
       <div class="dropdown">
         <button class="btn btn-link" data-bs-toggle="dropdown" aria-label="Farbschema" title="Farbschema"><i class="fa-solid fa-circle-half-stroke"></i></button>
         <ul class="dropdown-menu dropdown-menu-end">
@@ -48,6 +51,7 @@
           <li><button class="dropdown-item" data-theme-set="auto"><i class="fa-solid fa-desktop fa-fw me-2"></i>Automatisch</button></li>
         </ul>
       </div>
+      {% endif %}
       {% if user %}
       <div class="dropdown">
         <button class="btn btn-link d-flex align-items-center gap-2" data-bs-toggle="dropdown">

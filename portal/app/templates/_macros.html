@@ -48,14 +48,14 @@
 {%- endmacro %}
 
 {% macro status_badge(rec) -%}
-{%- set colors = {'new': 'info', 'recorded': 'primary', 'queued': 'info', 'converting': 'info', 'uploading': 'info', 'processing': 'warning', 'done': 'success', 'failed': 'danger'} -%}
-{%- set icons = {'new': 'fa-gear fa-spin', 'recorded': 'fa-file-audio', 'queued': 'fa-hourglass-half', 'converting': 'fa-gear fa-spin', 'uploading': 'fa-cloud-arrow-up', 'processing': 'fa-wand-magic-sparkles', 'done': 'fa-circle-check', 'failed': 'fa-triangle-exclamation'} -%}
-<span class="badge text-bg-{{ colors.get(rec.status, 'secondary') }}"><i class="fa-solid {{ icons.get(rec.status, 'fa-circle') }} me-1"></i>{{ status_labels.get(rec.status, rec.status) }}</span>{% if rec.audio_silent %} <span class="badge text-bg-warning" title="Die Aufnahme enthält keinen hörbaren Ton"><i class="fa-solid fa-volume-xmark me-1"></i>kein Ton</span>{% endif %}
+{%- set colors = {'new': 'info', 'recorded': 'primary', 'queued': 'info', 'converting': 'info', 'uploading': 'info', 'processing': 'warning', 'done': 'success', 'failed': 'danger', 'remote': 'secondary'} -%}
+{%- set icons = {'new': 'fa-gear fa-spin', 'recorded': 'fa-file-audio', 'queued': 'fa-hourglass-half', 'converting': 'fa-gear fa-spin', 'uploading': 'fa-cloud-arrow-up', 'processing': 'fa-wand-magic-sparkles', 'done': 'fa-circle-check', 'failed': 'fa-triangle-exclamation', 'remote': 'fa-cloud'} -%}
+<span class="badge text-bg-{{ colors.get(rec.status, 'secondary') }}"><i class="fa-solid {{ icons.get(rec.status, 'fa-circle') }} me-1"></i>{{ status_labels.get(rec.status, rec.status) }}</span>{% if rec.audio_silent and not rec.media_deleted_at %} <span class="badge text-bg-warning" title="Die Aufnahme enthält keinen hörbaren Ton"><i class="fa-solid fa-volume-xmark me-1"></i>kein Ton</span>{% endif %}{% if rec.media_deleted_at %} <span class="badge text-bg-light border" title="Video und MP3 wurden am {{ rec.media_deleted_at | local }} gelöscht"><i class="fa-solid fa-file-circle-minus me-1"></i>Medien gelöscht</span>{% endif %}
 {%- endmacro %}
 
 {# Fortschrittsanzeige der Verarbeitungsschritte #}
 {% macro track(rec) -%}
-{%- set order = {'new': 0, 'recorded': 0, 'queued': 1, 'converting': 1, 'uploading': 2, 'processing': 3, 'done': 4} -%}
+{%- set order = {'new': 0, 'recorded': 0, 'queued': 1, 'converting': 1, 'uploading': 2, 'processing': 3, 'done': 4, 'remote': 3} -%}
 {%- if rec.status == 'failed' -%}
   {%- set pos = 3 if rec.sm_protocol_slug else (1 if rec.audio_path else 0) -%}
 {%- else -%}
@@ -67,18 +67,33 @@
   {%- if rec.status == 'failed' and i == pos -%}{%- set cls = 'broken' -%}
   {%- elif i < pos or (rec.status == 'done' and i == pos) -%}{%- set cls = 'passed' -%}
   {%- elif i == pos and rec.status in active_statuses -%}{%- set cls = 'current' -%}
-  {%- elif i == pos and rec.status == 'recorded' -%}{%- set cls = 'passed' -%}
+  {%- elif i == pos and rec.status in ('recorded', 'remote') -%}{%- set cls = 'passed' -%}
   {%- else -%}{%- set cls = '' -%}{%- endif %}
   <li class="{{ cls }}">{{ label }}</li>
   {%- endfor %}
 </ol>
 {%- endmacro %}
 
-{# Tabelle der Aufnahmen: Suche, Sortierung, Seiten und Responsive-Modus über DataTables #}
-{% macro rec_table(recordings, csrf, show_room=true) -%}
-<table class="table table-hover align-middle js-table w-100" data-order='[[0,"desc"]]'>
+{# Löschen-Knopf: öffnet einen Dialog mit den passenden Optionen (siehe app.js) #}
+{% macro delete_button(rec, label='', size='btn-sm') -%}
+<button type="button" class="btn {{ size }} btn-outline-danger" data-delete-url="/recordings/{{ rec.id }}/delete"
+        data-has-transcript="{{ '1' if rec.transcript_json else '0' }}" data-has-link="{{ '1' if rec.sm_protocol_slug else '0' }}"
+        data-has-media="{{ '1' if (rec.video_path or rec.audio_path) else '0' }}"
+        data-title="Aufnahme vom {{ rec.created_at | local }} Uhr" {% if rec.status in active_statuses %}disabled{% endif %}
+        {% if not label %}data-bs-toggle="tooltip" title="Löschen" aria-label="Löschen"{% endif %}><i class="fa-regular fa-trash-can{{ ' me-1' if label }}"></i>{{ label }}</button>
+{%- endmacro %}
+
+{# Tabelle der Aufnahmen: Suche, Sortierung, Seiten, Mehrfachauswahl über DataTables #}
+{% macro rec_table(recordings, csrf, show_room=true, table_id='recs') -%}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <button type="button" class="btn btn-sm btn-outline-danger" data-bulk-delete="#{{ table_id }}" disabled>
+    <i class="fa-regular fa-trash-can me-1"></i>Ausgewählte löschen (<span data-bulk-count>0</span>)</button>
+  <span class="text-secondary small">Mehrere Aufnahmen über die Kästchen links auswählen.</span>
+</div>
+<table id="{{ table_id }}" class="table table-hover align-middle js-table w-100" data-order='[[1,"desc"]]'>
   <thead>
     <tr>
+      <th class="no-sort" style="width:1%"><input class="form-check-input" type="checkbox" data-select-all aria-label="Alle auswählen"></th>
       <th>Aufnahme</th>
       {% if show_room %}<th>Meeting / Raum</th>{% endif %}
       <th>Dauer</th>
@@ -89,6 +104,7 @@
   <tbody>
   {% for rec in recordings %}
   <tr>
+    <td><input class="form-check-input" type="checkbox" data-select value="{{ rec.id }}" aria-label="Auswählen" {% if rec.status in active_statuses %}disabled{% endif %}></td>
     <td data-order="{{ rec.created_at.isoformat() }}">
       <a class="fw-semibold text-decoration-none" href="/recordings/{{ rec.id }}">{{ rec.created_at | local }} Uhr</a>
     </td>
@@ -100,18 +116,24 @@
         {% if rec.audio_size %}
         <a class="btn btn-sm btn-outline-secondary" href="/recordings/{{ rec.id }}/audio.mp3" download data-bs-toggle="tooltip" title="MP3 herunterladen ({{ rec.audio_size | filesize }})" aria-label="MP3 herunterladen"><i class="fa-solid fa-download"></i></a>
         {% endif %}
-        {% if rec.status in ('recorded', 'failed') %}
+        {% if rec.status in ('recorded', 'failed') and (rec.audio_size or rec.video_path) %}
         <form method="post" action="/recordings/{{ rec.id }}/transcribe" class="d-inline">
           <input type="hidden" name="csrf" value="{{ csrf }}">
           <button class="btn btn-sm {{ 'btn-outline-danger' if rec.status == 'failed' else 'btn-primary' }}" type="submit">
             <i class="fa-solid {{ 'fa-rotate-right' if rec.status == 'failed' else 'fa-wand-magic-sparkles' }} me-1"></i>{{ 'Erneut versuchen' if rec.status == 'failed' else 'In SpeechMind bearbeiten' }}
           </button>
         </form>
+        {% elif rec.status == 'remote' %}
+        <form method="post" action="/recordings/{{ rec.id }}/fetch" class="d-inline">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-sm btn-outline-primary" type="submit"><i class="fa-solid fa-cloud-arrow-down me-1"></i>Abrufen</button>
+        </form>
         {% elif rec.status == 'done' %}
         <a class="btn btn-sm btn-success" href="/recordings/{{ rec.id }}"><i class="fa-solid fa-file-lines me-1"></i>Transkript</a>
         {% else %}
         <a class="btn btn-sm btn-outline-secondary" href="/recordings/{{ rec.id }}">Details</a>
         {% endif %}
+        {{ delete_button(rec) }}
       </div>
     </td>
   </tr>

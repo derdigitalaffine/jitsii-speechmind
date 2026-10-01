@@ -6,7 +6,13 @@
 {$MEET_DOMAIN} {
 	tls internal
 	encode gzip
-	reverse_proxy web:80
+	# Design der Konferenzoberfläche (dynamicBrandingUrl) und Logo kommen vom Portal
+	handle /branding/* {
+		reverse_proxy portal:8000
+	}
+	handle {
+		reverse_proxy web:80
+	}
 }
 
 # Portal (Login, Benutzer, Aufnahmen, Benachrichtigungen, SpeechMind)

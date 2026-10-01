@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import quote, urlencode
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
@@ -22,7 +22,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import branding, notify, proxy, worker
 from .config import settings
 from .db import (
-    ACTIVE_STATUSES, STATUS_DONE, STATUS_FAILED, STATUS_QUEUED, STATUS_RECORDED, Meeting,
+    ACTIVE_STATUSES, STATUS_DONE, STATUS_FAILED, STATUS_PROCESSING, STATUS_QUEUED, STATUS_RECORDED,
+    STATUS_REMOTE, Meeting,
     Notification, Recording, SessionLocal, User, get_settings, init_db, set_setting, to_local, utcnow,
 )
 from .security import (
@@ -56,6 +57,7 @@ STATUS_LABELS = {
     "uploading": "Wird hochgeladen",
     "processing": "SpeechMind transkribiert",
     "done": "Transkript fertig",
+    "remote": "Bei SpeechMind abrufbar",
     "failed": "Fehlgeschlagen",
 }
 
@@ -483,7 +485,7 @@ def recording_detail(request: Request, rec_id: int, user: User = Depends(current
     transcript = json.loads(rec.transcript_json) if rec.transcript_json else []
     summary = json.loads(rec.summary_json) if rec.summary_json else {}
     has_video = bool(rec.video_path and Path(rec.video_path).exists())
-    return render(request, "recording.html", user, rec=rec, transcript=transcript,
+    return render(request, "recording.html", user, rec=rec, transcript=transcript, delete_modes=DELETE_MODES,
                   summary=summary, has_video=has_video, has_audio=rec.audio_size is not None,
                   participants=json.loads(rec.participants or "[]"))
 
@@ -566,24 +568,103 @@ def recording_transcript_txt(rec_id: int, user: User = Depends(current_user),
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
-@app.post("/recordings/{rec_id}/delete", dependencies=[Depends(check_csrf)])
-def recording_delete(request: Request, rec_id: int, user: User = Depends(current_user),
-                     db: Session = Depends(get_db)):
-    rec = own_recording(db, rec_id, user)
-    if rec.status in ACTIVE_STATUSES:
-        flash(request, "Die Aufnahme wird gerade verarbeitet und kann erst danach gelöscht werden.", "error")
-        return redirect(f"/recordings/{rec.id}")
+DELETE_MODES = {
+    "media": "Nur Video und MP3 löschen, Transkript behalten",
+    "keep_link": "Alles hier löschen, Protokoll bei SpeechMind später wieder abrufbar",
+    "all": "Alles löschen",
+}
+
+
+def _remove_media(rec: Recording) -> None:
     session_dir = Path(rec.session_dir)
     root = settings.recordings_dir.resolve()
     if session_dir.exists() and root in session_dir.resolve().parents:
         shutil.rmtree(session_dir, ignore_errors=True)
     if rec.audio_path:
         Path(rec.audio_path).unlink(missing_ok=True)
-    target = f"/meetings/{rec.meeting_id}" if rec.meeting_id else "/admin/recordings"
+    rec.video_path = rec.audio_path = None
+    rec.media_deleted_at = utcnow()
+
+
+def delete_recording(db: Session, rec: Recording, mode: str) -> str:
+    """Löscht je nach Modus Teile einer Aufnahme. Gibt 'removed', 'media', 'remote' oder 'busy' zurück.
+
+    Bleibt nichts Sinnvolles übrig (kein Transkript, kein SpeechMind-Verweis), wird der Eintrag ganz entfernt.
+    """
+    if rec.status in ACTIVE_STATUSES:
+        return "busy"
+    _remove_media(rec)
+    if mode == "media" and (rec.transcript_json or rec.sm_protocol_slug):
+        if rec.status != STATUS_DONE:
+            rec.error = None
+        return "media"
+    if mode == "keep_link" and rec.sm_protocol_slug:
+        rec.transcript_json = rec.summary_json = None
+        rec.status, rec.error = STATUS_REMOTE, None
+        return "remote"
     db.delete(rec)
+    return "removed"
+
+
+DELETE_MESSAGES = {
+    "removed": "Aufnahme vollständig gelöscht (ein Protokoll in SpeechMind bleibt dort bestehen).",
+    "media": "Video und MP3 gelöscht, das Transkript bleibt erhalten.",
+    "remote": "Aufnahme hier gelöscht. Das Protokoll kann jederzeit wieder von SpeechMind abgerufen werden.",
+    "busy": "Die Aufnahme wird gerade verarbeitet und kann erst danach gelöscht werden.",
+}
+
+
+@app.post("/recordings/{rec_id}/delete", dependencies=[Depends(check_csrf)])
+def recording_delete(request: Request, rec_id: int, mode: str = Form("all"),
+                     user: User = Depends(current_user), db: Session = Depends(get_db)):
+    rec = own_recording(db, rec_id, user)
+    back = f"/meetings/{rec.meeting_id}" if rec.meeting_id else "/admin/recordings"
+    result = delete_recording(db, rec, mode if mode in DELETE_MODES else "all")
     db.commit()
-    flash(request, "Aufnahme und Transkript gelöscht (bei SpeechMind bleibt das Protokoll bestehen).")
-    return redirect(target)
+    flash(request, DELETE_MESSAGES[result], "error" if result == "busy" else "ok")
+    return redirect(f"/recordings/{rec_id}" if result in ("media", "remote", "busy") else back)
+
+
+@app.post("/recordings/bulk-delete", dependencies=[Depends(check_csrf)])
+async def recordings_bulk_delete(request: Request, user: User = Depends(current_user),
+                                 db: Session = Depends(get_db)):
+    form = await request.form()
+    mode = form.get("mode") if form.get("mode") in DELETE_MODES else "all"
+    ids = {int(i) for i in form.getlist("ids") if str(i).isdigit()}
+    counts: dict[str, int] = {}
+    for rec_id in ids:
+        try:
+            rec = own_recording(db, rec_id, user)
+        except HTTPException:
+            continue
+        result = delete_recording(db, rec, mode)
+        counts[result] = counts.get(result, 0) + 1
+    db.commit()
+    if not ids:
+        flash(request, "Keine Aufnahmen ausgewählt.", "error")
+    else:
+        parts = {"removed": "vollständig gelöscht", "media": "Medien gelöscht, Transkript behalten",
+                 "remote": "hier gelöscht, bei SpeechMind abrufbar", "busy": "übersprungen (in Verarbeitung)"}
+        flash(request, "; ".join(f"{n} {parts[k]}" for k, n in counts.items()) + ".",
+              "error" if counts.get("busy") and len(counts) == 1 else "ok")
+    return redirect(safe_next(form.get("next")) if form.get("next") else "/admin/recordings")
+
+
+@app.post("/recordings/{rec_id}/fetch", dependencies=[Depends(check_csrf)])
+def recording_fetch(request: Request, rec_id: int, user: User = Depends(current_user),
+                    db: Session = Depends(get_db)):
+    """Protokoll und Wortlaut erneut bei SpeechMind abholen."""
+    rec = own_recording(db, rec_id, user)
+    if not rec.sm_protocol_slug:
+        flash(request, "Für diese Aufnahme gibt es kein Protokoll bei SpeechMind.", "error")
+    elif rec.status in ACTIVE_STATUSES:
+        flash(request, "Die Aufnahme wird gerade verarbeitet.")
+    else:
+        rec.status, rec.error, rec.sm_submitted_at = STATUS_PROCESSING, None, utcnow()
+        db.commit()
+        worker.wake()
+        flash(request, "Das Protokoll wird bei SpeechMind abgerufen. Das dauert meist nur wenige Sekunden.")
+    return redirect(f"/recordings/{rec.id}")
 
 
 # --- Profil -------------------------------------------------------------------
@@ -964,6 +1045,8 @@ DESIGN_TEXT_FIELDS = ("ui_brand_name", "ui_product", "ui_login_text", "ui_footer
 
 @app.get("/branding/{kind}")
 def branding_file(kind: str):
+    if kind == "jitsi.json":
+        return branding_jitsi()
     path = branding.file_path(kind) if kind in ("logo", "favicon") else None
     if path is None:
         raise HTTPException(404)
@@ -996,7 +1079,8 @@ async def admin_design_save(
     request: Request,
     ui_custom: str = Form(""), ui_primary: str = Form(""), ui_navbar: str = Form("dark"),
     ui_theme: str = Form("auto"), ui_radius: str = Form("0.375rem"), ui_logo_height: str = Form("32"),
-    ui_show_name: str = Form(""), remove_logo: str = Form(""), remove_favicon: str = Form(""),
+    ui_show_name: str = Form(""), ui_jitsi: str = Form(""), remove_logo: str = Form(""),
+    remove_favicon: str = Form(""),
     ui_brand_name: str = Form(""), ui_product: str = Form(""), ui_login_text: str = Form(""),
     ui_footer_text: str = Form(""), ui_imprint_url: str = Form(""), ui_privacy_url: str = Form(""),
     logo: UploadFile | None = File(None), favicon: UploadFile | None = File(None),
@@ -1014,6 +1098,7 @@ async def admin_design_save(
     set_setting(db, "ui_radius", ui_radius if ui_radius in branding.RADII else "0.375rem")
     set_setting(db, "ui_logo_height", ui_logo_height if ui_logo_height.isdigit() else "32")
     set_setting(db, "ui_show_name", "1" if ui_show_name == "1" else "0")
+    set_setting(db, "ui_jitsi", "1" if ui_jitsi == "1" else "0")
 
     errors = []
     for key, upload, remove, allowed, limit in (
@@ -1038,8 +1123,36 @@ async def admin_design_save(
     branding.invalidate()
     for err in errors:
         flash(request, err, "error")
-    flash(request, "Design gespeichert.")
+    cfg = get_settings(db)
+    if cfg.get("ui_custom") != "1" and (cfg.get("ui_primary") != branding.DEFAULT_PRIMARY or cfg.get("ui_logo")
+                                        or cfg.get("ui_navbar") != "dark" or cfg.get("ui_theme") != "auto"):
+        flash(request, "Gespeichert, aber das eigene Design ist ausgeschaltet: Farben und Logo sind deshalb "
+              "noch nicht sichtbar. Schalten Sie oben „Eigenes Design“ ein und speichern Sie erneut.", "error")
+    else:
+        flash(request, "Design gespeichert und angewendet.")
     return redirect("/admin/design")
+
+
+@app.get("/branding/jitsi.json")
+def branding_jitsi():
+    """Dynamisches Branding für Jitsi Meet (config.dynamicBrandingUrl).
+
+    Wird über die Konferenz-Domain ausgeliefert (Caddy leitet /branding/* ans Portal weiter),
+    damit der Browser und Jibri es ohne CORS und Zertifikatsfragen laden können.
+    """
+    ui = branding.load()
+    data: dict = {}
+    with SessionLocal() as db:
+        enabled = get_settings(db).get("ui_jitsi") == "1"
+    if ui["custom"] and enabled:
+        data = {
+            "backgroundColor": branding.shade(ui["primary"], .72),
+            "premeetingBackground": f"linear-gradient(135deg, {branding.shade(ui['primary'], .55)}, {ui['primary']})",
+            "logoClickUrl": settings.portal_base_url,
+        }
+        if ui["logo"]:
+            data["logoImageUrl"] = settings.meet_base_url + ui["logo"]
+    return JSONResponse(data, headers={"Cache-Control": "no-cache"})
 
 
 @app.post("/admin/design/reset", dependencies=[Depends(check_csrf)])

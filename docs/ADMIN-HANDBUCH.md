@@ -65,7 +65,21 @@ Auf dem Handy öffnet das Symbol mit den drei Strichen oben links das Menü.
 
 Eine MP3 ist bei Fehlern fast immer schon vorhanden und weiter herunterladbar. „Erneut versuchen“ lädt nichts doppelt hoch, wenn der Upload schon gelungen war.
 
-**Löschen:** In der Aufnahme unten „Aufnahme löschen“ entfernt Video, MP3 und Transkript vom Server. Das Protokoll in SpeechMind bleibt dort bestehen.
+### Aufnahmen löschen
+
+Löschen geht an drei Stellen: über das Papierkorb-Symbol in jeder Tabellenzeile, über **Löschen** in der Aufnahme selbst und für viele Aufnahmen auf einmal (Kästchen links anhaken, das Kästchen in der Kopfzeile wählt alle gefilterten aus, dann **Ausgewählte löschen**).
+
+Ein Dialog fragt, was gelöscht werden soll. Angeboten wird nur, was bei der Aufnahme sinnvoll ist:
+
+| Auswahl | Was passiert | Danach |
+|---|---|---|
+| **Nur Video und MP3 löschen, Transkript behalten** | Mediendateien weg, Protokoll und Wortlaut bleiben im Portal | Etikett „Medien gelöscht“, Transkript weiter lesbar und als TXT ladbar |
+| **Alles hier löschen, bei SpeechMind abrufbar** | Mediendateien und Transkript weg, der Verweis auf das Protokoll bei SpeechMind bleibt | Status „Bei SpeechMind abrufbar“, Knopf **Protokoll von SpeechMind abrufen** holt es jederzeit zurück |
+| **Alles löschen** | Eintrag samt Video, MP3 und Transkript weg | Nicht wiederherstellbar. Das Protokoll in SpeechMind selbst bleibt dort bestehen |
+
+Bei der Mehrfachauswahl gilt die gewählte Option für jede Aufnahme, soweit möglich. Was danach nichts mehr enthält (z. B. eine nie transkribierte Aufnahme bei „Nur Video und MP3 löschen“), wird ganz entfernt. Aufnahmen, die gerade verarbeitet werden, werden übersprungen.
+
+**Neu von SpeechMind laden:** Bei transkribierten Aufnahmen holt dieser Knopf Protokoll und Wortlaut erneut ab, z. B. nachdem Sie das Protokoll in SpeechMind überarbeitet haben. Wurde das Protokoll in SpeechMind gelöscht, scheitert der Abruf mit einer Meldung.
 
 ## Benutzer verwalten und einladen
 
@@ -144,7 +158,7 @@ Menü **Design & Branding**. Links stellen Sie ein, rechts sehen Sie sofort eine
 
 **Gilt immer (auch bei ausgeschaltetem Design):** Name der Organisation, Produktbezeichnung, Hinweistext auf der Anmeldeseite, Fußzeile, Links zu Impressum und Datenschutzerklärung. Der Name erscheint auch in E-Mails. Lassen Sie ein Feld leer, gilt die Voreinstellung (`BRAND_NAME`/`BRAND_PRODUCT` aus der `.env`).
 
-**Eigenes Design** (Schalter im Kasten „Eigenes Design“). Ist er aus, sieht das Portal in der neutralen Standardfarbe aus; Ihre Einstellungen bleiben gespeichert und lassen sich jederzeit wieder einschalten.
+**Eigenes Design** (großer Schalter ganz oben auf der Seite). Farben, Logo, Favicon, Farbschema und Rundungen wirken **nur, wenn er eingeschaltet ist**. Sobald Sie etwas daran ändern, schaltet er sich von selbst ein; speichern Sie mit **Design speichern**. Ist er aus, sieht das Portal in der neutralen Standardfarbe aus. Ihre Einstellungen bleiben gespeichert und lassen sich jederzeit wieder einschalten. Speichern Sie Änderungen bei ausgeschaltetem Schalter, weist das Portal darauf hin.
 
 | Einstellung | Wirkung |
 |---|---|
@@ -157,7 +171,9 @@ Menü **Design & Branding**. Links stellen Sie ein, rechts sehen Sie sofort eine
 
 **Auf Standard zurücksetzen** (unten) entfernt alle Design-Einstellungen samt Logo und Favicon.
 
-> **Hinweis:** Das Design betrifft das Portal (Anmeldung, Verwaltung, E-Mails). Die Konferenzoberfläche von Jitsi selbst übernimmt nur den Namen (`BRAND_NAME` in der `.env`). Ein eigenes Logo in Jitsi ist über die Jitsi-Konfiguration möglich (siehe Jitsi-Dokumentation, „Customization“).
+**Auch in der Konferenz anwenden** (Schalter bei „Farben, Logo & Darstellung“, standardmäßig an): Die Konferenzoberfläche übernimmt das Logo (als Wasserzeichen oben links) und einen Hintergrund in der Hauptfarbe. Weil Jibri die Konferenzoberfläche aufzeichnet, erscheint das Logo auch in den Videoaufnahmen. Änderungen gelten beim nächsten Betreten einer Konferenz (Seite neu laden). Ohne hochgeladenes Logo zeigt die Konferenz kein Wasserzeichen.
+
+**Farbschema:** Steht es auf „Immer hell“ oder „Immer dunkel“, gilt das für alle, und der Umschalter oben rechts wird ausgeblendet. Bei „Automatisch“ kann jede Person selbst umschalten.
 
 ## Konferenzen ohne Anmeldung
 
@@ -339,6 +355,8 @@ Platz sparen: Aufnahmen nach Gebrauch in der Oberfläche löschen oder unter **S
 | Konferenz öffnet, aber kein Bild/Ton | UDP 10000 nicht offen oder `JVB_ADVERTISE_IPS` ist nicht die öffentliche IP |
 | Beitritt endet in einer Schleife auf der Login-Seite | `JWT_*`-Werte in `.env` geändert? Dann `docker compose up -d --force-recreate` |
 | MP3 ist stumm, Etikett „kein Ton“ | Siehe [Aufnahme ohne Ton](#aufnahme-ohne-ton): `./scripts/diagnose-recording.sh` |
+| Im Video ist ein Fensterrahmen (IceWM) zu sehen, Konferenz füllt nicht das Bild | Chrome in Jibri läuft ohne Vollbild (`--kiosk`). Ursache war dieselbe falsche Einstellung wie bei stummen Aufnahmen; mit aktueller `docker-compose.yml` behoben. Prüfen: `./scripts/diagnose-recording.sh` |
+| Designänderungen sind nicht zu sehen | Schalter „Eigenes Design“ oben auf der Seite einschalten und speichern. Für die Konferenz zusätzlich „Auch in der Konferenz anwenden“ |
 | Aufnahme-Knopf fehlt | Nur angemeldete Benutzer dürfen aufnehmen; Jibri-Log prüfen (`docker compose logs jibri`) |
 | Aufnahme erscheint nicht unter „Aufnahmen“ | In `data/recordings/<sitzung>/` muss eine Datei `.finalized` liegen. Fehlt sie: `chmod +x jibri/finalize.sh`, Jibri neu starten |
 | Status „Fehlgeschlagen“ | Meldung in der Zeile lesen, Ursache beheben (z. B. SpeechMind-Key), **Erneut versuchen** |
