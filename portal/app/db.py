@@ -98,6 +98,7 @@ PERMISSIONS = {
     "video": ("Videokonferenzen", "fa-video", "Meetings anlegen, planen, moderieren und aufnehmen"),
     "shortlinks": ("Kurzlinks", "fa-link", "Kurzlinks anlegen und auswerten"),
     "forms": ("Formulare", "fa-clipboard-list", "Formulare erstellen, verteilen und auswerten"),
+    "polls": ("Terminumfragen", "fa-calendar-check", "Terminumfragen (wie Doodle) erstellen und auswerten"),
     "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
 }
 
@@ -436,6 +437,85 @@ class FormResponse(Base):
             return {}
 
 
+class Poll(Base):
+    """Terminumfrage (wie Doodle): Teilnehmende stimmen je Terminvorschlag mit Ja, Wenn nötig oder Nein."""
+    __tablename__ = "polls"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
+                                                 index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(Text, default="")
+    location: Mapped[str] = mapped_column(String(255), default="")
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    public_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
+    closed: Mapped[bool] = mapped_column(Boolean, default=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    allow_maybe: Mapped[bool] = mapped_column(Boolean, default=True)
+    hidden: Mapped[bool] = mapped_column(Boolean, default=False)       # Teilnehmende sehen nur ihre eigenen Antworten
+    single_choice: Mapped[bool] = mapped_column(Boolean, default=False)  # nur ein Termin wählbar
+    max_per_option: Mapped[int | None] = mapped_column(Integer, nullable=True)  # z. B. Sprechstunden
+    require_email: Mapped[bool] = mapped_column(Boolean, default=False)
+    notify_votes: Mapped[bool] = mapped_column(Boolean, default=True)
+    final_option_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    meeting_id: Mapped[int | None] = mapped_column(ForeignKey("meetings.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    owner: Mapped[User | None] = relationship()
+    options: Mapped[list["PollOption"]] = relationship(back_populates="poll", cascade="all, delete-orphan",
+                                                       order_by="PollOption.starts_at", passive_deletes=True)
+    participants: Mapped[list["PollParticipant"]] = relationship(
+        back_populates="poll", cascade="all, delete-orphan", order_by="PollParticipant.id", passive_deletes=True)
+
+    @property
+    def final_option(self) -> "PollOption | None":
+        return next((o for o in self.options if o.id == self.final_option_id), None)
+
+
+class PollOption(Base):
+    """Terminvorschlag: Tag (ganztägig) oder Beginn mit optionalem Ende, in UTC."""
+    __tablename__ = "poll_options"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    poll_id: Mapped[int] = mapped_column(ForeignKey("polls.id", ondelete="CASCADE"), index=True)
+    starts_at: Mapped[datetime] = mapped_column(DateTime)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    all_day: Mapped[bool] = mapped_column(Boolean, default=False)
+    note: Mapped[str] = mapped_column(String(120), default="")
+
+    poll: Mapped[Poll] = relationship(back_populates="options")
+
+
+class PollParticipant(Base):
+    """Eine Person mit ihren Antworten. Über edit_token (persönlicher Link) änderbar."""
+    __tablename__ = "poll_participants"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    poll_id: Mapped[int] = mapped_column(ForeignKey("polls.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120), default="")
+    email: Mapped[str] = mapped_column(String(255), default="")
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    edit_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    answers_json: Mapped[str] = mapped_column(Text, default="{}")  # {option_id: "yes" | "maybe" | "no"}
+    comment: Mapped[str] = mapped_column(Text, default="")
+    invited_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    poll: Mapped[Poll] = relationship(back_populates="participants")
+
+    @property
+    def answers(self) -> dict[str, str]:
+        import json as _json
+        try:
+            data = _json.loads(self.answers_json or "{}")
+        except ValueError:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+
 DEFAULT_SETTINGS = {
     "sm_api_url": "https://api-v2.speechmind.com/external/v2/graphql",
     "sm_api_key_enc": "",
@@ -498,6 +578,7 @@ DEFAULT_SETTINGS = {
     # Zusatzmodule (komplett abschaltbar unter Verwaltung › Module)
     "module_shortlinks": "1",
     "module_forms": "1",
+    "module_polls": "1",
     # Kurzlinks
     "short_domain": "",           # optional eigene Kurz-Domain, z. B. kurz.example.de
     "short_fallback_url": "",     # Ziel für unbekannte Kurzlinks und die Startseite der Kurz-Domain

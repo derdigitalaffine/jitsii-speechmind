@@ -1,6 +1,6 @@
 # Videokonferenzserver der Verbandsgemeinde Otterbach-Otterberg
 
-**Selbst gehostetes Portal für Verwaltungen:** Videokonferenzen mit [Jitsi Meet](https://jitsi.org/), Aufnahme und Transkription über [SpeechMind](https://www.speechmind.com/), Besprechungsplanung mit Outlook-Einladungen, Kurzlinks mit QR-Codes und ein Formularserver – alles auf dem eigenen Server, ohne Daten an große Plattformen.
+**Selbst gehostetes Portal für Verwaltungen:** Videokonferenzen mit [Jitsi Meet](https://jitsi.org/), Aufnahme und Transkription über [SpeechMind](https://www.speechmind.com/), Besprechungsplanung mit Outlook-Einladungen, Terminumfragen wie Doodle, Kurzlinks mit QR-Codes und ein Formularserver – alles auf dem eigenen Server, ohne Daten an große Plattformen.
 
 Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Software (MIT-Lizenz)** ausdrücklich für alle anderen Verwaltungen gedacht: Verbandsgemeinden, Städte, Kreise, Zweckverbände. Nutzen Sie es, passen Sie es an Ihr Haus an, und teilen Sie Verbesserungen, damit alle davon profitieren. Name, Farben und Logo stellen Sie in der Oberfläche um (Design & Branding), voreingestellt über `BRAND_NAME` und `BRAND_PRODUCT` in `.env`.
 
@@ -33,6 +33,13 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - Jede Person bekommt eine eigene **Outlook-Besprechungsanfrage** mit ICS und persönlichem Einwahllink. Änderungen, Ausladungen und Absagen aktualisieren die Kalender; beim Löschen eines Meetings werden Absagen vorgeschlagen.
 - **Zu- und Absagen** per Kalender (IMAP-Auswertung inkl. Outlook/Exchange-Sonderformaten, mit Postfach-Diagnose) oder per Link in jedem Mailprogramm.
 
+### Terminumfragen wie Doodle (abschaltbares Modul)
+
+- Terminvorschläge (ganztägig oder mit Uhrzeit) mit Generator „Tage × Uhrzeiten“.
+- Abstimmen mit **Ja / Wenn nötig / Nein** per öffentlichem Link (ohne Konto) oder persönlicher Einladung an Benutzer, Gruppen und Gäste; Antworten jederzeit änderbar, Erinnerungen, Frist.
+- Optionen: nur ein Termin, **Plätze je Termin** (Terminbuchung, z. B. Sprechstunden), verdeckte Umfrage, E-Mail-Pflicht.
+- Ergebnis-Raster mit besten Terminen, CSV-Export; **Termin festlegen** mit Mail und Kalenderdatei an alle oder **direkt als Besprechung mit Outlook-Einladungen**.
+
 ### Kurzlinks und QR-Codes (abschaltbares Modul)
 
 - Wie [Shlink](https://shlink.io/), aber in der Oberfläche: eigenes oder zufälliges Kürzel, Titel, Schlagwörter, Gültigkeitszeitraum, Aufruf-Limit, Parameter-Weitergabe, Art der Weiterleitung.
@@ -53,7 +60,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 
 - **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
 - **Zwei-Faktor-Anmeldung** per **Authenticator-App (TOTP)** oder **Code per E-Mail**, mit Notfallcodes; freiwillig oder Pflicht für Admins/alle. „Passwort vergessen“ per Mail-Link.
-- **Module** Kurzlinks und Formulare komplett abschaltbar.
+- **Module** Kurzlinks, Formulare und Terminumfragen komplett abschaltbar.
 - **E-Mail** über SMTP mit Warteschlange, Wiederholungen und Protokoll; optional Ablage in „Gesendet“ per IMAP. **Alle Mails als Vorlagen bearbeitbar**, mit Platzhaltern und Live-Vorschau.
 - **HTTPS** mit Caddy: Start mit selbst signiertem Zertifikat, **Let's Encrypt** per Klick in der Oberfläche.
 - **Design & Branding:** Name, Farben, Logo (auch große Dateien – der Server verkleinert), Favicon (sonst automatisch aus dem Logo), Fußzeile, Impressum/Datenschutz; auf Wunsch auch in der Konferenzoberfläche und damit in den Aufnahmen.
@@ -131,7 +138,7 @@ Alle Zeilen sollten „running“ oder „Up“ zeigen. Der Proxy startet mit **
 
 **9. SpeechMind verbinden:** Links auf **SpeechMind**, API-Key eintragen, **Speichern**, **Verbindung testen**, ein Projekt auswählen, **Speichern**.
 
-**10. Kolleginnen und Kollegen einladen:** Links auf **Benutzer & Gruppen**, E-Mail-Adressen eintragen, **Rechte** wählen (Videokonferenzen, Kurzlinks, Formulare, Benutzerverwaltung), **Einladen**. Die Person bekommt eine Mail mit einem Link und legt ihr Passwort selbst fest. Empfehlung: im selben Menü unter „Anmeldung & Zwei-Faktor“ die Zwei-Faktor-Anmeldung mindestens für Admins zur Pflicht machen.
+**10. Kolleginnen und Kollegen einladen:** Links auf **Benutzer & Gruppen**, E-Mail-Adressen eintragen, **Rechte** wählen (Videokonferenzen, Kurzlinks, Formulare, Terminumfragen, Benutzerverwaltung), **Einladen**. Die Person bekommt eine Mail mit einem Link und legt ihr Passwort selbst fest. Empfehlung: im selben Menü unter „Anmeldung & Zwei-Faktor“ die Zwei-Faktor-Anmeldung mindestens für Admins zur Pflicht machen.
 
 **11. Öffentliches Zertifikat (Let's Encrypt) einschalten:** Sind DNS-Einträge und Ports 80/443 bereit, im Portal links auf **HTTPS & Zertifikat**, **Let's Encrypt** wählen, E-Mail prüfen, **Speichern und anwenden**. Nach etwa einer Minute steht oben „vertrauenswürdig“ und die Browser-Warnung ist weg. Zum gefahrlosen Üben vorher „Testumgebung“ einschalten. Details im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#https-und-zertifikat).
 
@@ -300,6 +307,8 @@ portal/app/
 ├── proxy.py             Reverse Proxy: Caddyfile erzeugen (inkl. Kurz-Domain), Zertifikate prüfen
 ├── about.py             Angaben für „Über dieses Portal“ (Komponenten und Lizenzen)
 ├── user_import.py       Benutzer per CSV importieren (Vorlage, Prüfung, Übernahme)
+├── polls.py             Terminumfragen: Vorschläge, Auswertung, Einladungen, Termin festlegen
+├── routes_polls.py      Terminumfragen: Verwaltung und öffentliche Abstimmung
 ├── cli.py               Notfall-Werkzeug (Passwort setzen, Admin machen, Zwei-Faktor zurücksetzen)
 ├── speechmind.py        Client für die SpeechMind GraphQL API v2
 ├── security.py          Passwörter, Verschlüsselung, CSRF, Jitsi-JWT

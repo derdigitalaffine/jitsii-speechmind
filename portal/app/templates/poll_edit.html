@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ 'Terminumfrage bearbeiten' if poll else 'Neue Terminumfrage' }}{% endblock %}
+{% macro sw(name, label, on, help='') %}
+<div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="s-{{ name }}" name="{{ name }}" value="1" {% if on %}checked{% endif %}>
+  <label class="form-check-label" for="s-{{ name }}">{{ label }}{% if help %}<div class="form-text mt-0">{{ help }}</div>{% endif %}</label></div>
+{% endmacro %}
+{% block content %}
+{% call m.page_head('Terminumfrage bearbeiten' if poll else 'Neue Terminumfrage', '') %}
+  <a class="btn btn-outline-secondary" href="{{ '/polls/' ~ poll.id if poll else '/polls' }}"><i class="fa-solid fa-arrow-left me-1"></i>Zurück</a>
+{% endcall %}
+{% if poll and poll.participants %}<div class="alert alert-info small"><i class="fa-solid fa-circle-info me-1"></i>Es gibt schon Antworten. Unveränderte Vorschläge behalten ihre Stimmen; für neue Vorschläge stimmen bisherige Teilnehmende erst ab, wenn sie ihre Antwort bearbeiten.</div>{% endif %}
+<form method="post" class="row g-4" id="poll-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="options_json" id="options-json">
+  <div class="col-12 col-xl-5">
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-circle-info me-2"></i>Worum geht es?</div><div class="card-body">
+      <div class="mb-3"><label class="form-label" for="t">Titel</label><input class="form-control" id="t" name="title" maxlength="255" required value="{{ poll.title if poll else '' }}" placeholder="z. B. Abstimmung Jahresgespräch Bauamt"></div>
+      <div class="mb-3"><label class="form-label" for="d">Beschreibung <span class="text-secondary">(optional)</span></label><textarea class="form-control" id="d" name="description" rows="3" maxlength="5000">{{ poll.description if poll else '' }}</textarea></div>
+      <div class="row g-3">
+        <div class="col-sm-7"><label class="form-label" for="l">Ort <span class="text-secondary">(optional)</span></label><input class="form-control" id="l" name="location" maxlength="255" value="{{ poll.location if poll else '' }}" placeholder="z. B. Rathaus oder Videokonferenz"></div>
+        <div class="col-sm-5"><label class="form-label" for="du">Dauer</label>
+          <select class="form-select" id="du" name="duration">{% for d in durations %}<option value="{{ d }}" {% if (poll.duration_minutes if poll else 60) == d %}selected{% endif %}>{{ d }} Minuten</option>{% endfor %}</select>
+          <div class="form-text">Für ganztägige Vorschläge und die spätere Besprechung.</div></div>
+      </div>
+    </div></div>
+    <div class="card"><div class="card-header"><i class="fa-solid fa-sliders me-2"></i>Einstellungen</div><div class="card-body">
+      {{ sw('allow_maybe', 'Antwort „Wenn nötig“ erlauben', poll.allow_maybe if poll else True) }}
+      {{ sw('single_choice', 'Nur einen Termin wählen lassen', poll.single_choice if poll else False, 'z. B. für Sprechstunden oder Gesprächstermine') }}
+      <div class="mb-2 d-flex align-items-center gap-2"><label class="form-label mb-0 small" for="mx">Plätze je Termin</label>
+        <input class="form-control form-control-sm" style="width:6rem" id="mx" name="max_per_option" type="number" min="1" placeholder="beliebig" value="{{ poll.max_per_option or '' if poll else '' }}">
+        <span class="form-text mt-0">Ist ein Termin voll, kann niemand mehr „Ja“ wählen</span></div>
+      {{ sw('hidden', 'Verdeckte Umfrage', poll.hidden if poll else False, 'Teilnehmende sehen nur ihre eigenen Antworten, nicht die der anderen') }}
+      {{ sw('require_email', 'E-Mail-Adresse verlangen', poll.require_email if poll else False, 'Damit Sie alle später über den festgelegten Termin informieren können') }}
+      {{ sw('notify_votes', 'Mich bei jeder Antwort per Mail informieren', poll.notify_votes if poll else True) }}
+      <label class="form-label mt-2" for="ex">Abstimmen bis <span class="text-secondary">(optional)</span></label>
+      <input class="form-control" id="ex" name="expires_at" type="datetime-local" value="{{ expires }}" style="max-width: 18rem">
+    </div></div>
+  </div>
+
+  <div class="col-12 col-xl-7">
+    <div class="card"><div class="card-header"><i class="fa-regular fa-calendar me-2"></i>Terminvorschläge</div><div class="card-body">
+      <div class="border rounded p-3 mb-3 bg-body-tertiary">
+        <div class="fw-semibold small mb-2"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>Schnell erzeugen: Tage × Uhrzeiten</div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label small" for="gen-day">Tage</label>
+            <div class="input-group input-group-sm mb-2"><input class="form-control" type="date" id="gen-day"><button class="btn btn-outline-primary" type="button" id="gen-add-day"><i class="fa-solid fa-plus"></i></button></div>
+            <div id="gen-days" class="d-flex flex-wrap gap-1"></div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small">Uhrzeiten <span class="text-secondary">(keine = ganztägig)</span></label>
+            <div class="input-group input-group-sm mb-2"><input class="form-control" type="time" id="gen-start" aria-label="Beginn"><span class="input-group-text">–</span><input class="form-control" type="time" id="gen-end" aria-label="Ende (optional)"><button class="btn btn-outline-primary" type="button" id="gen-add-time"><i class="fa-solid fa-plus"></i></button></div>
+            <div id="gen-times" class="d-flex flex-wrap gap-1"></div>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-primary mt-3" type="button" id="gen-run"><i class="fa-solid fa-calendar-plus me-1"></i>Vorschläge erzeugen</button>
+        <span class="form-text ms-2" id="gen-hint"></span>
+      </div>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="fw-semibold small"><span id="opt-count">0</span> Vorschläge</span>
+        <button class="btn btn-sm btn-outline-secondary" type="button" id="opt-add"><i class="fa-solid fa-plus me-1"></i>Einzelnen Termin</button>
+      </div>
+      <div id="opt-list" class="d-flex flex-column gap-2"></div>
+      <p class="text-secondary small mt-2 mb-0 d-none" id="opt-empty">Noch keine Vorschläge – oben Tage und Uhrzeiten wählen und „Vorschläge erzeugen“.</p>
+    </div></div>
+  </div>
+  <div class="col-12"><button class="btn btn-primary btn-lg" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>{{ 'Speichern' if poll else 'Terminumfrage anlegen' }}</button></div>
+</form>
+<script type="application/json" id="poll-options">{{ options_json | safe }}</script>
+{% endblock %}
+{% block scripts %}<script src="/static/poll-edit.js"></script>{% endblock %}

@@ -12,6 +12,7 @@ Für alle, die das Portal der Verbandsgemeinde Otterbach-Otterberg betreuen: Vid
 6. [Besprechungen planen](#besprechungen-planen)
 7. [Kurzlinks und QR-Codes](#kurzlinks-und-qr-codes)
 8. [Formulare](#formulare)
+8a. [Terminumfragen](#terminumfragen)
 9. [E-Mail-Vorlagen](#e-mail-vorlagen)
 10. [HTTPS und Zertifikat](#https-und-zertifikat)
 11. [Design & Branding](#design--branding)
@@ -64,6 +65,7 @@ Jede Person bekommt einzeln die Bereiche freigeschaltet, die sie braucht:
 | **Videokonferenzen** | Meetings anlegen, Besprechungen planen, moderieren, aufnehmen, eigene Aufnahmen transkribieren |
 | **Kurzlinks** | Kurzlinks anlegen, auswerten, QR-Codes erzeugen |
 | **Formulare** | Formulare erstellen, verteilen, auswerten (geteilte Formulare und „Zum Ausfüllen“ sehen alle, auch ohne dieses Recht) |
+| **Terminumfragen** | Terminumfragen wie Doodle anlegen, verteilen und auswerten. Aus dem festgelegten Termin eine Besprechung anlegen geht nur mit zusätzlichem Recht „Videokonferenzen“ |
 | **Benutzerverwaltung** | Benutzer und Gruppen anlegen, bearbeiten, sperren, löschen – aber keine Admin-Konten ändern und niemanden zum Admin machen |
 | **Administrator:in** | Alles, auch Systemeinstellungen (Mail, HTTPS, Design, SpeechMind, Module, Zwei-Faktor) und alle Aufnahmen, Kurzlinks und Formulare |
 
@@ -90,7 +92,7 @@ Kasten **Benutzer aus CSV importieren**:
    | `name` | Anzeigename; leer = aus der Adresse abgeleitet | `Erika Mustermann` |
    | `password` | Startpasswort (mind. 10 Zeichen); **leer = ohne Passwort**, Einladung per Mail möglich | `Startpasswort-2026` |
    | `groups` | Gruppen, mehrere mit `;` getrennt. Fehlende Gruppen werden angelegt | `Bauamt;Kita` |
-   | `permissions` | `video`, `shortlinks`, `forms`, `users`, mehrere mit `;`; leer = `video` | `video;forms` |
+   | `permissions` | `video`, `shortlinks`, `forms`, `polls`, `users`, mehrere mit `;`; leer = `video` | `video;forms` |
    | `admin` | `yes`/`no` – wird nur beachtet, wenn ein Admin importiert | `no` |
 
    Die Vorlage beginnt mit der Zeile `sep=,`, damit Excel die Spalten auch bei deutscher Einstellung richtig trennt; der Import überspringt sie. Speichert Excel die Datei mit Semikolon als Trennzeichen (Standard in Deutschland), trennen Sie mehrere Gruppen bzw. Rechte mit `|` statt `;`. Umlaute sind in UTF-8 und in der Excel-Kodierung (Windows-1252) möglich. Deutsche Spaltennamen (`E-Mail`, `Passwort`, `Gruppen`, `Rechte`) werden ebenfalls erkannt.
@@ -152,7 +154,7 @@ Weitere Schutzmechanismen, die immer aktiv sind: Passwörter als Argon2-Hash, Br
 
 ## Module ein- und ausschalten
 
-Menü **Module** (nur Admins). **Kurzlinks & QR-Codes** und **Formulare** lassen sich komplett abschalten. Videokonferenzen sind die Kernfunktion und immer aktiv.
+Menü **Module** (nur Admins). **Kurzlinks & QR-Codes**, **Formulare** und **Terminumfragen** lassen sich komplett abschalten. Videokonferenzen sind die Kernfunktion und immer aktiv.
 
 Ein abgeschaltetes Modul
 
@@ -319,9 +321,21 @@ Menü **Formulare** (Recht „Formulare“). Ein Formularserver mit Baukasten, v
 
 **Mail-Vorlagen:** „Einladung zum Ausfüllen“, „Erinnerung zum Ausfüllen“, „Neue Antwort“ und „Eingangsbestätigung“ (Gruppe „Formulare“ unter E-Mail-Vorlagen).
 
+## Terminumfragen
+
+Menü **Terminumfragen** (Recht „Terminumfragen“). Ein Doodle-Pendant auf dem eigenen Server; die Bedienung steht im [Benutzerhandbuch](BENUTZERHANDBUCH.md#6a-terminumfragen-wie-doodle).
+
+- Vorschläge als ganze Tage oder mit Uhrzeit, Generator „Tage × Uhrzeiten“, Notizen je Vorschlag.
+- Antworten Ja / Wenn nötig (abschaltbar) / Nein, Kommentar; Optionen: nur ein Termin, Plätze je Termin (Terminbuchung), verdeckte Umfrage, E-Mail Pflicht, Frist.
+- Teilnahme über einen öffentlichen Link (mit Name, ohne Konto, Spam-Schutz und Begrenzung je Adresse) oder per persönlicher Einladung an Benutzer, Gruppen und Gäste mit Erinnerungen. Jede Person kann ihre Antwort über ihren persönlichen Link ändern; ein Cookie merkt sich das im selben Browser 180 Tage.
+- Termin festlegen: Mail mit Kalenderdatei an alle oder **direkt eine Besprechung anlegen** (Raum, Outlook-Einladungen, persönliche Einwahllinks – wie unter „Besprechung planen“).
+- Export als CSV; Kopie anlegen.
+- Mail-Vorlagen in der Gruppe „Terminumfragen“: Einladung, Erinnerung, neue Antwort (an die planende Person), Termin steht fest.
+- Jede Person sieht ihre eigenen Umfragen, Admins über „Alle anzeigen“ alle. Gehört eine Umfrage einer gelöschten Person, sehen sie nur noch Admins.
+
 ## E-Mail-Vorlagen
 
-Menü **E-Mail-Vorlagen** (nur Admins). Hier stehen alle Mails, die das Portal verschickt, gruppiert nach Konten (Einladung, Passwort, Anmeldecode), Besprechungen, Aufnahmen und Formularen.
+Menü **E-Mail-Vorlagen** (nur Admins). Hier stehen alle Mails, die das Portal verschickt, gruppiert nach Konten (Einladung, Passwort, Anmeldecode), Besprechungen, Aufnahmen, Formularen und Terminumfragen.
 
 - **Betreff** und **Text** sind frei änderbar. Platzhalter in geschweiften Klammern, z. B. `{name}` oder `{link}`, werden beim Versand ersetzt. Ein Klick auf einen Platzhalter unter dem Textfeld fügt ihn an der Cursorposition ein; mit der Maus darüber sehen Sie, was er enthält.
 - Rechts zeigt eine **Vorschau** das Ergebnis mit Beispieldaten, schon während Sie tippen.

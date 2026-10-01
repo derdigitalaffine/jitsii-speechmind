@@ -136,6 +136,7 @@ templates.env.filters["local"] = lambda dt, fmt="%d.%m.%Y, %H:%M": to_local(dt).
 MODULES = {
     "shortlinks": ("Kurzlinks & QR-Codes", "module_shortlinks", ("/shortlinks", "/s/", "/s")),
     "forms": ("Formulare", "module_forms", ("/forms", "/f/")),
+    "polls": ("Terminumfragen", "module_polls", ("/polls", "/t/")),
 }
 _module_cache: dict = {"at": 0.0, "enabled": set(MODULES)}
 
@@ -246,6 +247,8 @@ def home_for(user: User) -> str:
         return "/forms"
     if user.can("shortlinks") and "shortlinks" in modules:
         return "/shortlinks"
+    if user.can("polls") and "polls" in modules:
+        return "/polls"
     if user.can("users"):
         return "/admin/users"
     return "/forms/inbox" if "forms" in modules else "/profile"
@@ -1606,7 +1609,9 @@ async def admin_users_update(request: Request, uid: int, action: str = Form(...)
 def _release_owned(db: Session, target: User) -> None:
     """Kurzlinks und Formulare einer gelöschten Person bleiben erhalten und gehen an die löschende Verwaltung
     bzw. werden herrenlos (Admins sehen sie weiter)."""
-    from .db import Form as FormModel, ShortLink
+    from .db import Form as FormModel, Poll, ShortLink
+    for poll in db.scalars(select(Poll).where(Poll.owner_id == target.id)):
+        poll.owner_id = None
     for link in db.scalars(select(ShortLink).where(ShortLink.owner_id == target.id)):
         link.owner_id = None
     for form in db.scalars(select(FormModel).where(FormModel.owner_id == target.id)):
@@ -1658,9 +1663,10 @@ async def admin_groups_update(request: Request, gid: int, action: str = Form("sa
 
 @app.get("/admin/modules")
 def admin_modules(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
-    from .db import Form as FormModel, ShortLink
+    from .db import Form as FormModel, Poll, ShortLink
     stats = {"shortlinks": db.scalar(select(func.count(ShortLink.id))),
-             "forms": db.scalar(select(func.count(FormModel.id)))}
+             "forms": db.scalar(select(func.count(FormModel.id))),
+             "polls": db.scalar(select(func.count(Poll.id)))}
     return render(request, "admin_modules.html", user, all_modules=MODULES, stats=stats)
 
 
@@ -2079,3 +2085,4 @@ __all__ = ["app", "STATUS_RECORDED"]
 # Weitere Bereiche (registrieren ihre Routen an derselben App)
 from . import routes_shortlinks  # noqa: E402,F401
 from . import routes_forms  # noqa: E402,F401
+from . import routes_polls  # noqa: E402,F401

@@ -1,0 +1,31 @@
+{# Ergebnis-Raster: Vorschläge als Spalten, Teilnehmende als Zeilen. Erwartet poll, rows, counts, best, parts, answers #}
+<div class="table-responsive poll-grid-wrap">
+<table class="table table-sm table-bordered align-middle text-center poll-grid mb-0">
+  <thead><tr>
+    <th class="text-start align-bottom poll-name-col">{{ rows | length }} Teilnehmende</th>
+    {% for o in poll.options %}{% set pp = parts(o) %}
+    <th class="poll-opt {{ 'is-best' if o.id in best }} {{ 'is-final' if o.id == poll.final_option_id }}">
+      <div class="small text-secondary">{{ pp.month }} {{ pp.year }}</div><div class="fs-5 lh-1">{{ pp.day }}</div><div class="small">{{ pp.weekday }}</div>
+      <div class="small fw-normal text-nowrap">{{ pp.time }}</div>{% if o.note %}<div class="small fw-normal text-secondary">{{ o.note }}</div>{% endif %}
+      {% if o.id == poll.final_option_id %}<span class="badge text-bg-success mt-1">Termin</span>{% elif o.id in best %}<i class="fa-solid fa-star text-warning mt-1" title="Meiste Zusagen"></i>{% endif %}
+    </th>{% endfor %}
+  </tr></thead>
+  <tbody>
+  {% for p in rows %}{% set a = p.answers %}
+  <tr>
+    <td class="text-start text-nowrap">{{ p.name }}{% if p.comment %} <i class="fa-regular fa-comment text-secondary" title="{{ p.comment }}"></i>{% endif %}</td>
+    {% for o in poll.options %}{% set v = a.get(o.id|string) %}
+    <td class="poll-cell {{ 'ans-' ~ v if v else '' }}" title="{{ answers[v][0] if v in answers else 'keine Angabe' }}">{% if v in answers %}<i class="fa-solid {{ answers[v][1] }}"></i>{% endif %}</td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr>
+    <th class="text-start small">Zusagen</th>
+    {% for o in poll.options %}{% set c = counts[o.id] %}
+    <td class="small {{ 'is-best' if o.id in best }}"><strong>{{ c.yes }}</strong>{% if poll.allow_maybe and c.maybe %} <span class="text-warning-emphasis">(+{{ c.maybe }})</span>{% endif %}
+      {% if poll.max_per_option %}<div class="text-secondary">{{ [poll.max_per_option - c.yes, 0] | max }} frei</div>{% endif %}</td>
+    {% endfor %}
+  </tr></tfoot>
+</table>
+</div>

@@ -1,8 +1,8 @@
 # Benutzerhandbuch
 
-Für alle, die im Portal der Verbandsgemeinde Otterbach-Otterberg arbeiten: Videokonferenzen abhalten und aufnehmen, Besprechungen planen, Kurzlinks und QR-Codes erstellen, Formulare bauen und auswerten. Sie brauchen nur einen aktuellen Browser (Edge, Chrome, Firefox oder Safari), am Computer oder auf dem Handy.
+Für alle, die im Portal der Verbandsgemeinde Otterbach-Otterberg arbeiten: Videokonferenzen abhalten und aufnehmen, Besprechungen planen, Termine per Umfrage finden, Kurzlinks und QR-Codes erstellen, Formulare bauen und auswerten. Sie brauchen nur einen aktuellen Browser (Edge, Chrome, Firefox oder Safari), am Computer oder auf dem Handy.
 
-> Welche Bereiche Sie sehen, legt die Verwaltung des Portals fest (Rechte „Videokonferenzen“, „Kurzlinks“, „Formulare“, „Benutzerverwaltung“). Fehlt Ihnen ein Menüpunkt, den Sie brauchen, wenden Sie sich an sie.
+> Welche Bereiche Sie sehen, legt die Verwaltung des Portals fest (Rechte „Videokonferenzen“, „Kurzlinks“, „Formulare“, „Terminumfragen“, „Benutzerverwaltung“). Fehlt Ihnen ein Menüpunkt, den Sie brauchen, wenden Sie sich an sie.
 
 ## Inhalt
 
@@ -12,6 +12,7 @@ Für alle, die im Portal der Verbandsgemeinde Otterbach-Otterberg arbeiten: Vide
 4. [Besprechungen planen und einladen](#4-besprechungen-planen-und-einladen)
 5. [In der Konferenz](#5-in-der-konferenz)
 6. [Aufnahme, Chatprotokoll, Umfragen und Transkript](#6-aufnahme-chatprotokoll-umfragen-und-transkript)
+6a. [Terminumfragen (wie Doodle)](#6a-terminumfragen-wie-doodle)
 7. [Kurzlinks und QR-Codes](#7-kurzlinks-und-qr-codes)
 8. [Formulare erstellen](#8-formulare-erstellen)
 9. [Formulare verteilen](#9-formulare-verteilen)
@@ -194,6 +195,57 @@ Ist es fertig, sehen Sie Protokoll und Wortlaut direkt in der Aufnahme und könn
 ### Aufnahme löschen
 
 Auf der Aufnahme ganz unten **Löschen**. Je nach Stand bietet das Portal an: nur Video und MP3 löschen (Transkript, Chat und Umfragen bleiben), alles hier löschen (Protokoll bleibt bei SpeechMind abrufbar) oder alles löschen.
+
+---
+
+## 6a. Terminumfragen (wie Doodle)
+
+Menü **Terminumfragen** (Recht „Terminumfragen“). Damit finden Sie einen Termin, der möglichst vielen passt – auch mit Externen, die kein Konto haben.
+
+### Umfrage anlegen
+
+1. **Neue Terminumfrage**.
+2. **Titel**, optional **Beschreibung** und **Ort**, dazu die **Dauer** (gilt für ganztägige Vorschläge und die spätere Besprechung).
+3. **Terminvorschläge** – am schnellsten mit dem Generator „Tage × Uhrzeiten“:
+   - unter **Tage** ein Datum wählen und **+** klicken (das Feld springt danach auf den nächsten Tag – praktisch für mehrere Tage hintereinander),
+   - unter **Uhrzeiten** Beginn und optional Ende wählen und **+** klicken. Keine Uhrzeit = ganztägige Vorschläge,
+   - **Vorschläge erzeugen**: Jeder Tag wird mit jeder Uhrzeit kombiniert (3 Tage × 2 Zeiten = 6 Vorschläge).
+
+   Unten in der Liste können Sie jeden Vorschlag einzeln ändern, mit einer **Notiz** versehen („nur online“) oder mit ✕ entfernen. **Einzelnen Termin** fügt eine weitere Zeile hinzu.
+4. **Einstellungen** nach Bedarf:
+
+   | Einstellung | Wirkung |
+   |---|---|
+   | „Wenn nötig“ erlauben | Neben Ja und Nein gibt es die Antwort „Wenn nötig“ (zählt halb) |
+   | Nur einen Termin wählen lassen | Jede Person wählt genau einen Termin – z. B. für Sprechstunden oder Einzelgespräche |
+   | Plätze je Termin | Ist ein Termin mit so vielen „Ja“ belegt, kann ihn niemand mehr wählen (zusammen mit „nur einen Termin“ ideal für Terminbuchungen) |
+   | Verdeckte Umfrage | Teilnehmende sehen nur ihre eigene Antwort, nicht die der anderen |
+   | E-Mail-Adresse verlangen | Damit Sie später alle über den festgelegten Termin informieren können |
+   | Bei jeder Antwort informieren | Sie bekommen eine Mail mit der Antwort und dem aktuellen Stand |
+   | Abstimmen bis | Danach ist keine Abstimmung mehr möglich |
+
+5. **Terminumfrage anlegen**.
+
+### Teilnehmende gewinnen
+
+- **Link zur Abstimmung** kopieren und z. B. per Mail oder Messenger verschicken. Daneben: **Kurzlink**, **QR-Code** (SVG/PNG/JPG), **Neuer Link**, **Abschalten**.
+- **Per E-Mail einladen:** Benutzer:innen, Gruppen und Gäste. Jede Person bekommt einen **persönlichen Link** – so sehen Sie, wer noch nicht abgestimmt hat, und können mit **Offene erinnern** nachhaken.
+
+### Abstimmen (Sicht der Teilnehmenden)
+
+Link öffnen, **Namen** eintragen (E-Mail je nach Einstellung), je Vorschlag **✓ Ja**, **? Wenn nötig** oder **✕ Nein** antippen, optional einen Kommentar, **Abstimmen**. Danach zeigt die Seite einen persönlichen Link, mit dem die Antwort jederzeit geändert werden kann; im selben Browser erkennt die Umfrage die Person auch beim erneuten Öffnen des allgemeinen Links. Die Seite ist fürs Handy gemacht.
+
+### Auswerten und Termin festlegen
+
+Die Seite der Umfrage zeigt das **Ergebnis-Raster**: Vorschläge als Spalten, Personen als Zeilen, grün = Ja, gelb = Wenn nötig, rot = Nein. Unten stehen die Zusagen je Termin; ein ⭐ markiert die Vorschläge mit den meisten Zusagen. Kommentare stehen darunter. **Export (CSV)** im Menü „…“.
+
+**Termin festlegen** öffnet einen Dialog: Termin auswählen (der beste ist vorausgewählt) und entscheiden:
+
+- **Teilnehmende per Mail informieren** – alle mit E-Mail-Adresse bekommen den Termin mit Kalenderdatei,
+- **Besprechung anlegen und einladen** (mit dem Recht Videokonferenzen) – legt einen Konferenzraum zu diesem Termin an und schickt allen eine Outlook-Besprechungsanfrage mit persönlichem Einwahllink; wahlweise nur denen, die für diesen Termin „Ja“ oder „Wenn nötig“ gesagt haben. Danach geht es in der Besprechung wie gewohnt weiter (Zu-/Absagen, Änderungen, Aufnahme),
+- **Nur festlegen**.
+
+Die Abstimmung ist danach beendet; alle Teilnehmenden sehen den festgelegten Termin. Über „…“ können Sie sie wieder öffnen, eine **Kopie** anlegen (z. B. für die nächste Runde) oder die Umfrage löschen.
 
 ---
 
@@ -445,4 +497,6 @@ Beim Einrichten zeigt das Portal **zehn Notfallcodes – nur einmal**. Drucken S
 | Ausfüllende sehen „Formular geschlossen“ | Einstellungen: „Nimmt Antworten an“ an? Frist abgelaufen? |
 | Code für die Anmeldung kommt nicht | Spam-Ordner, „Neuen Code senden“. Sonst Notfallcode oder die Verwaltung fragen |
 | „Zu viele Versuche“ | Etwa zehn Minuten warten |
+| Terminumfrage: „keine Plätze mehr frei“ | Der Termin ist bereits voll belegt – einen anderen wählen |
+| Terminumfrage: eigene Antwort ändern | Den persönlichen Link aus der Bestätigung bzw. Einladung öffnen (oder den allgemeinen Link im selben Browser) |
 | Menüpunkt fehlt | Ihnen fehlt das Recht oder das Modul ist abgeschaltet – Verwaltung fragen |

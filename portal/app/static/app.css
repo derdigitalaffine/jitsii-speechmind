@@ -117,3 +117,14 @@ footer.app-footer { border-top: 1px solid var(--bs-border-color); color: var(--b
 .form-fill .req { color: var(--bs-danger); }
 .fill-progress { height: .4rem; }
 .qr-svg svg { width: 100%; height: auto; display: block; }
+/* Terminumfragen */
+.poll-grid th, .poll-grid td { min-width: 4.2rem; }
+.poll-grid .poll-name-col { min-width: 10rem; }
+.poll-grid .is-best { background: rgba(var(--bs-warning-rgb), .12); }
+.poll-grid .is-final { background: rgba(var(--bs-success-rgb), .16); }
+.poll-cell.ans-yes { background: rgba(var(--bs-success-rgb), .22); color: var(--bs-success-text-emphasis); }
+.poll-cell.ans-maybe { background: rgba(var(--bs-warning-rgb), .25); color: var(--bs-warning-text-emphasis); }
+.poll-cell.ans-no { background: rgba(var(--bs-danger-rgb), .08); color: var(--bs-danger-text-emphasis); }
+.poll-answer .btn { min-width: 2.8rem; }
+.poll-option-row.is-full { opacity: .6; }
+.alert { overflow-wrap: anywhere; }

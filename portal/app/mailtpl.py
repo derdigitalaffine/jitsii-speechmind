@@ -49,6 +49,17 @@ _FORM_VARS = {
     "frist": "Hinweis auf die Frist (leer, wenn keine gesetzt ist)",
 }
 
+_POLL_VARS = {
+    "name": "Name der eingeladenen Person",
+    "titel": "Titel der Umfrage",
+    "beschreibung": "Beschreibung",
+    "ort": "Ort bzw. Hinweis zum Ort",
+    "link": "Persönlicher Link zur Abstimmung",
+    "absender": "Name der planenden Person",
+    "frist": "Hinweis auf die Frist (leer, wenn keine gesetzt ist)",
+    "vorschlaege": "Anzahl der Terminvorschläge",
+}
+
 TEMPLATES: dict[str, dict] = {
     "account_invite": {
         "group": "Konten", "label": "Einladung zum Konto",
@@ -196,6 +207,44 @@ TEMPLATES: dict[str, dict] = {
                  "vielen Dank, Ihre Angaben zum Formular „{titel}“ sind am {zeitpunkt} eingegangen. "
                  "Zur Kontrolle eine Kopie:\n\n{antworten}\n\n{fusszeile}"),
     },
+    "poll_invite": {
+        "group": "Terminumfragen", "label": "Einladung zur Terminumfrage",
+        "vars": _POLL_VARS,
+        "subject": "Terminumfrage: {titel}",
+        "body": ("Guten Tag {name},\n\n"
+                 "{absender} sucht einen Termin für „{titel}“ und bittet Sie, anzugeben, wann Sie können "
+                 "({vorschlaege} Vorschläge).\n\n{beschreibung}\n\n"
+                 "Zur Abstimmung (persönlicher Link, Ihre Antwort lässt sich später ändern):\n{link}\n\n"
+                 "{frist}\n\n{fusszeile}"),
+    },
+    "poll_reminder": {
+        "group": "Terminumfragen", "label": "Erinnerung zur Terminumfrage",
+        "vars": _POLL_VARS,
+        "subject": "Erinnerung: Terminumfrage {titel}",
+        "body": ("Guten Tag {name},\n\n"
+                 "für die Terminumfrage „{titel}“ fehlt noch Ihre Antwort. Hier geht es direkt dazu:\n{link}\n\n"
+                 "{frist}\n\n{fusszeile}"),
+    },
+    "poll_vote": {
+        "group": "Terminumfragen", "label": "Neue Antwort (an die planende Person)",
+        "vars": {"name": "Name der planenden Person", "titel": "Titel der Umfrage",
+                 "teilnehmer": "Name und Adresse der antwortenden Person", "aktion": "„hat abgestimmt“ oder „hat die Antwort geändert“",
+                 "antworten": "Antworten je Termin", "kommentar": "Kommentar der Person",
+                 "stand": "Termine mit den meisten Zusagen", "anzahl": "Anzahl Antworten",
+                 "link": "Link zur Umfrage im Portal"},
+        "subject": "{teilnehmer} {aktion}: {titel}",
+        "body": ("Guten Tag {name},\n\n{teilnehmer} {aktion} („{titel}“):\n\n{antworten}\n\n{kommentar}\n\n"
+                 "Bisher {anzahl} Antwort(en). Am besten passt: {stand}\n\nÜbersicht: {link}\n\n{fusszeile}"),
+    },
+    "poll_final": {
+        "group": "Terminumfragen", "label": "Termin steht fest (an die Teilnehmenden)",
+        "vars": {**_POLL_VARS, "termin": "Der festgelegte Termin"},
+        "subject": "Termin steht fest: {titel} – {termin}",
+        "body": ("Guten Tag {name},\n\n"
+                 "vielen Dank fürs Abstimmen. Für „{titel}“ steht der Termin fest:\n\n    {termin}\n\n"
+                 "{ort}\n\nDen Termin können Sie mit der angehängten Datei in Ihren Kalender übernehmen.\n\n"
+                 "{fusszeile}"),
+    },
 }
 
 SAMPLE = {
@@ -210,7 +259,8 @@ SAMPLE = {
     "kommentar": "Ich komme etwas später.", "stand": "3 zugesagt, 1 abgesagt, 2 offen",
     "absender": "Max Muster", "frist": "Bitte bis Freitag, 09.10.2026, 12:00 Uhr ausfüllen.",
     "code": "482913", "minuten": "10", "nummer": "17", "zeitpunkt": "01.10.2026, 14:32 Uhr", "von": "Erika Mustermann <erika.mustermann@example.org>",
-    "antworten": "Teilnahme: Ja\nEssen: Vegetarisch", "anzahl": "17",
+    "antworten": "Teilnahme: Ja\nEssen: Vegetarisch", "anzahl": "17", "ort": "Rathaus, Sitzungssaal",
+    "vorschlaege": "6", "termin": "Dienstag, 13.10.2026, 14:00–15:30 Uhr", "aktion": "hat abgestimmt",
 }
 
 

@@ -98,6 +98,10 @@
             <li class="nav-section">Kurzlinks</li>
             {{ m.nav_item('/shortlinks', 'fa-link', 'Kurzlinks', path.startswith('/shortlinks')) }}
             {% endif %}
+            {% if user.can('polls') and 'polls' in modules %}
+            <li class="nav-section">Terminumfragen</li>
+            {{ m.nav_item('/polls', 'fa-calendar-check', 'Terminumfragen', path.startswith('/polls')) }}
+            {% endif %}
             {% if 'forms' in modules %}
             <li class="nav-section">Formulare</li>
             {{ m.nav_item('/forms', 'fa-clipboard-list', 'Formulare' if user.can('forms') else 'Geteilte Formulare', path == '/forms' or (path.startswith('/forms/') and not path.startswith('/forms/inbox'))) }}
