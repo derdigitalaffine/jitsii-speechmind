@@ -51,7 +51,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 
 ### Verwaltung und Sicherheit
 
-- **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Benutzerverwaltung) und **Gruppen**.
+- **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
 - **Zwei-Faktor-Anmeldung** per **Authenticator-App (TOTP)** oder **Code per E-Mail**, mit Notfallcodes; freiwillig oder Pflicht für Admins/alle. „Passwort vergessen“ per Mail-Link.
 - **Module** Kurzlinks und Formulare komplett abschaltbar.
 - **E-Mail** über SMTP mit Warteschlange, Wiederholungen und Protokoll; optional Ablage in „Gesendet“ per IMAP. **Alle Mails als Vorlagen bearbeitbar**, mit Platzhaltern und Live-Vorschau.
@@ -299,6 +299,7 @@ portal/app/
 ├── branding.py          Design & Branding (Farben, Logo verkleinern, Favicon, Theme-CSS)
 ├── proxy.py             Reverse Proxy: Caddyfile erzeugen (inkl. Kurz-Domain), Zertifikate prüfen
 ├── about.py             Angaben für „Über dieses Portal“ (Komponenten und Lizenzen)
+├── user_import.py       Benutzer per CSV importieren (Vorlage, Prüfung, Übernahme)
 ├── cli.py               Notfall-Werkzeug (Passwort setzen, Admin machen, Zwei-Faktor zurücksetzen)
 ├── speechmind.py        Client für die SpeechMind GraphQL API v2
 ├── security.py          Passwörter, Verschlüsselung, CSRF, Jitsi-JWT

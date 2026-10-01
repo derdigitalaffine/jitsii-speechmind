@@ -70,6 +70,22 @@
   {% endif %}
 </div>
 
+<div class="card mb-4" id="import"><div class="card-header"><i class="fa-solid fa-file-csv me-2"></i>Benutzer aus CSV importieren</div><div class="card-body">
+  <div class="row g-3 align-items-end">
+    <div class="col-lg-7">
+      <p class="small text-secondary mb-2">Viele Konten auf einmal anlegen, z. B. aus einer Excel-Liste. Spalten (englisch): <code>email</code> (Pflicht), <code>name</code>, <code>password</code>, <code>groups</code>, <code>permissions</code>, <code>admin</code>. Mehrere Gruppen bzw. Rechte mit <code>;</code> trennen. Fehlende Gruppen werden angelegt, bestehende Konten in die Gruppen aufgenommen. Ohne Passwort können Sie die neuen Konten anschließend per Mail einladen lassen. Vor dem Übernehmen zeigt das Portal eine Vorschau.</p>
+      <a class="btn btn-sm btn-outline-secondary" href="/admin/users/import-template.csv"><i class="fa-solid fa-download me-1"></i>CSV-Vorlage herunterladen</a>
+    </div>
+    <div class="col-lg-5">
+      <form method="post" action="/admin/users/import" enctype="multipart/form-data" class="d-flex gap-2">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input class="form-control" type="file" name="file" accept=".csv,text/csv" required aria-label="CSV-Datei">
+        <button class="btn btn-primary text-nowrap" type="submit"><i class="fa-solid fa-magnifying-glass me-1"></i>Prüfen</button>
+      </form>
+    </div>
+  </div>
+</div></div>
+
 {% if user.is_admin %}
 <div class="card mb-4" id="sicherheit"><div class="card-header"><i class="fa-solid fa-shield-halved me-2"></i>Anmeldung &amp; Zwei-Faktor</div><div class="card-body">
   <form method="post" action="/admin/security" class="row g-3 align-items-end">

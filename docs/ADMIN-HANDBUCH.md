@@ -78,6 +78,30 @@ Ohne Recht „Videokonferenzen“ kommt eine angemeldete Person in Portal-Räume
 
 Die Person bekommt eine E-Mail mit einem Link (72 Stunden gültig, einmal benutzbar) und legt ihr Passwort selbst fest. **Ist kein E-Mail-Versand eingerichtet**, zeigt das Portal den Link **einmalig** oben auf der Seite; geben Sie ihn persönlich weiter.
 
+### Viele Personen per CSV importieren
+
+Kasten **Benutzer aus CSV importieren**:
+
+1. **CSV-Vorlage herunterladen** und in Excel (oder LibreOffice) ausfüllen. Eine Zeile pro Person:
+
+   | Spalte | Inhalt | Beispiel |
+   |---|---|---|
+   | `email` | **Pflicht**, wird der Benutzername | `erika.mustermann@example.org` |
+   | `name` | Anzeigename; leer = aus der Adresse abgeleitet | `Erika Mustermann` |
+   | `password` | Startpasswort (mind. 10 Zeichen); **leer = ohne Passwort**, Einladung per Mail möglich | `Startpasswort-2026` |
+   | `groups` | Gruppen, mehrere mit `;` getrennt. Fehlende Gruppen werden angelegt | `Bauamt;Kita` |
+   | `permissions` | `video`, `shortlinks`, `forms`, `users`, mehrere mit `;`; leer = `video` | `video;forms` |
+   | `admin` | `yes`/`no` – wird nur beachtet, wenn ein Admin importiert | `no` |
+
+   Die Vorlage beginnt mit der Zeile `sep=,`, damit Excel die Spalten auch bei deutscher Einstellung richtig trennt; der Import überspringt sie. Speichert Excel die Datei mit Semikolon als Trennzeichen (Standard in Deutschland), trennen Sie mehrere Gruppen bzw. Rechte mit `|` statt `;`. Umlaute sind in UTF-8 und in der Excel-Kodierung (Windows-1252) möglich. Deutsche Spaltennamen (`E-Mail`, `Passwort`, `Gruppen`, `Rechte`) werden ebenfalls erkannt.
+2. Datei wählen, **Prüfen**. Das Portal zeigt eine **Vorschau** und ändert noch nichts: neue Konten, bestehende Konten (bei denen nur Gruppen ergänzt werden), übersprungene und fehlerhafte Zeilen mit Grund (ungültige Adresse, doppelte Adresse, zu kurzes Passwort, unbekanntes Recht) und neu entstehende Gruppen.
+3. Optionen wählen:
+   - **Neue Konten ohne Passwort per E-Mail einladen** (voreingestellt): Die Personen bekommen den üblichen Einladungslink. Ohne Mailversand zeigt das Portal die Links danach einmalig an. Ohne Einladung können Sie später einzeln über das Papierflieger-Symbol einladen.
+   - **Passwortwechsel bei der ersten Anmeldung verlangen** für Konten mit Startpasswort (empfohlen).
+4. **Import ausführen**. Fehlerhafte Zeilen werden übersprungen; korrigieren Sie sie in der Datei und importieren Sie erneut – schon angelegte Konten werden dann nur noch um Gruppen ergänzt.
+
+**Bestehende Konten** werden nicht überschrieben (Name, Passwort und Rechte bleiben); sie werden nur in die genannten Gruppen aufgenommen. Personen mit dem Recht „Benutzerverwaltung“ können importieren, aber keine Admins anlegen und keine Admin-Konten ändern. Die Vorschau samt Startpasswörtern liegt bis zum Ausführen kurz auf dem Server (`data/portal/imports/`, nur für das Portal lesbar) und wird spätestens nach einer Stunde gelöscht.
+
 ### Aktionen pro Person
 
 Symbole rechts in der Zeile (Maus darüber zeigt den Namen):

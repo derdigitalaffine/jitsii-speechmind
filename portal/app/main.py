@@ -1485,6 +1485,71 @@ async def admin_users_create(request: Request, emails: str = Form(...), name: st
     return redirect("/admin/users")
 
 
+# --- Admin: Benutzer per CSV importieren ----------------------------------------
+
+@app.get("/admin/users/import-template.csv")
+def admin_users_import_template(user: User = Depends(users_manager)):
+    from . import user_import
+    return Response(user_import.template_csv(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="benutzer-import-vorlage.csv"'})
+
+
+@app.post("/admin/users/import", dependencies=[Depends(check_csrf)])
+async def admin_users_import_preview(request: Request, file: UploadFile = File(...),
+                                     user: User = Depends(users_manager), db: Session = Depends(get_db)):
+    """Schritt 1: Datei prüfen und Vorschau zeigen – noch ohne Änderungen."""
+    from . import user_import
+    data = await file.read(5_000_001)
+    if len(data) > 5_000_000:
+        flash(request, "Die Datei ist größer als 5 MB.", "error")
+        return redirect("/admin/users#import")
+    rows, problems = user_import.parse(data, db, user)
+    if not rows:
+        flash(request, " ".join(problems) or "Keine Zeilen gefunden.", "error")
+        return redirect("/admin/users#import")
+    token = user_import.stash(rows)
+    return render(request, "admin_users_import.html", user, rows=rows, problems=problems, token=token,
+                  summary=user_import.summary(rows), filename=file.filename,
+                  mail_ready=notify.mail_configured(get_settings(db)), invite_ttl=settings.invite_ttl_hours)
+
+
+@app.post("/admin/users/import/apply", dependencies=[Depends(check_csrf)])
+def admin_users_import_apply(request: Request, token: str = Form(...), invite: str = Form(""),
+                             force_change: str = Form(""), user: User = Depends(users_manager),
+                             db: Session = Depends(get_db)):
+    """Schritt 2: Konten und Gruppen anlegen, auf Wunsch Einladungen an Konten ohne Passwort."""
+    from . import user_import
+    rows = user_import.unstash(token, remove=True)
+    if rows is None:
+        flash(request, "Der Import ist abgelaufen. Bitte die Datei erneut hochladen.", "error")
+        return redirect("/admin/users#import")
+    if not user.is_admin:
+        for row in rows:
+            row["admin"] = False
+    without_password, created, added = user_import.apply(db, rows, force_change == "1")
+    links, queued = [], 0
+    if invite == "1":
+        for target in without_password:
+            link, ok = send_link(db, target, "invite")
+            queued += ok
+            if not ok:
+                links.append({"email": target.email, "link": link})
+    db.commit()
+    worker.wake()
+    if links:
+        request.session["invite_links"] = links[:200]
+    parts = [f"{len(created)} Konto/Konten angelegt"]
+    if added:
+        parts.append(f"{added} Gruppenmitgliedschaft(en) ergänzt")
+    if queued:
+        parts.append(f"{queued} Einladung(en) per Mail unterwegs")
+    if without_password and invite != "1":
+        parts.append(f"{len(without_password)} Konto/Konten ohne Passwort – Einladung später über das "
+                     "Papierflieger-Symbol senden")
+    flash(request, "Import abgeschlossen: " + ", ".join(parts) + ".")
+    return redirect("/admin/users")
+
+
 @app.post("/admin/users/{uid}", dependencies=[Depends(check_csrf)])
 async def admin_users_update(request: Request, uid: int, action: str = Form(...),
                              user: User = Depends(users_manager), db: Session = Depends(get_db)):
