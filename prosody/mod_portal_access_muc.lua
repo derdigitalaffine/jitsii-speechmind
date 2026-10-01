@@ -3,7 +3,11 @@
 -- 1. Zweite Sicherung zu mod_portal_access: Wer ohne Token direkt einem Portal-Raum beitreten
 --    will, wird abgewiesen. Interne Teilnehmer (Fokus, Jibri, Jigasi) melden sich über eigene
 --    Domains an und sind ausgenommen.
--- 2. Chatprotokoll: Gruppen-Chatnachrichten in Portal-Räumen werden tageweise als JSON-Zeilen
+-- 2. Moderation in Portal-Räumen: Portal-Benutzer (Token mit moderator=true) werden beim Betreten
+--    Moderator. Gäste (Gastlink, persönlicher Link) werden nie automatisch befördert: Versucht
+--    Jicofo (Auto-Owner), einem Gast die Moderation zu geben, lehnen wir das ab. Ein Moderator
+--    kann einen Gast weiterhin bewusst von Hand zum Moderator machen.
+-- 3. Chatprotokoll: Gruppen-Chatnachrichten in Portal-Räumen werden tageweise als JSON-Zeilen
 --    nach /portal-chat/<raum>/<JJJJ-MM-TT>.jsonl geschrieben. Das Portal hängt die Nachrichten,
 --    die während einer Aufnahme geschrieben wurden, als "Chatprotokoll" an die Aufnahme und
 --    löscht die Rohdateien nach kurzer Zeit. Private Nachrichten und freie Räume: nie.
@@ -16,6 +20,8 @@ local lfs = require "lfs";
 local state_file = module:get_option_string("portal_rooms_file", "/portal-rooms/rooms.json");
 local chat_dir = module:get_option_string("portal_chat_dir", "/portal-chat");
 local main_domain = module:get_option_string("muc_mapper_domain_base");
+local focus_domain = module:get_option_string("portal_focus_domain", main_domain and ("auth." .. main_domain) or nil);
+local mod_muc = module:depends("muc");
 local state = { anonymous = false, rooms = {} };
 local loaded_mtime = nil;
 
@@ -56,6 +62,68 @@ module:hook("muc-occupant-pre-join", function(event)
         return true;
     end
 end, 10);
+
+-- --- Moderation ------------------------------------------------------------------
+
+local function is_token_moderator(session)
+    if not session or session.auth_token == nil then return false; end
+    local user = session.jitsi_meet_context_user;
+    return type(user) == "table" and (user.moderator == true or user.moderator == "true");
+end
+
+local function session_of(room, bare_jid)
+    for _, occupant in room:each_occupant() do
+        if occupant.bare_jid == bare_jid then
+            for real_jid in occupant:each_session() do
+                local session = prosody.full_sessions[real_jid];
+                if session then return session; end
+            end
+        end
+    end
+    return nil;
+end
+
+local function is_portal_room(room)
+    local node = jid.split(room.jid);
+    return node ~= nil and load_state().rooms[string.lower(node)] == true;
+end
+
+-- Portal-Benutzer werden beim Betreten eines Portal-Raums Moderator (unabhängig von der Reihenfolge)
+module:hook("muc-occupant-pre-join", function(event)
+    local room, occupant, session = event.room, event.occupant, event.origin;
+    if not session or (main_domain and session.host ~= main_domain) then return; end
+    if not is_portal_room(room) or not is_token_moderator(session) then return; end
+    room:set_affiliation(true, occupant.bare_jid, "owner");
+    occupant.role = "moderator";
+end, -3.5);
+
+-- Automatische Beförderung durch Jicofo (Auto-Owner) in Portal-Räumen nur für Portal-Benutzer
+local function filter_focus_grants(event)
+    local origin, stanza = event.origin, event.stanza;
+    if not focus_domain or jid.host(stanza.attr.from or "") ~= focus_domain then return; end
+    local room = mod_muc.get_room_from_jid(jid.bare(stanza.attr.to));
+    if not room or not is_portal_room(room) then return; end
+    local query = stanza.tags[1];
+    if not query then return; end
+    for _, item in ipairs(query.tags) do
+        if item.name == "item" and (item.attr.affiliation == "owner" or item.attr.role == "moderator") then
+            local target = item.attr.jid and jid.bare(item.attr.jid);
+            if not target and item.attr.nick then
+                local occupant = room:get_occupant_by_nick(room.jid .. "/" .. item.attr.nick);
+                target = occupant and occupant.bare_jid;
+            end
+            if target and not is_token_moderator(session_of(room, target)) then
+                module:log("info", "Automatische Moderation für Gast %s in %s abgelehnt", target, room.jid);
+                origin.send(st.error_reply(stanza, "auth", "forbidden"));
+                return true;
+            end
+        end
+    end
+end
+module:hook("iq-set/bare/http://jabber.org/protocol/muc#admin:query", filter_focus_grants, 5);
+module:hook("iq-set/host/http://jabber.org/protocol/muc#admin:query", filter_focus_grants, 5);
+
+-- --- Chatprotokoll ------------------------------------------------------------------
 
 -- Anzeigename der schreibenden Person: aus der Nachricht, sonst aus der Anwesenheit, sonst aus dem Token
 local function sender_name(event)

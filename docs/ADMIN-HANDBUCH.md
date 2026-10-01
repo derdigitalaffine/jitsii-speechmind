@@ -247,7 +247,7 @@ Es gibt zwei Arten von Konferenzräumen:
 |---|---|---|
 | Wie entstehen sie? | Jede:r ruft die Konferenzadresse mit einem beliebigen Namen auf, z. B. `https://meet.…/elternabend`, oder nutzt „Konferenz ohne Anmeldung starten“ auf der Anmeldeseite | Im Portal: **Meeting anlegen** oder **Besprechung planen** |
 | Wer kommt hinein? | Jede:r mit der Adresse, ohne Konto | Nur **angemeldete Benutzer:innen** und **Gäste mit Link** (Gastlink oder persönlicher Link aus der Einladung) |
-| Wer moderiert? | Die erste Person im Raum | Angemeldete Benutzer:innen |
+| Wer moderiert? | Die erste Person im Raum | Angemeldete Benutzer:innen, sobald sie den Raum betreten. **Gäste nie automatisch**, auch nicht, wenn sie allein im Raum sind; ein Moderator kann einen Gast aber bewusst zum Moderator machen |
 | **Aufnahme** | **nie** | ja, durch angemeldete Benutzer:innen (nicht durch Gäste) |
 | Chatprotokoll | nie | ja, zusammen mit einer Aufnahme |
 
@@ -257,7 +257,7 @@ Es gibt zwei Arten von Konferenzräumen:
 
 - **Gastlink** (auf der Seite des Meetings, „Einladungslink für Gäste“): Wer ihn öffnet, gibt seinen Namen ein und ist als Gast im Raum. Ist ein Link in falsche Hände geraten: **Neuen Gastlink erzeugen**, der alte funktioniert dann nicht mehr.
 - **Persönlicher Link**: Jede Person, die per **Besprechung planen** eingeladen wird, bekommt einen eigenen Link (in der Mail und im Kalendereintrag). Er funktioniert, bis die Person ausgeladen oder die Besprechung abgesagt wird.
-- Gäste dürfen **nicht aufnehmen** und sind keine Moderator:innen.
+- Gäste dürfen **nicht aufnehmen** und werden **nie automatisch Moderator:innen**. Sind nur Gäste im Raum, hat die Konferenz bis zum Eintreffen einer angemeldeten Person keine Moderation. Ein Moderator kann einen Gast im Teilnehmermenü bewusst zum Moderator machen.
 - **Nach der Umstellung (Oktober 2026):** Einladungen, die vorher verschickt wurden, enthalten noch die direkte Konferenzadresse. Externe Gäste kommen damit nicht mehr in Portal-Räume. Für anstehende Besprechungen deshalb einmal **„Einladung erneut senden“** klicken, dann haben alle ihren persönlichen Link.
 
 **Schalter „Konferenzen ohne Anmeldung“** (unter **Benutzer**):
@@ -265,7 +265,7 @@ Es gibt zwei Arten von Konferenzräumen:
 - **Freigegeben** (Standard): freie Räume wie oben beschrieben.
 - **Gesperrt**: Auch jeder freie Raum verlangt eine Anmeldung oder einen Gastlink. Die Einstellung wirkt sofort, ohne Neustart.
 
-**Technischer Hintergrund (für die Betreuung):** Jitsi lässt Verbindungen ohne Token zu (`JWT_ALLOW_EMPTY=1`, keine Gast-Domain). Zwei kleine Prosody-Module aus dem Ordner `prosody/` setzen die Regeln durch: `mod_portal_access` beantwortet Raumanfragen ohne Token für Portal-Räume mit „Anmeldung erforderlich“ und lässt Aufnahmen nur in Portal-Räumen und nur mit Token mit Aufnahmerecht zu. `mod_portal_access_muc` weist direkte Beitritte ohne Token ab und schreibt das Chatprotokoll. Die Liste der Portal-Räume schreibt das Portal nach `data/portal-rooms/rooms.json`. Fehlt die Datei, verlangt Prosody für alle Räume eine Anmeldung (sicherer Zustand). Aufnahmen, die trotzdem aus einem freien Raum stammen, verwirft das Portal.
+**Technischer Hintergrund (für die Betreuung):** Jitsi lässt Verbindungen ohne Token zu (`JWT_ALLOW_EMPTY=1`, keine Gast-Domain). Zwei kleine Prosody-Module aus dem Ordner `prosody/` setzen die Regeln durch: `mod_portal_access` beantwortet Raumanfragen ohne Token für Portal-Räume mit „Anmeldung erforderlich“ und lässt Aufnahmen nur in Portal-Räumen und nur mit Token mit Aufnahmerecht zu. `mod_portal_access_muc` weist direkte Beitritte ohne Token ab, macht Portal-Benutzer beim Betreten zu Moderatoren, lehnt die automatische Beförderung von Gästen durch Jicofo (Auto-Owner) ab und schreibt das Chatprotokoll. Die Liste der Portal-Räume schreibt das Portal nach `data/portal-rooms/rooms.json`. Fehlt die Datei, verlangt Prosody für alle Räume eine Anmeldung (sicherer Zustand). Aufnahmen, die trotzdem aus einem freien Raum stammen, verwirft das Portal.
 
 ## E-Mail einrichten
 
