@@ -4,6 +4,7 @@
 {% block content %}
 {% call m.page_head('Rechtstexte', 'Gesetze, Satzungen und Verordnungen als Markdown einstellen. Veröffentlichte Texte erscheinen öffentlich unter /recht – durchsuchbar, als Volltext oder Paragraf für Paragraf.') %}
 <a class="btn btn-outline-secondary" href="/recht" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Öffentliche Ansicht</a>
+<a class="btn btn-outline-secondary" href="/laws/embed"><i class="fa-solid fa-code me-1"></i>Link &amp; Einbinden</a>
 <a class="btn btn-outline-secondary" href="/laws/levels"><i class="fa-solid fa-sitemap me-1"></i>Ebenen</a>
 <a class="btn btn-outline-primary" href="/laws/upload{{ ('?level=' ~ selected.id) if selected }}"><i class="fa-solid fa-file-arrow-up me-1"></i>Dateien hochladen</a>
 <a class="btn btn-primary" href="/laws/new{{ ('?level=' ~ selected.id) if selected }}"><i class="fa-solid fa-plus me-1"></i>Neuer Rechtstext</a>

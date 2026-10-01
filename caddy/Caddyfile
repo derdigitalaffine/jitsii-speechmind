@@ -25,7 +25,9 @@
 	header {
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "same-origin"
-		X-Frame-Options "DENY"
 	}
+	# Nur die Rechtstexte unter /recht-embed dürfen in fremden Seiten (iframe) erscheinen
+	@noembed not path /recht-embed /recht-embed/*
+	header @noembed ?X-Frame-Options "DENY"
 	reverse_proxy portal:8000
 }

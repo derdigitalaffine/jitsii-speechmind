@@ -70,6 +70,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - Gesetze, **Satzungen** und Verordnungen als **Markdown** einfügen oder hochladen (auch viele Dateien auf einmal); aus Word oder Webseiten kopierter Text wird ebenfalls gegliedert.
 - **Rechtsbaum** mit frei bearbeitbaren Ebenen: Europäische Union › Bund › Land › Landkreis › Verbandsgemeinde › Ortsgemeinden (beliebig verschachtelt, sortierbar).
 - Öffentliche Ansicht unter `/recht` in **gesetzestypischer Formatierung** (zentrierte §-Überschriften, nummerierte Absätze): wahlweise **Volltext** oder **Paragraf für Paragraf**, mit **Baum-Inhaltsverzeichnis**, Permalinks je §, Druckansicht und Markdown-Download.
+- **Öffentlicher Link und Einbinden per iframe** in die Homepage (`/recht-embed`, ganz, je Ebene oder je Text, automatische Höhe, Farbschema), auf Wunsch nur für freigegebene Webseiten; öffentliche Ansicht ganz ohne Cookies.
 - **Volltextsuche** über alle Texte, einzelne Ebenen oder einen Text, mit Fundstellen und Hervorhebung; § direkt suchbar („§ 3 Hauptsatzung“).
 - Entwürfe, Stand/Fassung, Ausfertigungs- und Inkrafttretensdaten, **frühere Fassungen** mit Wiederherstellen. Pflege mit eigenem Recht „Rechtstexte“.
 

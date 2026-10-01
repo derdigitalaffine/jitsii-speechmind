@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="de" data-bs-theme="light" data-default-theme="{{ ui.theme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Rechtstexte{% endblock %} · {{ brand }}</title>
+  <script>
+    (function () {
+      /* Farbschema: ?theme=light|dark|auto (bleibt beim Blättern im Rahmen erhalten), sonst Design-Vorgabe */
+      var t = new URLSearchParams(location.search).get('theme');
+      try { if (t) { sessionStorage.setItem('embed-theme', t); } else { t = sessionStorage.getItem('embed-theme'); } } catch (e) {}
+      t = t || '{{ ui.theme }}';
+      if (t === 'auto') { t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+      document.documentElement.setAttribute('data-bs-theme', t === 'dark' ? 'dark' : 'light');
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/vendor/bootstrap/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <style>{{ ui.css | safe }}</style>
+  <style>
+    body.embed { background: var(--bs-body-bg); }
+    .embed-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; justify-content: space-between; font-size: .85rem; border-bottom: 1px solid var(--bs-border-color); padding: .5rem 1rem; }
+    .embed .lex-toc { top: .75rem; }
+    .embed .lex-toc-scroll { max-height: 70vh; }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body class="embed">
+{% set public_path = request.url.path | replace('/recht-embed', '/recht', 1) %}
+<div id="embed-root">
+<div class="embed-bar">
+  <a class="link-secondary text-decoration-none" href="{{ R }}"><i class="fa-solid fa-scale-balanced me-1"></i>{{ brand }} · Rechtstexte</a>
+  <a class="link-secondary" href="{{ public_path }}{{ ('?' ~ request.url.query) if request.url.query }}" target="_blank" rel="noopener">In neuem Fenster öffnen <i class="fa-solid fa-arrow-up-right-from-square ms-1"></i></a>
+</div>
+<main class="px-3 py-3">
+  {% block content %}{% endblock %}
+</main>
+</div>
+<script src="/static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="/static/app.js"></script>
+<script>
+  /* Höhe an die einbettende Seite melden (siehe Einbettungscode unter Rechtstexte › Einbinden) */
+  (function () {
+    if (window.parent === window) { return; }
+    var last = 0;
+    function send() {
+      /* Inhaltshöhe messen (nicht scrollHeight – das wäre nie kleiner als der Rahmen selbst) */
+      var h = Math.ceil(document.getElementById('embed-root').getBoundingClientRect().height) + 2;
+      if (Math.abs(h - last) < 2) { return; }
+      last = h;
+      window.parent.postMessage({ type: 'jsm-recht-height', height: h, path: location.pathname }, '*');
+    }
+    if ('ResizeObserver' in window) { new ResizeObserver(send).observe(document.getElementById('embed-root')); }
+    document.addEventListener('toggle', send, true);   /* auf-/zugeklappte Gliederung */
+    window.addEventListener('load', send);
+    send();
+    /* Bei Wechsel auf eine neue Seite im Rahmen: einbettende Seite zum Rahmenanfang scrollen lassen */
+    window.parent.postMessage({ type: 'jsm-recht-navigate', path: location.pathname }, '*');
+  })();
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -85,8 +85,11 @@ def render(cfg: dict[str, str]) -> str:
         f"{hsts}"
         '\t\tX-Content-Type-Options "nosniff"\n'
         '\t\tReferrer-Policy "same-origin"\n'
-        '\t\tX-Frame-Options "DENY"\n'
-        "\t}\n\treverse_proxy portal:8000\n}\n"
+        "\t}\n"
+        "\t# Nur die Rechtstexte unter /recht-embed dürfen in fremden Seiten (iframe) erscheinen\n"
+        "\t@noembed not path /recht-embed /recht-embed/*\n"
+        '\theader @noembed ?X-Frame-Options "DENY"\n'
+        "\treverse_proxy portal:8000\n}\n"
         f"{short_block(cfg, h, tls)}"
     )
 
