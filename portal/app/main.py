@@ -509,6 +509,23 @@ def recording_transcribe(request: Request, rec_id: int, user: User = Depends(cur
     return redirect(f"/recordings/{rec.id}")
 
 
+@app.post("/recordings/{rec_id}/reconvert", dependencies=[Depends(check_csrf)])
+def recording_reconvert(request: Request, rec_id: int, user: User = Depends(current_user),
+                        db: Session = Depends(get_db)):
+    """MP3 aus dem Video neu erzeugen und den Ton neu messen."""
+    rec = own_recording(db, rec_id, user)
+    if rec.status in ACTIVE_STATUSES:
+        flash(request, "Die Aufnahme wird gerade verarbeitet.", "error")
+    elif not (rec.video_path and Path(rec.video_path).exists()):
+        flash(request, "Das Video ist nicht mehr vorhanden, die MP3 kann nicht neu erzeugt werden.", "error")
+    else:
+        rec.status, rec.error, rec.audio_max_db = "new", None, None
+        db.commit()
+        worker.wake()
+        flash(request, "Die MP3 wird neu erzeugt.")
+    return redirect(f"/recordings/{rec.id}")
+
+
 @app.get("/recordings/{rec_id}/audio.mp3")
 def recording_audio(rec_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     rec = own_recording(db, rec_id, user)

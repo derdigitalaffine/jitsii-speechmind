@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import (
-    Boolean, DateTime, ForeignKey, Integer, String, Text, create_engine, event, inspect, select, text,
+    Boolean, DateTime, Float, ForeignKey, Integer, String, Text, create_engine, event, inspect, select, text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
@@ -110,6 +110,8 @@ STATUS_PROCESSING = "processing"    # SpeechMind transkribiert
 STATUS_DONE = "done"
 STATUS_FAILED = "failed"
 
+SILENCE_DB = -50.0  # lauteste Stelle darunter = kein hörbarer Ton
+
 ACTIVE_STATUSES = {STATUS_NEW, STATUS_QUEUED, STATUS_CONVERTING, STATUS_UPLOADING, STATUS_PROCESSING}
 
 
@@ -122,6 +124,8 @@ class Recording(Base):
     session_dir: Mapped[str] = mapped_column(String(512), unique=True)
     video_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     audio_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    # Lauteste Stelle der MP3 in dB (0 = Vollaussteuerung, -91 = digitale Stille); None = nicht gemessen
+    audio_max_db: Mapped[float | None] = mapped_column(Float, nullable=True)
     participants: Mapped[str] = mapped_column(Text, default="[]")
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
@@ -139,6 +143,11 @@ class Recording(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
     meeting: Mapped[Meeting | None] = relationship(back_populates="recordings")
+
+    @property
+    def audio_silent(self) -> bool:
+        """True, wenn die MP3 gemessen wurde und praktisch keinen Ton enthält."""
+        return self.audio_max_db is not None and self.audio_max_db < SILENCE_DB
 
     @property
     def audio_size(self) -> int | None:
@@ -227,7 +236,7 @@ _NEW_COLUMNS = {
         "token_hash": "VARCHAR(64)",
         "token_expires_at": "DATETIME",
     },
-    "recordings": {"audio_path": "VARCHAR(1024)"},
+    "recordings": {"audio_path": "VARCHAR(1024)", "audio_max_db": "FLOAT"},
 }
 
 

@@ -12,11 +12,12 @@ Für alle, die den Videokonferenzserver der Verbandsgemeinde Otterbach-Otterberg
 6. [Konferenzen ohne Anmeldung](#konferenzen-ohne-anmeldung)
 7. [E-Mail einrichten](#e-mail-einrichten)
 8. [SpeechMind einrichten](#speechmind-einrichten)
-9. [Admin-Passwort vergessen](#admin-passwort-vergessen)
-10. [Alltag: Start, Stopp, Logs, Update](#alltag-start-stopp-logs-update)
-11. [Sicherung und Wiederherstellung](#sicherung-und-wiederherstellung)
-12. [Speicherplatz](#speicherplatz)
-13. [Wenn etwas nicht geht](#wenn-etwas-nicht-geht)
+9. [Aufnahme ohne Ton](#aufnahme-ohne-ton)
+10. [Admin-Passwort vergessen](#admin-passwort-vergessen)
+11. [Alltag: Start, Stopp, Logs, Update](#alltag-start-stopp-logs-update)
+12. [Sicherung und Wiederherstellung](#sicherung-und-wiederherstellung)
+13. [Speicherplatz](#speicherplatz)
+14. [Wenn etwas nicht geht](#wenn-etwas-nicht-geht)
 
 ## Die Oberfläche im Überblick
 
@@ -60,6 +61,7 @@ Auf dem Handy öffnet das Symbol mit den drei Strichen oben links das Menü.
 | Wartet / Wird hochgeladen / SpeechMind transkribiert | Läuft | Warten |
 | Transkript fertig | Protokoll und Wortlaut stehen im Portal | Lesen, als TXT laden |
 | Fehlgeschlagen | Meldung steht in der Zeile | Ursache beheben, dann **Erneut versuchen** |
+| MP3 bereit + Etikett „kein Ton“ | Die Aufnahme ist stumm | Ton auf dem Server einrichten, siehe [Aufnahme ohne Ton](#aufnahme-ohne-ton). Nicht transkribieren, es käme nichts dabei heraus |
 
 Eine MP3 ist bei Fehlern fast immer schon vorhanden und weiter herunterladbar. „Erneut versuchen“ lädt nichts doppelt hoch, wenn der Upload schon gelungen war.
 
@@ -230,6 +232,44 @@ Weitere Schalter:
 - **Video nach fertigem Transkript löschen** – spart Speicher. Die MP3 bleibt erhalten.
 - **Teilnehmernamen als Sprecherliste übergeben** – standardmäßig aus (Datenschutz).
 
+## Aufnahme ohne Ton
+
+**Erkennen:** Das Portal misst jede neue MP3. Enthält sie keinen hörbaren Ton, steht in der Aufnahmenliste das gelbe Etikett **„kein Ton“** und eine Erklärung; auf Wunsch kommt zusätzlich eine E-Mail („Aufnahme ohne Ton“, gehört zu den Hinweisen „Verarbeitung fehlgeschlagen“). Fehlt die Tonspur im Video ganz, steht „Fehlgeschlagen: Das Video enthält keine Tonspur“.
+
+**Ursache (fast immer):** Jibri nimmt den Ton über eine virtuelle Soundkarte des Server-Kernels auf (`snd-aloop`). Ist das Modul auf dem Server nicht geladen oder dem Jibri-Container nicht durchgereicht (`/dev/snd`), entsteht ein Video mit Bild, aber ohne Ton.
+
+**Auf dem laufenden Server beheben** (Befehle im Projektordner, kurze Konferenz-Unterbrechung):
+
+```bash
+git pull                                   # holt die korrigierte docker-compose.yml
+./scripts/setup-recording-audio.sh         # Modul laden, dauerhaft eintragen, Jibri neu starten
+```
+
+Das Skript meldet jeden Schritt. Danach:
+
+1. **Testaufnahme:** In einer Konferenz Aufnahme starten, ein paar Sätze sprechen (mit eingeschaltetem Mikrofon), Aufnahme beenden.
+2. Im Portal unter **Aufnahmen** nach ca. einer Minute die neue Zeile prüfen: **kein** Etikett „kein Ton“, MP3 anhören (Download-Symbol oder in der Aufnahme direkt abspielen).
+
+**Wenn das Skript „snd-aloop ist nicht verfügbar“ meldet:**
+
+| Server | Lösung |
+|---|---|
+| Ubuntu | `sudo apt install linux-modules-extra-$(uname -r)`, Skript erneut starten |
+| Debian mit „cloud“-Kernel | `sudo apt install linux-image-amd64 && sudo reboot`, danach Skript erneut starten |
+| LXC-/OpenVZ-Container | Der Kernel gehört dem Anbieter, das Modul lässt sich nicht laden. Es braucht einen echten virtuellen Server (KVM) oder Root-Server |
+
+**Prüfen von Hand:**
+
+```bash
+lsmod | grep snd_aloop                                  # Modul geladen? (eine Zeile erwartet)
+ls /dev/snd                                             # Geräte vorhanden?
+docker compose exec jibri cat /proc/asound/cards        # "Loopback" muss auftauchen
+```
+
+**Alte stumme Aufnahmen:** Der Ton wurde nie aufgezeichnet und lässt sich nicht nachträglich herstellen. In der Aufnahme gibt es den Knopf **„MP3 neu erzeugen“**; er bringt nur dann etwas, wenn das Video doch Ton enthält (dann wird die Messung neu gemacht). Stumme Aufnahmen können Sie löschen, bevor sie unnötig Speicher belegen.
+
+**Trotzdem kein Ton, obwohl das Modul geladen ist?** Prüfen Sie, ob in der Konferenz wirklich jemand gesprochen hat (Mikrofon nicht stumm geschaltet), und lesen Sie `docker compose logs jibri`. Fehlermeldungen zu „ALSA“ oder „Loopback“ dort an die Betreuung weitergeben.
+
 ## Admin-Passwort vergessen
 
 Wenn noch ein anderer Admin existiert: Dieser klickt unter **Benutzer** bei Ihnen auf „Passwort-Link senden“.
@@ -304,6 +344,7 @@ Platz sparen: Aufnahmen nach Gebrauch in der Oberfläche löschen oder unter **S
 | Portal-Seite lädt nicht | `docker compose ps`, `docker compose logs caddy portal`. Zeigt der Browser einen Zertifikatsfehler: DNS prüfen und ein paar Minuten warten |
 | Konferenz öffnet, aber kein Bild/Ton | UDP 10000 nicht offen oder `JVB_ADVERTISE_IPS` ist nicht die öffentliche IP |
 | Beitritt endet in einer Schleife auf der Login-Seite | `JWT_*`-Werte in `.env` geändert? Dann `docker compose up -d --force-recreate` |
+| MP3 ist stumm, Etikett „kein Ton“ | Siehe [Aufnahme ohne Ton](#aufnahme-ohne-ton): `./scripts/setup-recording-audio.sh` |
 | Aufnahme-Knopf fehlt | Nur angemeldete Benutzer dürfen aufnehmen; Jibri-Log prüfen (`docker compose logs jibri`) |
 | Aufnahme erscheint nicht unter „Aufnahmen“ | In `data/recordings/<sitzung>/` muss eine Datei `.finalized` liegen. Fehlt sie: `chmod +x jibri/finalize.sh`, Jibri neu starten |
 | Status „Fehlgeschlagen“ | Meldung in der Zeile lesen, Ursache beheben (z. B. SpeechMind-Key), **Erneut versuchen** |

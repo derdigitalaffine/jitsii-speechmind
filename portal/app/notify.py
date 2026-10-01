@@ -249,7 +249,8 @@ def _recipients(db, rec: Recording) -> list[str]:
 def notify_recording(db, rec: Recording, event: str) -> None:
     """event: new_recording | done | failed. Muss vor db.commit() aufgerufen werden."""
     cfg = get_settings(db)
-    if cfg.get(f"notify_{event}") != "1" or not mail_configured(cfg):
+    gate = "failed" if event == "silent" else event
+    if cfg.get(f"notify_{gate}") != "1" or not mail_configured(cfg):
         return
     link = f"{settings.portal_base_url}/recordings/{rec.id}"
     label = _recording_label(rec)
@@ -260,6 +261,10 @@ def notify_recording(db, rec: Recording, event: str) -> None:
     elif event == "done":
         subject = f"Transkript fertig: {label}"
         body = f"SpeechMind hat die Aufnahme „{label}“ verarbeitet.\n\nProtokoll und Wortlaut:\n{link}\n"
+    elif event == "silent":
+        subject = f"Aufnahme ohne Ton: {label}"
+        body = (f"Die Aufnahme „{label}“ enthält keinen hörbaren Ton.\n\n{rec.error or ''}\n\n"
+                f"Details:\n{link}\n")
     else:
         subject = f"Transkription fehlgeschlagen: {label}"
         body = (f"Bei der Aufnahme „{label}“ ist ein Fehler aufgetreten:\n\n{rec.error or 'unbekannt'}\n\n"

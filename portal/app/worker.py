@@ -20,7 +20,7 @@ from sqlalchemy import select
 
 from .config import settings
 from .db import (
-    ACTIVE_STATUSES, STATUS_CONVERTING, STATUS_NEW, STATUS_DONE, STATUS_FAILED, STATUS_PROCESSING,
+    ACTIVE_STATUSES, SILENCE_DB, STATUS_CONVERTING, STATUS_NEW, STATUS_DONE, STATUS_FAILED, STATUS_PROCESSING,
     STATUS_QUEUED, STATUS_RECORDED, STATUS_UPLOADING, Meeting, Recording, SessionLocal,
     get_settings, to_local, utcnow,
 )
@@ -144,22 +144,46 @@ async def _run(*cmd: str) -> tuple[int, str]:
     return proc.returncode, out.decode(errors="replace")
 
 
-async def extract_audio(video: Path, target: Path) -> int | None:
+NO_SOUND_CAUSE = ("Meist fehlt auf dem Server das Kernelmodul snd-aloop oder dem Jibri-Container die "
+                  "Audio-Schnittstelle /dev/snd (siehe Admin-Handbuch, Abschnitt „Aufnahme ohne Ton“).")
+NO_SOUND_HINT = "Die Aufnahme enthält keinen hörbaren Ton. " + NO_SOUND_CAUSE
+_VOLUME = re.compile(r"max_volume:\s*(-?[\d.]+|-inf)\s*dB")
+
+
+async def measure_max_db(audio: Path) -> float | None:
+    """Lauteste Stelle in dB (volumedetect). Gibt -91 zurück, wenn keine Lautstärke ermittelbar ist."""
+    code, out = await _run("ffmpeg", "-nostdin", "-i", str(audio), "-af", "volumedetect",
+                           "-vn", "-sn", "-dn", "-f", "null", "-")
+    if code != 0:
+        return None
+    match = _VOLUME.search(out)
+    if not match:
+        return -91.0
+    return -91.0 if match.group(1) == "-inf" else float(match.group(1))
+
+
+async def extract_audio(video: Path, target: Path) -> tuple[int | None, float | None]:
+    """Erzeugt die MP3 und liefert (Dauer in Sekunden, lauteste Stelle in dB)."""
     target.parent.mkdir(parents=True, exist_ok=True)
     code, out = await _run(
         "ffmpeg", "-nostdin", "-y", "-i", str(video),
         "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame", "-b:a", "64k", str(target),
     )
     if code != 0:
+        if "does not contain any stream" in out or "Output file #0 does not contain" in out:
+            raise RuntimeError("Das Video enthält keine Tonspur. " + NO_SOUND_CAUSE)
         raise RuntimeError("ffmpeg konnte die Audiospur nicht extrahieren: " + out[-400:])
+    if not target.exists() or target.stat().st_size < 1024:
+        raise RuntimeError("Die erzeugte MP3 ist leer. " + NO_SOUND_HINT)
     code, out = await _run(
         "ffprobe", "-v", "error", "-show_entries", "format=duration",
         "-of", "default=noprint_wrappers=1:nokey=1", str(target),
     )
     try:
-        return int(float(out.strip()))
+        duration = int(float(out.strip()))
     except ValueError:
-        return None
+        duration = None
+    return duration, await measure_max_db(target)
 
 
 def _set(rec_id: int, notify_event: str | None = None, **fields) -> None:
@@ -185,9 +209,13 @@ async def convert_recording(rec_id: int) -> None:
         if not video or not video.exists():
             raise RuntimeError("Die Videodatei der Aufnahme existiert nicht mehr.")
         audio = AUDIO_DIR / f"recording-{rec_id}.mp3"
-        duration = await extract_audio(video, audio)
-        _set(rec_id, "new_recording", status=STATUS_RECORDED, error=None,
-             audio_path=str(audio), duration_seconds=duration)
+        duration, max_db = await extract_audio(video, audio)
+        silent = max_db is not None and max_db < SILENCE_DB
+        if silent:
+            log.warning("Aufnahme %s ist stumm (lauteste Stelle %.1f dB)", rec_id, max_db)
+        _set(rec_id, "silent" if silent else "new_recording", status=STATUS_RECORDED,
+             error=NO_SOUND_HINT if silent else None,
+             audio_path=str(audio), duration_seconds=duration, audio_max_db=max_db)
         log.info("MP3 für Aufnahme %s erzeugt", rec_id)
     except Exception as exc:  # noqa: BLE001
         log.exception("MP3-Erzeugung für Aufnahme %s fehlgeschlagen", rec_id)
@@ -241,8 +269,8 @@ async def submit_recording(rec_id: int) -> None:
         else:
             _set(rec_id, status=STATUS_CONVERTING, error=None)
             audio = AUDIO_DIR / f"recording-{rec_id}.mp3"
-            duration = await extract_audio(video, audio)
-            _set(rec_id, audio_path=str(audio))
+            duration, max_db = await extract_audio(video, audio)
+            _set(rec_id, audio_path=str(audio), audio_max_db=max_db)
 
         _set(rec_id, status=STATUS_UPLOADING, **({"duration_seconds": duration} if duration else {}))
         unique = f"jitsi-{rec_id}-{uuid.uuid4().hex[:12]}.mp3"
