@@ -1,78 +1,71 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
-{% block title %}{{ meeting.title }} – {{ product }}{% endblock %}
-{% block head %}{% if meeting.recordings | selectattr('status', 'in', active_statuses) | list %}<meta http-equiv="refresh" content="30">{% endif %}{% endblock %}
+{% block title %}{{ meeting.title }}{% endblock %}
 {% block content %}
-<section class="meeting-hero">
-  <div>
-    <h1>{{ meeting.title }}</h1>
-    <div class="room-name">Raum <strong>{{ meeting.room }}</strong>{% if meeting.owner_id != user.id %} · gehört {{ meeting.owner.name }}{% endif %}</div>
-  </div>
-  <a class="button join" href="/meetings/{{ meeting.id }}/join">Konferenz betreten</a>
-</section>
+<div {% if meeting.recordings | selectattr('status', 'in', active_statuses) | list %}data-autorefresh="30"{% endif %}>
+<nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="/">Meetings</a></li><li class="breadcrumb-item active">{{ meeting.title }}</li></ol></nav>
+{% call m.page_head(meeting.title, 'Raum ' ~ meeting.room ~ ((' · gehört ' ~ meeting.owner.name) if meeting.owner_id != user.id else '')) %}
+  <a class="btn btn-primary btn-lg" href="/meetings/{{ meeting.id }}/join"><i class="fa-solid fa-video me-2"></i>Konferenz betreten</a>
+{% endcall %}
 
-<div class="field">
-  <label for="guest">Einladungslink für Gäste</label>
-  <div class="copy-row">
-    <input id="guest" type="text" value="{{ guest_url }}" readonly>
-    <button type="button" class="quiet" data-copy="#guest">Kopieren</button>
+<div class="card mb-4">
+  <div class="card-body">
+    <label class="form-label" for="guest">Einladungslink für Gäste</label>
+    <div class="input-group">
+      <span class="input-group-text"><i class="fa-solid fa-link"></i></span>
+      <input id="guest" class="form-control" type="text" value="{{ guest_url }}" readonly>
+      <button type="button" class="btn btn-outline-primary" data-copy="#guest"><i class="fa-regular fa-copy"></i> Kopieren</button>
+    </div>
+    <div class="form-text">Gäste kommen in den Raum, sobald Sie als Moderator:in drin sind.</div>
   </div>
-  <span class="hint">Gäste kommen in den Raum, sobald Sie als Moderator:in drin sind.</span>
 </div>
 
-<h2>Aufnahmen</h2>
-{% if not sm_ready %}
-<div class="notice"><strong>SpeechMind ist noch nicht verbunden.</strong> Aufnahmen werden gespeichert und können später transkribiert werden.</div>
-{% endif %}
-{% if meeting.recordings %}
-  {% for rec in meeting.recordings %}{{ m.rec_card(rec, csrf) }}{% endfor %}
-{% else %}
-<p class="empty">Noch keine Aufnahme. Starten Sie in der Konferenz über „…“ › „Aufnahme starten“. Sobald Sie die Aufnahme beenden, taucht sie hier auf und liegt als MP3 bereit. Die Transkription starten Sie danach selbst.</p>
-{% endif %}
+<div class="card mb-4">
+  <div class="card-header"><i class="fa-solid fa-file-audio me-2"></i>Aufnahmen</div>
+  <div class="card-body">
+  {% if not sm_ready %}
+  <div class="alert alert-warning small"><strong>SpeechMind ist noch nicht verbunden.</strong> Aufnahmen werden gespeichert und können später transkribiert werden.</div>
+  {% endif %}
+  {% if meeting.recordings %}
+    {{ m.rec_table(meeting.recordings, csrf, show_room=false) }}
+  {% else %}
+    <p class="text-secondary mb-0">Noch keine Aufnahme. Starten Sie in der Konferenz über „…“ › „Aufnahme starten“. Sobald Sie die Aufnahme beenden, taucht sie hier auf und liegt als MP3 bereit. Die Transkription starten Sie danach selbst.</p>
+  {% endif %}
+  </div>
+</div>
 
-<h2>Einstellungen</h2>
-<form class="panel" method="post" action="/meetings/{{ meeting.id }}/settings">
+<div class="card mb-4">
+  <div class="card-header"><i class="fa-solid fa-sliders me-2"></i>Einstellungen</div>
+  <div class="card-body">
+    <form method="post" action="/meetings/{{ meeting.id }}/settings" class="row g-3">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="col-12">
+        <label class="form-label" for="mt-title">Titel</label>
+        <input class="form-control" id="mt-title" name="title" type="text" value="{{ meeting.title }}" maxlength="200" required>
+        <div class="form-text">Wird als Protokollname an SpeechMind übergeben.</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="doc">Protokollart</label>
+        <select class="form-select js-select" id="doc" name="document_type">
+          <option value="">Standard aus den Admin-Einstellungen</option>
+          {% for key, label in document_types.items() %}<option value="{{ key }}" {% if meeting.document_type == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="lang">Sprache</label>
+        <select class="form-select js-select" id="lang" name="language">
+          <option value="">Standard aus den Admin-Einstellungen</option>
+          {% for key, label in languages.items() %}<option value="{{ key }}" {% if meeting.language == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div>
+    </form>
+  </div>
+</div>
+
+<form method="post" action="/meetings/{{ meeting.id }}/delete">
   <input type="hidden" name="csrf" value="{{ csrf }}">
-  <div class="field">
-    <label for="mt-title">Titel</label>
-    <input id="mt-title" name="title" type="text" value="{{ meeting.title }}" maxlength="200" required>
-    <span class="hint">Wird als Protokollname an SpeechMind übergeben.</span>
-  </div>
-  <div class="field">
-    <label for="doc">Protokollart</label>
-    <select id="doc" name="document_type">
-      <option value="">Standard aus den Admin-Einstellungen</option>
-      {% for key, label in document_types.items() %}
-      <option value="{{ key }}" {% if meeting.document_type == key %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="field">
-    <label for="lang">Sprache</label>
-    <select id="lang" name="language">
-      <option value="">Standard aus den Admin-Einstellungen</option>
-      {% for key, label in languages.items() %}
-      <option value="{{ key }}" {% if meeting.language == key %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <button type="submit">Einstellungen speichern</button>
+  <button type="submit" class="btn btn-outline-danger" data-confirm="Aufnahmen bleiben für Admins erhalten." data-confirm-title="Meeting wirklich löschen?"><i class="fa-regular fa-trash-can me-1"></i>Meeting löschen</button>
 </form>
-
-<form class="actions" method="post" action="/meetings/{{ meeting.id }}/delete"
-      onsubmit="return confirm('Meeting wirklich löschen? Aufnahmen bleiben für Admins erhalten.')">
-  <input type="hidden" name="csrf" value="{{ csrf }}">
-  <button type="submit" class="danger">Meeting löschen</button>
-</form>
-
-<script>
-document.querySelectorAll('[data-copy]').forEach(function (btn) {
-  btn.addEventListener('click', function () {
-    var field = document.querySelector(btn.dataset.copy);
-    field.select();
-    (navigator.clipboard ? navigator.clipboard.writeText(field.value) : Promise.resolve(document.execCommand('copy')))
-      .then(function () { btn.textContent = 'Kopiert'; setTimeout(function () { btn.textContent = 'Kopieren'; }, 2000); });
-  });
-});
-</script>
+</div>
 {% endblock %}

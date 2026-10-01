@@ -25,7 +25,7 @@ from .db import (
     get_settings, to_local, utcnow,
 )
 from . import notify
-from .security import decrypt
+from .security import decrypt, is_open_room
 from .speechmind import SpeechMindClient, SpeechMindError
 
 log = logging.getLogger("portal.worker")
@@ -103,6 +103,11 @@ def scan_recordings() -> int:
             videos = sorted(session_dir.glob("*.mp4"), key=lambda p: p.stat().st_size, reverse=True)
             video = videos[0] if videos else None
             room, participants = _room_from_metadata(session_dir, video)
+            if is_open_room(room):
+                # Offene Konferenzen (ohne Anmeldung) dürfen nicht aufgezeichnet werden
+                log.warning("Aufnahme eines offenen Raums %s verworfen: %s", room, session_dir.name)
+                shutil.rmtree(session_dir, ignore_errors=True)
+                continue
             meeting = db.scalar(select(Meeting).where(Meeting.room == room)) if room else None
 
             # Die Transkription wird nie automatisch gestartet: erst die MP3 erzeugen,

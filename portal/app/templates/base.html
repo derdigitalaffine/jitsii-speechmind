@@ -1,40 +1,120 @@
 <!doctype html>
-<html lang="de">
+<html lang="de" data-bs-theme="light" data-default-theme="{{ ui.theme }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ product }}{% endblock %} · {{ brand }}</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <script>
+    (function () {
+      var t = '{{ ui.theme }}';
+      try { t = localStorage.getItem('theme') || t; } catch (e) {}
+      if (t === 'auto') { t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+      document.documentElement.setAttribute('data-bs-theme', t);
+    })();
+  </script>
+  <link rel="icon" href="{{ ui.favicon or 'data:,' }}">
+  <link rel="stylesheet" href="/static/vendor/bootstrap/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+  <link rel="stylesheet" href="/static/vendor/datatables/dataTables.bootstrap5.min.css">
+  <link rel="stylesheet" href="/static/vendor/tom-select/tom-select.bootstrap5.min.css">
+  <link rel="stylesheet" href="/static/vendor/tagify/tagify.css">
+  <link rel="stylesheet" href="/static/vendor/sweetalert2/sweetalert2.min.css">
+  <link rel="stylesheet" href="/static/vendor/coloris/coloris.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <style>{{ ui.css | safe }}</style>
   {% block head %}{% endblock %}
 </head>
 <body>
+{% import "_macros.html" as m with context %}
 {% block body %}
-<header class="topbar">
-  <a class="brand" href="/"><span class="brand-lamp" aria-hidden="true"></span><span><strong>{{ brand }}</strong><small>{{ product }}</small></span></a>
-  {% if user %}
-  <nav class="nav" aria-label="Hauptnavigation">
-    {% set path = request.url.path %}
-    <a href="/" {% if path == '/' or path.startswith('/meetings') %}aria-current="page"{% endif %}>Meetings</a>
-    {% if user.is_admin %}
-    <a href="/admin/recordings" {% if path == '/admin/recordings' %}aria-current="page"{% endif %}>Aufnahmen</a>
-    <a href="/admin/users" {% if path == '/admin/users' %}aria-current="page"{% endif %}>Benutzer</a>
-    <a href="/admin/notifications" {% if path == '/admin/notifications' %}aria-current="page"{% endif %}>Benachrichtigungen</a>
-    <a href="/admin/speechmind" {% if path == '/admin/speechmind' %}aria-current="page"{% endif %}>SpeechMind</a>
+{% set path = request.url.path %}
+<nav class="navbar app-navbar sticky-top" {% if ui.navbar_dark %}data-bs-theme="dark"{% endif %}>
+  <div class="container-fluid">
+    <div class="d-flex align-items-center gap-2">
+      {% if user %}
+      <button class="btn btn-link d-lg-none px-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-label="Menü öffnen"><i class="fa-solid fa-bars fa-lg"></i></button>
+      {% endif %}
+      <a class="navbar-brand m-0" href="/">
+        {% if ui.logo %}<img class="brand-logo" src="{{ ui.logo }}" alt="" style="height:{{ ui.logo_height }}px">{% else %}<span class="brand-dot" aria-hidden="true"></span>{% endif %}
+        {% if ui.show_name or not ui.logo %}<span>{{ brand }}<small>{{ product }}</small></span>{% endif %}
+      </a>
+    </div>
+    <div class="d-flex align-items-center gap-1">
+      <div class="dropdown">
+        <button class="btn btn-link" data-bs-toggle="dropdown" aria-label="Farbschema" title="Farbschema"><i class="fa-solid fa-circle-half-stroke"></i></button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><button class="dropdown-item" data-theme-set="light"><i class="fa-regular fa-sun fa-fw me-2"></i>Hell</button></li>
+          <li><button class="dropdown-item" data-theme-set="dark"><i class="fa-regular fa-moon fa-fw me-2"></i>Dunkel</button></li>
+          <li><button class="dropdown-item" data-theme-set="auto"><i class="fa-solid fa-desktop fa-fw me-2"></i>Automatisch</button></li>
+        </ul>
+      </div>
+      {% if user %}
+      <div class="dropdown">
+        <button class="btn btn-link d-flex align-items-center gap-2" data-bs-toggle="dropdown">
+          <span class="avatar">{{ m.initials(user.name) }}</span><span class="d-none d-md-inline">{{ user.name }}</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><h6 class="dropdown-header">{{ user.email }}</h6></li>
+          <li><a class="dropdown-item" href="/profile"><i class="fa-regular fa-user fa-fw me-2"></i>Profil</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <form method="post" action="/logout">
+              <input type="hidden" name="csrf" value="{{ csrf }}">
+              <button class="dropdown-item" type="submit"><i class="fa-solid fa-right-from-bracket fa-fw me-2"></i>Abmelden</button>
+            </form>
+          </li>
+        </ul>
+      </div>
+      {% else %}
+      <a class="btn btn-link" href="/login">Anmelden</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+
+<div class="container-fluid app-body">
+  <div class="row">
+    {% if user %}
+    <aside class="col-lg-2 p-0">
+      <div class="offcanvas-lg offcanvas-start app-sidebar" tabindex="-1" id="sidebar">
+        <div class="offcanvas-header">
+          <strong>Menü</strong>
+          <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#sidebar" aria-label="Schließen"></button>
+        </div>
+        <div class="offcanvas-body d-block p-2">
+          <ul class="nav flex-column gap-1">
+            {{ m.nav_item('/', 'fa-video', 'Meetings', path == '/' or path.startswith('/meetings')) }}
+            {% if user.is_admin %}
+            <li class="nav-section">Verwaltung</li>
+            {{ m.nav_item('/admin/recordings', 'fa-file-audio', 'Aufnahmen', path == '/admin/recordings' or path.startswith('/recordings')) }}
+            {{ m.nav_item('/admin/users', 'fa-users', 'Benutzer', path == '/admin/users') }}
+            {{ m.nav_item('/admin/notifications', 'fa-envelope', 'Benachrichtigungen', path == '/admin/notifications') }}
+            {{ m.nav_item('/admin/speechmind', 'fa-wand-magic-sparkles', 'SpeechMind', path == '/admin/speechmind') }}
+            {{ m.nav_item('/admin/design', 'fa-palette', 'Design &amp; Branding'|safe, path == '/admin/design') }}
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    </aside>
     {% endif %}
-    <a href="/profile" {% if path == '/profile' %}aria-current="page"{% endif %}>{{ user.name }}</a>
-    <form method="post" action="/logout">
-      <input type="hidden" name="csrf" value="{{ csrf }}">
-      <button class="link" type="submit">Abmelden</button>
-    </form>
-  </nav>
-  {% endif %}
-</header>
-<main>
-  {% for m in messages %}
-  <div class="flash {{ m.kind }}" role="status">{{ m.text }}</div>
-  {% endfor %}
-  {% block content %}{% endblock %}
-</main>
+    <main class="{{ 'col-lg-10' if user else 'col-12' }} px-3 px-lg-4 py-4">
+      {{ m.flashes(messages) }}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{{ m.footer(ui) }}
 {% endblock %}
+
+<script src="/static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="/static/vendor/datatables/dataTables.min.js"></script>
+<script src="/static/vendor/datatables/dataTables.bootstrap5.min.js"></script>
+<script src="/static/vendor/datatables/dataTables.responsive.min.js"></script>
+<script src="/static/vendor/datatables/responsive.bootstrap5.min.js"></script>
+<script src="/static/vendor/tom-select/tom-select.complete.min.js"></script>
+<script src="/static/vendor/tagify/tagify.js"></script>
+<script src="/static/vendor/sweetalert2/sweetalert2.min.js"></script>
+<script src="/static/vendor/coloris/coloris.min.js"></script>
+<script src="/static/app.js"></script>
 </body>
 </html>

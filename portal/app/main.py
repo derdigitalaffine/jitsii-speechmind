@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 import logging
 import secrets
 import shutil
@@ -9,7 +10,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -18,15 +19,16 @@ from sqlalchemy.orm import Session, joinedload
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import notify, worker
+from . import branding, notify, worker
 from .config import settings
 from .db import (
     ACTIVE_STATUSES, STATUS_DONE, STATUS_FAILED, STATUS_QUEUED, STATUS_RECORDED, Meeting,
     Notification, Recording, SessionLocal, User, get_settings, init_db, set_setting, to_local, utcnow,
 )
 from .security import (
-    clean_room, csrf_token, csrf_valid, decrypt, encrypt, hash_password, jitsi_token,
-    hash_token, mask_secret, new_token, room_slug, verify_password,
+    clean_room, csrf_token, csrf_valid, decrypt, encrypt, hash_password, hash_token,
+    is_open_room, jitsi_token, mask_secret, new_open_room, new_token, open_room_token, room_slug,
+    verify_password,
 )
 from .speechmind import SpeechMindClient, SpeechMindError
 
@@ -95,6 +97,7 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")
 templates.env.globals.update(brand=settings.brand_name, product=settings.brand_product)
+templates.env.globals["themes"] = branding.THEMES
 templates.env.filters["filesize"] = lambda n: (
     "" if not n else f"{n / 1_000_000:.1f} MB".replace(".", ",") if n >= 1_000_000 else f"{max(n // 1000, 1)} kB")
 templates.env.filters["local"] = lambda dt, fmt="%d.%m.%Y, %H:%M": to_local(dt).strftime(fmt) if dt else ""
@@ -176,8 +179,10 @@ def flash(request: Request, message: str, kind: str = "ok") -> None:
 
 def render(request: Request, name: str, user: User | None = None, **ctx) -> HTMLResponse:
     messages = request.session.pop("flash", [])
+    ui = branding.load()
     return templates.TemplateResponse(request, name, {
         "user": user,
+        "ui": ui, "brand": ui["name"], "product": ui["product"],
         "csrf": csrf_token(request.session),
         "messages": messages,
         "status_labels": STATUS_LABELS,
@@ -213,6 +218,8 @@ def own_recording(db: Session, rec_id: int, user: User) -> Recording:
 
 
 def unique_room(db: Session, base: str) -> str:
+    if is_open_room(base):
+        base = "m-" + base  # Präfix offener Räume ist reserviert
     room = base
     while db.scalar(select(Meeting).where(Meeting.room == room)) is not None:
         room = f"{base}-{secrets.token_hex(2)}"
@@ -238,8 +245,8 @@ def healthz():
 
 
 @app.get("/login")
-def login_form(request: Request, next: str = "/"):
-    return render(request, "login.html", next=safe_next(next))
+def login_form(request: Request, next: str = "/", db: Session = Depends(get_db)):
+    return render(request, "login.html", next=safe_next(next), anonymous=anonymous_allowed(db))
 
 
 @app.post("/login", dependencies=[Depends(check_csrf)])
@@ -339,18 +346,62 @@ def logout(request: Request):
     return redirect("/login")
 
 
+def anonymous_allowed(db: Session) -> bool:
+    return get_settings(db).get("allow_anonymous") == "1"
+
+
+def open_join_url(name: str, room: str) -> str:
+    return f"{settings.meet_base_url}/{room}?{urlencode({'jwt': open_room_token(name, room)})}"
+
+
+def session_user(request: Request, db: Session) -> User | None:
+    uid = request.session.get("uid")
+    user = db.get(User, uid) if uid else None
+    return user if user and user.active else None
+
+
 @app.get("/jitsi/auth")
-def jitsi_auth(room: str = "", user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """Ziel von TOKEN_AUTH_URL: Jitsi schickt nicht angemeldete Nutzer hierher."""
+def jitsi_auth(request: Request, room: str = "", db: Session = Depends(get_db)):
+    """Ziel von TOKEN_AUTH_URL: Jitsi schickt Moderatoren ohne Token hierher."""
     room = clean_room(room)
     if not room:
         return redirect("/")
+    if is_open_room(room):
+        # Offene Konferenz: nur die Person, die sie eröffnet hat, wird Moderator:in
+        user = session_user(request, db)
+        if anonymous_allowed(db) and room in request.session.get("open_rooms", []):
+            return redirect(open_join_url(user.name if user else request.session.get("open_name", "Gastgeber:in"), room))
+        return render(request, "open.html", user, mode="foreign", enabled=anonymous_allowed(db))
+    user = current_user(request, db)
     meeting = db.scalar(select(Meeting).where(Meeting.room == room))
     if meeting is None:
         meeting = Meeting(owner_id=user.id, title=room.replace("-", " ").title(), room=room)
         db.add(meeting)
         db.commit()
     return redirect(join_url(user, room))
+
+
+@app.get("/open")
+def open_form(request: Request, db: Session = Depends(get_db)):
+    user = session_user(request, db)
+    return render(request, "open.html", user, mode="form", enabled=anonymous_allowed(db))
+
+
+@app.post("/open", dependencies=[Depends(check_csrf)])
+def open_start(request: Request, name: str = Form(""), db: Session = Depends(get_db)):
+    """Konferenz ohne Konto starten – ohne Aufnahmefunktion."""
+    if not anonymous_allowed(db):
+        raise HTTPException(403, "Konferenzen ohne Anmeldung sind derzeit nicht freigegeben.")
+    rate_limit(request, "open", limit=10)
+    user = session_user(request, db)
+    name = " ".join(name.split())[:60] or (user.name if user else "")
+    if not name:
+        flash(request, "Bitte geben Sie Ihren Namen an.", "error")
+        return redirect("/open")
+    room = new_open_room()
+    rooms = (request.session.get("open_rooms", []) + [room])[-20:]
+    request.session["open_rooms"], request.session["open_name"] = rooms, name
+    return redirect(open_join_url(name, room))
 
 
 # --- Dashboard & Meetings -----------------------------------------------------
@@ -365,7 +416,7 @@ def dashboard(request: Request, user: User = Depends(current_user), db: Session 
         .order_by(Recording.created_at.desc()).limit(8)
     ).all()
     return render(request, "dashboard.html", user, meetings=meetings, recent=recent,
-                  sm_ready=speechmind_ready(db, user))
+                  sm_ready=speechmind_ready(db, user), anonymous=anonymous_allowed(db))
 
 
 @app.post("/meetings", dependencies=[Depends(check_csrf)])
@@ -634,38 +685,56 @@ def flash_link_result(request: Request, target: User, link: str, queued: bool) -
         flash(request, f"E-Mail an {target.email} wird versendet.")
     else:
         # Ohne Mailversand muss der Link von Hand weitergegeben werden
-        request.session["invite_link"] = {"email": target.email, "link": link}
+        request.session["invite_links"] = [{"email": target.email, "link": link}]
 
 
 @app.get("/admin/users")
 def admin_users(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
     users = db.scalars(select(User).order_by(User.name)).all()
     return render(request, "admin_users.html", user, users=users,
-                  invite_link=request.session.pop("invite_link", None),
+                  invite_links=request.session.pop("invite_links", None),
                   mail_ready=notify.mail_configured(get_settings(db)),
-                  invite_ttl=settings.invite_ttl_hours)
+                  invite_ttl=settings.invite_ttl_hours,
+                  allow_anonymous=anonymous_allowed(db))
+
+
+EMAIL_RE = re.compile(r"^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$")
+
+
+def name_from_email(email: str) -> str:
+    return " ".join(p.capitalize() for p in re.split(r"[._\-+]+", email.split("@")[0]) if p) or email
 
 
 @app.post("/admin/users", dependencies=[Depends(check_csrf)])
-def admin_users_create(request: Request, name: str = Form(...), email: str = Form(...),
+def admin_users_create(request: Request, emails: str = Form(...), name: str = Form(""),
                        is_admin: str = Form(""), user: User = Depends(admin_user),
                        db: Session = Depends(get_db)):
-    email = email.strip().lower()
-    if "@" not in email or " " in email:
-        flash(request, "Bitte eine gültige E-Mail-Adresse angeben.", "error")
+    """Lädt eine oder mehrere Personen ein (Adressen durch Komma, Semikolon oder Leerzeichen getrennt)."""
+    addresses = list(dict.fromkeys(a.lower() for a in re.split(r"[,;\s]+", emails) if a))
+    bad = [a for a in addresses if not EMAIL_RE.match(a)]
+    if not addresses or bad:
+        flash(request, "Ungültige E-Mail-Adresse: " + ", ".join(bad) if bad else "Bitte mindestens eine E-Mail-Adresse angeben.", "error")
         return redirect("/admin/users")
-    if db.scalar(select(User).where(User.email == email)):
-        flash(request, f"{email} hat bereits ein Konto.", "error")
-        return redirect("/admin/users")
-    # Bis zur Annahme der Einladung ist das Passwort ein nicht erratbarer Zufallswert
-    target = User(email=email, name=name.strip()[:200] or email, is_admin=is_admin == "1",
-                  password_hash=hash_password(secrets.token_urlsafe(32)), password_set=False)
-    db.add(target)
-    link, queued = send_link(db, target, "invite")
+    created, links = [], []
+    for email in addresses:
+        if db.scalar(select(User).where(User.email == email)):
+            flash(request, f"{email} hat bereits ein Konto.", "error")
+            continue
+        display = name.strip()[:200] if len(addresses) == 1 and name.strip() else name_from_email(email)
+        # Bis zur Annahme der Einladung ist das Passwort ein nicht erratbarer Zufallswert
+        target = User(email=email, name=display, is_admin=is_admin == "1",
+                      password_hash=hash_password(secrets.token_urlsafe(32)), password_set=False)
+        db.add(target)
+        link, queued = send_link(db, target, "invite")
+        created.append(email)
+        if not queued:
+            links.append({"email": email, "link": link})
     db.commit()
     worker.wake()
-    flash_link_result(request, target, link, queued)
-    flash(request, f"Konto für {email} angelegt.")
+    if links:
+        request.session["invite_links"] = links
+    if created:
+        flash(request, f"{len(created)} Einladung(en) angelegt: " + ", ".join(created))
     return redirect("/admin/users")
 
 
@@ -797,8 +866,126 @@ def admin_notifications_retry(request: Request, nid: int, user: User = Depends(a
 @app.get("/admin/recordings")
 def admin_recordings(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
     recordings = db.scalars(select(Recording).options(joinedload(Recording.meeting)).order_by(Recording.created_at.desc()).limit(200)).all()
-    return render(request, "admin_recordings.html", user, recordings=recordings,
+    stats = {
+        "total": len(recordings),
+        "ready": sum(r.status == STATUS_RECORDED for r in recordings),
+        "active": sum(r.status in ACTIVE_STATUSES for r in recordings),
+        "done": sum(r.status == STATUS_DONE for r in recordings),
+        "failed": sum(r.status == STATUS_FAILED for r in recordings),
+    }
+    return render(request, "admin_recordings.html", user, recordings=recordings, stats=stats,
                   sm_ready=speechmind_ready(db))
+
+
+# --- Admin: Zugang ohne Anmeldung --------------------------------------------
+
+@app.post("/admin/access", dependencies=[Depends(check_csrf)])
+def admin_access(request: Request, allow_anonymous: str = Form(""), user: User = Depends(admin_user),
+                 db: Session = Depends(get_db)):
+    set_setting(db, "allow_anonymous", "1" if allow_anonymous == "1" else "0")
+    db.commit()
+    flash(request, "Konferenzen ohne Anmeldung sind " + ("freigegeben." if allow_anonymous == "1" else "gesperrt."))
+    return redirect("/admin/users")
+
+
+# --- Admin: Design & Branding -------------------------------------------------
+
+DESIGN_TEXT_FIELDS = ("ui_brand_name", "ui_product", "ui_login_text", "ui_footer_text",
+                      "ui_imprint_url", "ui_privacy_url")
+
+
+@app.get("/branding/{kind}")
+def branding_file(kind: str):
+    path = branding.file_path(kind) if kind in ("logo", "favicon") else None
+    if path is None:
+        raise HTTPException(404)
+    media = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp",
+             "svg": "image/svg+xml", "ico": "image/x-icon"}.get(path.suffix.lstrip("."), "application/octet-stream")
+    return FileResponse(path, media_type=media, headers={
+        "Cache-Control": "public, max-age=86400",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+        "X-Content-Type-Options": "nosniff",
+    })
+
+
+def _drop_brand_file(db: Session, key: str) -> None:
+    name = get_settings(db).get(key) or ""
+    if name and "/" not in name:
+        (branding.BRAND_DIR / name).unlink(missing_ok=True)
+    set_setting(db, key, "")
+
+
+@app.get("/admin/design")
+def admin_design(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    cfg = get_settings(db)
+    return render(request, "admin_design.html", user, cfg=cfg, navbars=branding.NAVBARS,
+                  radii=branding.RADII, default_primary=branding.DEFAULT_PRIMARY,
+                  logo_url=branding._file(cfg, "ui_logo")[1], favicon_url=branding._file(cfg, "ui_favicon")[1])
+
+
+@app.post("/admin/design", dependencies=[Depends(check_csrf)])
+async def admin_design_save(
+    request: Request,
+    ui_custom: str = Form(""), ui_primary: str = Form(""), ui_navbar: str = Form("dark"),
+    ui_theme: str = Form("auto"), ui_radius: str = Form("0.375rem"), ui_logo_height: str = Form("32"),
+    ui_show_name: str = Form(""), remove_logo: str = Form(""), remove_favicon: str = Form(""),
+    ui_brand_name: str = Form(""), ui_product: str = Form(""), ui_login_text: str = Form(""),
+    ui_footer_text: str = Form(""), ui_imprint_url: str = Form(""), ui_privacy_url: str = Form(""),
+    logo: UploadFile | None = File(None), favicon: UploadFile | None = File(None),
+    user: User = Depends(admin_user), db: Session = Depends(get_db),
+):
+    values = dict(ui_brand_name=ui_brand_name, ui_product=ui_product, ui_login_text=ui_login_text,
+                  ui_footer_text=ui_footer_text, ui_imprint_url=ui_imprint_url, ui_privacy_url=ui_privacy_url)
+    for key in DESIGN_TEXT_FIELDS:
+        set_setting(db, key, values[key].strip()[:500])
+    set_setting(db, "ui_custom", "1" if ui_custom == "1" else "0")
+    if branding.HEX.match(ui_primary.strip()):
+        set_setting(db, "ui_primary", ui_primary.strip().lower())
+    set_setting(db, "ui_navbar", ui_navbar if ui_navbar in branding.NAVBARS else "dark")
+    set_setting(db, "ui_theme", ui_theme if ui_theme in branding.THEMES else "auto")
+    set_setting(db, "ui_radius", ui_radius if ui_radius in branding.RADII else "0.375rem")
+    set_setting(db, "ui_logo_height", ui_logo_height if ui_logo_height.isdigit() else "32")
+    set_setting(db, "ui_show_name", "1" if ui_show_name == "1" else "0")
+
+    errors = []
+    for key, upload, remove, allowed, limit in (
+        ("ui_logo", logo, remove_logo, branding.LOGO_TYPES, 1_000_000),
+        ("ui_favicon", favicon, remove_favicon, branding.FAVICON_TYPES, 256_000),
+    ):
+        if remove == "1":
+            _drop_brand_file(db, key)
+        if upload is not None and upload.filename:
+            data = await upload.read(limit + 1)
+            try:
+                ext = branding.check_upload(data, upload.filename, allowed, limit)
+            except ValueError as exc:
+                errors.append(f"{'Logo' if key == 'ui_logo' else 'Favicon'}: {exc}")
+                continue
+            _drop_brand_file(db, key)
+            branding.BRAND_DIR.mkdir(parents=True, exist_ok=True)
+            name = f"{key.removeprefix('ui_')}-{secrets.token_hex(4)}.{ext}"
+            (branding.BRAND_DIR / name).write_bytes(data)
+            set_setting(db, key, name)
+    db.commit()
+    branding.invalidate()
+    for err in errors:
+        flash(request, err, "error")
+    flash(request, "Design gespeichert.")
+    return redirect("/admin/design")
+
+
+@app.post("/admin/design/reset", dependencies=[Depends(check_csrf)])
+def admin_design_reset(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    from .db import DEFAULT_SETTINGS
+    for key in ("ui_logo", "ui_favicon"):
+        _drop_brand_file(db, key)
+    for key, value in DEFAULT_SETTINGS.items():
+        if key.startswith("ui_"):
+            set_setting(db, key, value)
+    db.commit()
+    branding.invalidate()
+    flash(request, "Das Design wurde auf die Standardwerte zurückgesetzt.")
+    return redirect("/admin/design")
 
 
 @app.exception_handler(StarletteHTTPException)

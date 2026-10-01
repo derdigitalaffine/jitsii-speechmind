@@ -22,6 +22,14 @@ Der Link gilt 72 Stunden und nur einmal. Ist er abgelaufen, bitten Sie die Admin
 
 Tipp: Die Konferenz hat einen Warteraum (Lobby). Neue Gäste erscheinen bei Ihnen als Anfrage, die Sie zulassen.
 
+### Ohne Konto eine Konferenz starten
+
+Falls Ihre Verwaltung das freigegeben hat, können Sie auch **ohne Konto** konferieren: Auf der Anmeldeseite auf **„Konferenz ohne Anmeldung starten“** klicken, Namen eingeben, **Jetzt starten**. Den Link zum Raum geben Sie an Ihre Gäste weiter. Wichtig:
+
+- In so einem Raum gibt es **keine Aufnahme**.
+- Gäste kommen hinein, sobald Sie im Raum sind. Bleiben Sie also im Raum, bis alle da sind.
+- Mit demselben Browser kommen Sie später wieder in Ihren Raum.
+
 ## 3. Aufnehmen
 
 1. In der Konferenz unten rechts auf **„…“** (Weitere Aktionen) klicken.
@@ -51,7 +59,7 @@ Ist das Transkript fertig, steht auf der Aufnahme **Transkript lesen**. Dort kö
 
 ## 5. Profil
 
-Oben auf Ihren Namen klicken: Namen ändern, Passwort ändern.
+Oben rechts auf Ihren Namen klicken: Profil. Dort ändern Sie Namen und Passwort. Das Halbmond-Symbol daneben schaltet zwischen hellem und dunklem Aussehen um.
 
 ## 6. Hilfe bei Problemen
 

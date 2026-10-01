@@ -195,6 +195,24 @@ DEFAULT_SETTINGS = {
     "notify_new_recording": "1",
     "notify_done": "1",
     "notify_failed": "1",
+    # Zugang
+    "allow_anonymous": "1",
+    # Design & Branding (siehe branding.py)
+    "ui_custom": "0",
+    "ui_brand_name": "",
+    "ui_product": "",
+    "ui_primary": "#1f5fa8",
+    "ui_navbar": "dark",
+    "ui_theme": "auto",
+    "ui_radius": "0.375rem",
+    "ui_logo": "",
+    "ui_logo_height": "32",
+    "ui_show_name": "1",
+    "ui_favicon": "",
+    "ui_login_text": "",
+    "ui_footer_text": "",
+    "ui_imprint_url": "",
+    "ui_privacy_url": "",
 }
 
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)

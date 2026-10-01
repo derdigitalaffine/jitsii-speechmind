@@ -1,20 +1,17 @@
-{% extends "base.html" %}
-{% block title %}Passwort vergessen – {{ product }}{% endblock %}
-{% block body %}
-<div class="login-wrap">
-  <div class="login">
-    <div class="brand"><span class="brand-lamp" aria-hidden="true"></span><span><strong>{{ brand }}</strong><small>{{ product }}</small></span></div>
-    {% for m in messages %}<div class="flash {{ m.kind }}" role="status">{{ m.text }}</div>{% endfor %}
-    <form class="panel" method="post" action="/forgot">
-      <input type="hidden" name="csrf" value="{{ csrf }}">
-      <p>Wir schicken Ihnen einen Link zum Festlegen eines neuen Passworts.</p>
-      <div class="field">
-        <label for="email">E-Mail</label>
-        <input id="email" name="email" type="email" autocomplete="username" required autofocus>
-      </div>
-      <button type="submit">Link anfordern</button>
-    </form>
-    <p class="muted small"><a href="/login">Zurück zur Anmeldung</a></p>
-  </div>
-</div>
+{% extends "auth.html" %}
+{% block title %}Passwort vergessen{% endblock %}
+{% block auth %}
+<div class="card shadow-sm"><div class="card-body p-4">
+  <h1 class="h5 mb-2">Passwort vergessen</h1>
+  <p class="text-secondary small">Wir schicken Ihnen einen Link zum Festlegen eines neuen Passworts.</p>
+  <form method="post" action="/forgot">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="mb-3">
+      <label class="form-label" for="email">E-Mail</label>
+      <input class="form-control" id="email" name="email" type="email" autocomplete="username" required autofocus>
+    </div>
+    <button class="btn btn-primary w-100" type="submit">Link anfordern</button>
+  </form>
+</div></div>
+<p class="text-center mt-3"><a href="/login"><i class="fa-solid fa-arrow-left me-1"></i>Zurück zur Anmeldung</a></p>
 {% endblock %}

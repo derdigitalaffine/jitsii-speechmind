@@ -1,50 +1,121 @@
-{% macro track(rec) -%}
-{%- set order = {'recorded': 0, 'queued': 1, 'converting': 1, 'uploading': 2, 'processing': 3, 'done': 4} -%}
-{%- if rec.status == 'failed' -%}
-  {%- set pos = 3 if rec.sm_protocol_slug else 1 -%}
-{%- else -%}
-  {%- set pos = order.get(rec.status, 0) -%}
-{%- endif -%}
-<ol class="track {% if rec.status == 'done' %}done{% endif %}" aria-label="Verarbeitungsstand: {{ status_labels.get(rec.status, rec.status) }}">
-  {%- for key, label in pipeline %}
-  {%- set i = loop.index0 -%}
-  {%- if rec.status == 'failed' and i == pos -%}{%- set cls = 'broken' -%}
-  {%- elif i < pos or (rec.status == 'done' and i == pos) -%}{%- set cls = 'passed' -%}
-  {%- elif i == pos and rec.status in active_statuses -%}{%- set cls = 'current' -%}
-  {%- elif i == pos -%}{%- set cls = 'passed' -%}
-  {%- else -%}{%- set cls = '' -%}{%- endif %}
-  <li class="{{ cls }}{% if loop.first %} first{% endif %}{% if loop.last %} last{% endif %}"><span>{{ label }}</span></li>
-  {%- endfor %}
-</ol>
+{% macro initials(name) -%}
+{%- set parts = (name or '?').split() -%}
+{{- (parts[0][0] ~ (parts[-1][0] if parts | length > 1 else '')) | upper -}}
+{%- endmacro %}
+
+{% macro nav_item(href, icon, label, active) -%}
+<li class="nav-item"><a class="nav-link {{ 'active' if active }}" href="{{ href }}" {% if active %}aria-current="page"{% endif %}><i class="fa-solid {{ icon }}"></i><span>{{ label }}</span></a></li>
+{%- endmacro %}
+
+{% macro flashes(messages) -%}
+{%- for msg in messages %}
+<div class="alert alert-{{ 'danger' if msg.kind == 'error' else 'success' }} alert-dismissible fade show d-flex align-items-start gap-2" role="status" {% if msg.kind != 'error' %}data-autohide{% endif %}>
+  <i class="fa-solid {{ 'fa-triangle-exclamation' if msg.kind == 'error' else 'fa-circle-check' }} mt-1"></i>
+  <div>{{ msg.text }}</div>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Schließen"></button>
+</div>
+{%- endfor %}
+{%- endmacro %}
+
+{% macro footer(ui) -%}
+<footer class="app-footer py-3 mt-auto">
+  <div class="container-fluid px-lg-4 d-flex flex-wrap justify-content-between gap-2">
+    <span>{{ ui.footer_text or ('© ' ~ ui.name) }}</span>
+    <span class="d-flex gap-3">
+      {% if ui.imprint_url %}<a class="link-secondary" href="{{ ui.imprint_url }}">Impressum</a>{% endif %}
+      {% if ui.privacy_url %}<a class="link-secondary" href="{{ ui.privacy_url }}">Datenschutz</a>{% endif %}
+    </span>
+  </div>
+</footer>
+{%- endmacro %}
+
+{% macro page_head(title, lede='') -%}
+<div class="page-head">
+  <div><h1>{{ title }}</h1>{% if lede %}<p>{{ lede }}</p>{% endif %}</div>
+  <div class="d-flex gap-2 flex-wrap">{{ caller() if caller else '' }}</div>
+</div>
+{%- endmacro %}
+
+{% macro stat(icon, value, label) -%}
+<div class="card h-100"><div class="card-body stat">
+  <div class="stat-icon"><i class="fa-solid {{ icon }}"></i></div>
+  <div><div class="stat-value">{{ value }}</div><div class="stat-label">{{ label }}</div></div>
+</div></div>
 {%- endmacro %}
 
 {% macro duration(seconds) -%}
 {%- if seconds -%}{{ seconds // 3600 }}:{{ '%02d' % (seconds % 3600 // 60) }}:{{ '%02d' % (seconds % 60) }} h{%- endif -%}
 {%- endmacro %}
 
-{% macro rec_card(rec, csrf, show_meeting=false) -%}
-<article class="panel rec-card">
-  <div class="rec-head">
-    <div>
-      <a class="title" href="/recordings/{{ rec.id }}"><strong>Aufnahme vom {{ rec.created_at | local }} Uhr</strong></a>
-      {% if show_meeting %}<div class="meta muted small">{{ rec.meeting.title if rec.meeting else 'Raum ' ~ rec.room ~ ' (ohne Meeting)' }}</div>{% endif %}
-    </div>
-    <span class="muted small">{{ status_labels.get(rec.status, rec.status) }}{% if rec.duration_seconds %} · {{ duration(rec.duration_seconds) }}{% endif %}</span>
-  </div>
-  {{ track(rec) }}
-  {% if rec.error %}<p class="rec-error">{{ rec.error }}</p>{% endif %}
-  <div class="actions">
-    {% if rec.audio_size %}<a class="button quiet" href="/recordings/{{ rec.id }}/audio.mp3">MP3 herunterladen ({{ rec.audio_size | filesize }})</a>{% endif %}
-    {% if rec.status in ('recorded', 'failed') %}
-    <form method="post" action="/recordings/{{ rec.id }}/transcribe">
-      <input type="hidden" name="csrf" value="{{ csrf }}">
-      <button type="submit" class="{{ 'quiet' if rec.status == 'failed' else '' }}">
-        {{ 'Erneut versuchen' if rec.status == 'failed' else 'In SpeechMind bearbeiten' }}
-      </button>
-    </form>
-    {% elif rec.status == 'done' %}
-    <a class="button quiet" href="/recordings/{{ rec.id }}">Transkript lesen</a>
-    {% endif %}
-  </div>
-</article>
+{% macro status_badge(rec) -%}
+{%- set colors = {'new': 'info', 'recorded': 'primary', 'queued': 'info', 'converting': 'info', 'uploading': 'info', 'processing': 'warning', 'done': 'success', 'failed': 'danger'} -%}
+{%- set icons = {'new': 'fa-gear fa-spin', 'recorded': 'fa-file-audio', 'queued': 'fa-hourglass-half', 'converting': 'fa-gear fa-spin', 'uploading': 'fa-cloud-arrow-up', 'processing': 'fa-wand-magic-sparkles', 'done': 'fa-circle-check', 'failed': 'fa-triangle-exclamation'} -%}
+<span class="badge text-bg-{{ colors.get(rec.status, 'secondary') }}"><i class="fa-solid {{ icons.get(rec.status, 'fa-circle') }} me-1"></i>{{ status_labels.get(rec.status, rec.status) }}</span>
+{%- endmacro %}
+
+{# Fortschrittsanzeige der Verarbeitungsschritte #}
+{% macro track(rec) -%}
+{%- set order = {'new': 0, 'recorded': 0, 'queued': 1, 'converting': 1, 'uploading': 2, 'processing': 3, 'done': 4} -%}
+{%- if rec.status == 'failed' -%}
+  {%- set pos = 3 if rec.sm_protocol_slug else (1 if rec.audio_path else 0) -%}
+{%- else -%}
+  {%- set pos = order.get(rec.status, 0) -%}
+{%- endif -%}
+<ol class="steps" aria-label="Verarbeitungsstand: {{ status_labels.get(rec.status, rec.status) }}">
+  {%- for key, label in pipeline %}
+  {%- set i = loop.index0 -%}
+  {%- if rec.status == 'failed' and i == pos -%}{%- set cls = 'broken' -%}
+  {%- elif i < pos or (rec.status == 'done' and i == pos) -%}{%- set cls = 'passed' -%}
+  {%- elif i == pos and rec.status in active_statuses -%}{%- set cls = 'current' -%}
+  {%- elif i == pos and rec.status == 'recorded' -%}{%- set cls = 'passed' -%}
+  {%- else -%}{%- set cls = '' -%}{%- endif %}
+  <li class="{{ cls }}">{{ label }}</li>
+  {%- endfor %}
+</ol>
+{%- endmacro %}
+
+{# Tabelle der Aufnahmen: Suche, Sortierung, Seiten und Responsive-Modus über DataTables #}
+{% macro rec_table(recordings, csrf, show_room=true) -%}
+<table class="table table-hover align-middle js-table w-100" data-order='[[0,"desc"]]'>
+  <thead>
+    <tr>
+      <th>Aufnahme</th>
+      {% if show_room %}<th>Meeting / Raum</th>{% endif %}
+      <th>Dauer</th>
+      <th>Status</th>
+      <th class="no-sort col-actions">Aktionen</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for rec in recordings %}
+  <tr>
+    <td data-order="{{ rec.created_at.isoformat() }}">
+      <a class="fw-semibold text-decoration-none" href="/recordings/{{ rec.id }}">{{ rec.created_at | local }} Uhr</a>
+    </td>
+    {% if show_room %}<td>{{ rec.meeting.title if rec.meeting else rec.room }}{% if not rec.meeting %} <span class="text-secondary small">(ohne Meeting)</span>{% endif %}</td>{% endif %}
+    <td data-order="{{ rec.duration_seconds or 0 }}">{{ duration(rec.duration_seconds) or '–' }}</td>
+    <td>{{ status_badge(rec) }}{% if rec.error %}<div class="text-danger small mt-1">{{ rec.error }}</div>{% endif %}</td>
+    <td class="col-actions">
+      <div class="d-inline-flex gap-1 justify-content-end">
+        {% if rec.audio_size %}
+        <a class="btn btn-sm btn-outline-secondary" href="/recordings/{{ rec.id }}/audio.mp3" download data-bs-toggle="tooltip" title="MP3 herunterladen ({{ rec.audio_size | filesize }})" aria-label="MP3 herunterladen"><i class="fa-solid fa-download"></i></a>
+        {% endif %}
+        {% if rec.status in ('recorded', 'failed') %}
+        <form method="post" action="/recordings/{{ rec.id }}/transcribe" class="d-inline">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-sm {{ 'btn-outline-danger' if rec.status == 'failed' else 'btn-primary' }}" type="submit">
+            <i class="fa-solid {{ 'fa-rotate-right' if rec.status == 'failed' else 'fa-wand-magic-sparkles' }} me-1"></i>{{ 'Erneut versuchen' if rec.status == 'failed' else 'In SpeechMind bearbeiten' }}
+          </button>
+        </form>
+        {% elif rec.status == 'done' %}
+        <a class="btn btn-sm btn-success" href="/recordings/{{ rec.id }}"><i class="fa-solid fa-file-lines me-1"></i>Transkript</a>
+        {% else %}
+        <a class="btn btn-sm btn-outline-secondary" href="/recordings/{{ rec.id }}">Details</a>
+        {% endif %}
+      </div>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
 {%- endmacro %}

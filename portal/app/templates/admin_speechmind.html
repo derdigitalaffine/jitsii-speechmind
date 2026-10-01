@@ -1,97 +1,91 @@
 {% extends "base.html" %}
-{% block title %}SpeechMind – {{ product }}{% endblock %}
+{% import "_macros.html" as m with context %}
+{% block title %}SpeechMind{% endblock %}
 {% block content %}
-<h1>SpeechMind-Anbindung</h1>
-<p class="lede">Hier verbinden Sie das Portal mit Ihrem SpeechMind-Konto. Den API-Key erhalten Sie von SpeechMind (hello@speechmind.com) bzw. in Ihrer Organisationsverwaltung.</p>
+{{ m.page_head('SpeechMind-Anbindung', 'Hier verbinden Sie das Portal mit Ihrem SpeechMind-Konto. Den API-Key erhalten Sie von SpeechMind (hello@speechmind.com) bzw. in Ihrer Organisationsverwaltung.') }}
 
-<form method="post" action="/admin/speechmind">
+<form method="post" action="/admin/speechmind" class="row g-4">
   <input type="hidden" name="csrf" value="{{ csrf }}">
-  <div class="panel">
-    <div class="field">
-      <label for="key">API-Key</label>
-      <input id="key" name="sm_api_key" type="password" autocomplete="off"
-             placeholder="{{ key_mask or 'Noch kein Key hinterlegt' }}">
-      <span class="hint">{% if key_mask %}Ein Key ist gespeichert (verschlüsselt). Nur ausfüllen, um ihn zu ersetzen.{% else %}Wird verschlüsselt gespeichert.{% endif %}</span>
-    </div>
-    <div class="field" id="projekt">
-      <label for="proj">Projekt</label>
-      {% if projects %}
-      <select id="proj" name="sm_project_slug">
-        <option value="">Bitte wählen</option>
-        {% for p in projects %}
-        <option value="{{ p.slug }}" {% if p.slug == cfg.sm_project_slug %}selected{% endif %}>{{ p.name }} ({{ p.slug }})</option>
-        {% endfor %}
-      </select>
-      {% else %}
-      <input id="proj" name="sm_project_slug" type="text" value="{{ cfg.sm_project_slug }}" placeholder="Projekt-Slug">
-      <span class="hint">Mit „Verbindung testen“ laden Sie die Projekte Ihres Kontos zur Auswahl.</span>
-      {% endif %}
-    </div>
-    <div class="field">
-      <label for="doc">Protokollart (Standard)</label>
-      <select id="doc" name="sm_document_type">
-        {% for key, label in document_types.items() %}
-        <option value="{{ key }}" {% if cfg.sm_document_type == key %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label for="lang">Sprache (Standard)</label>
-      <select id="lang" name="sm_language">
-        {% for key, label in languages.items() %}
-        <option value="{{ key }}" {% if cfg.sm_language == key %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-  </div>
 
-  <h2>Verhalten</h2>
-  <div class="panel">
-    <label class="check">
-      <input type="checkbox" name="allow_user_keys" value="1" {% if cfg.allow_user_keys == '1' %}checked{% endif %}>
-      <span><strong>Eigene SpeechMind-Keys erlauben</strong>
-        <span class="hint">Benutzer:innen können im Profil einen eigenen Zugang hinterlegen.</span></span>
-    </label>
-    <label class="check">
-      <input type="checkbox" name="delete_after_upload" value="1" {% if cfg.delete_after_upload == '1' %}checked{% endif %}>
-      <span><strong>Video nach fertigem Transkript löschen</strong>
-        <span class="hint">Spart Speicher und reduziert personenbezogene Daten auf dem Server.</span></span>
-    </label>
-    <label class="check">
-      <input type="checkbox" name="send_participants" value="1" {% if cfg.send_participants == '1' %}checked{% endif %}>
-      <span><strong>Teilnehmernamen als Sprecherliste übergeben</strong>
-        <span class="hint">Hilft SpeechMind bei der Sprecherzuordnung. Nur aktivieren, wenn die Teilnehmenden einverstanden sind.</span></span>
-    </label>
-  </div>
-
-  <h2>Technik</h2>
-  <div class="panel">
-    <div class="field">
-      <label for="url">API-Adresse</label>
-      <input id="url" name="sm_api_url" type="url" value="{{ cfg.sm_api_url }}" required>
-      <span class="hint">GraphQL-Endpunkt der SpeechMind API v2. Nur ändern, wenn SpeechMind Ihnen eine andere Adresse nennt.</span>
+  <div class="col-12 col-xl-6"><div class="card h-100">
+    <div class="card-header"><i class="fa-solid fa-key me-2"></i>Zugang</div>
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label" for="key">API-Key</label>
+        <div class="input-group">
+          <input class="form-control" id="key" name="sm_api_key" type="password" autocomplete="off" placeholder="{{ key_mask or 'Noch kein Key hinterlegt' }}">
+          <button class="btn btn-outline-secondary" type="button" data-toggle-password="#key" aria-label="Anzeigen"><i class="fa-solid fa-eye"></i></button>
+        </div>
+        <div class="form-text">{% if key_mask %}Ein Key ist gespeichert (verschlüsselt). Nur ausfüllen, um ihn zu ersetzen.{% else %}Wird verschlüsselt gespeichert.{% endif %}</div>
+      </div>
+      <div class="mb-3" id="projekt">
+        <label class="form-label" for="proj">Projekt</label>
+        {% if projects %}
+        <select class="form-select js-select" data-search="1" id="proj" name="sm_project_slug">
+          <option value="">Bitte wählen</option>
+          {% for p in projects %}<option value="{{ p.slug }}" {% if p.slug == cfg.sm_project_slug %}selected{% endif %}>{{ p.name }} ({{ p.slug }})</option>{% endfor %}
+        </select>
+        {% else %}
+        <input class="form-control" id="proj" name="sm_project_slug" type="text" value="{{ cfg.sm_project_slug }}" placeholder="Projekt-Slug">
+        <div class="form-text">Mit „Verbindung testen“ laden Sie die Projekte Ihres Kontos zur Auswahl.</div>
+        {% endif %}
+      </div>
+      <div>
+        <label class="form-label" for="url">API-Adresse</label>
+        <input class="form-control" id="url" name="sm_api_url" type="url" value="{{ cfg.sm_api_url }}" required>
+        <div class="form-text">GraphQL-Endpunkt der SpeechMind API v2. Nur ändern, wenn SpeechMind Ihnen eine andere Adresse nennt.</div>
+      </div>
     </div>
-  </div>
+  </div></div>
 
-  <div class="actions"><button type="submit">Einstellungen speichern</button></div>
+  <div class="col-12 col-xl-6"><div class="card h-100">
+    <div class="card-header"><i class="fa-solid fa-sliders me-2"></i>Voreinstellungen &amp; Verhalten</div>
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label" for="doc">Protokollart (Standard)</label>
+        <select class="form-select js-select" id="doc" name="sm_document_type">
+          {% for key, label in document_types.items() %}<option value="{{ key }}" {% if cfg.sm_document_type == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="mb-4">
+        <label class="form-label" for="lang">Sprache (Standard)</label>
+        <select class="form-select js-select" id="lang" name="sm_language">
+          {% for key, label in languages.items() %}<option value="{{ key }}" {% if cfg.sm_language == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" role="switch" id="k1" name="allow_user_keys" value="1" {% if cfg.allow_user_keys == '1' %}checked{% endif %}>
+        <label class="form-check-label" for="k1"><strong>Eigene SpeechMind-Keys erlauben</strong><div class="form-text mt-0">Benutzer:innen können im Profil einen eigenen Zugang hinterlegen.</div></label>
+      </div>
+      <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" role="switch" id="k2" name="delete_after_upload" value="1" {% if cfg.delete_after_upload == '1' %}checked{% endif %}>
+        <label class="form-check-label" for="k2"><strong>Video nach fertigem Transkript löschen</strong><div class="form-text mt-0">Spart Speicher und reduziert personenbezogene Daten. Die MP3 bleibt erhalten.</div></label>
+      </div>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch" id="k3" name="send_participants" value="1" {% if cfg.send_participants == '1' %}checked{% endif %}>
+        <label class="form-check-label" for="k3"><strong>Teilnehmernamen als Sprecherliste übergeben</strong><div class="form-text mt-0">Hilft bei der Sprecherzuordnung. Nur aktivieren, wenn die Teilnehmenden einverstanden sind.</div></label>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Einstellungen speichern</button></div>
 </form>
 
-<h2>Verbindung prüfen</h2>
-<div class="panel">
-  <p class="muted small" style="margin-top:0">Prüft den gespeicherten Key und lädt Ihre Projekte. Einen neuen Key also vorher speichern.</p>
-  <div class="actions" style="margin-top:0">
-    <form method="post" action="/admin/speechmind/test">
-      <input type="hidden" name="csrf" value="{{ csrf }}">
-      <button type="submit" class="quiet">Verbindung testen</button>
-    </form>
-  </div>
-  <form class="inline-form" style="margin-top:1.25rem" method="post" action="/admin/speechmind/project">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <div class="field">
-      <label for="pname">Neues Projekt anlegen</label>
-      <input id="pname" name="name" type="text" value="Videokonferenzen" maxlength="120" required>
+<div class="card mt-4">
+  <div class="card-header"><i class="fa-solid fa-plug me-2"></i>Verbindung prüfen &amp; Projekt anlegen</div>
+  <div class="card-body row g-3 align-items-end">
+    <div class="col-12"><p class="text-secondary small mb-0">Prüft den gespeicherten Key und lädt Ihre Projekte. Einen neuen Key also vorher speichern.</p></div>
+    <div class="col-12 col-md-auto">
+      <form method="post" action="/admin/speechmind/test"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <button type="submit" class="btn btn-outline-primary"><i class="fa-solid fa-plug me-1"></i>Verbindung testen</button></form>
     </div>
-    <button type="submit" class="quiet">Projekt anlegen</button>
-  </form>
+    <div class="col-12 col-md">
+      <form method="post" action="/admin/speechmind/project" class="row g-2 align-items-end"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="col"><label class="form-label" for="pname">Neues Projekt anlegen</label>
+          <input class="form-control" id="pname" name="name" type="text" value="Videokonferenzen" maxlength="120" required></div>
+        <div class="col-auto"><button type="submit" class="btn btn-outline-secondary"><i class="fa-solid fa-plus me-1"></i>Anlegen</button></div>
+      </form>
+    </div>
+  </div>
 </div>
 {% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block body %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-brand">
+      {% if ui.logo %}<img class="brand-logo" src="{{ ui.logo }}" alt="" style="height:{{ [ui.logo_height * 1.6, 72] | min | int }}px">{% else %}<span class="brand-dot" style="width:1.2rem;height:1.2rem"></span>{% endif %}
+      {% if ui.show_name or not ui.logo %}<div><div class="h4 mb-0">{{ brand }}</div><div class="text-secondary">{{ product }}</div></div>{% endif %}
+    </div>
+    {{ m.flashes(messages) }}
+    {% block auth %}{% endblock %}
+    <div class="text-center mt-4 small text-secondary">
+      {% if ui.imprint_url %}<a class="link-secondary me-3" href="{{ ui.imprint_url }}">Impressum</a>{% endif %}
+      {% if ui.privacy_url %}<a class="link-secondary" href="{{ ui.privacy_url }}">Datenschutz</a>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

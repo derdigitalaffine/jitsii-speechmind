@@ -16,6 +16,7 @@ from email.utils import formataddr, formatdate, make_msgid
 
 from sqlalchemy import select
 
+from . import branding
 from .config import settings
 from .db import Notification, Recording, SessionLocal, User, get_settings, to_local, utcnow
 from .security import decrypt
@@ -25,6 +26,10 @@ log = logging.getLogger("portal.notify")
 MAX_ATTEMPTS = 5
 RETRY_DELAYS = [timedelta(minutes=m) for m in (1, 5, 15, 60, 240)]
 TIMEOUT = 20
+
+
+def _b() -> dict:
+    return branding.load()
 
 
 class MailError(Exception):
@@ -45,7 +50,7 @@ def _port(value: str, default: int) -> int:
 
 
 def _sender(cfg: dict[str, str]) -> str:
-    return formataddr((cfg.get("mail_from_name") or settings.brand_name, cfg["mail_from"]))
+    return formataddr((cfg.get("mail_from_name") or branding.load()["name"], cfg["mail_from"]))
 
 
 # --- Verbindungen ------------------------------------------------------------
@@ -138,9 +143,9 @@ def deliver(cfg: dict[str, str], to_addr: str, subject: str, body: str) -> None:
 
 
 def test_smtp(cfg: dict[str, str], to_addr: str) -> None:
-    deliver(cfg, to_addr, f"Testnachricht – {settings.brand_product}",
-            f"Dies ist eine Testnachricht des {settings.brand_product}s der "
-            f"{settings.brand_name}.\n\nDer E-Mail-Versand funktioniert.\n")
+    deliver(cfg, to_addr, f"Testnachricht – {_b()['product']}",
+            f"Dies ist eine Testnachricht des {_b()['product']}s der "
+            f"{_b()['name']}.\n\nDer E-Mail-Versand funktioniert.\n")
 
 
 def test_imap(cfg: dict[str, str]) -> str:
@@ -205,14 +210,14 @@ def process_queue() -> int:
 # --- Nachrichtentexte --------------------------------------------------------
 
 def _footer() -> str:
-    return (f"\n--\n{settings.brand_product} der {settings.brand_name}\n{settings.portal_base_url}\n")
+    return (f"\n--\n{_b()['product']} der {_b()['name']}\n{settings.portal_base_url}\n")
 
 
 def invite_text(user: User, link: str) -> tuple[str, str]:
     return (
-        f"Einladung zum {settings.brand_product} der {settings.brand_name}",
+        f"Einladung zum {_b()['product']} der {_b()['name']}",
         f"Guten Tag {user.name},\n\n"
-        f"für Sie wurde ein Konto im {settings.brand_product} der {settings.brand_name} angelegt. "
+        f"für Sie wurde ein Konto im {_b()['product']} der {_b()['name']} angelegt. "
         f"Über den folgenden Link legen Sie Ihr Passwort fest und melden sich an:\n\n{link}\n\n"
         f"Der Link ist {settings.invite_ttl_hours} Stunden gültig und kann nur einmal verwendet werden.\n"
         f"Ihr Benutzername ist Ihre E-Mail-Adresse: {user.email}\n" + _footer(),
@@ -221,7 +226,7 @@ def invite_text(user: User, link: str) -> tuple[str, str]:
 
 def reset_text(user: User, link: str) -> tuple[str, str]:
     return (
-        f"Passwort zurücksetzen – {settings.brand_product}",
+        f"Passwort zurücksetzen – {_b()['product']}",
         f"Guten Tag {user.name},\n\n"
         f"für Ihr Konto wurde das Zurücksetzen des Passworts angefordert. Über diesen Link "
         f"vergeben Sie ein neues Passwort:\n\n{link}\n\n"
