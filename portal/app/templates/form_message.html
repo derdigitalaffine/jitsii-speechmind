@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{{ form.title if form else 'Formular' }}{% endblock %}
+{% block content %}
+<div class="form-fill"><div class="card mt-3 border-top border-4 {{ 'border-success' if kind == 'thanks' else 'border-secondary' }}"><div class="card-body p-4 p-md-5 text-center">
+  {% if kind == 'thanks' %}
+    <i class="fa-solid fa-circle-check fa-3x text-success mb-3"></i>
+    <h1 class="h4">{{ form.title }}</h1>
+    <div class="mb-0">{{ (form.submit_message or 'Vielen Dank, Ihre Antwort wurde gespeichert.') | richtext }}</div>
+  {% elif kind == 'done' %}
+    <i class="fa-solid fa-clipboard-check fa-3x text-success mb-3"></i>
+    <h1 class="h4">{{ form.title }}</h1><p class="mb-0 text-secondary">Sie haben dieses Formular bereits ausgefüllt. Vielen Dank!</p>
+  {% elif kind == 'closed' %}
+    <i class="fa-solid fa-lock fa-3x text-secondary mb-3"></i>
+    <h1 class="h4">{{ form.title }}</h1><p class="mb-0 text-secondary">Dieses Formular nimmt keine Antworten mehr an.</p>
+  {% else %}
+    <i class="fa-solid fa-link-slash fa-3x text-secondary mb-3"></i>
+    <h1 class="h4">Formular nicht gefunden</h1><p class="mb-0 text-secondary">Der Link ist ungültig oder wurde ersetzt. Bitte wenden Sie sich an die Stelle, die Ihnen den Link geschickt hat.</p>
+  {% endif %}
+</div></div></div>
+{% endblock %}

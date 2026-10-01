@@ -12,5 +12,7 @@ Alle Dateien liegen lokal im Repository und werden vom Portal selbst ausgeliefer
 | Tom Select | 2.6.2 | Komfortable Auswahlfelder |
 | SweetAlert2 | 11.26.25 | Bestätigungsdialoge |
 | Coloris | 0.25.0 | Farbwähler für das Design |
+| Chart.js | 4.5.1 | Diagramme (Kurzlink-Aufrufe, Formular-Auswertung) |
+| SortableJS | 1.15.7 | Ziehen und Ablegen im Formular-Baukasten |
 
 Aktualisieren: `npm i <paket>` in einem Temp-Ordner und die Dateien aus `node_modules/<paket>/dist` hierher kopieren.

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}/{{ link.code }} · Kurzlinks{% endblock %}
+{% block content %}
+{% call m.page_head('/' ~ link.code, link.title or 'Kurzlink') %}
+  <a class="btn btn-outline-secondary" href="/shortlinks"><i class="fa-solid fa-arrow-left me-1"></i>Alle Kurzlinks</a>
+{% endcall %}
+
+<div class="card mb-4"><div class="card-body">
+  <div class="d-flex flex-wrap align-items-center gap-3">
+    <div class="flex-grow-1">
+      <div class="input-group input-group-lg">
+        <input class="form-control fw-semibold" id="short-url" type="text" readonly value="{{ url }}">
+        <button class="btn btn-outline-primary" type="button" data-copy="#short-url"><i class="fa-regular fa-copy"></i> Kopieren</button>
+        <a class="btn btn-outline-secondary" href="{{ url }}" target="_blank" rel="noopener" title="Öffnen (zählt als Aufruf)"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+      </div>
+      <div class="small text-secondary mt-2 text-truncate"><i class="fa-solid fa-arrow-turn-down fa-rotate-270 me-1"></i>{{ link.target_url }}</div>
+    </div>
+    <div class="text-end">
+      {% if not state %}<span class="badge text-bg-success fs-6">aktiv</span>{% else %}<span class="badge text-bg-warning fs-6">{{ state }}</span>{% endif %}
+      <div class="small text-secondary mt-1">angelegt {{ link.created_at | local }}{% if link.owner %} von {{ link.owner.name }}{% endif %}</div>
+    </div>
+  </div>
+</div></div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">{{ m.stat('fa-arrow-pointer', link.visit_count, 'Aufrufe gesamt') }}</div>
+  <div class="col-6 col-lg-3">{{ m.stat('fa-calendar-days', stats.total, 'in ' ~ days ~ ' Tagen') }}</div>
+  <div class="col-6 col-lg-3">{{ m.stat('fa-robot', link.bot_count, 'Bots & Link-Prüfer') }}</div>
+  <div class="col-6 col-lg-3">{{ m.stat('fa-clock', (link.last_visit_at | local('%d.%m. %H:%M')) or '–', 'letzter Aufruf') }}</div>
+</div>
+
+<ul class="nav nav-tabs mb-3" role="tablist">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#t-stats" type="button"><i class="fa-solid fa-chart-column me-1"></i>Statistik</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#t-qr" type="button" id="qr"><i class="fa-solid fa-qrcode me-1"></i>QR-Code</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#t-edit" type="button"><i class="fa-solid fa-pen me-1"></i>Bearbeiten</button></li>
+</ul>
+<div class="tab-content">
+  <div class="tab-pane fade show active" id="t-stats">
+    <div class="card mb-3"><div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span>Aufrufe pro Tag</span>
+      <div class="d-flex gap-1 flex-wrap">
+        {% for d in (7, 30, 90, 365) %}<a class="btn btn-sm {{ 'btn-primary' if d == days else 'btn-outline-secondary' }}" href="?days={{ d }}{{ '&bots=1' if bots }}">{{ d }} Tage</a>{% endfor %}
+        <a class="btn btn-sm {{ 'btn-secondary' if bots else 'btn-outline-secondary' }}" href="?days={{ days }}{{ '' if bots else '&bots=1' }}" title="Aufrufe von Bots, Vorschau-Diensten und Mail-Link-Prüfern einbeziehen"><i class="fa-solid fa-robot"></i></a>
+      </div>
+    </div><div class="card-body"><canvas id="visits-chart" height="90" aria-label="Aufrufe pro Tag"></canvas></div></div>
+    <div class="row g-3">
+      {% for title, rows in (('Browser', stats.browsers), ('Betriebssystem', stats.os), ('Gerät', stats.devices), ('Herkunft (verweisende Seite)', stats.referers)) %}
+      <div class="col-md-6 col-xxl-3"><div class="card h-100"><div class="card-header">{{ title }}</div>
+        <ul class="list-group list-group-flush">
+          {% for label, n in rows %}<li class="list-group-item d-flex justify-content-between"><span>{{ label if label != '–' else ('direkt / unbekannt' if 'Herkunft' in title else '–') }}</span><span class="badge text-bg-light border">{{ n }}</span></li>
+          {% else %}<li class="list-group-item text-secondary small">Noch keine Aufrufe</li>{% endfor %}
+        </ul></div></div>
+      {% endfor %}
+    </div>
+    <div class="d-flex flex-wrap gap-2 mt-3">
+      <a class="btn btn-outline-secondary btn-sm" href="/shortlinks/{{ link.id }}/visits.csv"><i class="fa-solid fa-file-csv me-1"></i>Aufrufe als CSV</a>
+      <form method="post" action="/shortlinks/{{ link.id }}/reset"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn btn-outline-danger btn-sm" data-confirm-title="Statistik zurücksetzen?" data-confirm="Alle gezählten Aufrufe dieses Links werden gelöscht."><i class="fa-solid fa-rotate-left me-1"></i>Statistik zurücksetzen</button></form>
+    </div>
+  </div>
+
+  <div class="tab-pane fade" id="t-qr"><div class="card"><div class="card-body">
+    {% set qr_url = '/shortlinks/' ~ link.id ~ '/qr.{fmt}' %}{% set qr_text_field = '' %}
+    {% include "_qr_panel.html" %}
+  </div></div></div>
+
+  <div class="tab-pane fade" id="t-edit"><div class="card"><div class="card-body">
+    <form method="post" action="/shortlinks/{{ link.id }}" class="row g-3">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="col-12"><label class="form-label" for="et">Zieladresse</label>
+        <input class="form-control" id="et" name="target_url" type="url" required value="{{ link.target_url }}"></div>
+      <div class="col-md-4"><label class="form-label" for="ec">Kürzel</label>
+        <input class="form-control" id="ec" name="code" type="text" maxlength="64" required value="{{ link.code }}" pattern="[A-Za-z0-9][A-Za-z0-9_\-]*">
+        <div class="form-text">Ändern macht die bisherige Adresse ungültig (auch gedruckte QR-Codes!).</div></div>
+      <div class="col-md-4"><label class="form-label" for="eti">Titel</label><input class="form-control" id="eti" name="title" maxlength="255" value="{{ link.title }}"></div>
+      <div class="col-md-4"><label class="form-label" for="etg">Schlagwörter</label><input class="form-control" id="etg" name="tags" value="{{ link.tag_list | join(', ') }}"></div>
+      <div class="col-md-3"><label class="form-label" for="evf">Gültig ab</label><input class="form-control" id="evf" name="valid_from" type="datetime-local" value="{{ local_input(link.valid_from) }}"></div>
+      <div class="col-md-3"><label class="form-label" for="evu">Gültig bis</label><input class="form-control" id="evu" name="valid_until" type="datetime-local" value="{{ local_input(link.valid_until) }}"></div>
+      <div class="col-md-2"><label class="form-label" for="emx">Max. Aufrufe</label><input class="form-control" id="emx" name="max_visits" type="number" min="1" placeholder="unbegrenzt" value="{{ link.max_visits or '' }}"></div>
+      <div class="col-md-4"><label class="form-label" for="erc">Art der Weiterleitung</label>
+        <select class="form-select" id="erc" name="redirect_code">{% for k, v in redirect_codes.items() %}<option value="{{ k }}" {% if k == link.redirect_code %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+      <div class="col-md-6"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="efq" name="forward_query" value="1" {% if link.forward_query %}checked{% endif %}><label class="form-check-label" for="efq">Parameter an das Ziel weitergeben</label></div></div>
+      <div class="col-md-6"><div class="form-check form-switch"><input type="hidden" name="active" value="0"><input class="form-check-input" type="checkbox" role="switch" id="eac" name="active" value="1" {% if link.active %}checked{% endif %}><label class="form-check-label" for="eac">Aktiv (leitet weiter)</label></div></div>
+      <div class="col-12 d-flex flex-wrap gap-2">
+        <button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
+      </div>
+    </form>
+    <hr>
+    <form method="post" action="/shortlinks/{{ link.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn btn-outline-danger" data-confirm-title="/{{ link.code }} löschen?" data-confirm="Der Kurzlink funktioniert danach nicht mehr, die Statistik wird gelöscht."><i class="fa-regular fa-trash-can me-1"></i>Kurzlink löschen</button></form>
+  </div></div></div>
+</div>
+<script type="application/json" id="visits-data">{{ {'labels': stats.labels, 'values': stats.counts} | tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/chartjs/chart.umd.min.js"></script>
+<script src="/static/charts.js"></script>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Einstellungen · {{ form.title }}{% endblock %}
+{% macro sw(name, label, on, help='') %}
+<div class="form-check form-switch mb-2">
+  <input class="form-check-input" type="checkbox" role="switch" id="s-{{ name }}" name="{{ name }}" value="1" {% if on %}checked{% endif %}>
+  <label class="form-check-label" for="s-{{ name }}">{{ label }}{% if help %}<div class="form-text mt-0">{{ help }}</div>{% endif %}</label>
+</div>
+{% endmacro %}
+{% block content %}
+{% include "_form_head.html" %}
+<form method="post" action="/forms/{{ form.id }}/settings" class="row g-4">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="col-12 col-xl-6"><div class="card h-100">
+    <div class="card-header"><i class="fa-solid fa-door-open me-2"></i>Teilnahme</div>
+    <div class="card-body">
+      {{ sw('active', 'Nimmt Antworten an', form.active, 'Ausgeschaltet zeigen alle Links „Formular geschlossen“.') }}
+      <div class="mb-3 mt-3"><label class="form-label" for="s-exp">Frist (optional)</label>
+        <input class="form-control" id="s-exp" name="expires_at" type="datetime-local" value="{{ expires }}" style="max-width: 18rem">
+        <div class="form-text">Danach werden keine Antworten mehr angenommen. Die Frist steht in Einladung und Erinnerung.</div></div>
+      {{ sw('anonymous', 'Anonym', form.anonymous, 'Name und E-Mail von Eingeladenen und angemeldeten Personen werden nicht zur Antwort gespeichert. Bei Einladungen ist trotzdem sichtbar, wer schon geantwortet hat (für Erinnerungen).') }}
+      {{ sw('multiple', 'Mehrfach ausfüllen erlaubt', form.multiple, 'Eingeladene können mehrere Antworten abgeben. Über den öffentlichen Link ist mehrfaches Ausfüllen immer möglich.') }}
+      {{ sw('confirm_mail', 'Eingangsbestätigung mit Kopie der Antworten an die ausfüllende Person', form.confirm_mail, 'An Eingeladene bzw. angemeldete Personen; bei öffentlichen Links an die Adresse aus der ersten E-Mail-Frage.') }}
+      <label class="form-label mt-2" for="s-msg">Text nach dem Absenden</label>
+      <textarea class="form-control" id="s-msg" name="submit_message" rows="3" maxlength="5000" placeholder="Standard: Vielen Dank, Ihre Antwort wurde gespeichert.">{{ form.submit_message }}</textarea>
+    </div>
+  </div></div>
+  <div class="col-12 col-xl-6"><div class="card h-100">
+    <div class="card-header"><i class="fa-regular fa-bell me-2"></i>Benachrichtigung bei neuen Antworten</div>
+    <div class="card-body">
+      {{ sw('notify', 'Bei jeder neuen Antwort eine E-Mail schicken', form.notify) }}
+      <div class="mb-3"><label class="form-label" for="s-to">Empfänger</label>
+        <input class="form-control" id="s-to" name="notify_to" value="{{ form.notify_to }}" placeholder="weitere Adressen, durch Komma getrennt">
+        <div class="form-text">Sie selbst ({{ form.owner.email if form.owner else 'Besitzer:in' }}) bekommen die Mail immer, zusätzlich diese Adressen.</div></div>
+      {{ sw('notify_answers', 'Antworten im Text der Mail aufführen', form.notify_answers) }}
+      <div class="fw-semibold small mt-3 mb-2">Formulardaten als Anhang</div>
+      <div class="d-flex flex-wrap gap-4 mb-2">
+        {{ sw('notify_csv', 'CSV (für Excel)', form.notify_csv) }}
+        {{ sw('notify_json', 'JSON (für Fachverfahren)', form.notify_json) }}
+      </div>
+      <div class="ps-1">
+        <div class="form-check"><input class="form-check-input" type="radio" name="notify_scope" id="sc1" value="single" {% if form.notify_scope != 'all' %}checked{% endif %}><label class="form-check-label" for="sc1">nur die neue Antwort</label></div>
+        <div class="form-check"><input class="form-check-input" type="radio" name="notify_scope" id="sc2" value="all" {% if form.notify_scope == 'all' %}checked{% endif %}><label class="form-check-label" for="sc2">jeweils alle bisherigen Antworten (komplette Tabelle)</label></div>
+      </div>
+      <div class="form-text mt-2"><i class="fa-solid fa-shield-halved me-1"></i>Anhänge enthalten personenbezogene Daten. Hochgeladene Dateien werden nicht angehängt, sondern bleiben im Portal.</div>
+    </div>
+  </div></div>
+  <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div>
+</form>
+{% endblock %}

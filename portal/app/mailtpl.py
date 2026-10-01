@@ -40,6 +40,15 @@ _RECORDING_VARS = {
     "fehler": "Fehlermeldung (nur bei Fehlern)",
 }
 
+_FORM_VARS = {
+    "name": "Name der eingeladenen Person",
+    "titel": "Titel des Formulars",
+    "beschreibung": "Beschreibung des Formulars",
+    "link": "Persönlicher Link zum Ausfüllen",
+    "absender": "Name der Person, die einlädt",
+    "frist": "Hinweis auf die Frist (leer, wenn keine gesetzt ist)",
+}
+
 TEMPLATES: dict[str, dict] = {
     "account_invite": {
         "group": "Konten", "label": "Einladung zum Konto",
@@ -140,6 +149,44 @@ TEMPLATES: dict[str, dict] = {
         "subject": "Aufnahme ohne Ton: {aufnahme}",
         "body": "Die Aufnahme „{aufnahme}“ enthält keinen hörbaren Ton.\n\n{fehler}\n\nDetails:\n{link}\n\n{fusszeile}",
     },
+    "form_invite": {
+        "group": "Formulare", "label": "Einladung zum Ausfüllen",
+        "vars": _FORM_VARS,
+        "subject": "Bitte ausfüllen: {titel}",
+        "body": ("Guten Tag {name},\n\n"
+                 "{absender} bittet Sie, das Formular „{titel}“ auszufüllen.\n\n"
+                 "{beschreibung}\n\n"
+                 "Zum Formular (persönlicher Link):\n{link}\n\n"
+                 "{frist}\n\n{fusszeile}"),
+    },
+    "form_reminder": {
+        "group": "Formulare", "label": "Erinnerung zum Ausfüllen",
+        "vars": _FORM_VARS,
+        "subject": "Erinnerung: {titel}",
+        "body": ("Guten Tag {name},\n\n"
+                 "das Formular „{titel}“ ist noch nicht ausgefüllt. Hier geht es direkt dazu:\n{link}\n\n"
+                 "{frist}\n\n{fusszeile}"),
+    },
+    "form_response": {
+        "group": "Formulare", "label": "Neue Antwort (an die Verantwortlichen)",
+        "vars": {"titel": "Titel des Formulars", "nummer": "Laufende Nummer der Antwort",
+                 "zeitpunkt": "Eingang der Antwort", "von": "Wer geantwortet hat (oder „anonym“)",
+                 "antworten": "Die Antworten als Text (abschaltbar in den Formular-Einstellungen)",
+                 "anzahl": "Anzahl aller Antworten", "link": "Link zur Antwort im Portal"},
+        "subject": "Neue Antwort Nr. {nummer}: {titel}",
+        "body": ("Zum Formular „{titel}“ ist eine neue Antwort eingegangen ({zeitpunkt}, von {von}).\n\n"
+                 "{antworten}\n\n"
+                 "Antworten insgesamt: {anzahl}\nIm Portal ansehen: {link}\n\n{fusszeile}"),
+    },
+    "form_confirmation": {
+        "group": "Formulare", "label": "Eingangsbestätigung (an die ausfüllende Person)",
+        "vars": {"name": "Name der Person", "titel": "Titel des Formulars", "zeitpunkt": "Eingang der Antwort",
+                 "antworten": "Kopie der Antworten als Text"},
+        "subject": "Eingangsbestätigung: {titel}",
+        "body": ("Guten Tag {name},\n\n"
+                 "vielen Dank, Ihre Angaben zum Formular „{titel}“ sind am {zeitpunkt} eingegangen. "
+                 "Zur Kontrolle eine Kopie:\n\n{antworten}\n\n{fusszeile}"),
+    },
 }
 
 SAMPLE = {
@@ -152,6 +199,9 @@ SAMPLE = {
     "antwort_link": "https://portal.example.org/rsvp/beispiel",
     "teilnehmer": "Erika Mustermann <erika.mustermann@example.org>", "antwort": "Zugesagt",
     "kommentar": "Ich komme etwas später.", "stand": "3 zugesagt, 1 abgesagt, 2 offen",
+    "absender": "Max Muster", "frist": "Bitte bis Freitag, 09.10.2026, 12:00 Uhr ausfüllen.",
+    "nummer": "17", "zeitpunkt": "01.10.2026, 14:32 Uhr", "von": "Erika Mustermann <erika.mustermann@example.org>",
+    "antworten": "Teilnahme: Ja\nEssen: Vegetarisch", "anzahl": "17",
 }
 
 

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ form.title }} · Formulare{% endblock %}
+{% block content %}
+{% include "_form_head.html" %}
+
+{% if response_count %}
+<div class="alert alert-info small"><i class="fa-solid fa-circle-info me-1"></i>Es gibt schon {{ response_count }} Antwort(en). Änderungen gelten für neue Antworten; bestehende bleiben erhalten. Gelöschte Fragen fehlen danach in Auswertung und Export.</div>
+{% endif %}
+
+<form method="post" action="/forms/{{ form.id }}/schema" id="builder-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="items_json" id="schema-json">
+  <div class="row g-4">
+    <div class="col-lg-3 order-lg-2">
+      <div class="builder-palette card position-sticky" style="top: 5rem">
+        <div class="card-header"><i class="fa-solid fa-toolbox me-2"></i>Bausteine</div>
+        <div class="card-body p-2">
+          <div class="small text-secondary px-1 mb-1">Fragen</div>
+          <div class="d-grid gap-1 mb-3" id="palette-questions">
+            {% for key, t in types.items() if t[2] %}<button type="button" class="btn btn-sm btn-outline-secondary text-start" data-add="{{ key }}"><i class="fa-solid {{ t[1] }} fa-fw me-2"></i>{{ t[0] }}</button>{% endfor %}
+          </div>
+          <div class="small text-secondary px-1 mb-1">Gliederung</div>
+          <div class="d-grid gap-1" id="palette-layout">
+            {% for key, t in types.items() if not t[2] %}<button type="button" class="btn btn-sm btn-outline-secondary text-start" data-add="{{ key }}"><i class="fa-solid {{ t[1] }} fa-fw me-2"></i>{{ t[0] }}</button>{% endfor %}
+          </div>
+          <div class="form-text px-1 mt-2">Klick fügt den Baustein unter dem ausgewählten Element ein. Reihenfolge per Ziehen am <i class="fa-solid fa-grip-vertical"></i> ändern.</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-9 order-lg-1">
+      <div class="card mb-3 border-primary-subtle"><div class="card-body">
+        <input class="form-control form-control-lg fw-semibold mb-2 border-0 border-bottom rounded-0 px-0" name="title" value="{{ form.title }}" maxlength="255" required aria-label="Titel des Formulars" placeholder="Titel des Formulars">
+        <textarea class="form-control border-0 px-0" name="description" rows="2" maxlength="5000" placeholder="Beschreibung (optional). Links werden anklickbar, **fett** wird fett." aria-label="Beschreibung">{{ form.description }}</textarea>
+      </div></div>
+      <div id="builder-items" class="d-flex flex-column gap-3"></div>
+      <div class="text-center text-secondary py-4 d-none" id="builder-empty"><i class="fa-solid fa-hand-pointer fa-2x mb-2"></i><p>Noch leer – fügen Sie rechts Bausteine hinzu.</p></div>
+    </div>
+  </div>
+  <div class="builder-savebar d-flex align-items-center gap-3">
+    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
+    <span class="small text-secondary" id="builder-state">Alle Änderungen gespeichert</span>
+    <span class="small text-secondary ms-auto d-none d-md-inline" id="builder-count"></span>
+  </div>
+</form>
+<script type="application/json" id="builder-data">{{ {'items': schema, 'types': types, 'subtypes': subtypes, 'maxFileMb': max_file_mb} | tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/sortablejs/Sortable.min.js"></script>
+<script src="/static/form-builder.js"></script>
+{% endblock %}

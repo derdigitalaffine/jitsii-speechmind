@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}QR-Generator{% endblock %}
+{% block content %}
+{% call m.page_head('QR-Generator', 'QR-Code für eine beliebige Adresse oder einen Text erzeugen und als SVG, PNG oder JPG herunterladen. Für Kurzlinks gibt es den QR-Code direkt beim jeweiligen Link.') %}
+  <a class="btn btn-outline-secondary" href="/shortlinks"><i class="fa-solid fa-arrow-left me-1"></i>Kurzlinks</a>
+{% endcall %}
+<div class="card mb-4"><div class="card-body">
+  <label class="form-label" for="qr-text">Inhalt</label>
+  <textarea class="form-control" id="qr-text" rows="2" maxlength="2000" placeholder="https://… oder beliebiger Text">{{ text }}</textarea>
+  <div class="form-text">Tipp: Für lange Adressen erst einen Kurzlink anlegen – der QR-Code wird dann gröber und liest sich zuverlässiger, und Sie sehen, wie oft er gescannt wurde.</div>
+</div></div>
+<div class="card"><div class="card-body">
+  {% set qr_url = '/shortlinks/qr/image?fmt={fmt}' %}{% set qr_text_field = '#qr-text' %}
+  {% include "_qr_panel.html" %}
+</div></div>
+{% endblock %}

@@ -94,3 +94,25 @@ td .btn-group-sm > .btn, td .btn-sm { white-space: nowrap; }
 
 footer.app-footer { border-top: 1px solid var(--bs-border-color); color: var(--bs-secondary-color); font-size: .85rem; }
 .toast-container { z-index: 2000; }
+.avatar.avatar-sm { width: 1.7rem; height: 1.7rem; font-size: .7rem; }
+/* Formular-Baukasten */
+.builder-item { border-left: 4px solid transparent; transition: border-color .15s, box-shadow .15s; }
+.builder-item.is-selected { border-left-color: var(--bs-primary); box-shadow: 0 .25rem 1rem rgba(var(--bs-primary-rgb), .12); }
+.builder-item .drag-handle { cursor: grab; color: var(--bs-secondary-color); }
+.builder-item.is-layout { background: var(--bs-tertiary-bg); }
+.builder-item .item-type { font-size: .78rem; color: var(--bs-secondary-color); }
+.builder-item .title-input { font-weight: 600; }
+.builder-item.type-heading .title-input { font-size: 1.35rem; }
+.builder-item.type-subheading .title-input { font-size: 1.1rem; }
+.builder-item.type-pagebreak { border-top: 3px dashed var(--bs-primary); }
+.sortable-ghost { opacity: .4; }
+.option-row .drag-handle { cursor: grab; }
+.builder-savebar { position: sticky; bottom: 0; z-index: 10; margin: 1.5rem -1rem 0; padding: .75rem 1rem; background: var(--bs-body-bg); border-top: 1px solid var(--bs-border-color); }
+.builder-savebar.dirty #builder-state { color: var(--bs-warning-text-emphasis) !important; font-weight: 600; }
+/* Formular ausfüllen */
+.form-fill { max-width: 52rem; margin: 0 auto; }
+.form-fill .question { scroll-margin-top: 6rem; }
+.form-fill .question.has-error { border-color: var(--bs-danger); }
+.form-fill .scale-options .btn { min-width: 2.75rem; }
+.form-fill .req { color: var(--bs-danger); }
+.fill-progress { height: .4rem; }

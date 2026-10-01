@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Zum Ausfüllen{% endblock %}
+{% block content %}
+{{ m.page_head('Zum Ausfüllen', 'Formulare, zu denen Sie eingeladen wurden – direkt oder über eine Gruppe.') }}
+<div class="card"><div class="card-body">
+{% if invites %}
+<table class="table table-hover align-middle js-table w-100" data-order='[]'>
+  <thead><tr><th>Formular</th><th>Eingeladen</th><th>Frist</th><th>Status</th><th class="no-sort col-actions"></th></tr></thead>
+  <tbody>
+  {% for inv in invites %}{% set f = inv.form %}
+  <tr>
+    <td class="fw-semibold">{{ f.title }}{% if f.owner %}<div class="small text-secondary">von {{ f.owner.name }}{% if inv.via %} · über Gruppe {{ inv.via }}{% endif %}</div>{% endif %}</td>
+    <td class="small" data-order="{{ (inv.invited_at or f.created_at).isoformat() }}">{{ (inv.invited_at or f.created_at) | local('%d.%m.%Y') }}</td>
+    <td class="small">{{ f.expires_at | local if f.expires_at else '–' }}</td>
+    <td>{% if inv.submitted_at %}<span class="badge text-bg-success">ausgefüllt {{ inv.submitted_at | local('%d.%m.') }}</span>{% elif not is_open(f) %}<span class="badge text-bg-secondary">geschlossen</span>{% else %}<span class="badge text-bg-warning">offen</span>{% endif %}</td>
+    <td class="col-actions">{% if is_open(f) and (not inv.submitted_at or f.multiple) %}<a class="btn btn-sm btn-primary" href="{{ link(inv) }}"><i class="fa-solid fa-pen me-1"></i>{{ 'Erneut ausfüllen' if inv.submitted_at else 'Ausfüllen' }}</a>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="text-secondary mb-0"><i class="fa-regular fa-face-smile me-1"></i>Nichts zu tun – Sie haben keine offenen Formulare.</p>
+{% endif %}
+</div></div>
+{% endblock %}

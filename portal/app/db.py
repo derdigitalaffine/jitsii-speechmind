@@ -70,8 +70,48 @@ class User(Base):
     token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # Freigeschaltete Bereiche, kommagetrennt (siehe PERMISSIONS). Admins dürfen immer alles.
+    permissions: Mapped[str] = mapped_column(String(255), default="video")
 
     meetings: Mapped[list["Meeting"]] = relationship(back_populates="owner")
+    groups: Mapped[list["Group"]] = relationship(secondary="group_members", back_populates="members",
+                                                 order_by="Group.name")
+
+    @property
+    def perms(self) -> set[str]:
+        return {p for p in (self.permissions or "").split(",") if p in PERMISSIONS}
+
+    def can(self, perm: str) -> bool:
+        return bool(self.is_admin or perm in self.perms)
+
+
+# Bereiche, die einzeln pro Benutzer freigeschaltet werden
+PERMISSIONS = {
+    "video": ("Videokonferenzen", "fa-video", "Meetings anlegen, planen, moderieren und aufnehmen"),
+    "shortlinks": ("Kurzlinks", "fa-link", "Kurzlinks anlegen und auswerten"),
+    "forms": ("Formulare", "fa-clipboard-list", "Formulare erstellen, verteilen und auswerten"),
+    "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
+}
+
+
+class GroupMember(Base):
+    __tablename__ = "group_members"
+
+    group_id: Mapped[int] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+
+
+class Group(Base):
+    """Benutzergruppe, z. B. zum gemeinsamen Einladen zu Formularen."""
+    __tablename__ = "groups"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+    description: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    members: Mapped[list[User]] = relationship(secondary="group_members", back_populates="groups",
+                                               order_by="User.name")
 
 
 class Setting(Base):
@@ -230,6 +270,154 @@ class Notification(Base):
     attachments_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class ShortLink(Base):
+    """Kurzlink (wie Shlink): /s/<code> bzw. Kurz-Domain leitet auf target_url weiter."""
+    __tablename__ = "short_links"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(64), unique=True, index=True)  # immer klein geschrieben
+    target_url: Mapped[str] = mapped_column(Text)
+    title: Mapped[str] = mapped_column(String(255), default="")
+    tags: Mapped[str] = mapped_column(String(500), default="")  # kommagetrennt
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
+                                                 index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    valid_from: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    max_visits: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    forward_query: Mapped[bool] = mapped_column(Boolean, default=True)
+    redirect_code: Mapped[int] = mapped_column(Integer, default=302)
+    visit_count: Mapped[int] = mapped_column(Integer, default=0)   # ohne erkannte Bots
+    bot_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_visit_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    owner: Mapped[User | None] = relationship()
+    visits: Mapped[list["ShortVisit"]] = relationship(back_populates="link", cascade="all, delete-orphan",
+                                                      passive_deletes=True)
+
+    @property
+    def tag_list(self) -> list[str]:
+        return [t for t in (self.tags or "").split(",") if t]
+
+
+class ShortVisit(Base):
+    """Ein Aufruf eines Kurzlinks. Datensparsam: keine IP-Adresse, User-Agent nur ausgewertet."""
+    __tablename__ = "short_visits"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    link_id: Mapped[int] = mapped_column(ForeignKey("short_links.id", ondelete="CASCADE"), index=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    referer_host: Mapped[str] = mapped_column(String(255), default="")
+    browser: Mapped[str] = mapped_column(String(40), default="")
+    os: Mapped[str] = mapped_column(String(40), default="")
+    device: Mapped[str] = mapped_column(String(20), default="")
+    bot: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    link: Mapped[ShortLink] = relationship(back_populates="visits")
+
+
+class Form(Base):
+    """Formular aus dem Baukasten. Aufbau als JSON-Liste von Elementen (siehe forms.py)."""
+    __tablename__ = "forms"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
+                                                 index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(Text, default="")
+    schema_json: Mapped[str] = mapped_column(Text, default="[]")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Öffentlicher Link /f/<token>; None = ausgeschaltet
+    public_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
+    anonymous: Mapped[bool] = mapped_column(Boolean, default=False)
+    multiple: Mapped[bool] = mapped_column(Boolean, default=False)
+    submit_message: Mapped[str] = mapped_column(Text, default="")
+    confirm_mail: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Benachrichtigung bei neuen Antworten
+    notify: Mapped[bool] = mapped_column(Boolean, default=True)
+    notify_to: Mapped[str] = mapped_column(Text, default="")        # weitere Adressen
+    notify_answers: Mapped[bool] = mapped_column(Boolean, default=True)  # Antworten im Mailtext
+    notify_json: Mapped[bool] = mapped_column(Boolean, default=False)
+    notify_csv: Mapped[bool] = mapped_column(Boolean, default=False)
+    notify_scope: Mapped[str] = mapped_column(String(10), default="single")  # single | all
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    owner: Mapped[User | None] = relationship()
+    invites: Mapped[list["FormInvite"]] = relationship(back_populates="form", cascade="all, delete-orphan",
+                                                       order_by="FormInvite.email", passive_deletes=True)
+    responses: Mapped[list["FormResponse"]] = relationship(back_populates="form", cascade="all, delete-orphan",
+                                                           order_by="FormResponse.id", passive_deletes=True)
+    shares: Mapped[list["FormShare"]] = relationship(back_populates="form", cascade="all, delete-orphan",
+                                                     passive_deletes=True)
+
+
+class FormShare(Base):
+    """Freigabe eines Formulars im Portal für eine Person oder Gruppe.
+
+    level: 1 = Ergebnisse einsehen, 2 = zusätzlich Teilnehmende einladen,
+           3 = zusätzlich Formular bearbeiten und löschen
+    """
+    __tablename__ = "form_shares"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    form_id: Mapped[int] = mapped_column(ForeignKey("forms.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=True,
+                                                 index=True)
+    level: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    form: Mapped["Form"] = relationship(back_populates="shares")
+    user: Mapped[User | None] = relationship()
+    group: Mapped[Group | None] = relationship()
+
+
+class FormInvite(Base):
+    """Persönliche Einladung zu einem Formular (Benutzer, Gruppenmitglied oder Gast per Mail)."""
+    __tablename__ = "form_invites"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    form_id: Mapped[int] = mapped_column(ForeignKey("forms.id", ondelete="CASCADE"), index=True)
+    email: Mapped[str] = mapped_column(String(255))
+    name: Mapped[str] = mapped_column(String(255), default="")
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
+                                                index=True)
+    via: Mapped[str] = mapped_column(String(160), default="")  # z. B. Gruppenname
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    invited_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    form: Mapped[Form] = relationship(back_populates="invites")
+
+
+class FormResponse(Base):
+    __tablename__ = "form_responses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    form_id: Mapped[int] = mapped_column(ForeignKey("forms.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    name: Mapped[str] = mapped_column(String(255), default="")
+    email: Mapped[str] = mapped_column(String(255), default="")
+    source: Mapped[str] = mapped_column(String(20), default="public")  # public | invite | user
+    answers_json: Mapped[str] = mapped_column(Text, default="{}")
+
+    form: Mapped[Form] = relationship(back_populates="responses")
+
+    @property
+    def answers(self) -> dict:
+        import json as _json
+        try:
+            return _json.loads(self.answers_json or "{}")
+        except ValueError:
+            return {}
+
+
 DEFAULT_SETTINGS = {
     "sm_api_url": "https://api-v2.speechmind.com/external/v2/graphql",
     "sm_api_key_enc": "",
@@ -285,6 +473,13 @@ DEFAULT_SETTINGS = {
     "ui_footer_text": "",
     "ui_imprint_url": "",
     "ui_privacy_url": "",
+    # Zusatzmodule (komplett abschaltbar unter Verwaltung › Module)
+    "module_shortlinks": "1",
+    "module_forms": "1",
+    # Kurzlinks
+    "short_domain": "",           # optional eigene Kurz-Domain, z. B. kurz.example.de
+    "short_fallback_url": "",     # Ziel für unbekannte Kurzlinks und die Startseite der Kurz-Domain
+    "short_code_length": "6",
 }
 
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)
@@ -294,6 +489,7 @@ _NEW_COLUMNS = {
         "must_change_password": "BOOLEAN NOT NULL DEFAULT 0",
         "token_hash": "VARCHAR(64)",
         "token_expires_at": "DATETIME",
+        "permissions": "VARCHAR(255) NOT NULL DEFAULT 'video'",
     },
     "recordings": {"audio_path": "VARCHAR(1024)", "audio_max_db": "FLOAT", "media_deleted_at": "DATETIME",
                    "chat_json": "TEXT"},

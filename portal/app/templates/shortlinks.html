@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Kurzlinks{% endblock %}
+{% block content %}
+{% call m.page_head('Kurzlinks', 'Lange Adressen kurz und merkbar machen, z. B. für Aushänge, Flyer oder Mails. Jeder Kurzlink hat eine Statistik und einen QR-Code. Gezählt wird datensparsam: ohne IP-Adressen.') %}
+  <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#neu" aria-expanded="{{ 'true' if prefill else 'false' }}"><i class="fa-solid fa-plus me-1"></i>Neuer Kurzlink</button>
+  <a class="btn btn-outline-primary" href="/shortlinks/qr"><i class="fa-solid fa-qrcode me-1"></i>QR-Generator</a>
+{% endcall %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">{{ m.stat('fa-link', totals.links, 'Kurzlinks') }}</div>
+  <div class="col-6 col-lg-3">{{ m.stat('fa-arrow-pointer', totals.visits, 'Aufrufe gesamt') }}</div>
+  <div class="col-12 col-lg-6"><div class="card h-100"><div class="card-body small">
+    <div class="text-secondary mb-1">Kurz-Adresse</div>
+    <code class="fs-6">{{ base }}…</code>
+    {% if user.is_admin %}<div class="mt-2"><a href="#einstellungen">Eigene Kurz-Domain einrichten</a></div>{% endif %}
+  </div></div></div>
+</div>
+
+<div class="collapse {{ 'show' if prefill }} mb-4" id="neu"><div class="card border-primary">
+  <div class="card-header"><i class="fa-solid fa-plus me-2"></i>Neuer Kurzlink</div>
+  <div class="card-body">
+    <form method="post" action="/shortlinks" class="row g-3">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      {% if prefill and prefill.next %}<input type="hidden" name="next" value="{{ prefill.next }}">{% endif %}
+      <div class="col-12"><label class="form-label" for="nt">Zieladresse (lange URL)</label>
+        <input class="form-control form-control-lg" id="nt" name="target_url" type="url" required placeholder="https://www.otterbach-otterberg.de/…" value="{{ prefill.target_url if prefill else '' }}" autofocus></div>
+      <div class="col-md-5"><label class="form-label" for="nc">Kürzel <span class="text-secondary">(optional)</span></label>
+        <div class="input-group"><span class="input-group-text small">{{ base }}</span>
+          <input class="form-control" id="nc" name="code" type="text" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9_\-]*" placeholder="zufällig" value="{{ prefill.code if prefill else '' }}"></div>
+        <div class="form-text">Leer lassen für ein zufälliges Kürzel. Erlaubt: Buchstaben, Ziffern, - und _ (Groß-/Kleinschreibung egal).</div></div>
+      <div class="col-md-4"><label class="form-label" for="nti">Titel <span class="text-secondary">(optional)</span></label>
+        <input class="form-control" id="nti" name="title" type="text" maxlength="255" value="{{ prefill.title if prefill else '' }}"></div>
+      <div class="col-md-3"><label class="form-label" for="ntg">Schlagwörter</label>
+        <input class="form-control" id="ntg" name="tags" type="text" placeholder="z. B. bauamt, flyer" value="{{ prefill.tags if prefill else '' }}"></div>
+      <div class="col-12">
+        <details><summary class="small fw-semibold">Weitere Einstellungen (Gültigkeit, Limit, Weiterleitung)</summary>
+          <div class="row g-3 mt-1">
+            <div class="col-md-3"><label class="form-label" for="nvf">Gültig ab</label><input class="form-control" id="nvf" name="valid_from" type="datetime-local"></div>
+            <div class="col-md-3"><label class="form-label" for="nvu">Gültig bis</label><input class="form-control" id="nvu" name="valid_until" type="datetime-local"></div>
+            <div class="col-md-2"><label class="form-label" for="nmx">Max. Aufrufe</label><input class="form-control" id="nmx" name="max_visits" type="number" min="1" placeholder="unbegrenzt"></div>
+            <div class="col-md-4"><label class="form-label" for="nrc">Art der Weiterleitung</label>
+              <select class="form-select" id="nrc" name="redirect_code">{% for k, v in redirect_codes.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+            <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="nfq" name="forward_query" value="1" checked>
+              <label class="form-check-label" for="nfq">Parameter weitergeben (<code>…/kurz?utm_source=flyer</code> hängt <code>utm_source=flyer</code> an das Ziel an)</label></div></div>
+          </div>
+        </details>
+      </div>
+      <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>Kurzlink erzeugen</button></div>
+    </form>
+  </div>
+</div></div>
+
+<div class="card mb-4"><div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
+  <span><i class="fa-solid fa-list me-2"></i>{{ 'Alle Kurzlinks' if show_all else 'Meine Kurzlinks' }}</span>
+  <div class="d-flex flex-wrap gap-1 align-items-center">
+    {% if tags %}<span class="small text-secondary me-1">Schlagwort:</span>
+    <a class="badge rounded-pill {{ 'text-bg-primary' if not tag else 'text-bg-light border' }} text-decoration-none" href="?{{ 'all=1' if show_all }}">alle</a>
+    {% for t in tags %}<a class="badge rounded-pill {{ 'text-bg-primary' if t == tag else 'text-bg-light border' }} text-decoration-none" href="?tag={{ t | urlencode }}{{ '&all=1' if show_all }}">{{ t }}</a>{% endfor %}{% endif %}
+    {% if user.is_admin %}<a class="btn btn-sm btn-outline-secondary ms-2" href="?{{ '' if show_all else 'all=1' }}">{{ 'Nur meine' if show_all else 'Alle anzeigen' }}</a>{% endif %}
+  </div>
+</div><div class="card-body">
+{% if links %}
+<table class="table table-hover align-middle js-table w-100" data-order='[[{{ 6 if show_all else 5 }},"desc"]]'>
+  <thead><tr><th>Kurzlink</th><th>Ziel</th><th>Schlagwörter</th><th class="text-end">Aufrufe</th><th>Status</th>{% if show_all %}<th>Von</th>{% endif %}<th>Angelegt</th><th class="no-sort col-actions">Aktionen</th></tr></thead>
+  <tbody>
+  {% for link in links %}{% set state = usable(link) %}{% set url = base ~ link.code %}
+  <tr>
+    <td><a class="fw-semibold text-decoration-none" href="/shortlinks/{{ link.id }}">/{{ link.code }}</a>
+      <button class="btn btn-link btn-sm p-0 ms-1" type="button" data-copy-text="{{ url }}" title="Kurzlink kopieren" aria-label="Kurzlink kopieren"><i class="fa-regular fa-copy"></i></button>
+      {% if link.title %}<div class="small text-secondary">{{ link.title }}</div>{% endif %}</td>
+    <td class="small text-truncate" style="max-width: 22rem"><a href="{{ link.target_url }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none text-body-secondary" title="{{ link.target_url }}">{{ link.target_url }}</a></td>
+    <td>{% for t in link.tag_list %}<span class="badge text-bg-light border me-1">{{ t }}</span>{% endfor %}</td>
+    <td class="text-end" data-order="{{ link.visit_count }}">{{ link.visit_count }}{% if link.max_visits %}<span class="text-secondary small"> / {{ link.max_visits }}</span>{% endif %}</td>
+    <td>{% if not state %}<span class="badge text-bg-success">aktiv</span>{% else %}<span class="badge text-bg-warning">{{ state }}</span>{% endif %}</td>
+    {% if show_all %}<td class="small">{{ link.owner.name if link.owner else '–' }}</td>{% endif %}
+    <td data-order="{{ link.created_at.isoformat() }}" class="small">{{ link.created_at | local('%d.%m.%Y') }}</td>
+    <td class="col-actions"><div class="d-inline-flex gap-1">
+      <a class="btn btn-sm btn-outline-secondary" href="/shortlinks/{{ link.id }}#qr" title="QR-Code" aria-label="QR-Code"><i class="fa-solid fa-qrcode"></i></a>
+      <a class="btn btn-sm btn-outline-primary" href="/shortlinks/{{ link.id }}" title="Statistik und Bearbeiten" aria-label="Bearbeiten"><i class="fa-solid fa-chart-column"></i></a>
+      <form method="post" action="/shortlinks/{{ link.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn btn-sm btn-outline-danger" data-confirm-title="/{{ link.code }} löschen?" data-confirm="Der Kurzlink funktioniert danach nicht mehr, die Statistik wird gelöscht." title="Löschen" aria-label="Löschen"><i class="fa-regular fa-trash-can"></i></button></form>
+    </div></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="text-secondary mb-0">{{ 'Keine Kurzlinks mit diesem Schlagwort.' if tag else 'Noch keine Kurzlinks. Legen Sie oben den ersten an.' }}</p>
+{% endif %}
+</div></div>
+
+{% if user.is_admin %}
+<div class="card" id="einstellungen"><div class="card-header"><i class="fa-solid fa-gear me-2"></i>Einstellungen (nur Admins)</div><div class="card-body">
+  <form method="post" action="/shortlinks-settings" class="row g-3">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="col-md-5"><label class="form-label" for="sd">Eigene Kurz-Domain <span class="text-secondary">(optional)</span></label>
+      <input class="form-control" id="sd" name="short_domain" type="text" placeholder="z. B. vgoo.de oder kurz.vgoo.de" value="{{ cfg.short_domain }}">
+      <div class="form-text">Leer = Kurzlinks laufen über <code>{{ request.base_url }}s/…</code>. Mit eigener Domain werden sie kürzer (<code>https://kurz.example.de/abc</code>). Voraussetzung: DNS-Eintrag (A/AAAA) der Domain auf diesen Server. Das Zertifikat holt der Proxy wie bei den anderen Domains.</div></div>
+    <div class="col-md-5"><label class="form-label" for="sf">Ziel für unbekannte oder abgelaufene Kurzlinks</label>
+      <input class="form-control" id="sf" name="short_fallback_url" type="url" placeholder="leer = Hinweisseite" value="{{ cfg.short_fallback_url }}">
+      <div class="form-text">Auch Ziel der Startseite der Kurz-Domain, z. B. die Homepage der Verwaltung.</div></div>
+    <div class="col-md-2"><label class="form-label" for="sl">Länge zufälliger Kürzel</label>
+      <input class="form-control" id="sl" name="short_code_length" type="number" min="4" max="20" value="{{ cfg.short_code_length }}"></div>
+    <div class="col-12"><button class="btn btn-outline-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div>
+  </form>
+</div></div>
+{% endif %}
+{% endblock %}

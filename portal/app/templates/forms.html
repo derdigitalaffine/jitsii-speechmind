@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Formulare{% endblock %}
+{% block content %}
+{% call m.page_head('Formulare', 'Umfragen, Anmeldungen und Anträge mit dem Baukasten erstellen, per Link oder Einladung verteilen und die Antworten auswerten oder als CSV/JSON exportieren.') %}
+  {% if user.is_admin %}<a class="btn btn-outline-secondary" href="?{{ '' if show_all else 'all=1' }}">{{ 'Nur meine' if show_all else 'Alle Formulare' }}</a>{% endif %}
+{% endcall %}
+
+{% if user.can('forms') %}
+<div class="card mb-4"><div class="card-body">
+  <form method="post" action="/forms" class="row g-2 align-items-end">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="col-12 col-md"><label class="form-label" for="ft">Neues Formular</label>
+      <input class="form-control" id="ft" name="title" type="text" maxlength="255" required placeholder="z. B. Anmeldung Seniorenausflug 2026"></div>
+    <div class="col-12 col-md-auto"><button class="btn btn-primary w-100" type="submit"><i class="fa-solid fa-plus me-1"></i>Formular anlegen</button></div>
+  </form>
+</div></div>
+{% endif %}
+
+{% if shared %}
+<h2 class="h5 mb-3"><i class="fa-solid fa-share-nodes me-2 text-secondary"></i>Mit mir geteilt</h2>
+<div class="row g-3 mb-4">
+  {% for f, lvl in shared %}{% set n = counts.get(f.id, 0) %}
+  <div class="col-12 col-md-6 col-xxl-4"><div class="card h-100"><div class="card-body d-flex flex-column">
+    <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+      <a class="h6 mb-0 text-decoration-none" href="/forms/{{ f.id }}/results">{{ f.title }}</a>
+      <span class="badge text-bg-info" title="{{ levels[lvl][1] }}">{{ levels[lvl][0] }}</span>
+    </div>
+    <div class="small text-secondary mb-3">{% if f.owner %}von {{ f.owner.name }} · {% endif %}{{ 'offen' if is_open(f) else 'geschlossen' }}</div>
+    <div class="mt-auto d-flex flex-wrap gap-2">
+      <a class="btn btn-sm btn-primary" href="/forms/{{ f.id }}/results"><i class="fa-solid fa-chart-pie me-1"></i>{{ n }} Antwort{{ '' if n == 1 else 'en' }}</a>
+      {% if lvl >= 3 %}<a class="btn btn-sm btn-outline-secondary" href="/forms/{{ f.id }}"><i class="fa-solid fa-pen-ruler me-1"></i>Bearbeiten</a>{% endif %}
+      {% if lvl >= 2 %}<a class="btn btn-sm btn-outline-secondary" href="/forms/{{ f.id }}/share"><i class="fa-solid fa-envelope me-1"></i>Einladen</a>{% endif %}
+    </div>
+  </div></div></div>
+  {% endfor %}
+</div>
+{% if forms %}<h2 class="h5 mb-3"><i class="fa-solid fa-clipboard-list me-2 text-secondary"></i>{{ 'Alle Formulare' if show_all else 'Meine Formulare' }}</h2>{% endif %}
+{% endif %}
+
+{% if forms %}
+<div class="row g-3">
+  {% for f in forms %}{% set n = counts.get(f.id, 0) %}
+  <div class="col-12 col-md-6 col-xxl-4"><div class="card h-100"><div class="card-body d-flex flex-column">
+    <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+      <a class="h6 mb-0 text-decoration-none" href="/forms/{{ f.id }}">{{ f.title }}</a>
+      {% if is_open(f) %}<span class="badge text-bg-success">offen</span>{% else %}<span class="badge text-bg-secondary">geschlossen</span>{% endif %}
+    </div>
+    <div class="small text-secondary mb-3">
+      {% if f.public_token %}<i class="fa-solid fa-globe me-1" title="Öffentlicher Link aktiv"></i>{% endif %}
+      {% if f.invites %}<i class="fa-solid fa-envelope me-1"></i>{{ f.invites | length }} eingeladen · {% endif %}
+      geändert {{ f.updated_at | local('%d.%m.%Y') }}{% if show_all and f.owner %} · {{ f.owner.name }}{% endif %}
+      {% if f.expires_at %}<br><i class="fa-regular fa-hourglass-half me-1"></i>bis {{ f.expires_at | local }}{% endif %}
+    </div>
+    <div class="mt-auto d-flex flex-wrap gap-2">
+      <a class="btn btn-sm btn-primary" href="/forms/{{ f.id }}/results"><i class="fa-solid fa-chart-pie me-1"></i>{{ n }} Antwort{{ '' if n == 1 else 'en' }}</a>
+      <a class="btn btn-sm btn-outline-secondary" href="/forms/{{ f.id }}"><i class="fa-solid fa-pen-ruler me-1"></i>Bearbeiten</a>
+      <a class="btn btn-sm btn-outline-secondary" href="/forms/{{ f.id }}/share"><i class="fa-solid fa-share-nodes me-1"></i>Teilen</a>
+    </div>
+  </div></div></div>
+  {% endfor %}
+</div>
+{% elif not shared %}
+<div class="text-center text-secondary py-5"><i class="fa-solid fa-clipboard-list fa-3x mb-3"></i><p>{{ 'Noch keine Formulare. Legen Sie oben das erste an.' if user.can('forms') else 'Für Sie sind keine Formulare freigegeben. Formulare zum Ausfüllen finden Sie unter „Zum Ausfüllen“.' }}</p></div>
+{% endif %}
+{% endblock %}

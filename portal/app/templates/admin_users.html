@@ -2,7 +2,7 @@
 {% import "_macros.html" as m with context %}
 {% block title %}Benutzer{% endblock %}
 {% block content %}
-{{ m.page_head('Benutzer', 'Wer hier ein Konto hat, kann Meetings eröffnen, moderieren und aufzeichnen. Neue Personen werden per E-Mail eingeladen und legen ihr Passwort selbst fest. Gäste brauchen kein Konto.') }}
+{{ m.page_head('Benutzer & Gruppen', 'Neue Personen werden per E-Mail eingeladen und legen ihr Passwort selbst fest. Je Person schalten Sie frei, welche Bereiche sie nutzen darf. Gruppen erleichtern das Einladen zu Formularen. Gäste brauchen kein Konto.') }}
 
 {% if invite_links %}
 <div class="alert alert-info">
@@ -34,14 +34,25 @@
           <label class="form-label" for="nm">Name (nur bei einer Adresse)</label>
           <input class="form-control" id="nm" name="name" type="text" maxlength="200" placeholder="Optional">
         </div>
-        <div class="col-12 col-md-6 d-flex align-items-end">
-          <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="adm" name="is_admin" value="1"><label class="form-check-label" for="adm">Administrator:in</label></div>
+        <div class="col-12 col-md-6">
+          <label class="form-label" for="ngr">Gruppen</label>
+          <select class="form-select js-select" id="ngr" name="groups" multiple data-search="1" data-placeholder="Keine">
+            {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <div class="form-label">Rechte</div>
+          {{ m.perm_switches('new', ['video']) }}
+          {% if user.is_admin %}
+          <div class="form-check form-switch mt-2"><input class="form-check-input" type="checkbox" role="switch" id="adm" name="is_admin" value="1"><label class="form-check-label" for="adm"><strong>Administrator:in</strong> <span class="text-secondary small">– darf alles, auch Systemeinstellungen (Mail, HTTPS, Design, SpeechMind, Aufnahmen aller)</span></label></div>
+          {% endif %}
         </div>
         <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-paper-plane me-1"></i>Einladen</button></div>
       </form>
     </div>
   </div></div>
 
+  {% if user.is_admin %}
   <div class="col-12 col-xl-4"><div class="card h-100">
     <div class="card-header"><i class="fa-solid fa-door-open me-2"></i>Konferenzen ohne Anmeldung</div>
     <div class="card-body">
@@ -56,33 +67,110 @@
       </form>
     </div>
   </div></div>
+  {% endif %}
 </div>
 
-<div class="card"><div class="card-body">
+<div class="card mb-4"><div class="card-header"><i class="fa-solid fa-users me-2"></i>Benutzer</div><div class="card-body">
 <table class="table table-hover align-middle js-table w-100" data-order='[[0,"asc"]]'>
-  <thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th>Angelegt</th><th class="no-sort col-actions">Aktionen</th></tr></thead>
+  <thead><tr><th>Name</th><th>E-Mail</th><th>Rechte</th><th>Gruppen</th><th>Status</th><th>Angelegt</th><th class="no-sort col-actions">Aktionen</th></tr></thead>
   <tbody>
   {% for u in users %}
   <tr>
     <td><div class="d-flex align-items-center gap-2"><span class="avatar">{{ m.initials(u.name) }}</span><span class="fw-semibold">{{ u.name }}</span></div></td>
     <td>{{ u.email }}</td>
-    <td>{% if u.is_admin %}<span class="badge text-bg-primary"><i class="fa-solid fa-user-shield me-1"></i>Admin</span>{% else %}<span class="badge text-bg-secondary">Benutzer</span>{% endif %}</td>
+    <td>{% if u.is_admin %}<span class="badge text-bg-primary"><i class="fa-solid fa-user-shield me-1"></i>Admin</span>
+        {% else %}{% for key, p in permissions.items() if key in u.perms %}<span class="badge text-bg-light border me-1" title="{{ p[2] }}"><i class="fa-solid {{ p[1] }} me-1"></i>{{ p[0] }}</span>{% else %}<span class="text-secondary small">keine</span>{% endfor %}{% endif %}</td>
+    <td>{% for g in u.groups %}<span class="badge text-bg-secondary me-1">{{ g.name }}</span>{% endfor %}</td>
     <td>{% if not u.active %}<span class="badge text-bg-danger">gesperrt</span>{% elif not u.password_set %}<span class="badge text-bg-warning">eingeladen</span>{% else %}<span class="badge text-bg-success">aktiv</span>{% endif %}</td>
     <td data-order="{{ u.created_at.isoformat() }}">{{ u.created_at | local('%d.%m.%Y') }}</td>
     <td class="col-actions">
-      {% if u.id != user.id %}
+      {% if user.is_admin or not u.is_admin %}
       <form method="post" action="/admin/users/{{ u.id }}" class="d-inline-flex gap-1">
         <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#edit-{{ u.id }}" title="Bearbeiten" aria-label="Bearbeiten"><i class="fa-solid fa-pen"></i></button>
+        {% if u.id != user.id %}
         <button class="btn btn-sm btn-outline-secondary" name="action" value="invite" data-bs-toggle="tooltip" title="{{ 'Einladung erneut senden' if not u.password_set else 'Passwort-Link senden' }}" aria-label="Link senden"><i class="fa-solid fa-paper-plane"></i></button>
-        <button class="btn btn-sm btn-outline-secondary" name="action" value="toggle_admin" data-bs-toggle="tooltip" title="{{ 'Admin-Recht entziehen' if u.is_admin else 'Zum Admin machen' }}" aria-label="Rolle ändern"><i class="fa-solid fa-user-shield"></i></button>
+        {% if user.is_admin %}<button class="btn btn-sm btn-outline-secondary" name="action" value="toggle_admin" data-bs-toggle="tooltip" title="{{ 'Admin-Recht entziehen' if u.is_admin else 'Zum Admin machen' }}" aria-label="Rolle ändern"><i class="fa-solid fa-user-shield"></i></button>{% endif %}
         <button class="btn btn-sm btn-outline-secondary" name="action" value="toggle_active" data-bs-toggle="tooltip" title="{{ 'Sperren' if u.active else 'Entsperren' }}" aria-label="Sperren oder entsperren"><i class="fa-solid {{ 'fa-lock' if u.active else 'fa-lock-open' }}"></i></button>
-        <button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm-title="{{ u.email }} löschen?" data-confirm="Konto und zugehörige Meetings werden gelöscht. Aufnahmen bleiben für Admins sichtbar." data-bs-toggle="tooltip" title="Löschen" aria-label="Löschen"><i class="fa-regular fa-trash-can"></i></button>
+        <button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm-title="{{ u.email }} löschen?" data-confirm="Konto und zugehörige Meetings werden gelöscht. Aufnahmen bleiben für Admins sichtbar, Kurzlinks und Formulare bleiben erhalten (dann nur für Admins sichtbar)." data-bs-toggle="tooltip" title="Löschen" aria-label="Löschen"><i class="fa-regular fa-trash-can"></i></button>
+        {% else %}<span class="text-secondary small align-self-center ms-1">Ihr Konto</span>{% endif %}
       </form>
-      {% else %}<span class="text-secondary small">Ihr Konto</span>{% endif %}
+      {% else %}<span class="text-secondary small">nur durch Admins</span>{% endif %}
     </td>
   </tr>
   {% endfor %}
   </tbody>
 </table>
 </div></div>
+
+{% for u in users if user.is_admin or not u.is_admin %}
+<div class="modal fade" id="edit-{{ u.id }}" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content">
+  <form method="post" action="/admin/users/{{ u.id }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="edit">
+    <div class="modal-header"><h2 class="modal-title h5">{{ u.email }}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+    <div class="modal-body row g-3">
+      <div class="col-md-6"><label class="form-label" for="en-{{ u.id }}">Name</label>
+        <input class="form-control" id="en-{{ u.id }}" name="name" value="{{ u.name }}" maxlength="200" required></div>
+      <div class="col-md-6"><label class="form-label" for="eg-{{ u.id }}">Gruppen</label>
+        <select class="form-select js-select" id="eg-{{ u.id }}" name="groups" multiple data-search="1">
+          {% for g in groups %}<option value="{{ g.id }}" {% if g in u.groups %}selected{% endif %}>{{ g.name }}</option>{% endfor %}
+        </select></div>
+      <div class="col-12"><div class="form-label">Rechte</div>
+        {% if u.is_admin %}<div class="alert alert-info py-2 mb-2 small">Administrator:innen dürfen immer alles. Die Schalter gelten erst, wenn das Admin-Recht entzogen wird.</div>{% endif %}
+        {{ m.perm_switches('e' ~ u.id, u.perms) }}</div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+      <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div>
+  </form>
+</div></div></div>
+{% endfor %}
+
+<div class="card" id="gruppen"><div class="card-header d-flex justify-content-between align-items-center">
+  <span><i class="fa-solid fa-people-group me-2"></i>Gruppen</span>
+  <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#group-new"><i class="fa-solid fa-plus me-1"></i>Neue Gruppe</button>
+</div><div class="card-body">
+{% if groups %}
+<table class="table table-hover align-middle js-table w-100" data-order='[[0,"asc"]]'>
+  <thead><tr><th>Gruppe</th><th>Beschreibung</th><th>Mitglieder</th><th class="no-sort col-actions">Aktionen</th></tr></thead>
+  <tbody>
+  {% for g in groups %}
+  <tr>
+    <td class="fw-semibold">{{ g.name }}</td>
+    <td class="small text-secondary">{{ g.description }}</td>
+    <td data-order="{{ g.members|length }}">{% for mbr in g.members[:6] %}<span class="avatar avatar-sm me-1" title="{{ mbr.name }}">{{ m.initials(mbr.name) }}</span>{% endfor %}{% if g.members|length > 6 %}<span class="small text-secondary">+{{ g.members|length - 6 }}</span>{% endif %}
+      <span class="small text-secondary ms-1">({{ g.members|length }})</span></td>
+    <td class="col-actions"><form method="post" action="/admin/groups/{{ g.id }}" class="d-inline-flex gap-1">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#group-{{ g.id }}" title="Bearbeiten" aria-label="Bearbeiten"><i class="fa-solid fa-pen"></i></button>
+      <button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm-title="Gruppe „{{ g.name }}“ löschen?" data-confirm="Die Mitglieder behalten ihre Konten." title="Löschen" aria-label="Löschen"><i class="fa-regular fa-trash-can"></i></button>
+    </form></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="text-secondary mb-0">Noch keine Gruppen. Mit Gruppen laden Sie z. B. alle Mitglieder eines Fachbereichs auf einmal zu einem Formular ein.</p>
+{% endif %}
+</div></div>
+
+{% macro group_modal(id, action, g=None) %}
+<div class="modal fade" id="{{ id }}" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content">
+  <form method="post" action="{{ action }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="save">
+    <div class="modal-header"><h2 class="modal-title h5">{{ 'Gruppe bearbeiten' if g else 'Neue Gruppe' }}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+    <div class="modal-body row g-3">
+      <div class="col-md-6"><label class="form-label" for="{{ id }}-n">Name</label><input class="form-control" id="{{ id }}-n" name="name" maxlength="120" required value="{{ g.name if g else '' }}"></div>
+      <div class="col-md-6"><label class="form-label" for="{{ id }}-d">Beschreibung</label><input class="form-control" id="{{ id }}-d" name="description" maxlength="255" value="{{ g.description if g else '' }}"></div>
+      <div class="col-12"><label class="form-label" for="{{ id }}-m">Mitglieder</label>
+        <select class="form-select js-select" id="{{ id }}-m" name="members" multiple data-search="1">
+          {% for u in users %}<option value="{{ u.id }}" {% if g and u in g.members %}selected{% endif %}>{{ u.name }} ({{ u.email }})</option>{% endfor %}
+        </select></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+      <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div>
+  </form>
+</div></div></div>
+{% endmacro %}
+{{ group_modal('group-new', '/admin/groups') }}
+{% for g in groups %}{{ group_modal('group-' ~ g.id, '/admin/groups/' ~ g.id, g) }}{% endfor %}
 {% endblock %}
