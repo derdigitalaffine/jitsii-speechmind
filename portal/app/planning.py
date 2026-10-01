@@ -158,7 +158,7 @@ def calendar_file(meeting: Meeting) -> str:
 
 
 def send(db, meeting: Meeting, invitees: list[Invitee], kind: str, organizer: User,
-         copy_to_organizer: bool = False) -> tuple[int, bool]:
+         copy_to_organizer: bool = False, message: str = "") -> tuple[int, bool]:
     """kind: invite | update | cancel. Gibt (Anzahl eingereihter Mails, Mailversand eingerichtet) zurück.
 
     Jede Person bekommt eine eigene Mail; im Kalendereintrag steht nur sie selbst als Teilnehmende,
@@ -172,7 +172,8 @@ def send(db, meeting: Meeting, invitees: list[Invitee], kind: str, organizer: Us
     filename = "absage.ics" if kind == "cancel" else "einladung.ics"
     base = {**when(meeting), "titel": meeting.title, "link": join_link(meeting), "antwort_link": "",
             "beschreibung": meeting.description or "", "organisator": organizer.name,
-            "organisator_email": organizer.email}
+            "organisator_email": organizer.email,
+            "nachricht": f"Nachricht von {organizer.name}:\n{message.strip()}" if message.strip() else ""}
     org = organizer_identity(cfg, organizer)
     # Werden Antworten im Postfach ausgewertet, kein abweichendes Reply-To: manche Outlook-Versionen
     # schicken die Zu-/Absage sonst an diese Adresse statt an den Organisator (das Portal-Postfach).
@@ -214,6 +215,13 @@ def add_invitees(db, meeting: Meeting, emails: list[str]) -> list[Invitee]:
         meeting.invitees.append(inv)
         added.append(inv)
     return added
+
+
+def cancel_recipients(meeting: Meeting) -> list[Invitee]:
+    """Eingeladene, die beim Absagen bzw. Löschen eine Absage bekommen sollten."""
+    if not is_upcoming(meeting):
+        return []
+    return [i for i in meeting.invitees if i.invited_at and i.rsvp_status != "declined"]
 
 
 def is_upcoming(meeting: Meeting) -> bool:

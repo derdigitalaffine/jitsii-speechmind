@@ -92,11 +92,12 @@ TEMPLATES: dict[str, dict] = {
     },
     "meeting_cancel": {
         "group": "Besprechungen", "label": "Abgesagte Besprechung",
-        "vars": _MEETING_VARS,
+        "vars": {**_MEETING_VARS, "nachricht": "Optionale Nachricht der planenden Person zur Absage"},
         "subject": "Abgesagt: {titel} – {datum}, {uhrzeit}",
         "body": ("Guten Tag {name},\n\n"
                  "die Videokonferenz „{titel}“ am {datum}, {uhrzeit} wurde abgesagt.\n"
                  "Der Termin wird aus Ihrem Kalender entfernt, wenn Sie die angehängte Absage übernehmen.\n\n"
+                 "{nachricht}\n\n"
                  "{fusszeile}"),
     },
     "meeting_rsvp": {

@@ -107,7 +107,7 @@ app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")
 templates.env.globals.update(brand=settings.brand_name, product=settings.brand_product)
 templates.env.globals["themes"] = branding.THEMES
-templates.env.globals.update(planning_when=planning.when, local_input=planning.local_input,
+templates.env.globals.update(planning_when=planning.when, cancel_recipients=planning.cancel_recipients, local_input=planning.local_input,
                              is_upcoming=planning.is_upcoming, rsvp_labels=planning.RSVP_LABELS,
                              rsvp_summary=planning.rsvp_summary)
 templates.env.filters["isodate"] = lambda value: datetime.fromisoformat(value) if value else None
@@ -626,18 +626,24 @@ def meeting_settings(request: Request, meeting_id: int, title: str = Form(...),
 
 
 @app.post("/meetings/{meeting_id}/delete", dependencies=[Depends(check_csrf)])
-def meeting_delete(request: Request, meeting_id: int, user: User = Depends(current_user),
-                   db: Session = Depends(get_db)):
+def meeting_delete(request: Request, meeting_id: int, send_cancel: str = Form(""), message: str = Form(""),
+                   user: User = Depends(current_user), db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
-    if planning.is_upcoming(meeting) and meeting.invitees:
+    recipients = planning.cancel_recipients(meeting)
+    count, mail_ready = 0, True
+    if recipients and send_cancel == "1":
         meeting.ics_sequence = (meeting.ics_sequence or 0) + 1
-        planning.send(db, meeting, list(meeting.invitees), "cancel", meeting.owner)
+        count, mail_ready = planning.send(db, meeting, recipients, "cancel", meeting.owner,
+                                          message=message[:2000])
     for rec in meeting.recordings:
         rec.meeting_id = None
     db.delete(meeting)
     db.commit()
     access.sync(db)
+    worker.wake()
     flash(request, "Meeting gelöscht. Vorhandene Aufnahmen bleiben für Admins sichtbar.")
+    if recipients and send_cancel == "1":
+        _flash_sent(request, count, mail_ready, meeting, "Die Absage")
     return redirect("/")
 
 
@@ -732,13 +738,14 @@ def meeting_resend(request: Request, meeting_id: int, user: User = Depends(curre
 
 
 @app.post("/meetings/{meeting_id}/cancel", dependencies=[Depends(check_csrf)])
-def meeting_cancel(request: Request, meeting_id: int, user: User = Depends(current_user),
-                   db: Session = Depends(get_db)):
+def meeting_cancel(request: Request, meeting_id: int, message: str = Form(""),
+                   user: User = Depends(current_user), db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
     if meeting.starts_at is None or meeting.cancelled_at:
         return redirect(f"/meetings/{meeting.id}")
     meeting.ics_sequence = (meeting.ics_sequence or 0) + 1
-    count, mail_ready = planning.send(db, meeting, list(meeting.invitees), "cancel", meeting.owner)
+    count, mail_ready = planning.send(db, meeting, list(meeting.invitees), "cancel", meeting.owner,
+                                      message=message[:2000])
     meeting.cancelled_at = utcnow()
     db.commit()
     worker.wake()

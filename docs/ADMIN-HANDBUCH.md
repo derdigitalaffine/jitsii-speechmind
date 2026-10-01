@@ -140,7 +140,8 @@ Das Portal legt einen Konferenzraum an und schickt **jeder Person eine eigene Ma
 | **Weitere Personen einladen** | Nur die neuen Personen bekommen eine Einladung |
 | Symbol **Ausladen** | Die Person bekommt eine Absage, der Termin verschwindet aus ihrem Kalender |
 | **Einladung erneut senden** | Schickt allen die aktuelle Einladung noch einmal (z. B. wenn jemand sie gelöscht hat) |
-| **Absagen** | Alle bekommen eine Absage; der Raum bleibt bestehen |
+| **Absagen** | Alle bekommen eine Absage (optional mit einer Nachricht von Ihnen); der Raum bleibt bestehen |
+| **Meeting löschen** (ganz unten) | Steht der Termin noch bevor, schlägt der Dialog vor, allen Eingeladenen (außer denen, die schon abgesagt haben) eine Absage zu schicken – voreingestellt, optional mit Nachricht. Der Termin verschwindet dann aus ihren Kalendern |
 | **ICS herunterladen** | Termin als Datei, z. B. zum Weiterleiten aus dem eigenen Mailprogramm |
 
 ### Zu- und Absagen verfolgen
