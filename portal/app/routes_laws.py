@@ -8,13 +8,15 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import laws as lx
-from .db import LawLevel, LawSection, LawText, LawVersion, User
+from . import laws as lx, sessions
+from .config import settings
+from .db import LawLevel, LawSection, LawText, LawVersion, SessionLocal, User, get_settings, set_setting
 from .main import app, check_csrf, flash, get_db, redirect, render, require, session_user
 
 law_user = require("laws")
 MAX_VERSIONS = 50
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+ORIGIN_RE = re.compile(r"^https?://[a-z0-9.-]+(:\d+)?$|^https?://\*\.[a-z0-9.-]+$", re.I)
 
 
 def _editor(user: User | None) -> bool:
@@ -41,11 +43,58 @@ def _common(db: Session, user: User | None) -> dict:
 
 
 # --- Öffentlich ----------------------------------------------------------------
+#
+# Jede öffentliche Seite gibt es zweimal: unter /recht mit Portal-Rahmen und unter /recht-embed ohne Menüs zum
+# Einbinden per <iframe> in die eigene Homepage. Eingebettet wird immer die öffentliche Sicht gezeigt.
 
-@app.get("/recht")
-def recht_index(request: Request, db: Session = Depends(get_db)):
-    user = session_user(request, db)
-    editor = _editor(user)
+EMBED = "/recht-embed"
+
+
+def embed_enabled(db: Session) -> bool:
+    return get_settings(db).get("laws_embed", "1") == "1"
+
+
+def embed_origins(db: Session) -> list[str]:
+    raw = get_settings(db).get("laws_embed_origins", "")
+    return [o for o in re.split(r"[\s,;]+", raw) if ORIGIN_RE.match(o)]
+
+
+@app.middleware("http")
+async def _frame_headers(request: Request, call_next):
+    """Nur die Einbettungsseiten dürfen in fremden Seiten (iframe) erscheinen, alles andere nie."""
+    response = await call_next(request)
+    path = request.url.path
+    if path == EMBED or path.startswith(EMBED + "/"):
+        with SessionLocal() as db:
+            origins = embed_origins(db)
+        response.headers["Content-Security-Policy"] = "frame-ancestors " + (" ".join(["'self'", *origins])
+                                                                            if origins else "*")
+        if "x-frame-options" in response.headers:
+            del response.headers["x-frame-options"]
+    elif "x-frame-options" not in response.headers:
+        response.headers["X-Frame-Options"] = "DENY"
+    return response
+
+
+def _ctx(db: Session, request: Request, embed: bool) -> tuple[User | None, dict]:
+    """(Person, gemeinsame Angaben). Eingebettet: immer öffentliche Sicht und schlanker Rahmen."""
+    if embed and not embed_enabled(db):
+        raise HTTPException(404, "Das Einbinden der Rechtstexte ist auf diesem Server abgeschaltet.")
+    user = None if embed else session_user(request, db)
+    return user, {**_common(db, user), "layout": "base_embed.html" if embed else "base.html",
+                  "R": EMBED if embed else "/recht", "embed": embed}
+
+
+def _cookieless(request: Request, response):
+    """Wer ohne Sitzung kommt (Bürger:innen, eingebettete Rahmen), bekommt auch kein Cookie gesetzt."""
+    if sessions.COOKIE_NAME not in request.cookies:
+        request.session.clear()
+    return response
+
+
+def _index(request: Request, db: Session, embed: bool):
+    user, ctx = _ctx(db, request, embed)
+    editor = ctx["editor"]
     q = select(LawText).order_by(LawText.title)
     if not editor:
         q = q.where(LawText.published.is_(True))
@@ -54,57 +103,52 @@ def recht_index(request: Request, db: Session = Depends(get_db)):
     for law in all_laws:
         by_level.setdefault(law.level_id, []).append(law)
     recent = sorted((x for x in all_laws if x.published), key=lambda x: x.updated_at, reverse=True)[:6]
-    return render(request, "recht.html", user, roots=lx.level_tree(db), by_level=by_level,
-                  counts=lx.law_counts(db, published_only=not editor), recent=recent, total=len(all_laws),
-                  **_common(db, user))
+    return _cookieless(request, render(request, "recht.html", user, roots=lx.level_tree(db), by_level=by_level,
+                  counts=lx.law_counts(db, published_only=not editor), recent=[] if embed else recent,
+                  total=len(all_laws), **ctx))
 
 
-@app.get("/recht/suche")
-def recht_search(request: Request, q: str = "", ebene: int | None = None, gesetz: str = "",
-                 db: Session = Depends(get_db)):
-    user = session_user(request, db)
+def _search(request: Request, db: Session, embed: bool, q: str, ebene: int | None, gesetz: str):
+    user, ctx = _ctx(db, request, embed)
     level = db.get(LawLevel, ebene) if ebene else None
     law = db.scalar(select(LawText).where(LawText.slug == gesetz)) if gesetz else None
-    if law is not None and not law.published and not _editor(user):
+    if law is not None and not law.published and not ctx["editor"]:
         law = None
-    found_laws, hits = lx.search(db, q, published_only=not _editor(user), level=level, law=law)
+    found_laws, hits = lx.search(db, q, published_only=not ctx["editor"], level=level, law=law)
     grouped: dict[int, dict] = {}
     for section, snip in hits:
         grouped.setdefault(section.law_id, {"law": section.law, "hits": []})["hits"].append((section, snip))
-    return render(request, "recht_search.html", user, q=q, level=level, law=law, found_laws=found_laws,
+    return _cookieless(request, render(request, "recht_search.html", user, q=q, level=level, law=law, found_laws=found_laws,
                   grouped=list(grouped.values()), hit_count=len(hits), words=lx.terms(q),
-                  level_options=lx.level_options(db), **_common(db, user))
+                  level_options=lx.level_options(db), **ctx))
 
 
-@app.get("/recht/ebene/{level_id}")
-def recht_level(request: Request, level_id: int, db: Session = Depends(get_db)):
-    user = session_user(request, db)
+def _level(request: Request, db: Session, embed: bool, level_id: int):
+    user, ctx = _ctx(db, request, embed)
     level = db.get(LawLevel, level_id)
     if level is None:
         raise HTTPException(404, "Ebene nicht gefunden.")
-    editor = _editor(user)
-    ids = lx.descendant_ids(level)
-    q = select(LawText).where(LawText.level_id.in_(ids)).order_by(LawText.title)
-    if not editor:
+    q = select(LawText).where(LawText.level_id.in_(lx.descendant_ids(level))).order_by(LawText.title)
+    if not ctx["editor"]:
         q = q.where(LawText.published.is_(True))
     by_level: dict[int | None, list[LawText]] = {}
     for law in db.scalars(q):
         by_level.setdefault(law.level_id, []).append(law)
-    return render(request, "recht.html", user, roots=[level], by_level=by_level, focus=level,
-                  counts=lx.law_counts(db, published_only=not editor), recent=[],
-                  total=sum(len(v) for v in by_level.values()), **_common(db, user))
+    return _cookieless(request, render(request, "recht.html", user, roots=[level], by_level=by_level, focus=level,
+                  counts=lx.law_counts(db, published_only=not ctx["editor"]), recent=[],
+                  total=sum(len(v) for v in by_level.values()), **ctx))
 
 
-@app.get("/recht/{slug}.md")
-def recht_markdown(request: Request, slug: str, db: Session = Depends(get_db)):
-    law = _visible_law(db, slug, session_user(request, db))
+def _markdown(request: Request, db: Session, embed: bool, slug: str):
+    user, ctx = _ctx(db, request, embed)
+    law = _visible_law(db, slug, user)
     text = (f"# {law.title}\n\n" if not law.body_md.lstrip().startswith("# ") else "") + law.body_md
     return Response(text, media_type="text/markdown; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{law.slug}.md"'})
 
 
-def _law_page(request: Request, db: Session, slug: str, anchor: str | None):
-    user = session_user(request, db)
+def _law_page(request: Request, db: Session, embed: bool, slug: str, anchor: str | None):
+    user, ctx = _ctx(db, request, embed)
     law = _visible_law(db, slug, user)
     roots, flat = lx.tree(law)
     current = None
@@ -113,20 +157,40 @@ def _law_page(request: Request, db: Session, slug: str, anchor: str | None):
         if current is None:
             raise HTTPException(404, "Diesen Abschnitt gibt es in diesem Rechtstext nicht.")
     idx = flat.index(current) if current else -1
-    return render(request, "recht_law.html", user, law=law, roots=roots, flat=flat, current=current,
+    return _cookieless(request, render(request, "recht_law.html", user, law=law, roots=roots, flat=flat, current=current,
                   prev=flat[idx - 1] if current and idx > 0 else None,
                   next=flat[idx + 1] if current and idx + 1 < len(flat) else None,
-                  path=lx.level_path(law.level), q=request.query_params.get("q", ""), **_common(db, user))
+                  path=lx.level_path(law.level), q=request.query_params.get("q", ""), **ctx))
 
 
-@app.get("/recht/{slug}")
-def recht_law(request: Request, slug: str, db: Session = Depends(get_db)):
-    return _law_page(request, db, slug, None)
+for _prefix, _embed in (("/recht", False), (EMBED, True)):
+    def _register(prefix: str, embed: bool):
+        @app.get(prefix, name=f"recht_index{'_embed' if embed else ''}")
+        def index(request: Request, db: Session = Depends(get_db)):
+            return _index(request, db, embed)
 
+        @app.get(prefix + "/suche", name=f"recht_search{'_embed' if embed else ''}")
+        def search(request: Request, q: str = "", ebene: int | None = None, gesetz: str = "",
+                   db: Session = Depends(get_db)):
+            return _search(request, db, embed, q, ebene, gesetz)
 
-@app.get("/recht/{slug}/{anchor}")
-def recht_section(request: Request, slug: str, anchor: str, db: Session = Depends(get_db)):
-    return _law_page(request, db, slug, anchor)
+        @app.get(prefix + "/ebene/{level_id}", name=f"recht_level{'_embed' if embed else ''}")
+        def level(request: Request, level_id: int, db: Session = Depends(get_db)):
+            return _level(request, db, embed, level_id)
+
+        @app.get(prefix + "/{slug}.md", name=f"recht_markdown{'_embed' if embed else ''}")
+        def markdown(request: Request, slug: str, db: Session = Depends(get_db)):
+            return _markdown(request, db, embed, slug)
+
+        @app.get(prefix + "/{slug}", name=f"recht_law{'_embed' if embed else ''}")
+        def law(request: Request, slug: str, db: Session = Depends(get_db)):
+            return _law_page(request, db, embed, slug, None)
+
+        @app.get(prefix + "/{slug}/{anchor}", name=f"recht_section{'_embed' if embed else ''}")
+        def section(request: Request, slug: str, anchor: str, db: Session = Depends(get_db)):
+            return _law_page(request, db, embed, slug, anchor)
+
+    _register(_prefix, _embed)
 
 
 # --- Pflege: Rechtstexte -----------------------------------------------------
@@ -357,6 +421,33 @@ async def laws_upload(request: Request, files: list[UploadFile] = File(...), lev
     if problems:
         flash(request, "Nicht übernommen: " + "; ".join(problems), "error")
     return redirect("/laws")
+
+
+# --- Pflege: Öffentlicher Link und Einbinden --------------------------------
+
+@app.get("/laws/embed")
+def laws_embed(request: Request, user: User = Depends(law_user), db: Session = Depends(get_db)):
+    cfg = get_settings(db)
+    laws = list(db.scalars(select(LawText).where(LawText.published.is_(True)).order_by(LawText.title)))
+    return render(request, "law_embed.html", user, enabled=cfg.get("laws_embed", "1") == "1",
+                  origins=cfg.get("laws_embed_origins", ""), base_url=settings.portal_base_url.rstrip("/"),
+                  level_options=lx.level_options(db), laws=laws, **_common(db, user))
+
+
+@app.post("/laws/embed", dependencies=[Depends(check_csrf)])
+def laws_embed_save(request: Request, enabled: str = Form(""), origins: str = Form(""), user: User = Depends(law_user),
+                    db: Session = Depends(get_db)):
+    items = [o.strip().rstrip("/") for o in re.split(r"[\s,;]+", origins) if o.strip()]
+    bad = [o for o in items if not ORIGIN_RE.match(o)]
+    if bad:
+        flash(request, "Ungültige Adresse(n): " + ", ".join(bad) + " – bitte in der Form https://www.example.de "
+                       "angeben (ohne Pfad).", "error")
+        return redirect("/laws/embed")
+    set_setting(db, "laws_embed", "1" if enabled == "1" else "0")
+    set_setting(db, "laws_embed_origins", " ".join(items))
+    db.commit()
+    flash(request, "Einstellungen zum Einbinden gespeichert.")
+    return redirect("/laws/embed")
 
 
 # --- Pflege: Ebenen ------------------------------------------------------------

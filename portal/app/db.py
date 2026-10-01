@@ -842,6 +842,9 @@ DEFAULT_SETTINGS = {
     "module_polls": "1",
     "module_bookings": "1",
     "module_laws": "1",
+    # Rechtstexte per <iframe> einbinden (/recht-embed); leere Liste = alle Seiten dürfen einbinden
+    "laws_embed": "1",
+    "laws_embed_origins": "",
     # Kurzlinks
     "short_domain": "",           # optional eigene Kurz-Domain, z. B. kurz.example.de
     "short_fallback_url": "",     # Ziel für unbekannte Kurzlinks und die Startseite der Kurz-Domain

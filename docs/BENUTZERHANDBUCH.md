@@ -351,6 +351,8 @@ Die Stufe lässt sich in der Liste jederzeit ändern, das ✕ entfernt die Freig
 4. **Öffentlich sichtbar** einschalten, wenn der Text erscheinen soll; sonst bleibt er ein Entwurf, den nur Bearbeiter:innen sehen.
 5. **Speichern.** Bei jeder Änderung wird die vorige Fassung aufbewahrt (rechts unter „Frühere Fassungen“ ansehen und wiederherstellen).
 
+**In die Homepage einbinden:** **Link & Einbinden** erzeugt den öffentlichen Link und den Code für einen Rahmen (iframe) – für alle Texte, eine Ebene (z. B. nur Ihre Ortsgemeinde) oder einen einzelnen Text, mit Vorschau. Den Code fügt die Webredaktion im CMS als HTML-Baustein ein.
+
 Viele Texte auf einmal: **Dateien hochladen**, Ebene und Art wählen, mehrere Dateien markieren. Unter **Ebenen** legen Sie neue Ebenen an (z. B. einen Zweckverband), benennen um, verschieben und sortieren sie.
 
 ---

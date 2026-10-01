@@ -382,6 +382,13 @@ Ohne `#`-Überschriften (aus Word, PDF oder einer Webseite kopiert) erkennt das 
 
 **Öffentliche Ansicht.** Volltext oder einzelne Abschnitte (Blättern mit Vor/Zurück), Baum-Inhaltsverzeichnis mit Filter, Permalinks je Paragraf (z. B. `/recht/hauptsatzung/p3`), Druckansicht ohne Menüs, Markdown-Download. Die Suche findet Wörter in Titeln, Überschriften und Text (alle Wörter müssen vorkommen), eingeschränkt auf eine Ebene oder einen Text; Fundstellen werden markiert.
 
+**Öffentlicher Link und Einbinden in die Homepage.** Unter **Rechtstexte pflegen › Link & Einbinden**:
+
+- **Öffentlicher Link** (`/recht`, eine Ebene `/recht/ebene/<nr>` oder ein Text `/recht/<adresse>`) – zum Verlinken, für das Amtsblatt oder einen QR-Code.
+- **Einbinden per iframe** über `/recht-embed/…`: dieselben Seiten ohne Menü, Kopf und Fuß des Portals, nur mit einer schmalen Leiste „In neuem Fenster öffnen“. Wählen Sie den Umfang (alle Texte, eine Ebene – z. B. nur eine Ortsgemeinde – oder ein einzelner Text), das Farbschema (hell, dunkel, wie Gerät) und die Höhe. Bei **automatischer Höhe** enthält der Code ein kleines Skript, das den Rahmen der Länge des Inhalts anpasst und beim Blättern an den Rahmenanfang springt. Den Code fügen Sie im CMS der Homepage als HTML-Baustein ein; rechts sehen Sie eine Vorschau.
+- **Wer darf einbinden?** Einbinden lässt sich ganz abschalten oder auf bestimmte Webseiten beschränken (z. B. `https://www.otterbach-otterberg.de`, auch `https://*.otterbach-otterberg.de`). Leer = jede Seite. Technisch: Nur `/recht-embed` sendet `Content-Security-Policy: frame-ancestors …`; alle anderen Portalseiten (Anmeldung, Verwaltung …) senden `X-Frame-Options: DENY` und lassen sich nie in fremde Seiten einbetten.
+- **Keine Cookies:** Wer die Rechtstexte ohne Anmeldung aufruft – direkt oder eingebettet –, bekommt kein Cookie. Für die Homepage ist dafür also kein Cookie-Hinweis nötig. Eingebettet wird immer nur Veröffentlichtes gezeigt, auch wenn jemand im Portal angemeldet ist.
+
 **Rechtsverbindlichkeit.** Die Onlinefassung ist ein Service; maßgeblich bleibt die öffentliche Bekanntmachung nach Ihrer Hauptsatzung. Ein entsprechender Hinweis gehört z. B. in die Beschreibung der obersten Ebene oder in die Eingangsformel.
 
 ## Sitzungen & Cookies

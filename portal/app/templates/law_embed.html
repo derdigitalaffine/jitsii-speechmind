@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Öffentlicher Link & Einbinden{% endblock %}
+{% block content %}
+{% call m.page_head('Öffentlicher Link & Einbinden', 'Die Rechtstexte sind ohne Anmeldung unter einem festen Link erreichbar und lassen sich als Rahmen (iframe) in die Homepage der Verwaltung einbauen – komplett, nur für eine Ebene (z. B. eine Ortsgemeinde) oder für einen einzelnen Text.') %}
+<a class="btn btn-outline-secondary" href="/laws"><i class="fa-solid fa-arrow-left me-1"></i>Rechtstexte</a>
+{% endcall %}
+
+<div class="row g-4">
+  <div class="col-12 col-xxl-7">
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-sliders me-2"></i>Was soll erscheinen?</div><div class="card-body">
+      <div class="row g-3" id="embed-opts" data-base="{{ base_url }}">
+        <div class="col-md-6"><label class="form-label" for="e-scope">Umfang</label>
+          <select class="form-select" id="e-scope">
+            <option value="">Alle Rechtstexte (Rechtsbaum)</option>
+            <optgroup label="Nur eine Ebene">{% for lv, depth in level_options %}<option value="ebene/{{ lv.id }}">{{ '  ' * depth }}{{ lv.name }}</option>{% endfor %}</optgroup>
+            <optgroup label="Ein einzelner Rechtstext">{% for law in laws %}<option value="{{ law.slug }}">{{ law.title }}</option>{% endfor %}</optgroup>
+          </select></div>
+        <div class="col-md-3"><label class="form-label" for="e-theme">Farbschema</label>
+          <select class="form-select" id="e-theme"><option value="light">hell</option><option value="dark">dunkel</option><option value="auto">wie Gerät</option></select></div>
+        <div class="col-md-3"><label class="form-label" for="e-height">Höhe</label>
+          <select class="form-select" id="e-height"><option value="auto">automatisch</option><option value="600">600 px</option><option value="800" selected>800 px</option><option value="1000">1000 px</option></select></div>
+      </div>
+    </div></div>
+
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-link me-2"></i>Öffentlicher Link</div><div class="card-body">
+      <p class="small text-secondary">Zum Verlinken (Homepage, Amtsblatt, QR-Code). Zeigt die Rechtstexte mit Kopf und Fuß des Portals.</p>
+      <div class="input-group mb-3"><input class="form-control" id="e-public" readonly><button class="btn btn-outline-primary" type="button" data-copy="#e-public"><i class="fa-regular fa-copy"></i> Kopieren</button>
+        <a class="btn btn-outline-secondary" id="e-public-open" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i></a></div>
+      <p class="small text-secondary mb-1">Ohne Kopf und Fuß des Portals – für Rahmen oder eine eigene Unterseite:</p>
+      <div class="input-group"><input class="form-control" id="e-url" readonly><button class="btn btn-outline-primary" type="button" data-copy="#e-url"><i class="fa-regular fa-copy"></i> Kopieren</button>
+        <a class="btn btn-outline-secondary" id="e-url-open" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i></a></div>
+    </div></div>
+
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-code me-2"></i>Code zum Einbinden (iframe)</div><div class="card-body">
+      {% if not enabled %}<div class="alert alert-warning small"><i class="fa-solid fa-triangle-exclamation me-1"></i>Einbinden ist unten abgeschaltet – der Rahmen zeigt dann „nicht verfügbar“.</div>{% endif %}
+      <p class="small text-secondary">In die Homepage (z. B. im CMS als HTML-Baustein) einfügen. Bei „automatisch“ passt sich die Höhe dem Inhalt an; beim Blättern im Rahmen springt die Seite an seinen Anfang.</p>
+      <textarea class="form-control font-monospace small" id="e-code" rows="12" readonly></textarea>
+      <button class="btn btn-primary mt-2" type="button" data-copy="#e-code"><i class="fa-regular fa-copy me-1"></i>Code kopieren</button>
+    </div></div>
+
+    <form method="post" action="/laws/embed" class="card"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="card-header"><i class="fa-solid fa-shield-halved me-2"></i>Wer darf einbinden?</div>
+      <div class="card-body">
+        <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" role="switch" id="e-enabled" name="enabled" value="1" {% if enabled %}checked{% endif %}>
+          <label class="form-check-label" for="e-enabled">Einbinden in andere Webseiten erlauben (<code>/recht-embed</code>)</label></div>
+        <label class="form-label" for="e-origins">Nur auf diesen Webseiten (optional)</label>
+        <textarea class="form-control font-monospace" id="e-origins" name="origins" rows="3" placeholder="https://www.otterbach-otterberg.de&#10;https://*.otterbach-otterberg.de">{{ origins | replace(' ', '\n') }}</textarea>
+        <div class="form-text">Eine Adresse je Zeile, ohne Pfad. Leer = jede Webseite darf die Rechtstexte einbinden (sie sind ohnehin öffentlich). Alle anderen Seiten des Portals lassen sich nie in fremde Seiten einbetten.</div>
+      </div>
+      <div class="card-footer"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div>
+    </form>
+  </div>
+
+  <div class="col-12 col-xxl-5">
+    <div class="card"><div class="card-header"><i class="fa-regular fa-eye me-2"></i>Vorschau</div>
+      <div class="card-body p-0"><iframe id="e-preview" title="Vorschau der eingebetteten Rechtstexte" style="width:100%;height:760px;border:0;display:block" loading="lazy"></iframe></div></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var box = document.getElementById('embed-opts');
+  var base = box.dataset.base;
+  var origin = new URL(base).origin;
+  var el = function (id) { return document.getElementById(id); };
+  var last = '';
+  function update() {
+    var scope = el('e-scope').value, theme = el('e-theme').value, height = el('e-height').value;
+    var path = scope ? '/' + scope : '';
+    var url = base + '/recht-embed' + path + '?theme=' + theme;
+    el('e-public').value = base + '/recht' + path; el('e-public-open').href = el('e-public').value;
+    el('e-url').value = url; el('e-url-open').href = url;
+    var id = 'ortsrecht' + (scope ? '-' + scope.replace(/[^a-z0-9]+/gi, '-') : '');
+    var code = '<iframe id="' + id + '" src="' + url + '" title="Rechtstexte" loading="lazy"\n' +
+      '        style="width:100%;height:' + (height === 'auto' ? 800 : height) + 'px;border:0"></iframe>';
+    if (height === 'auto') {
+      code += '\n<script>\n' +
+        '/* Höhe des Rahmens automatisch an den Inhalt anpassen */\n' +
+        'window.addEventListener("message", function (e) {\n' +
+        '  var f = document.getElementById("' + id + '");\n' +
+        '  if (e.origin !== "' + origin + '" || !f || e.source !== f.contentWindow || !e.data) return;\n' +
+        '  if (e.data.type === "jsm-recht-height") f.style.height = e.data.height + "px";\n' +
+        '  if (e.data.type === "jsm-recht-navigate") { if (f.dataset.seen) f.scrollIntoView({ behavior: "smooth" }); f.dataset.seen = "1"; }\n' +
+        '});\n<\/script>';
+    }
+    el('e-code').value = code;
+    if (url !== last) { el('e-preview').src = url; last = url; }
+  }
+  ['e-scope', 'e-theme', 'e-height'].forEach(function (id) { el(id).addEventListener('change', update); });
+  update();
+})();
+</script>
+{% endblock %}
