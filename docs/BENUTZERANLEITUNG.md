@@ -24,11 +24,12 @@ Tipp: Die Konferenz hat einen Warteraum (Lobby). Neue Gäste erscheinen bei Ihne
 
 ### Ohne Konto eine Konferenz starten
 
-Falls Ihre Verwaltung das freigegeben hat, können Sie auch **ohne Konto** konferieren: Auf der Anmeldeseite auf **„Konferenz ohne Anmeldung starten“** klicken, Namen eingeben, **Jetzt starten**. Den Link zum Raum geben Sie an Ihre Gäste weiter. Wichtig:
+Falls Ihre Verwaltung das freigegeben hat, kann jede:r **ohne Konto** einen Raum eröffnen: Einfach die Konferenzadresse mit einem selbst gewählten Namen aufrufen (z. B. `…/elternabend-3b`) oder auf der Anmeldeseite **„Konferenz ohne Anmeldung starten“** klicken. Die Adresse geben Sie an die anderen weiter. Wichtig:
 
-- In so einem Raum gibt es **keine Aufnahme**.
-- Gäste kommen hinein, sobald Sie im Raum sind. Bleiben Sie also im Raum, bis alle da sind.
-- Mit demselben Browser kommen Sie später wieder in Ihren Raum.
+- In solchen freien Räumen gibt es **keine Aufnahme**.
+- Wer zuerst im Raum ist, moderiert.
+
+**Räume aus dem Portal** (über „Meeting anlegen“ oder „Besprechung planen“) sind geschützt: Hinein kommen nur Angemeldete und Gäste mit dem Gastlink bzw. ihrem persönlichen Link aus der Einladung. Nur dort kann aufgenommen werden. Den Gastlink finden Sie auf der Seite des Meetings.
 
 ### Eine Besprechung mit Einladung planen
 
@@ -47,7 +48,7 @@ Alle Eingeladenen bekommen eine E-Mail mit Einwahllink und einem Kalendereintrag
 
 > **Datenschutz:** Weisen Sie zu Beginn alle Teilnehmenden ausdrücklich darauf hin und holen Sie deren Einverständnis ein. Der Hinweis im Programm ersetzt das nicht.
 
-Es kann immer nur **eine** Konferenz gleichzeitig aufgenommen werden. Beenden Sie die Aufnahme, bevor Sie die Konferenz verlassen.
+Es kann immer nur **eine** Konferenz gleichzeitig aufgenommen werden. Aufnehmen geht nur in Räumen aus dem Portal. **Der Gruppenchat** während der Aufnahme wird als Chatprotokoll mit der Aufnahme gespeichert. Beenden Sie die Aufnahme, bevor Sie die Konferenz verlassen.
 
 ## 4. Nach der Konferenz: MP3 und Transkript
 

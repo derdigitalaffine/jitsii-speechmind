@@ -24,8 +24,8 @@ from .db import (
     STATUS_QUEUED, STATUS_RECORDED, STATUS_UPLOADING, Meeting, Recording, SessionLocal,
     get_settings, to_local, utcnow,
 )
-from . import notify
-from .security import decrypt, is_open_room
+from . import chat, notify
+from .security import decrypt
 from .speechmind import SpeechMindClient, SpeechMindError
 
 log = logging.getLogger("portal.worker")
@@ -103,12 +103,13 @@ def scan_recordings() -> int:
             videos = sorted(session_dir.glob("*.mp4"), key=lambda p: p.stat().st_size, reverse=True)
             video = videos[0] if videos else None
             room, participants = _room_from_metadata(session_dir, video)
-            if is_open_room(room):
-                # Offene Konferenzen (ohne Anmeldung) dürfen nicht aufgezeichnet werden
-                log.warning("Aufnahme eines offenen Raums %s verworfen: %s", room, session_dir.name)
+            meeting = db.scalar(select(Meeting).where(Meeting.room == room)) if room else None
+            if meeting is None:
+                # Aufnahmen gibt es nur in Portal-Räumen (Prosody lässt sie anderswo nicht zu);
+                # taucht trotzdem eine auf, wird sie nicht aufbewahrt
+                log.warning("Aufnahme außerhalb eines Portal-Raums (%s) verworfen: %s", room, session_dir.name)
                 shutil.rmtree(session_dir, ignore_errors=True)
                 continue
-            meeting = db.scalar(select(Meeting).where(Meeting.room == room)) if room else None
 
             # Die Transkription wird nie automatisch gestartet: erst die MP3 erzeugen,
             # dann entscheidet ein Mensch in der GUI.
@@ -206,11 +207,16 @@ async def convert_recording(rec_id: int) -> None:
         if rec is None or rec.status != STATUS_NEW:
             return
         video = Path(rec.video_path) if rec.video_path else None
+        room = rec.room
     try:
         if not video or not video.exists():
             raise RuntimeError("Die Videodatei der Aufnahme existiert nicht mehr.")
         audio = AUDIO_DIR / f"recording-{rec_id}.mp3"
         duration, max_db = await extract_audio(video, audio)
+        messages = chat.for_video(room, video, duration)
+        if messages:
+            _set(rec_id, chat_json=json.dumps(messages, ensure_ascii=False))
+            log.info("Chatprotokoll mit %d Nachricht(en) an Aufnahme %s gehängt", len(messages), rec_id)
         silent = max_db is not None and max_db < SILENCE_DB
         if silent:
             log.warning("Aufnahme %s ist stumm (lauteste Stelle %.1f dB)", rec_id, max_db)
@@ -369,6 +375,7 @@ def reset_interrupted() -> None:
 
 RSVP_INTERVAL_SECONDS = 120
 _last_rsvp = [0.0]
+_last_chat_prune = [0.0]
 
 
 def _poll_rsvp() -> None:
@@ -393,6 +400,9 @@ async def run_forever() -> None:
                 _last_rsvp[0] = time.monotonic()
                 await asyncio.to_thread(_poll_rsvp)
             await asyncio.to_thread(notify.process_queue)  # Hinweise zu neuen Antworten gleich verschicken
+            if time.monotonic() - _last_chat_prune[0] >= 3600:
+                _last_chat_prune[0] = time.monotonic()
+                await asyncio.to_thread(chat.prune)
         except Exception:  # noqa: BLE001
             log.exception("Fehler im Worker-Durchlauf")
         _wakeup.clear()

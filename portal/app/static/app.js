@@ -74,9 +74,9 @@
   /* ---- Aufnahmen löschen (einzeln und mehrere) ---------------------- */
   var csrfToken = (document.querySelector('meta[name="csrf"]') || {}).content || '';
   var DELETE_OPTIONS = {
-    media: 'Nur Video und MP3 löschen, <strong>Transkript behalten</strong>',
+    media: 'Nur Video und MP3 löschen, <strong>Transkript und Chatprotokoll behalten</strong>',
     keep_link: 'Alles hier löschen, Protokoll <strong>bei SpeechMind später wieder abrufbar</strong>',
-    all: '<strong>Alles löschen</strong> (Video, MP3, Transkript)'
+    all: '<strong>Alles löschen</strong> (Video, MP3, Transkript, Chatprotokoll)'
   };
   function postForm(url, fields) {
     var f = document.createElement('form');

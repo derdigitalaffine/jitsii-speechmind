@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Postfach-Diagnose{% endblock %}
+{% block content %}
+{% call m.page_head('Postfach-Diagnose', 'Die neuesten Nachrichten im Antwort-Ordner und ob das Portal sie als Zu- oder Absage erkennt. Hier wird nur gelesen; Postfach und Besprechungen bleiben unverändert.') %}
+  <a class="btn btn-outline-secondary align-self-start" href="/admin/notifications#antworten"><i class="fa-solid fa-arrow-left me-1"></i>Zurück</a>
+{% endcall %}
+
+<div class="card mb-4"><div class="card-body small">
+  <div class="row g-2">
+    <div class="col-md-4"><span class="text-secondary">Postfach:</span> <strong>{{ cfg.imap_user or '–' }}</strong> @ {{ cfg.imap_host or '–' }}</div>
+    <div class="col-md-4"><span class="text-secondary">Ordner:</span> <strong>{{ cfg.imap_rsvp_folder or 'INBOX' }}</strong></div>
+    <div class="col-md-4"><span class="text-secondary">Organisator in neuen Einladungen:</span>
+      {% if cfg.imap_rsvp == '1' %}<strong>{{ cfg.mail_from }}</strong>{% else %}<span class="text-danger">die planende Person selbst</span>{% endif %}</div>
+  </div>
+  {% if cfg.imap_rsvp != '1' %}
+  <div class="alert alert-warning mt-3 mb-0"><i class="fa-solid fa-triangle-exclamation me-1"></i>
+    „Antworten im Postfach auswerten“ ist <strong>ausgeschaltet</strong>. Outlook schickt Zu- und Absagen dann an die planende Person, nicht an dieses Postfach. Einschalten, speichern und die Einladungen auf der Besprechungsseite <strong>erneut senden</strong>.</div>
+  {% elif cfg.imap_user and cfg.mail_from and cfg.imap_user|lower != cfg.mail_from|lower and '@' in cfg.imap_user %}
+  <div class="alert alert-warning mt-3 mb-0"><i class="fa-solid fa-triangle-exclamation me-1"></i>
+    Das IMAP-Konto (<strong>{{ cfg.imap_user }}</strong>) ist nicht die Absenderadresse (<strong>{{ cfg.mail_from }}</strong>). Antworten gehen an die Absenderadresse – das IMAP-Konto muss genau dieses Postfach sein (oder es muss dorthin weitergeleitet werden).</div>
+  {% endif %}
+</div></div>
+
+{% if error %}
+<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark me-1"></i>{{ error }}</div>
+{% elif not rows %}
+<div class="alert alert-info">Der Ordner ist leer. Kommt nach einer Zusage in Outlook hier nichts an, ging die Antwort an eine andere Adresse (siehe oben) oder liegt im Junk-Ordner.</div>
+{% else %}
+<div class="card"><div class="card-body">
+<table class="table table-hover align-middle js-table w-100" data-order='[]'>
+  <thead><tr><th>Erkannt</th><th>Absender</th><th>Betreff</th><th>Ergebnis</th><th>Abgerufen</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{% if r.ok %}<span class="badge text-bg-success"><i class="fa-solid fa-check me-1"></i>ja</span>{% elif r.kind != 'none' %}<span class="badge text-bg-warning">nein</span>{% else %}<span class="badge text-bg-secondary">keine Antwort</span>{% endif %}</td>
+      <td class="small">{{ r.sender }}</td>
+      <td class="small">{{ r.subject }}<div class="text-secondary">{{ r.date }}</div></td>
+      <td class="small">{{ r.result }}</td>
+      <td class="small">{{ 'ja' if r.checked else 'noch nicht' }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div></div>
+<form method="post" action="/admin/notifications/rsvp-poll" class="mt-3">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="rescan" value="1">
+  <button class="btn btn-primary" type="submit"><i class="fa-solid fa-rotate me-1"></i>Nachrichten der letzten 14 Tage erneut auswerten</button>
+  <div class="form-text">Sinnvoll, wenn Antworten oben „ja“ zeigen, aber bei der Besprechung noch fehlen (z. B. weil sie vor diesem Update eingetroffen sind).</div>
+</form>
+{% endif %}
+{% endblock %}

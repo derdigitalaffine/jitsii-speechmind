@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from . import ics, mailtpl, notify
 from .config import settings
+from .security import new_link_token
 from .db import LOCAL_TZ, Invitee, Meeting, SessionLocal, User, get_settings, to_local, utcnow
 
 EMAIL_RE = re.compile(r"^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$")
@@ -48,7 +49,27 @@ def local_input(value: datetime | None) -> str:
 
 
 def join_link(meeting: Meeting) -> str:
-    return f"{settings.meet_base_url}/{meeting.room}"
+    """Einwahl für die planende Person (über das Portal, mit Anmeldung)."""
+    return f"{settings.portal_base_url}/meetings/{meeting.id}/join"
+
+
+def personal_link(inv: Invitee) -> str:
+    """Persönlicher Einwahllink einer eingeladenen Person (gilt als angemeldet, ohne Aufnahmerecht)."""
+    if not inv.join_token:
+        inv.join_token = new_link_token()
+    return f"{settings.portal_base_url}/join/{inv.join_token}"
+
+
+def rsvp_link(inv: Invitee) -> str:
+    """Seite zum Zu-/Absagen im Browser (für Mailprogramme ohne Kalenderfunktion)."""
+    personal_link(inv)
+    return f"{settings.portal_base_url}/rsvp/{inv.join_token}"
+
+
+def guest_link(meeting: Meeting) -> str:
+    if not meeting.guest_token:
+        meeting.guest_token = new_link_token()
+    return f"{settings.portal_base_url}/g/{meeting.guest_token}"
 
 
 def when(meeting: Meeting) -> dict[str, str]:
@@ -105,8 +126,8 @@ def organizer_identity(cfg: dict[str, str], organizer: User | None) -> tuple[str
 
 
 def _calendar(meeting: Meeting, method: str, attendees: list[tuple[str, str]],
-              organizer: tuple[str, str] | None) -> str:
-    link = join_link(meeting)
+              organizer: tuple[str, str] | None, link: str | None = None) -> str:
+    link = link or join_link(meeting)
     text = f"Einwahl: {link}"
     if meeting.description:
         text += "\n\n" + meeting.description
@@ -120,16 +141,24 @@ def _calendar(meeting: Meeting, method: str, attendees: list[tuple[str, str]],
     )
 
 
+def invitee_calendar(meeting: Meeting, inv: Invitee) -> str:
+    """Kalenderdatei für eine eingeladene Person zum Importieren (z. B. von der Antwortseite)."""
+    with SessionLocal() as db:
+        cfg = get_settings(db)
+    return _calendar(meeting, "PUBLISH", [(inv.name, inv.email)], organizer_identity(cfg, meeting.owner),
+                     personal_link(inv))
+
+
 def calendar_file(meeting: Meeting) -> str:
     """ICS zum Herunterladen (für den eigenen Kalender oder zum Weiterleiten)."""
     attendees = [(i.name, i.email) for i in meeting.invitees]
     with SessionLocal() as db:
         cfg = get_settings(db)
-    return _calendar(meeting, "PUBLISH", attendees, organizer_identity(cfg, meeting.owner))
+    return _calendar(meeting, "PUBLISH", attendees, organizer_identity(cfg, meeting.owner), guest_link(meeting))
 
 
 def send(db, meeting: Meeting, invitees: list[Invitee], kind: str, organizer: User,
-         copy_to_organizer: bool = False) -> tuple[int, bool]:
+         copy_to_organizer: bool = False, message: str = "") -> tuple[int, bool]:
     """kind: invite | update | cancel. Gibt (Anzahl eingereihter Mails, Mailversand eingerichtet) zurück.
 
     Jede Person bekommt eine eigene Mail; im Kalendereintrag steht nur sie selbst als Teilnehmende,
@@ -141,19 +170,25 @@ def send(db, meeting: Meeting, invitees: list[Invitee], kind: str, organizer: Us
     ensure_uid(meeting)
     method = "CANCEL" if kind == "cancel" else "REQUEST"
     filename = "absage.ics" if kind == "cancel" else "einladung.ics"
-    base = {**when(meeting), "titel": meeting.title, "link": join_link(meeting),
+    base = {**when(meeting), "titel": meeting.title, "link": join_link(meeting), "antwort_link": "",
             "beschreibung": meeting.description or "", "organisator": organizer.name,
-            "organisator_email": organizer.email}
+            "organisator_email": organizer.email,
+            "nachricht": f"Nachricht von {organizer.name}:\n{message.strip()}" if message.strip() else ""}
     org = organizer_identity(cfg, organizer)
+    # Werden Antworten im Postfach ausgewertet, kein abweichendes Reply-To: manche Outlook-Versionen
+    # schicken die Zu-/Absage sonst an diese Adresse statt an den Organisator (das Portal-Postfach).
+    reply_to = None if cfg.get("imap_rsvp") == "1" else organizer.email
     count = 0
     for inv in invitees:
         if kind in ("invite", "update"):
             # Neue bzw. geänderte Einladung: frühere Antworten gelten nicht mehr (wie in Outlook)
             if kind == "update" or inv.rsvp_status is None:
                 inv.rsvp_status, inv.rsvp_at, inv.rsvp_comment = None, None, None
-        subject, body = mailtpl.render(db, f"meeting_{kind}", {**base, "name": inv.name or inv.email}, cfg)
-        ics_text = _calendar(meeting, method, [(inv.name, inv.email)], org)
-        if notify.enqueue(db, inv.email, subject, body, f"meeting_{kind}", cfg, reply_to=organizer.email,
+        link = personal_link(inv)
+        subject, body = mailtpl.render(db, f"meeting_{kind}", {**base, "name": inv.name or inv.email,
+                                                               "link": link, "antwort_link": rsvp_link(inv)}, cfg)
+        ics_text = _calendar(meeting, method, [(inv.name, inv.email)], org, link)
+        if notify.enqueue(db, inv.email, subject, body, f"meeting_{kind}", cfg, reply_to=reply_to,
                           attachments=[{"filename": filename, "content": ics_text, "calendar_method": method}]):
             inv.invited_at = utcnow()
             count += 1
@@ -175,10 +210,18 @@ def add_invitees(db, meeting: Meeting, emails: list[str]) -> list[Invitee]:
     for email in emails:
         if email in existing:
             continue
-        inv = Invitee(email=email, name=users[email].name if email in users else name_from_email(email))
+        inv = Invitee(email=email, name=users[email].name if email in users else name_from_email(email),
+                      join_token=new_link_token())
         meeting.invitees.append(inv)
         added.append(inv)
     return added
+
+
+def cancel_recipients(meeting: Meeting) -> list[Invitee]:
+    """Eingeladene, die beim Absagen bzw. Löschen eine Absage bekommen sollten."""
+    if not is_upcoming(meeting):
+        return []
+    return [i for i in meeting.invitees if i.invited_at and i.rsvp_status != "declined"]
 
 
 def is_upcoming(meeting: Meeting) -> bool:

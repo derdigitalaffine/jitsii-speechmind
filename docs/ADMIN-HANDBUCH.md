@@ -11,7 +11,7 @@ Für alle, die den Videokonferenzserver der Verbandsgemeinde Otterbach-Otterberg
 5. [E-Mail-Vorlagen](#e-mail-vorlagen)
 6. [HTTPS und Zertifikat](#https-und-zertifikat)
 7. [Design & Branding](#design--branding)
-8. [Konferenzen ohne Anmeldung](#konferenzen-ohne-anmeldung)
+8. [Räume und Zugang](#räume-und-zugang)
 9. [E-Mail einrichten](#e-mail-einrichten)
 10. [SpeechMind einrichten](#speechmind-einrichten)
 11. [Aufnahme ohne Ton](#aufnahme-ohne-ton)
@@ -69,6 +69,15 @@ Auf dem Handy öffnet das Symbol mit den drei Strichen oben links das Menü.
 
 Eine MP3 ist bei Fehlern fast immer schon vorhanden und weiter herunterladbar. „Erneut versuchen“ lädt nichts doppelt hoch, wenn der Upload schon gelungen war.
 
+### Chatprotokoll
+
+Was während einer Aufnahme im Konferenz-Chat geschrieben wurde (Gruppenchat, keine privaten Nachrichten), hängt das Portal als **Chatprotokoll** an die Aufnahme: mit Uhrzeit und Namen, lesbar in der Aufnahme und als TXT herunterladbar. In der Aufnahmenliste zeigt ein Sprechblasen-Symbol mit Zahl, wie viele Nachrichten es sind.
+
+- Mitgeschrieben wird nur in **Portal-Räumen**. Den Chat von freien Räumen speichert das Portal nie.
+- Chatnachrichten ohne Aufnahme werden nach **48 Stunden** automatisch gelöscht. Dauerhaft bleibt nur, was zu einer Aufnahme gehört.
+- Beim Löschen „Nur Video und MP3“ bleibt das Chatprotokoll erhalten. Die beiden anderen Löschoptionen entfernen es.
+- Weisen Sie die Teilnehmenden darauf hin, dass der Chat zusammen mit der Aufnahme gespeichert wird.
+
 ### Aufnahmen löschen
 
 Löschen geht an drei Stellen: über das Papierkorb-Symbol in jeder Tabellenzeile, über **Löschen** in der Aufnahme selbst und für viele Aufnahmen auf einmal (Kästchen links anhaken, das Kästchen in der Kopfzeile wählt alle gefilterten aus, dann **Ausgewählte löschen**).
@@ -77,7 +86,7 @@ Ein Dialog fragt, was gelöscht werden soll. Angeboten wird nur, was bei der Auf
 
 | Auswahl | Was passiert | Danach |
 |---|---|---|
-| **Nur Video und MP3 löschen, Transkript behalten** | Mediendateien weg, Protokoll und Wortlaut bleiben im Portal | Etikett „Medien gelöscht“, Transkript weiter lesbar und als TXT ladbar |
+| **Nur Video und MP3 löschen, Transkript und Chatprotokoll behalten** | Mediendateien weg, Protokoll, Wortlaut und Chatprotokoll bleiben im Portal | Etikett „Medien gelöscht“, Transkript weiter lesbar und als TXT ladbar |
 | **Alles hier löschen, bei SpeechMind abrufbar** | Mediendateien und Transkript weg, der Verweis auf das Protokoll bei SpeechMind bleibt | Status „Bei SpeechMind abrufbar“, Knopf **Protokoll von SpeechMind abrufen** holt es jederzeit zurück |
 | **Alles löschen** | Eintrag samt Video, MP3 und Transkript weg | Nicht wiederherstellbar. Das Protokoll in SpeechMind selbst bleibt dort bestehen |
 
@@ -121,7 +130,7 @@ Menü **Besprechung planen** (für alle angemeldeten Benutzer:innen).
 3. **Kopie an mich** (empfohlen): Sie erhalten den Termin selbst als Kalendereintrag.
 4. **Planen und einladen**.
 
-Das Portal legt einen Konferenzraum an und schickt **jeder Person eine eigene Mail**. Sie enthält den Einwahllink und den Termin als **Outlook-Besprechungsanfrage** (Annehmen/Ablehnen direkt in Outlook) plus Datei `einladung.ics` für alle anderen Kalender (Thunderbird, Apple, Google). Die Empfänger sehen die anderen Adressen nicht. Zu-/Absagen aus Outlook gehen an die planende Person.
+Das Portal legt einen Konferenzraum an und schickt **jeder Person eine eigene Mail**. Sie enthält einen **persönlichen Einwahllink** (Zutritt ohne Konto, aber ohne Aufnahmerecht; siehe [Räume und Zugang](#räume-und-zugang)) und den Termin als **Outlook-Besprechungsanfrage** (Annehmen/Ablehnen direkt in Outlook) plus Datei `einladung.ics` für alle anderen Kalender (Thunderbird, Apple, Google). Die Empfänger sehen die anderen Adressen nicht. Zu-/Absagen aus Outlook gehen an die planende Person.
 
 **Auf der Seite des Meetings** (Bereich „Termin & Einladungen“):
 
@@ -131,10 +140,18 @@ Das Portal legt einen Konferenzraum an und schickt **jeder Person eine eigene Ma
 | **Weitere Personen einladen** | Nur die neuen Personen bekommen eine Einladung |
 | Symbol **Ausladen** | Die Person bekommt eine Absage, der Termin verschwindet aus ihrem Kalender |
 | **Einladung erneut senden** | Schickt allen die aktuelle Einladung noch einmal (z. B. wenn jemand sie gelöscht hat) |
-| **Absagen** | Alle bekommen eine Absage; der Raum bleibt bestehen |
+| **Absagen** | Alle bekommen eine Absage (optional mit einer Nachricht von Ihnen); der Raum bleibt bestehen |
+| **Meeting löschen** (ganz unten) | Steht der Termin noch bevor, schlägt der Dialog vor, allen Eingeladenen (außer denen, die schon abgesagt haben) eine Absage zu schicken – voreingestellt, optional mit Nachricht. Der Termin verschwindet dann aus ihren Kalendern |
 | **ICS herunterladen** | Termin als Datei, z. B. zum Weiterleiten aus dem eigenen Mailprogramm |
 
 ### Zu- und Absagen verfolgen
+
+**Zwei Wege zu antworten:**
+
+1. **Im Kalenderprogramm** (Outlook, Thunderbird, Apple, Google): Die Einladung erscheint als Besprechungsanfrage mit „Annehmen/Ablehnen“. Ausgewertet wird das per IMAP (siehe unten).
+2. **Per Link in der Mail** („Zu- oder absagen: …“): Er öffnet eine Seite mit **Zusagen / Mit Vorbehalt / Absagen** und optionalem Kommentar. Das funktioniert in jedem Mailprogramm und auch ohne IMAP-Auswertung. Die Antwort wird erst mit dem Knopf gespeichert (automatische Link-Prüfungen von Mailservern lösen also nichts aus). Auf derselben Seite gibt es den Termin als `.ics` für den eigenen Kalender.
+
+Haben Sie die Vorlagen „Einladung zur Besprechung“ oder „Geänderte Besprechung“ früher angepasst, fügen Sie dort den Platzhalter `{antwort_link}` ein; neue Standardtexte enthalten ihn bereits.
 
 Bei jeder Person steht in der Spalte **Antwort**, ob sie **zugesagt**, **abgesagt**, **mit Vorbehalt** geantwortet oder einen **neuen Zeitvorschlag** gemacht hat, mit Zeitpunkt und Kommentar. Darüber steht die Zusammenfassung („3 zugesagt, 1 abgesagt, 2 offen“), ebenso auf der Startseite. Die planende Person bekommt zu jeder Antwort eine Mail (abschaltbar).
 
@@ -145,6 +162,7 @@ Voraussetzung: Unter **Benachrichtigungen** ist IMAP eingerichtet und **„Antwo
 - Wird der Termin geändert, gelten frühere Antworten nicht mehr (wie in Outlook); die Spalte steht wieder auf „Offen“, bis neu geantwortet wird.
 - Antwortet jemand, an den die Einladung weitergeleitet wurde, erscheint er mit seiner Antwort in der Liste.
 - Wer in Outlook „Antwort nicht senden“ wählt, bleibt auf „Offen“.
+- Erkannt werden Antworten mit Kalenderdaten (Standard), Outlook-Antworten im Exchange-Format (`winmail.dat`) und notfalls Antworten, die nur am Betreff zu erkennen sind („Zugesagt: …“, „Abgelehnt: …“, „Mit Vorbehalt: …“, „Accepted: …“). Diese werden über die Absenderadresse und den Besprechungstitel im Betreff zugeordnet.
 - Einladungen, die **vor** dem Einschalten verschickt wurden, schicken ihre Antworten weiterhin direkt an die planende Person; dafür ggf. „Einladung erneut senden“.
 
 Auch für einen bestehenden Raum lässt sich nachträglich ein Termin festlegen. Wird ein Meeting mit anstehendem Termin gelöscht, erhalten die Eingeladenen automatisch eine Absage. Anstehende Besprechungen stehen auf der Startseite unter **Meetings**.
@@ -230,15 +248,33 @@ Menü **Design & Branding**. Links stellen Sie ein, rechts sehen Sie sofort eine
 
 **Farbschema:** Steht es auf „Immer hell“ oder „Immer dunkel“, gilt das für alle, und der Umschalter oben rechts wird ausgeblendet. Bei „Automatisch“ kann jede Person selbst umschalten.
 
-## Konferenzen ohne Anmeldung
+## Räume und Zugang
 
-Unter **Benutzer** gibt es den Kasten „Konferenzen ohne Anmeldung“ mit einem Schalter.
+Es gibt zwei Arten von Konferenzräumen:
 
-- **Freigegeben (Standard):** Auf der Anmeldeseite erscheint „Konferenz ohne Anmeldung starten“. Die Person gibt ihren Namen ein, bekommt sofort einen eigenen Raum (Name beginnt mit `offen-`) und kann den Link weitergeben. Angemeldete Benutzer finden im Dashboard den Knopf **Schnellkonferenz**.
-- **Keine Aufnahmen:** In diesen Räumen fehlt das Aufnahme-Recht. Sollte jemand die Aufnahme trotzdem auslösen, **verwirft das Portal sie automatisch** (Eintrag im Log: „Aufnahme eines offenen Raums … verworfen“). Offene Räume tauchen nie unter „Aufnahmen“ auf.
-- **Wer ist Gastgeber:in?** Nur die Person, die den Raum im Portal eröffnet hat (an ihren Browser gebunden, 12 Stunden). Wer den Link nur kennt, kommt als Gast hinein, sobald die Gastgeberin oder der Gastgeber da ist. Ruft jemand anderes den Raum zuerst als Moderator auf, sieht er den Hinweis „Bitte warten“.
-- **Missbrauchsschutz:** Pro Adresse sind nur wenige Raumstarts in kurzer Zeit möglich. Wenn Sie keine offenen Konferenzen wünschen, schalten Sie den Schalter aus; dann sind sie sofort gesperrt.
-- Normale Räume bleiben davon unberührt: Wer dort moderieren oder aufnehmen will, braucht ein Konto.
+| | **Freie Räume** | **Portal-Räume** |
+|---|---|---|
+| Wie entstehen sie? | Jede:r ruft die Konferenzadresse mit einem beliebigen Namen auf, z. B. `https://meet.…/elternabend`, oder nutzt „Konferenz ohne Anmeldung starten“ auf der Anmeldeseite | Im Portal: **Meeting anlegen** oder **Besprechung planen** |
+| Wer kommt hinein? | Jede:r mit der Adresse, ohne Konto | Nur **angemeldete Benutzer:innen** und **Gäste mit Link** (Gastlink oder persönlicher Link aus der Einladung) |
+| Wer moderiert? | Die erste Person im Raum | Angemeldete Benutzer:innen, sobald sie den Raum betreten. **Gäste nie automatisch**, auch nicht, wenn sie allein im Raum sind; ein Moderator kann einen Gast aber bewusst zum Moderator machen |
+| **Aufnahme** | **nie** | ja, durch angemeldete Benutzer:innen (nicht durch Gäste) |
+| Chatprotokoll | nie | ja, zusammen mit einer Aufnahme |
+
+**Wer ohne Link oder Anmeldung einen Portal-Raum aufruft**, sieht in Jitsi „Warten auf den Gastgeber“. Dort führt „Ich bin der Gastgeber“ zur Portal-Anmeldung. Ohne Konto kommt man nicht hinein, auch nicht, wenn die Gastgeberin schon im Raum ist.
+
+**Gastzugänge zu Portal-Räumen**
+
+- **Gastlink** (auf der Seite des Meetings, „Einladungslink für Gäste“): Wer ihn öffnet, gibt seinen Namen ein und ist als Gast im Raum. Ist ein Link in falsche Hände geraten: **Neuen Gastlink erzeugen**, der alte funktioniert dann nicht mehr.
+- **Persönlicher Link**: Jede Person, die per **Besprechung planen** eingeladen wird, bekommt einen eigenen Link (in der Mail und im Kalendereintrag). Er funktioniert, bis die Person ausgeladen oder die Besprechung abgesagt wird.
+- Gäste dürfen **nicht aufnehmen** und werden **nie automatisch Moderator:innen**. Sind nur Gäste im Raum, hat die Konferenz bis zum Eintreffen einer angemeldeten Person keine Moderation. Ein Moderator kann einen Gast im Teilnehmermenü bewusst zum Moderator machen.
+- **Nach der Umstellung (Oktober 2026):** Einladungen, die vorher verschickt wurden, enthalten noch die direkte Konferenzadresse. Externe Gäste kommen damit nicht mehr in Portal-Räume. Für anstehende Besprechungen deshalb einmal **„Einladung erneut senden“** klicken, dann haben alle ihren persönlichen Link.
+
+**Schalter „Konferenzen ohne Anmeldung“** (unter **Benutzer**):
+
+- **Freigegeben** (Standard): freie Räume wie oben beschrieben.
+- **Gesperrt**: Auch jeder freie Raum verlangt eine Anmeldung oder einen Gastlink. Die Einstellung wirkt sofort, ohne Neustart.
+
+**Technischer Hintergrund (für die Betreuung):** Jitsi lässt Verbindungen ohne Token zu (`JWT_ALLOW_EMPTY=1`, keine Gast-Domain). Zwei kleine Prosody-Module aus dem Ordner `prosody/` setzen die Regeln durch: `mod_portal_access` beantwortet Raumanfragen ohne Token für Portal-Räume mit „Anmeldung erforderlich“ und lässt Aufnahmen nur in Portal-Räumen und nur mit Token mit Aufnahmerecht zu. `mod_portal_access_muc` weist direkte Beitritte ohne Token ab, macht Portal-Benutzer beim Betreten zu Moderatoren, lehnt die automatische Beförderung von Gästen durch Jicofo (Auto-Owner) ab und schreibt das Chatprotokoll. Die Liste der Portal-Räume schreibt das Portal nach `data/portal-rooms/rooms.json`. Fehlt die Datei, verlangt Prosody für alle Räume eine Anmeldung (sicherer Zustand). Aufnahmen, die trotzdem aus einem freien Raum stammen, verwirft das Portal.
 
 ## E-Mail einrichten
 
@@ -284,6 +320,8 @@ Im Kasten **„Zu- und Absagen auf Besprechungseinladungen“**:
 4. **Speichern**, dann unten **„Antworten jetzt abrufen“** zum Testen.
 
 Unter dem Kasten steht, wann zuletzt abgerufen wurde und ob dabei ein Fehler auftrat. Beim ersten Abruf werden die Nachrichten der letzten 14 Tage geprüft, danach nur noch neue.
+
+**Postfach-Diagnose:** Unten auf der Seite „Postfach-Diagnose (Zu-/Absagen)“ zeigt die neuesten 25 Nachrichten im Antwort-Ordner. Je Nachricht steht dort, ob sie als Antwort erkannt wird und zu welcher Besprechung, oder warum nicht. Die Diagnose liest nur und verändert nichts. Mit „Nachrichten der letzten 14 Tage erneut auswerten“ werden auch bereits geprüfte Nachrichten noch einmal verbucht, etwa nach einer Korrektur der Einstellungen.
 
 ### Welche Hinweise werden verschickt
 
@@ -422,7 +460,8 @@ Platz sparen: Aufnahmen nach Gebrauch in der Oberfläche löschen oder unter **S
 | Beitritt endet in einer Schleife auf der Login-Seite | `JWT_*`-Werte in `.env` geändert? Dann `docker compose up -d --force-recreate` |
 | MP3 ist stumm, Etikett „kein Ton“ | Siehe [Aufnahme ohne Ton](#aufnahme-ohne-ton): `./scripts/diagnose-recording.sh` |
 | Im Video ist ein Fensterrahmen (IceWM) zu sehen, Konferenz füllt nicht das Bild | Chrome in Jibri läuft ohne Vollbild (`--kiosk`). Ursache war dieselbe falsche Einstellung wie bei stummen Aufnahmen; mit aktueller `docker-compose.yml` behoben. Prüfen: `./scripts/diagnose-recording.sh` |
-| Zu-/Absagen erscheinen nicht | Unter **Benachrichtigungen** „Antworten im Postfach auswerten“ an? IMAP-Konto = Postfach der Absenderadresse? Fehlermeldung unter dem Kasten lesen, „Antworten jetzt abrufen“ testen. Alte Einladungen ggf. erneut senden |
+| Einladungen kommen in Outlook nicht an bzw. nicht als Besprechungsanfrage | Unter **Benachrichtigungen** „Testeinladung (Kalender) an mich“ an ein Outlook-Postfach schicken. Steht im Versandprotokoll „gesendet“, aber im Posteingang ist nichts: **Junk-E-Mail-Ordner** und bei Microsoft 365 die **Quarantäne** prüfen (Kalendereinladungen von schlecht authentifizierten Absendern werden dort gern abgefangen). Abhilfe: Für die Absenderdomain **SPF und DKIM** beim Mailanbieter einrichten bzw. den Absender in Exchange als vertrauenswürdig eintragen. Bis Oktober 2026 hatte der Kalenderteil zudem falsche Zeilenenden, die Outlook verwirft: aktuelle Version einspielen |
+| Zu-/Absagen (z. B. aus Outlook) erscheinen nicht | 1. Unter **Benachrichtigungen** muss „Antworten im Postfach auswerten“ **vor dem Versand** eingeschaltet sein. Sonst ist die planende Person Organisator, und Outlook schickt die Antwort an sie. Abhilfe: einschalten und auf der Besprechungsseite „Einladung erneut senden“. 2. Das IMAP-Konto muss das Postfach der **Absenderadresse** sein. 3. „Postfach-Diagnose (Zu-/Absagen)“ öffnen. Taucht die Antwort dort nicht auf, ging sie an eine andere Adresse oder liegt im Junk-Ordner (dann Ordner eintragen bzw. Absender als sicher markieren). Steht dort „nein“, nennt die Zeile den Grund. 4. In Outlook beim Annehmen „Antwort jetzt senden“ wählen, nicht „Antwort nicht senden“ |
 | Designänderungen sind nicht zu sehen | Schalter „Eigenes Design“ oben auf der Seite einschalten und speichern. Für die Konferenz zusätzlich „Auch in der Konferenz anwenden“ |
 | Aufnahme-Knopf fehlt | Nur angemeldete Benutzer dürfen aufnehmen; Jibri-Log prüfen (`docker compose logs jibri`) |
 | Aufnahme erscheint nicht unter „Aufnahmen“ | In `data/recordings/<sitzung>/` muss eine Datei `.finalized` liegen. Fehlt sie: `chmod +x jibri/finalize.sh`, Jibri neu starten |

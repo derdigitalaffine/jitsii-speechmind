@@ -27,10 +27,11 @@ _MEETING_VARS = {
     "datum": "Datum, z. B. Donnerstag, 01.10.2026",
     "uhrzeit": "Uhrzeit, z. B. 10:00–11:00 Uhr",
     "dauer": "Dauer, z. B. 60 Minuten",
-    "link": "Einwahllink zur Konferenz",
+    "link": "Persönlicher Einwahllink der Person",
     "beschreibung": "Beschreibung bzw. Tagesordnung",
     "organisator": "Name der planenden Person",
     "organisator_email": "E-Mail der planenden Person",
+    "antwort_link": "Link zum Zu- oder Absagen im Browser (funktioniert in jedem Mailprogramm)",
 }
 
 _RECORDING_VARS = {
@@ -69,7 +70,9 @@ TEMPLATES: dict[str, dict] = {
         "body": ("Guten Tag {name},\n\n"
                  "{organisator} lädt Sie zur Videokonferenz „{titel}“ ein.\n\n"
                  "Wann:      {datum}, {uhrzeit}\n"
-                 "Einwahl:   {link}\n\n"
+                 "Einwahl:   {link}\n"
+                 "(persönlicher Link, bitte nicht weitergeben)\n\n"
+                 "Zu- oder absagen: {antwort_link}\n\n"
                  "{beschreibung}\n\n"
                  "So nehmen Sie teil: Öffnen Sie kurz vor Beginn den Einwahllink im Browser "
                  "(Chrome, Edge, Firefox oder Safari). Eine Installation ist nicht nötig.\n"
@@ -83,16 +86,18 @@ TEMPLATES: dict[str, dict] = {
                  "die Videokonferenz „{titel}“ wurde geändert. Es gilt jetzt:\n\n"
                  "Wann:      {datum}, {uhrzeit}\n"
                  "Einwahl:   {link}\n\n"
+                 "Bitte antworten Sie erneut: {antwort_link}\n\n"
                  "{beschreibung}\n\n"
                  "Der aktualisierte Kalendereintrag hängt an dieser Mail.\n\n{fusszeile}"),
     },
     "meeting_cancel": {
         "group": "Besprechungen", "label": "Abgesagte Besprechung",
-        "vars": _MEETING_VARS,
+        "vars": {**_MEETING_VARS, "nachricht": "Optionale Nachricht der planenden Person zur Absage"},
         "subject": "Abgesagt: {titel} – {datum}, {uhrzeit}",
         "body": ("Guten Tag {name},\n\n"
                  "die Videokonferenz „{titel}“ am {datum}, {uhrzeit} wurde abgesagt.\n"
                  "Der Termin wird aus Ihrem Kalender entfernt, wenn Sie die angehängte Absage übernehmen.\n\n"
+                 "{nachricht}\n\n"
                  "{fusszeile}"),
     },
     "meeting_rsvp": {
@@ -144,6 +149,7 @@ SAMPLE = {
     "beschreibung": "Tagesordnung:\n1. Bericht\n2. Termine", "organisator": "Max Muster",
     "organisator_email": "max.muster@example.org", "aufnahme": "Teamrunde Bauamt, 01.10.2026 10:00 Uhr",
     "fehler": "Beispiel einer Fehlermeldung",
+    "antwort_link": "https://portal.example.org/rsvp/beispiel",
     "teilnehmer": "Erika Mustermann <erika.mustermann@example.org>", "antwort": "Zugesagt",
     "kommentar": "Ich komme etwas später.", "stand": "3 zugesagt, 1 abgesagt, 2 offen",
 }

@@ -89,14 +89,7 @@ def clean_room(room: str) -> str:
     return re.sub(r"[^a-z0-9._-]", "", room)[:128]
 
 
-OPEN_PREFIX = "offen-"  # Räume ohne Anmeldung: nie aufgezeichnet, nicht für Meetings vergebbar
-
-
-def is_open_room(room: str) -> bool:
-    return room.startswith(OPEN_PREFIX)
-
-
-def _jitsi_jwt(room: str, uid: str, name: str, email: str, recording: bool) -> str:
+def _jitsi_jwt(room: str, uid: str, name: str, email: str, recording: bool, moderator: bool = True) -> str:
     now = int(time.time())
     payload = {
         "aud": settings.jwt_audience,
@@ -107,7 +100,7 @@ def _jitsi_jwt(room: str, uid: str, name: str, email: str, recording: bool) -> s
         "nbf": now - 10,
         "exp": now + settings.jwt_ttl_minutes * 60,
         "context": {
-            "user": {"id": uid, "name": name, "email": email, "moderator": True},
+            "user": {"id": uid, "name": name, "email": email, "moderator": moderator},
             "features": {
                 "recording": recording,
                 "livestreaming": False,
@@ -119,18 +112,18 @@ def _jitsi_jwt(room: str, uid: str, name: str, email: str, recording: bool) -> s
     return jwt.encode(payload, settings.jwt_app_secret, algorithm="HS256")
 
 
-def jitsi_token(user, room: str) -> str:
-    """Token für Portal-Benutzer. In offenen Räumen ist die Aufnahme nie erlaubt."""
-    return _jitsi_jwt(room, str(user.id), user.name, user.email, recording=not is_open_room(room))
+def jitsi_token(user, room: str, recording: bool = True) -> str:
+    """Token für Portal-Benutzer. Aufnehmen dürfen sie nur in Portal-Räumen (recording=True)."""
+    return _jitsi_jwt(room, str(user.id), user.name, user.email, recording=recording)
 
 
-def open_room_token(name: str, room: str) -> str:
-    """Token für jemanden ohne Konto: Moderation im eigenen Raum, aber keine Aufnahme."""
-    return _jitsi_jwt(room, "open-" + secrets.token_hex(4), name, "", recording=False)
+def guest_token(name: str, room: str, uid: str, email: str = "") -> str:
+    """Token für eingeladene Gäste ohne Konto: Zutritt zum Portal-Raum, keine Aufnahme, kein Moderator."""
+    return _jitsi_jwt(room, uid, name, email, recording=False, moderator=False)
 
 
-def new_open_room() -> str:
-    return OPEN_PREFIX + secrets.token_hex(5)
+def new_link_token() -> str:
+    return secrets.token_urlsafe(24)
 
 
 # --- Einladungs- und Zurücksetzen-Links ---------------------------------------

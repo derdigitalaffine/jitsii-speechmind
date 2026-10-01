@@ -53,6 +53,8 @@ services:
     environment:
       # TLS macht Caddy, der Container spricht nur HTTP.
       - DISABLE_HTTPS=1
+      # Ohne Gast-Domain: wer keinen Token hat, verbindet sich direkt (Räume ohne Anmeldung)
+      - ENABLE_GUESTS=0
       - ENABLE_HTTP_REDIRECT=0
       - ENABLE_LETSENCRYPT=0
       # Nicht angemeldete Moderatoren werden zum Portal-Login geschickt.
@@ -76,9 +78,21 @@ services:
       - "5222"
       - "5347"
       - "5280"
+    environment:
+      # Räume ohne Anmeldung: Verbindungen ohne Token zulassen. Welche Räume trotzdem eine
+      # Anmeldung verlangen (Portal-Räume) und wer aufnehmen darf, regeln die Portal-Module.
+      - JWT_ALLOW_EMPTY=1
+      - ENABLE_GUESTS=0
+      - XMPP_MODULES=portal_access
+      - XMPP_MUC_MODULES=portal_access_muc
     volumes:
       - ${CONFIG}/prosody/config:/config:Z
       - ${CONFIG}/prosody/prosody-plugins-custom:/prosody-plugins-custom:Z
+      - ./prosody/mod_portal_access.lua:/prosody-plugins-custom/mod_portal_access.lua:ro
+      - ./prosody/mod_portal_access_muc.lua:/prosody-plugins-custom/mod_portal_access_muc.lua:ro
+      # Liste der Portal-Räume (schreibt das Portal) und Chatprotokolle (schreibt Prosody)
+      - ${CONFIG}/portal-rooms:/portal-rooms:ro
+      - ${CONFIG}/portal-chat:/portal-chat
     networks:
       meet.jitsi:
         aliases:
@@ -87,6 +101,8 @@ services:
   jicofo:
     <<: *jitsi-common
     image: jitsi/jicofo:${JITSI_IMAGE_VERSION:-stable}
+    environment:
+      - ENABLE_GUESTS=0
     volumes:
       - ${CONFIG}/jicofo:/config:Z
     depends_on:
@@ -152,12 +168,17 @@ services:
       - ACME_EMAIL
       - PUBLIC_IP=${JVB_ADVERTISE_IPS:-}
       - CADDY_CONF_DIR=/caddyconf
+      - PORTAL_ROOMS_FILE=/portal-rooms/rooms.json
+      - PORTAL_CHAT_DIR=/portal-chat
       - CADDY_DATA_DIR=/caddydata
     volumes:
       - ${CONFIG}/portal:/data
       # Proxy-Steuerung aus der Admin-Oberfläche: Konfiguration schreiben, Root-Zertifikat lesen
       - ${CONFIG}/caddy/conf:/caddyconf
       - ${CONFIG}/caddy/data:/caddydata:ro
+      # Zugriffsregeln für Prosody und Chatprotokolle aus Portal-Räumen
+      - ${CONFIG}/portal-rooms:/portal-rooms
+      - ${CONFIG}/portal-chat:/portal-chat
       - ${CONFIG}/recordings:/recordings
     networks:
       meet.jitsi:

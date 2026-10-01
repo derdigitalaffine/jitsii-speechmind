@@ -108,7 +108,9 @@
   <div class="card-body d-flex flex-wrap gap-2">
     <form method="post" action="/admin/notifications/test-smtp"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-primary" type="submit"><i class="fa-regular fa-envelope me-1"></i>Testmail an {{ user.email }}</button></form>
     <form method="post" action="/admin/notifications/test-imap"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-primary" type="submit"><i class="fa-solid fa-inbox me-1"></i>IMAP testen</button></form>
+    <form method="post" action="/admin/notifications/test-invite"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-primary" type="submit"><i class="fa-regular fa-calendar me-1"></i>Testeinladung (Kalender) an mich</button></form>
     <form method="post" action="/admin/notifications/rsvp-poll"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-primary" type="submit"><i class="fa-solid fa-reply-all me-1"></i>Antworten jetzt abrufen</button></form>
+    <a class="btn btn-outline-primary" href="/admin/notifications/rsvp-check"><i class="fa-solid fa-stethoscope me-1"></i>Postfach-Diagnose (Zu-/Absagen)</a>
   </div>
 </div>
 

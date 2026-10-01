@@ -13,7 +13,7 @@
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>{{ m.status_badge(rec) }}</div>
     <div class="d-flex flex-wrap gap-2">
-      {% if rec.status in ('recorded', 'failed') %}
+      {% if rec.status in ('recorded', 'failed') and (has_audio or has_video) %}
       <form method="post" action="/recordings/{{ rec.id }}/transcribe">
         <input type="hidden" name="csrf" value="{{ csrf }}">
         <button class="btn {{ 'btn-outline-danger' if rec.status == 'failed' else 'btn-primary' }}" type="submit"><i class="fa-solid {{ 'fa-rotate-right' if rec.status == 'failed' else 'fa-wand-magic-sparkles' }} me-1"></i>{{ 'Erneut versuchen' if rec.status == 'failed' else 'In SpeechMind bearbeiten' }}</button>
@@ -24,6 +24,7 @@
         <button class="btn btn-outline-secondary" type="submit" title="Erzeugt die MP3 aus dem Video neu und misst den Ton erneut"><i class="fa-solid fa-arrows-rotate me-1"></i>MP3 neu erzeugen</button></form>
       {% endif %}
       {% if has_audio %}<a class="btn btn-outline-secondary" href="/recordings/{{ rec.id }}/audio.mp3"><i class="fa-solid fa-download me-1"></i>MP3 ({{ rec.audio_size | filesize }})</a>{% endif %}
+      {% if rec.chat_json %}<a class="btn btn-outline-secondary" href="/recordings/{{ rec.id }}/chat.txt"><i class="fa-regular fa-comments me-1"></i>Chatprotokoll (TXT)</a>{% endif %}
       {% if rec.status == 'done' %}<a class="btn btn-outline-secondary" href="/recordings/{{ rec.id }}/transcript.txt"><i class="fa-solid fa-file-arrow-down me-1"></i>Transkript (TXT)</a>{% endif %}
       {% if has_video %}<a class="btn btn-outline-secondary" href="/recordings/{{ rec.id }}/video"><i class="fa-solid fa-film me-1"></i>Video</a>{% endif %}
       {% if rec.sm_protocol_slug and rec.status in ('remote', 'done', 'failed') %}
@@ -40,6 +41,24 @@
   {% if rec.media_deleted_at %}<div class="alert alert-light border mt-3 mb-0"><i class="fa-solid fa-file-circle-minus me-2"></i>Video und MP3 wurden am {{ rec.media_deleted_at | local }} Uhr gelöscht.</div>{% endif %}
   {% if rec.status == 'remote' %}<div class="alert alert-info mt-3 mb-0"><i class="fa-solid fa-cloud me-2"></i>Das Transkript wurde hier gelöscht, liegt aber noch bei SpeechMind. Mit „Protokoll von SpeechMind abrufen“ holen Sie es zurück.</div>{% endif %}
 </div></div>
+
+{% set messages = rec.chat %}
+{% if messages %}
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="fa-regular fa-comments me-2"></i>Chatprotokoll ({{ messages | length }} Nachricht{{ '' if messages | length == 1 else 'en' }})</span>
+    <a class="btn btn-sm btn-outline-secondary" href="/recordings/{{ rec.id }}/chat.txt"><i class="fa-solid fa-download me-1"></i>TXT</a>
+  </div>
+  <div class="card-body" style="max-height: 28rem; overflow-y: auto">
+    {% for msg in messages %}
+    <div class="utterance">
+      <time>{{ msg.time | isodate | local('%H:%M:%S') }}</time>
+      <div><span class="who">{{ msg.name }}</span><p style="white-space: pre-line">{{ msg.text }}</p></div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 
 {% if rec.status == 'done' %}
   {% set agenda = summary.get('agenda', []) %}

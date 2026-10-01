@@ -5,14 +5,17 @@ Worker verschickt. Dadurch blockiert ein langsamer Mailserver keine Anfrage, und
 fehlgeschlagene Mails werden mit wachsendem Abstand erneut versucht.
 """
 
+import html
 import imaplib
+import re
 import json
 import logging
 import smtplib
 import ssl
 import time
 from datetime import timedelta
-from email.message import EmailMessage
+import base64
+from email.message import EmailMessage, Message
 from email.utils import formataddr, formatdate, make_msgid
 
 from sqlalchemy import select
@@ -108,11 +111,20 @@ def _build(cfg: dict[str, str], to_addr: str, subject: str, body: str,
     msg["Date"] = formatdate(localtime=True)
     msg["Message-ID"] = make_msgid(domain=cfg["mail_from"].rsplit("@", 1)[-1] or None)
     msg.set_content(body)
+    msg.add_alternative(text_to_html(body), subtype="html")
     for att in attachments or []:
         method = att.get("calendar_method")
         if method:
-            # Kalenderteil als Alternative: Outlook zeigt daraus die Besprechungsanfrage an
-            msg.add_alternative(att["content"], subtype="calendar", params={"method": method})
+            # Kalenderteil als dritte Alternative: daraus macht Outlook die Besprechungsanfrage
+            # (Annehmen/Ablehnen). Wichtig: byte-genau mit CRLF-Zeilenenden (RFC 5545); als Text
+            # übergeben würde die Mail-Bibliothek sie in LF umwandeln, und Outlook verwirft die Einladung.
+            # Kopfzeilen wörtlich wie bei Outlook/Google (method=REQUEST ohne Anführungszeichen):
+            # dafür ein einfaches Message-Objekt, dessen Kopfzeilen nicht neu formatiert werden.
+            part = Message()
+            part["Content-Type"] = f'text/calendar; charset="UTF-8"; method={method}'
+            part["Content-Transfer-Encoding"] = "base64"
+            part.set_payload(base64.encodebytes(att["content"].encode("utf-8")).decode("ascii"))
+            msg.attach(part)
     for att in attachments or []:
         if att.get("calendar_method"):
             msg.add_attachment(att["content"].encode("utf-8"), maintype="application", subtype="ics",
@@ -121,6 +133,18 @@ def _build(cfg: dict[str, str], to_addr: str, subject: str, body: str,
             msg.add_attachment(att["content"].encode("utf-8"), maintype="application",
                                subtype="octet-stream", filename=att["filename"])
     return msg
+
+
+_URL = re.compile(r"(https?://[^\s<>\"]+)")
+
+
+def text_to_html(text: str) -> str:
+    """Einfache HTML-Fassung des Mailtexts: Absätze, anklickbare Links."""
+    escaped = html.escape(text)
+    linked = _URL.sub(lambda m: f'<a href="{m.group(1)}">{m.group(1)}</a>', escaped)
+    paragraphs = "".join(f"<p>{p.replace(chr(10), '<br>')}</p>" for p in linked.split("\n\n") if p.strip())
+    return ('<!doctype html><html><body style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;'
+            f'line-height:1.5;color:#1f2328">{paragraphs}</body></html>')
 
 
 def _save_to_sent(cfg: dict[str, str], msg: EmailMessage) -> None:
