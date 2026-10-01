@@ -5,6 +5,14 @@
 {% if mode == 'invalid' %}
   <h1 class="h5"><i class="fa-solid fa-link-slash text-danger me-2"></i>Link ungültig</h1>
   <p>Dieser Einladungslink ist ungültig oder wurde ersetzt. Bitte wenden Sie sich an die Person, die Sie eingeladen hat.</p>
+{% elif mode == 'protected' %}
+  <h1 class="h5"><i class="fa-solid fa-lock text-primary me-2"></i>Geschützter Raum</h1>
+  <p>Dieser Konferenzraum gehört zum Portal und ist nur mit Einladung oder Anmeldung erreichbar. Die Raumadresse allein genügt nicht – auch dann nicht, wenn die Konferenz schon läuft.</p>
+  <ul class="small">
+    <li><strong>Sie sind eingeladen?</strong> Öffnen Sie den Link aus Ihrer Einladungsmail bzw. den Gastlink, den Sie erhalten haben.</li>
+    <li><strong>Sie haben ein Konto?</strong> Melden Sie sich an, danach geht es direkt in die Konferenz.</li>
+  </ul>
+  <a class="btn btn-primary w-100" href="{{ login_url }}"><i class="fa-solid fa-right-to-bracket me-1"></i>Anmelden</a>
 {% elif mode == 'cancelled' %}
   <h1 class="h5"><i class="fa-solid fa-ban text-danger me-2"></i>Abgesagt</h1>
   <p>Die Besprechung „{{ meeting.title }}“ wurde abgesagt.</p>

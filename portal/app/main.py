@@ -387,8 +387,12 @@ def jitsi_auth(request: Request, room: str = "", db: Session = Depends(get_db)):
     room = clean_room(room)
     if not room:
         return redirect("/")
-    user = current_user(request, db)
     meeting = db.scalar(select(Meeting).where(Meeting.room == room))
+    if meeting is not None and session_user(request, db) is None:
+        # Geschützter Portal-Raum ohne Anmeldung: erklären, wie man hineinkommt, statt nur Login
+        return render(request, "guest.html", None, mode="protected", meeting=meeting,
+                      login_url="/login?next=" + quote(f"/jitsi/auth?room={room}"))
+    user = current_user(request, db)
     # Aufnehmen nur in Portal-Räumen
     return redirect(join_url(user, room, recording=meeting is not None))
 
