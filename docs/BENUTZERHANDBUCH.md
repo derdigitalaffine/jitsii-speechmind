@@ -1,0 +1,448 @@
+# Benutzerhandbuch
+
+Für alle, die im Portal der Verbandsgemeinde Otterbach-Otterberg arbeiten: Videokonferenzen abhalten und aufnehmen, Besprechungen planen, Kurzlinks und QR-Codes erstellen, Formulare bauen und auswerten. Sie brauchen nur einen aktuellen Browser (Edge, Chrome, Firefox oder Safari), am Computer oder auf dem Handy.
+
+> Welche Bereiche Sie sehen, legt die Verwaltung des Portals fest (Rechte „Videokonferenzen“, „Kurzlinks“, „Formulare“, „Benutzerverwaltung“). Fehlt Ihnen ein Menüpunkt, den Sie brauchen, wenden Sie sich an sie.
+
+## Inhalt
+
+1. [Anmelden](#1-anmelden)
+2. [Die Oberfläche](#2-die-oberfläche)
+3. [Videokonferenzen](#3-videokonferenzen)
+4. [Besprechungen planen und einladen](#4-besprechungen-planen-und-einladen)
+5. [In der Konferenz](#5-in-der-konferenz)
+6. [Aufnahme, Chatprotokoll, Umfragen und Transkript](#6-aufnahme-chatprotokoll-umfragen-und-transkript)
+7. [Kurzlinks und QR-Codes](#7-kurzlinks-und-qr-codes)
+8. [Formulare erstellen](#8-formulare-erstellen)
+9. [Formulare verteilen](#9-formulare-verteilen)
+10. [Antworten auswerten](#10-antworten-auswerten)
+11. [Formulare mit Kolleg:innen teilen](#11-formulare-mit-kolleginnen-teilen)
+12. [Formulare ausfüllen („Zum Ausfüllen“)](#12-formulare-ausfüllen-zum-ausfüllen)
+13. [Profil und Sicherheit (Zwei-Faktor)](#13-profil-und-sicherheit-zwei-faktor)
+14. [Datenschutz in der Praxis](#14-datenschutz-in-der-praxis)
+15. [Hilfe bei Problemen](#15-hilfe-bei-problemen)
+
+---
+
+## 1. Anmelden
+
+### Das erste Mal
+
+1. Sie bekommen eine **E-Mail mit Einladung**. Klicken Sie auf den Link darin.
+2. Denken Sie sich ein Passwort aus (mindestens 10 Zeichen) und geben Sie es zweimal ein.
+3. Fertig. Ihr Benutzername ist Ihre E-Mail-Adresse.
+
+Der Einladungslink gilt 72 Stunden und nur einmal. Ist er abgelaufen, bitten Sie die Verwaltung um eine neue Einladung.
+
+### Danach
+
+Portal-Adresse öffnen, E-Mail und Passwort eingeben, **Anmelden**. Ist für Ihr Konto die **Zwei-Faktor-Anmeldung** aktiv, fragt das Portal danach einen sechsstelligen Code ab:
+
+- **App:** den aktuellen Code aus Ihrer Authenticator-App eintippen.
+- **E-Mail:** Das Portal schickt Ihnen einen Code (10 Minuten gültig). Kommt er nicht: Spam-Ordner prüfen oder „Neuen Code senden“.
+- **Notfallcode:** Wenn Telefon und Postfach nicht greifbar sind, einen Ihrer Wiederherstellungscodes verwenden (jeder gilt einmal).
+
+Wie Sie das einrichten, steht in [Kapitel 13](#13-profil-und-sicherheit-zwei-faktor).
+
+### Passwort vergessen
+
+Auf der Anmeldeseite **„Passwort vergessen?“** anklicken, E-Mail-Adresse eintragen, Mail abwarten (auch im Spam-Ordner nachsehen), Link anklicken (2 Stunden gültig) und ein neues Passwort vergeben. Ist bei Ihnen Zwei-Faktor aktiv, wird danach trotzdem der Code abgefragt – so kann niemand allein mit Zugriff auf Ihr Postfach Ihr Konto übernehmen.
+
+Nach mehreren falschen Versuchen sperrt das Portal kurz („Zu viele Versuche“). Warten Sie etwa zehn Minuten.
+
+---
+
+## 2. Die Oberfläche
+
+- **Links das Menü** (auf dem Handy über die drei Striche oben links): gegliedert nach Videokonferenzen, Kurzlinks, Formulare und – falls Sie die Rechte haben – Verwaltung.
+- **Oben rechts Ihr Name:** Profil, Sicherheit (Zwei-Faktor), „Über dieses Portal“ und Abmelden.
+- **Halbkreis-Symbol** daneben: hell, dunkel oder automatisch nach Geräteeinstellung (gilt nur für Sie).
+- **Grüne und rote Meldungen** oben auf der Seite bestätigen eine Aktion bzw. erklären, was nicht geklappt hat.
+
+**Tabellen:** Ins Feld „Suchen …“ tippen filtert sofort alle Spalten. Ein Klick auf eine Spaltenüberschrift sortiert, ein zweiter dreht die Reihenfolge um. Unten blättern Sie, oben rechts stellen Sie ein, wie viele Zeilen erscheinen. Auf schmalen Bildschirmen öffnet das Plus-Symbol am Zeilenanfang die ausgeblendeten Spalten.
+
+**Bestätigungsdialoge:** Alles, was sich nicht rückgängig machen lässt (Löschen, Absagen), fragt vorher nach.
+
+---
+
+## 3. Videokonferenzen
+
+### Ein Meeting anlegen
+
+1. Menü **Meetings**, oben ins Feld **Neues Meeting** einen Namen eintippen, z. B. „Teamrunde Bauamt“.
+2. **Meeting anlegen**.
+3. Auf der Seite des Meetings **Konferenz betreten**. Erlauben Sie dem Browser Kamera und Mikrofon.
+
+Ein Meeting ist ein **dauerhafter Raum**: Sie können ihn immer wieder benutzen, z. B. für die wöchentliche Runde.
+
+### Gäste einladen
+
+Auf der Seite des Meetings steht der **Einladungslink für Gäste**. Kopieren Sie ihn und schicken Sie ihn per E-Mail oder Kalendereinladung. Gäste brauchen kein Konto: Sie öffnen den Link, geben ihren Namen ein und sind im Raum.
+
+- Gäste dürfen **nicht aufnehmen** und werden **nie automatisch Moderator:in** – auch nicht, wenn sie vor Ihnen im Raum sind. Sie können einen Gast in der Konferenz bewusst zum Moderator machen.
+- Ist der Link in falsche Hände geraten: **Neuen Gastlink erzeugen**. Der alte funktioniert dann sofort nicht mehr.
+- Mit dem Recht „Kurzlinks“ können Sie aus dem Gastlink einen kurzen Link oder QR-Code machen (siehe [Kapitel 7](#7-kurzlinks-und-qr-codes)).
+
+### Freie Räume ohne Anmeldung
+
+Falls Ihre Verwaltung das freigegeben hat, kann jede:r **ohne Konto** einen Raum eröffnen: Die Konferenzadresse mit einem selbst gewählten Namen aufrufen (z. B. `…/elternabend-3b`) oder auf der Anmeldeseite **„Konferenz ohne Anmeldung starten“**. Im Portal gibt es dafür den Knopf **Schnellkonferenz**.
+
+| | Freier Raum | Raum aus dem Portal |
+|---|---|---|
+| Wer kommt hinein? | Jede:r mit der Adresse | Nur Angemeldete und Gäste mit Link |
+| Wer moderiert? | Wer zuerst da ist | Angemeldete Benutzer:innen |
+| Aufnahme | **nie** | ja (durch Angemeldete) |
+| Chatprotokoll und Umfragen | werden nie gespeichert | werden mit einer Aufnahme gespeichert |
+
+### Ein Meeting löschen
+
+Ganz unten auf der Seite des Meetings: **Meeting löschen**. Steht ein geplanter Termin noch bevor, schlägt der Dialog vor, allen Eingeladenen **automatisch eine Absage** zu schicken (voreingestellt). Dazu können Sie eine kurze Nachricht schreiben („Wir holen den Termin nächste Woche nach“). Der Termin verschwindet dann aus deren Kalendern. Aufnahmen bleiben für die Verwaltung erhalten.
+
+---
+
+## 4. Besprechungen planen und einladen
+
+### Planen
+
+1. Menü **Besprechung planen**.
+2. **Titel**, **Beginn**, **Dauer** und auf Wunsch eine **Tagesordnung** eintragen.
+3. Bei **Teilnehmende** Namen oder E-Mail-Adressen eintippen. Kolleg:innen werden vorgeschlagen; externe Gäste tragen Sie einfach mit ihrer Adresse ein (Enter, Komma oder Leerzeichen trennt).
+4. **Kopie an mich** ankreuzen, wenn Sie den Termin selbst im Kalender haben möchten.
+5. **Planen und einladen**.
+
+Jede Person bekommt eine **eigene E-Mail** mit:
+
+- einem **persönlichen Einwahllink** (Zutritt ohne Konto, ohne Aufnahmerecht),
+- dem Termin als **Besprechungsanfrage** – in Outlook mit „Annehmen / Mit Vorbehalt / Ablehnen“, für andere Kalender als Datei `einladung.ics`,
+- einem Link **„Zu- oder absagen“**, der in jedem Mailprogramm funktioniert.
+
+Die Empfänger sehen die Adressen der anderen nicht.
+
+### Zu- und Absagen verfolgen
+
+Auf der Seite des Meetings, Bereich **Termin & Einladungen**, steht bei jeder Person ihre Antwort: **zugesagt**, **abgesagt**, **mit Vorbehalt** oder ein **neuer Zeitvorschlag**, mit Zeitpunkt und Kommentar. Darüber die Zusammenfassung („3 zugesagt, 1 abgesagt, 2 offen“), die Sie auch auf der Startseite sehen. Auf Wunsch bekommen Sie zu jeder Antwort eine Mail.
+
+### Ändern, ausladen, absagen
+
+| Aktion (Seite des Meetings) | Was passiert |
+|---|---|
+| **Termin ändern** | Neue Zeit, Dauer oder Tagesordnung. Mit „Eingeladene informieren“ bekommen alle einen aktualisierten Kalendereintrag, der den alten ersetzt. Frühere Antworten gelten dann nicht mehr |
+| **Weitere Personen einladen** | Nur die neuen Personen bekommen eine Einladung |
+| Symbol **Ausladen** | Die Person bekommt eine Absage, ihr persönlicher Link wird ungültig |
+| **Einladung erneut senden** | Alle bekommen die aktuelle Einladung noch einmal |
+| **Absagen** | Alle bekommen eine Absage, optional mit Ihrer Nachricht. Der Raum bleibt bestehen |
+| **ICS herunterladen** | Termin als Datei, z. B. zum Weiterleiten aus dem eigenen Mailprogramm |
+
+---
+
+## 5. In der Konferenz
+
+Die wichtigsten Knöpfe unten in der Konferenz:
+
+| Knopf | Wozu |
+|---|---|
+| Mikrofon / Kamera | Ein- und ausschalten. Mit der Leertaste kurz sprechen, wenn das Mikrofon aus ist |
+| Bildschirm teilen | Ein Fenster, einen Tab oder den ganzen Bildschirm zeigen |
+| Chat | Nachrichten an alle oder privat an eine Person |
+| Hand heben | Wortmeldung anzeigen |
+| Teilnehmende | Liste, stummschalten, Moderation vergeben, Warteraum (Lobby) |
+| „…“ (Weitere Aktionen) | Aufnahme, **Umfragen**, Hintergrund, Einstellungen, Tastenkürzel |
+
+**Warteraum (Lobby):** Ist er eingeschaltet, erscheinen neue Gäste bei Ihnen als Anfrage, die Sie zulassen oder ablehnen.
+
+**Umfragen:** Über „…“ › **Umfragen** stellen Sie eine Frage mit Antwortmöglichkeiten. Alle sehen das Ergebnis live. Läuft gerade eine Aufnahme, wird die Umfrage mit Ergebnis und den Namen der Abstimmenden gesichert (siehe nächstes Kapitel).
+
+**Gute Tonqualität:** Headset statt Laptop-Lautsprecher, stummschalten, wenn Sie nicht sprechen, und bei schlechter Verbindung die Kamera ausschalten.
+
+---
+
+## 6. Aufnahme, Chatprotokoll, Umfragen und Transkript
+
+### Aufnehmen
+
+1. In der Konferenz unten auf **„…“** klicken.
+2. **Aufnahme starten**. Alle Teilnehmenden sehen einen Hinweis.
+3. Am Ende wieder **„…“ › Aufnahme beenden** – bitte bevor Sie die Konferenz verlassen.
+
+- Aufnehmen geht nur in **Räumen aus dem Portal** und nur als **angemeldete Person** (nicht über den Gastlink).
+- Es kann immer nur **eine** Konferenz gleichzeitig aufgenommen werden. Ist die Aufnahme belegt, versuchen Sie es später noch einmal.
+
+> **Datenschutz:** Weisen Sie zu Beginn alle Teilnehmenden ausdrücklich auf die Aufnahme hin und holen Sie deren Einverständnis ein. Der Hinweis im Programm ersetzt das nicht. Sagen Sie auch, dass Chat und Umfragen mitgespeichert werden.
+
+### Was gespeichert wird
+
+Ein bis zwei Minuten nach dem Ende finden Sie die Aufnahme **auf der Seite Ihres Meetings** (die Verwaltung zusätzlich unter **Aufnahmen**). Sie enthält:
+
+- die **MP3** (Tonspur) zum Anhören und Herunterladen,
+- das **Chatprotokoll**: was während der Aufnahme im Gruppenchat geschrieben wurde, mit Uhrzeit und Namen (private Nachrichten nie),
+- die **Umfragen**: Frage, Antworten, Anzahl und Namen der Abstimmenden. Hat jemand seine Stimme geändert, zählt die letzte,
+- Chat und Umfragen zusammen als **TXT-Datei** zum Herunterladen.
+
+Chatnachrichten und Umfragen **ohne Aufnahme** löscht das Portal nach 48 Stunden automatisch.
+
+### Transkript mit SpeechMind
+
+Es wird **nie automatisch** transkribiert – Sie entscheiden:
+
+- **MP3 herunterladen** – die Datei bleibt bei Ihnen.
+- **In SpeechMind bearbeiten** – die Tonspur geht an SpeechMind und wird zu einem Protokoll mit Tagesordnungspunkten, Beschlüssen, Aufgaben und dem Wortlaut. Das dauert etwa halb so lang wie die Aufnahme. Sie können die Seite schließen und später wiederkommen.
+
+Ist es fertig, sehen Sie Protokoll und Wortlaut direkt in der Aufnahme und können es als Textdatei herunterladen.
+
+**„Fehlgeschlagen“?** Die Meldung erklärt den Grund. Nach Behebung **Erneut versuchen**. **„kein Ton“?** Die Aufnahme ist stumm, meist weil niemand zu hören war. Geben Sie der Verwaltung Bescheid, wenn das trotz Gesprächs passiert.
+
+### Aufnahme löschen
+
+Auf der Aufnahme ganz unten **Löschen**. Je nach Stand bietet das Portal an: nur Video und MP3 löschen (Transkript, Chat und Umfragen bleiben), alles hier löschen (Protokoll bleibt bei SpeechMind abrufbar) oder alles löschen.
+
+---
+
+## 7. Kurzlinks und QR-Codes
+
+Menü **Kurzlinks** (Recht „Kurzlinks“). Aus einer langen Adresse wird eine kurze, z. B. `https://…/s/sommerfest` – ideal für Aushänge, Flyer, Amtsblatt und Mails.
+
+### Einen Kurzlink anlegen
+
+1. **Neuer Kurzlink**.
+2. **Zieladresse** (die lange Adresse) einfügen.
+3. Optional ein **Kürzel** wählen, z. B. `sommerfest`. Leer lassen ergibt ein zufälliges Kürzel. Erlaubt sind Buchstaben, Ziffern, `-` und `_`; Groß-/Kleinschreibung spielt keine Rolle.
+4. Optional **Titel** und **Schlagwörter** (zum Wiederfinden und Filtern).
+5. **Kurzlink erzeugen**.
+
+**Weitere Einstellungen** (aufklappen):
+
+| Einstellung | Wirkung |
+|---|---|
+| Gültig ab / bis | Vorher bzw. danach leitet der Link nicht weiter, sondern zeigt einen Hinweis (oder die Seite, die die Verwaltung dafür festgelegt hat) |
+| Max. Aufrufe | Nach so vielen Aufrufen ist Schluss, z. B. für begrenzte Anmeldungen |
+| Art der Weiterleitung | 302 (Standard) zählt jeden Aufruf. 301 merken sich Browser – spätere Aufrufe fehlen dann in der Statistik |
+| Parameter weitergeben | `…/sommerfest?quelle=flyer` hängt `quelle=flyer` an das Ziel an. So sehen Sie z. B. auf der Zielseite, woher Besucher kamen |
+
+### Liste, Statistik, Bearbeiten
+
+In der Liste kopiert das Kopiersymbol den Kurzlink. Über das Diagramm-Symbol öffnen Sie einen Link:
+
+- **Statistik:** Aufrufe pro Tag (7, 30, 90 oder 365 Tage), Browser, Betriebssystem, Gerät und die verweisende Seite. Aufrufe von Bots und automatischen Link-Prüfern (z. B. Mailserver, die Links vorab öffnen) werden getrennt gezählt; mit dem Roboter-Knopf blenden Sie sie ein. **Datenschutz:** IP-Adressen werden nicht gespeichert. Die Aufrufe gibt es auch als CSV.
+- **Bearbeiten:** Ziel, Kürzel, Gültigkeit usw. ändern oder den Link **deaktivieren**. Achtung: Wer das Kürzel ändert, macht die alte Adresse ungültig – auch gedruckte QR-Codes.
+- **Löschen:** Der Link funktioniert danach nicht mehr, das Kürzel ist wieder frei.
+
+### QR-Codes
+
+Bei jedem Kurzlink gibt es den Reiter **QR-Code**, außerdem den freien **QR-Generator** (Knopf oben in der Kurzlink-Liste) für beliebige Adressen oder Texte.
+
+- **Vorschau** erscheint sofort.
+- **Größe**, **Rand**, **Farbe** und **Hintergrund** einstellbar. Achten Sie auf Kontrast: dunkler Code auf hellem Grund.
+- **Fehlerkorrektur:** höher wählen, wenn der Code verschmutzen kann oder ein Logo darüber geklebt wird.
+- **Download als SVG** (für Druck und Grafikprogramme, beliebig vergrößerbar), **PNG** (Web, Office) oder **JPG** (für Programme, die nur JPG annehmen).
+
+Tipp: Für gedruckte QR-Codes immer einen **Kurzlink** verwenden. Der Code wird dadurch einfacher und besser lesbar, und Sie können das Ziel später ändern, ohne neu zu drucken.
+
+---
+
+## 8. Formulare erstellen
+
+Menü **Formulare** (Recht „Formulare“). Damit bauen Sie Umfragen, Anmeldungen, Abfragen und Anträge – ähnlich wie Microsoft/Google Forms oder Nextcloud Forms, aber auf dem eigenen Server.
+
+### Ein Formular anlegen
+
+1. Oben einen **Titel** eintippen, z. B. „Anmeldung Seniorenausflug 2026“, und **Formular anlegen**.
+2. Es öffnet sich der **Baukasten** (Reiter „Fragen“). Ein neues Formular beginnt mit den Fragen „Name“ und „E-Mail-Adresse“, die Sie anpassen oder löschen können.
+3. Oben Titel und **Beschreibung** (erscheint über dem Formular; Links werden anklickbar, `**fett**` wird fett).
+4. Rechts unter **Bausteine** Fragen und Gliederungselemente hinzufügen. Ein Klick fügt den Baustein **unter dem ausgewählten Element** ein (das ausgewählte Element hat links einen farbigen Rand).
+5. **Speichern** (unten). Solange „Ungespeicherte Änderungen“ steht, ist noch nichts gesichert; beim Verlassen der Seite warnt der Browser.
+
+### Bausteine: Fragen
+
+| Baustein | Für | Einstellungen |
+|---|---|---|
+| **Kurze Antwort** | Name, Ort, kurze Angaben | Art der Eingabe: Text, **E-Mail-Adresse**, **Telefonnummer**, **Zahl** (mit kleinstem/größtem Wert) oder **eigenes Muster** (regulärer Ausdruck, z. B. `[0-9]{5}` für eine PLZ, mit eigenem Hinweistext); Platzhalter |
+| **Langer Text** | Anmerkungen, Begründungen | Platzhalter, höchste Zeichenzahl |
+| **Einfachauswahl** | genau eine Antwort (Kreise) | Optionen, „Sonstiges“ mit Freitext, zufällige Reihenfolge |
+| **Mehrfachauswahl** | mehrere Antworten (Kästchen) | Optionen, „Sonstiges“, zufällige Reihenfolge, mindestens/höchstens wählen |
+| **Auswahlliste** | eine Antwort aus einer langen Liste | Optionen, zufällige Reihenfolge |
+| **Datum** | Geburtsdatum, Wunschtermin | frühestes/spätestes Datum |
+| **Uhrzeit** | Ankunftszeit | – |
+| **Datum und Uhrzeit** | Zeitpunkt | frühester/spätester Tag |
+| **Lineare Skala** | Zufriedenheit, Bewertung | von 0 oder 1 bis 2–10, Beschriftung links/rechts |
+| **Farbe** | Farbwahl | – |
+| **Datei-Upload** | Nachweise, Fotos, Anträge | erlaubte Dateiendungen (z. B. `pdf, jpg, png`), größte Datei (bis 20 MB), Anzahl Dateien (bis 10) |
+
+Jede Frage hat einen **Titel**, eine optionale **Beschreibung** (Hilfetext) und den Schalter **Pflichtfeld**.
+
+**Optionen eingeben:** In das Feld „Neue Option …“ tippen und Enter drücken. Sie können auch eine **ganze Liste einfügen** (z. B. aus Excel kopiert) – jede Zeile wird eine Option. Optionen lassen sich am Griff ⠿ verschieben und mit ✕ entfernen.
+
+### Bausteine: Gliederung
+
+| Baustein | Wirkung |
+|---|---|
+| **Überschrift** | Große Abschnittsüberschrift mit optionalem Text |
+| **Zwischenüberschrift** | Kleinere Überschrift innerhalb eines Abschnitts |
+| **Hinweistext** | Ein hervorgehobener Kasten mit Erklärungen, z. B. Datenschutzhinweis |
+| **Trennlinie** | Optische Trennung |
+| **Neue Seite** | Ab hier beginnt eine neue Seite. Ausfüllende blättern mit **Weiter** und **Zurück**, sehen einen Fortschrittsbalken und können erst weiter, wenn die Pflichtfelder der Seite ausgefüllt sind. Die neue Seite kann einen eigenen Titel und Text haben |
+
+### Anordnen
+
+- **Verschieben:** am Griff ⠿ links oben ziehen, oder mit den Pfeilen ↑ ↓.
+- **Duplizieren:** Doppel-Symbol – praktisch für ähnliche Fragen.
+- **Löschen:** Papierkorb.
+- Unten rechts sehen Sie, wie viele Fragen und Seiten das Formular hat.
+
+**Vorschau** (oben) zeigt das Formular genau so, wie Ausfüllende es sehen – nur ohne Absenden.
+
+> Gibt es schon Antworten, können Sie das Formular trotzdem ändern. Bestehende Antworten bleiben erhalten; gelöschte Fragen fehlen danach aber in Auswertung und Export.
+
+### Einstellungen (Reiter „Einstellungen“)
+
+**Teilnahme**
+
+| Einstellung | Wirkung |
+|---|---|
+| Nimmt Antworten an | Aus = alle Links zeigen „Formular geschlossen“ |
+| Frist | Danach werden keine Antworten mehr angenommen. Die Frist steht in Einladung und Erinnerung |
+| Anonym | Name und E-Mail von Eingeladenen und Angemeldeten werden nicht zur Antwort gespeichert. Sie sehen bei Einladungen nur, *dass* jemand geantwortet hat (für Erinnerungen) |
+| Mehrfach ausfüllen | Eingeladene dürfen mehrere Antworten abgeben (sonst nur eine). Über den öffentlichen Link geht mehrfaches Ausfüllen immer |
+| Eingangsbestätigung | Die ausfüllende Person bekommt eine Kopie ihrer Antworten per Mail (bei öffentlichen Links an die Adresse aus der ersten E-Mail-Frage) |
+| Text nach dem Absenden | z. B. „Danke! Wir melden uns bis Freitag.“ |
+
+**Benachrichtigung bei neuen Antworten**
+
+| Einstellung | Wirkung |
+|---|---|
+| Bei jeder neuen Antwort eine E-Mail | an Sie und an weitere Adressen, die Sie eintragen (z. B. das Funktionspostfach) |
+| Antworten im Text der Mail | die Angaben direkt lesbar in der Mail |
+| Anhang CSV / JSON | die Formulardaten als Datei: **CSV** für Excel, **JSON** für Fachverfahren und automatische Weiterverarbeitung |
+| nur die neue Antwort / jeweils alle Antworten | einzelne Antwort oder jedes Mal die komplette Tabelle |
+
+Hochgeladene Dateien werden nicht angehängt; sie bleiben im Portal.
+
+---
+
+## 9. Formulare verteilen
+
+Reiter **Teilen**.
+
+### Öffentlicher Link
+
+**Öffentlichen Link erzeugen** – jede:r mit dem Link kann ausfüllen, ohne Anmeldung. Daneben:
+
+- **Kopieren**,
+- **Kurzlink erzeugen** (mit dem Recht „Kurzlinks“) – öffnet das Kurzlink-Formular schon ausgefüllt,
+- **QR-Code** mit Download als SVG, PNG oder JPG – z. B. für einen Aushang,
+- **Neuer Link** – der alte funktioniert dann nicht mehr,
+- **Abschalten** – nur noch persönliche Einladungen funktionieren.
+
+### Per E-Mail einladen
+
+Wählen Sie **Benutzer:innen**, **Gruppen** (alle aktuellen Mitglieder werden einzeln eingeladen) und/oder tragen Sie **Gäste** mit E-Mail-Adresse ein. **Einladen**.
+
+Jede Person bekommt einen **persönlichen Link**. Damit sehen Sie in der Liste **Eingeladene**, wer schon geantwortet hat. Dort können Sie
+
+- **alle Offenen erinnern** (eine Erinnerungsmail an alle ohne Antwort),
+- einzelne Personen erinnern,
+- den persönlichen Link kopieren (z. B. wenn die Mail nicht ankam),
+- eine Einladung entfernen (der Link funktioniert dann nicht mehr; abgegebene Antworten bleiben).
+
+Wer schon eingeladen ist, wird beim erneuten Einladen übersprungen.
+
+---
+
+## 10. Antworten auswerten
+
+Reiter **Antworten** (die Zahl daneben zeigt, wie viele es sind).
+
+- **Zusammenfassung:** zu jeder Frage, wie viele geantwortet haben. Bei Auswahlfragen und Skalen ein **Diagramm**, bei Skalen und Zahlen der **Durchschnitt**, bei Textfragen die neuesten Antworten. „Sonstiges“-Antworten werden darunter aufgelistet.
+- **Einzelne Antworten:** Tabelle mit Nummer, Eingang, Person und den ersten Fragen. Ein Klick öffnet die **Einzelansicht** mit allen Angaben und hochgeladenen Dateien zum Herunterladen; mit den Pfeilen blättern Sie zur nächsten Antwort.
+- **Export:** **CSV (Excel)** – öffnet sich mit Umlauten korrekt in Excel – oder **JSON**.
+- **Löschen:** einzelne Antworten in der Einzelansicht, oder **Alle löschen** (auch die Dateien; Eingeladene können danach erneut antworten).
+
+### Formular kopieren und löschen
+
+Über **„…“** oben rechts: **Kopie anlegen** (ohne Antworten, Einladungen und öffentlichen Link – z. B. für die Anmeldung im nächsten Jahr) oder **Löschen** (mit allen Antworten und Dateien).
+
+---
+
+## 11. Formulare mit Kolleg:innen teilen
+
+Sie können ein Formular **im Portal** für Kolleg:innen oder ganze Gruppen freigeben – im Reiter **Teilen**, Kasten **Im Portal freigeben** (nur für die Person, die das Formular angelegt hat, und die Verwaltung).
+
+| Stufe | Darf |
+|---|---|
+| **1 – Ergebnisse einsehen** | Antworten, Zusammenfassung und Export ansehen |
+| **2 – Einladen** | zusätzlich Teilnehmende einladen, erinnern und den öffentlichen Link verwalten |
+| **3 – Bearbeiten** | zusätzlich Fragen und Einstellungen ändern, Antworten und das ganze Formular löschen |
+
+Die Stufe lässt sich in der Liste jederzeit ändern oder die Freigabe entfernen. Bei Gruppen gilt die Freigabe für alle, die zum jeweiligen Zeitpunkt Mitglied sind. Geteilte Formulare erscheinen bei den Kolleg:innen unter **Formulare › Mit mir geteilt** – auch wenn sie selbst kein Recht zum Erstellen von Formularen haben.
+
+---
+
+## 12. Formulare ausfüllen („Zum Ausfüllen“)
+
+Unter **Formulare › Zum Ausfüllen** stehen alle Formulare, zu denen Sie eingeladen wurden – direkt oder über eine Gruppe – mit Frist und Status. **Ausfüllen** öffnet das Formular.
+
+Beim Ausfüllen (auch für Gäste über einen Link):
+
+- Pflichtfelder sind mit <span style="color:#dc3545">*</span> markiert.
+- Bei mehrseitigen Formularen **Weiter** und **Zurück**; ein Balken zeigt den Fortschritt.
+- Stimmt eine Angabe nicht (z. B. E-Mail-Adresse), markiert das Formular das Feld und erklärt den Fehler.
+- **Absenden** speichert die Antwort; danach erscheint der Dank-Text.
+
+---
+
+## 13. Profil und Sicherheit (Zwei-Faktor)
+
+### Profil
+
+Oben rechts auf Ihren Namen › **Profil**: Anzeigenamen ändern (so erscheinen Sie in Konferenzen) und Passwort ändern (aktuelles Passwort und neues mit mindestens 10 Zeichen).
+
+### Zwei-Faktor-Anmeldung
+
+Oben rechts › **Sicherheit**. Zusätzlich zum Passwort wird bei jeder Anmeldung ein Einmalcode abgefragt. Wer Ihr Passwort kennt, kommt damit allein nicht in Ihr Konto. Ob es für Sie Pflicht ist, legt die Verwaltung fest.
+
+**Authenticator-App (empfohlen)**
+
+1. **App einrichten**.
+2. Eine Authenticator-App auf dem Telefon öffnen (z. B. Microsoft Authenticator, Google Authenticator, FreeOTP oder Ihre Passwortverwaltung) und den **QR-Code scannen**. Geht das nicht, den angezeigten Schlüssel von Hand eingeben.
+3. Den sechsstelligen Code aus der App eingeben, **Bestätigen**.
+
+Die App erzeugt alle 30 Sekunden einen neuen Code, auch ohne Internet. Stimmt der Code nicht, prüfen Sie, ob die Uhrzeit Ihres Telefons automatisch gestellt wird.
+
+**Code per E-Mail**
+
+Einschalten (mit Ihrem Passwort bestätigen). Bei der Anmeldung schickt das Portal den Code an Ihre Adresse. Ist Zwei-Faktor für Sie Pflicht und keine App eingerichtet, wird dieses Verfahren automatisch genutzt.
+
+**Wiederherstellungscodes**
+
+Beim Einrichten zeigt das Portal **zehn Notfallcodes – nur einmal**. Drucken Sie sie aus oder speichern Sie sie in Ihrer Passwortverwaltung. Jeder Code funktioniert einmal, wenn Telefon oder Postfach nicht greifbar sind. Unter „Wiederherstellungscodes“ erzeugen Sie neue (die alten gelten dann nicht mehr).
+
+**Neues Telefon:** Unter Sicherheit „Neues Gerät einrichten“. Telefon verloren und keine Notfallcodes? Die Verwaltung kann Ihre Zwei-Faktor-Anmeldung zurücksetzen.
+
+---
+
+## 14. Datenschutz in der Praxis
+
+- **Aufnahmen:** vorher ankündigen und Einverständnis einholen; Chat und Umfragen werden mitgespeichert. Nicht mehr benötigte Aufnahmen löschen.
+- **Transkription:** Nur Aufnahmen an SpeechMind geben, bei denen das abgestimmt ist.
+- **Formulare:** Nur abfragen, was Sie wirklich brauchen. Bei personenbezogenen Daten einen **Hinweistext** zum Datenschutz einbauen (Zweck, Ansprechpartner, Löschfrist). Antworten löschen, wenn sie nicht mehr gebraucht werden. Anhänge in Benachrichtigungen (CSV/JSON) enthalten personenbezogene Daten – nur an Postfächer schicken, die sie bekommen dürfen.
+- **Kurzlinks:** Es werden keine IP-Adressen gespeichert, nur Browser, Betriebssystem, Gerätetyp und der Hostname der verweisenden Seite.
+- **Links weitergeben:** Gastlinks und persönliche Links sind wie Schlüssel. Bei Verdacht auf Missbrauch neu erzeugen.
+
+---
+
+## 15. Hilfe bei Problemen
+
+| Problem | Was tun |
+|---|---|
+| Kein Bild / kein Ton | Im Browser Kamera und Mikrofon erlauben (Schloss-Symbol neben der Adresse), Seite neu laden. Headset prüfen |
+| Gäste kommen nicht in den Raum | Gastlink verwenden, nicht die nackte Konferenzadresse. Ist die Lobby an, Gäste zulassen |
+| Aufnahme-Knopf fehlt | Über das Portal beitreten (angemeldet), nicht über den Gastlink. In freien Räumen gibt es keine Aufnahme |
+| Aufnahme nicht zu sehen | 2 Minuten warten, Seite neu laden. Dann die Verwaltung fragen |
+| Einladung kam nicht an | Spam-Ordner prüfen. Persönlichen Link kopieren und anders weitergeben |
+| Zu-/Absage aus Outlook erscheint nicht | Beim Annehmen „Antwort jetzt senden“ wählen. Alternativ den Link „Zu- oder absagen“ aus der Mail nutzen |
+| Kurzlink zeigt „nicht verfügbar“ | Gültigkeit, Aufruf-Limit und „aktiv“ in den Einstellungen des Links prüfen |
+| QR-Code lässt sich schlecht scannen | Kurzlink statt langer Adresse, mehr Kontrast, höhere Fehlerkorrektur, größer drucken |
+| Formular lässt sich nicht absenden | Rot markierte Felder prüfen, auch auf früheren Seiten. Dateien zu groß oder falscher Typ? |
+| Ausfüllende sehen „Formular geschlossen“ | Einstellungen: „Nimmt Antworten an“ an? Frist abgelaufen? |
+| Code für die Anmeldung kommt nicht | Spam-Ordner, „Neuen Code senden“. Sonst Notfallcode oder die Verwaltung fragen |
+| „Zu viele Versuche“ | Etwa zehn Minuten warten |
+| Menüpunkt fehlt | Ihnen fehlt das Recht oder das Modul ist abgeschaltet – Verwaltung fragen |

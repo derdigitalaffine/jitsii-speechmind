@@ -3,6 +3,7 @@
   docker compose exec portal python -m app.cli users
   docker compose exec portal python -m app.cli set-password admin@example.org
   docker compose exec portal python -m app.cli make-admin kollege@example.org
+  docker compose exec portal python -m app.cli reset-2fa admin@example.org
 """
 
 import getpass
@@ -21,13 +22,19 @@ def main(argv: list[str]) -> int:
         if cmd == "users":
             for u in db.scalars(select(User).order_by(User.email)):
                 print(f"{u.email:40} {'Admin' if u.is_admin else 'Benutzer':9} "
-                      f"{'aktiv' if u.active else 'gesperrt'}")
+                      f"{'aktiv' if u.active else 'gesperrt':9} {'2FA' if u.totp_enabled or u.mfa_email else ''}")
             return 0
-        if cmd in ("set-password", "make-admin") and len(argv) == 2:
+        if cmd in ("set-password", "make-admin", "reset-2fa") and len(argv) == 2:
             user = db.scalar(select(User).where(User.email == argv[1].strip().lower()))
             if user is None:
                 print(f"Kein Konto mit der Adresse {argv[1]} gefunden. Vorhandene: python -m app.cli users")
                 return 1
+            if cmd == "reset-2fa":
+                from . import twofa
+                twofa.reset(user)
+                db.commit()
+                print(f"Zwei-Faktor-Anmeldung für {user.email} zurückgesetzt.")
+                return 0
             if cmd == "make-admin":
                 user.is_admin, user.active = True, True
                 db.commit()

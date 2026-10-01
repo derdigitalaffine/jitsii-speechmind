@@ -1,47 +1,142 @@
 # Admin-Handbuch
 
-Für alle, die den Videokonferenzserver der Verbandsgemeinde Otterbach-Otterberg betreuen. Die Erstinstallation steht in der [README](../README.md). Alle Befehle werden im Projektordner (dort, wo `docker-compose.yml` liegt) auf dem Server eingegeben.
+Für alle, die das Portal der Verbandsgemeinde Otterbach-Otterberg betreuen: Videokonferenzen mit Aufnahme und Transkription, Besprechungsplanung, Kurzlinks mit QR-Codes und Formularserver. Die Erstinstallation steht in der [README](../README.md), die Bedienung für Mitarbeitende im [Benutzerhandbuch](BENUTZERHANDBUCH.md). Alle Befehle werden im Projektordner (dort, wo `docker-compose.yml` liegt) auf dem Server eingegeben.
 
 ## Inhalt
 
 1. [Die Oberfläche im Überblick](#die-oberfläche-im-überblick)
-2. [Aufnahmen und Transkription](#aufnahmen-und-transkription)
-3. [Benutzer verwalten und einladen](#benutzer-verwalten-und-einladen)
-4. [Besprechungen planen](#besprechungen-planen)
-5. [E-Mail-Vorlagen](#e-mail-vorlagen)
-6. [HTTPS und Zertifikat](#https-und-zertifikat)
-7. [Design & Branding](#design--branding)
-8. [Räume und Zugang](#räume-und-zugang)
-9. [E-Mail einrichten](#e-mail-einrichten)
-10. [SpeechMind einrichten](#speechmind-einrichten)
-11. [Aufnahme ohne Ton](#aufnahme-ohne-ton)
-12. [Admin-Passwort vergessen](#admin-passwort-vergessen)
-13. [Alltag: Start, Stopp, Logs, Update](#alltag-start-stopp-logs-update)
-14. [Sicherung und Wiederherstellung](#sicherung-und-wiederherstellung)
-15. [Speicherplatz](#speicherplatz)
-16. [Wenn etwas nicht geht](#wenn-etwas-nicht-geht)
+2. [Benutzer, Rechte und Gruppen](#benutzer-rechte-und-gruppen)
+3. [Anmeldung und Zwei-Faktor](#anmeldung-und-zwei-faktor)
+4. [Module ein- und ausschalten](#module-ein--und-ausschalten)
+5. [Aufnahmen und Transkription](#aufnahmen-und-transkription) (mit Chatprotokoll und Umfragen)
+6. [Besprechungen planen](#besprechungen-planen)
+7. [Kurzlinks und QR-Codes](#kurzlinks-und-qr-codes)
+8. [Formulare](#formulare)
+9. [E-Mail-Vorlagen](#e-mail-vorlagen)
+10. [HTTPS und Zertifikat](#https-und-zertifikat)
+11. [Design & Branding](#design--branding)
+12. [Räume und Zugang](#räume-und-zugang)
+13. [E-Mail einrichten](#e-mail-einrichten)
+14. [SpeechMind einrichten](#speechmind-einrichten)
+15. [Aufnahme ohne Ton](#aufnahme-ohne-ton)
+16. [Admin-Passwort vergessen](#admin-passwort-vergessen)
+17. [Alltag: Start, Stopp, Logs, Update](#alltag-start-stopp-logs-update)
+18. [Sicherung und Wiederherstellung](#sicherung-und-wiederherstellung)
+19. [Speicherplatz](#speicherplatz)
+20. [Wenn etwas nicht geht](#wenn-etwas-nicht-geht)
 
 ## Die Oberfläche im Überblick
 
-Nach der Anmeldung zeigt die obere Leiste für Admins:
+Das Menü links ist nach Bereichen gegliedert. Jede Person sieht nur, wofür sie freigeschaltet ist; Admins sehen alles:
 
-| Menüpunkt | Wozu |
-|---|---|
-| **Meetings** | Eigene Räume anlegen und betreten |
-| **Aufnahmen** | Alle Aufnahmen als MP3: herunterladen oder an SpeechMind übergeben. *Hier landen Admins nach dem Login.* |
-| **Benutzer** | Konten anlegen, einladen, sperren, löschen |
-| **Benachrichtigungen** | E-Mail-Versand (SMTP/IMAP), welche Hinweise verschickt werden, Versandprotokoll |
-| **SpeechMind** | API-Key, Projekt, Sprache, Protokollart |
-| **Besprechung planen** | Termin anlegen und Teilnehmende per Kalendereinladung einladen |
-| **E-Mail-Vorlagen** | Texte aller Mails anpassen |
-| **HTTPS & Zertifikat** | Selbst signiert oder Let's Encrypt, Zertifikatsstatus |
-| **Design & Branding** | Name, Farben, Logo, Fußzeile, Impressum-Link |
-| *Ihr Name* (oben rechts) | Profil, Passwort ändern, Abmelden |
-| Halbmond-Symbol (oben rechts) | Hell, Dunkel oder automatisch umschalten (gilt nur für Sie) |
+| Bereich | Menüpunkt | Wozu |
+|---|---|---|
+| Videokonferenzen | **Meetings** | Eigene Räume anlegen und betreten, anstehende Besprechungen |
+| | **Besprechung planen** | Termin anlegen und Teilnehmende per Kalendereinladung einladen |
+| Kurzlinks | **Kurzlinks** | Kurze Adressen mit Statistik, QR-Generator; für Admins die Einstellungen (Kurz-Domain) |
+| Formulare | **Formulare** | Eigene und geteilte Formulare bauen, verteilen, auswerten |
+| | **Zum Ausfüllen** | Formulare, zu denen man eingeladen ist |
+| Verwaltung | **Aufnahmen** | Alle Aufnahmen: MP3, Chat, Umfragen, Übergabe an SpeechMind. *Hier landen Admins nach dem Login.* |
+| | **Benutzer & Gruppen** | Konten, Rechte, Gruppen, Anmelde-Einstellungen (Zwei-Faktor), Konferenzen ohne Anmeldung. *Auch für Personen mit dem Recht „Benutzerverwaltung“* |
+| | **Module** | Kurzlinks und Formulare komplett ein- oder ausschalten |
+| | **Benachrichtigungen** | E-Mail-Versand (SMTP/IMAP), Zu-/Absagen, Postfach-Diagnose, Versandprotokoll |
+| | **E-Mail-Vorlagen** | Texte aller Mails anpassen |
+| | **SpeechMind** | API-Key, Projekt, Sprache, Protokollart |
+| | **HTTPS & Zertifikat** | Selbst signiert oder Let's Encrypt, Zertifikatsstatus |
+| | **Design & Branding** | Name, Farben, Logo, Favicon, Fußzeile, Impressum-Link |
+| oben rechts | *Ihr Name* | Profil, Sicherheit (Zwei-Faktor), Über dieses Portal, Abmelden |
+| oben rechts | Halbkreis-Symbol | Hell, Dunkel oder automatisch (gilt nur für Sie) |
 
-Auf dem Handy öffnet das Symbol mit den drei Strichen oben links das Menü.
+Auf dem Handy öffnet das Symbol mit den drei Strichen oben links das Menü. Die Seite **Über dieses Portal** (Fußzeile) nennt die Herausgeberin, die Open-Source-Lizenz und alle verwendeten Komponenten mit ihren Lizenzen.
 
 **Tabellen bedienen:** Oben links ins Feld „Suchen …“ tippen filtert sofort alle Spalten. Ein Klick auf eine Spaltenüberschrift sortiert, ein zweiter dreht die Reihenfolge um. Unten rechts blättern Sie, oben rechts stellen Sie ein, wie viele Zeilen pro Seite erscheinen. Auf schmalen Bildschirmen blendet die Tabelle Spalten aus; ein Klick auf das Plus-Symbol in der Zeile zeigt sie.
+
+## Benutzer, Rechte und Gruppen
+
+Menü **Benutzer & Gruppen**. Erreichbar für Admins und für Personen mit dem Recht **Benutzerverwaltung**.
+
+### Rechte
+
+Jede Person bekommt einzeln die Bereiche freigeschaltet, die sie braucht:
+
+| Recht | Erlaubt |
+|---|---|
+| **Videokonferenzen** | Meetings anlegen, Besprechungen planen, moderieren, aufnehmen, eigene Aufnahmen transkribieren |
+| **Kurzlinks** | Kurzlinks anlegen, auswerten, QR-Codes erzeugen |
+| **Formulare** | Formulare erstellen, verteilen, auswerten (geteilte Formulare und „Zum Ausfüllen“ sehen alle, auch ohne dieses Recht) |
+| **Benutzerverwaltung** | Benutzer und Gruppen anlegen, bearbeiten, sperren, löschen – aber keine Admin-Konten ändern und niemanden zum Admin machen |
+| **Administrator:in** | Alles, auch Systemeinstellungen (Mail, HTTPS, Design, SpeechMind, Module, Zwei-Faktor) und alle Aufnahmen, Kurzlinks und Formulare |
+
+Ohne Recht „Videokonferenzen“ kommt eine angemeldete Person in Portal-Räume nur wie ein Gast (per Link) und kann nicht aufnehmen. Ist ein Modul abgeschaltet (siehe [Module](#module-ein--und-ausschalten)), verschwindet das Recht aus der Auswahl.
+
+### Neue Personen einladen
+
+1. Im Feld „E-Mail-Adressen“ eine oder **mehrere** Adressen eintippen oder aus einer Liste einfügen. Enter, Komma oder Leerzeichen macht aus jeder Adresse ein Etikett; ungültige werden nicht übernommen. Den Namen leitet das Portal aus der Adresse ab (`max.muster@…` → „Max Muster“). Bei nur einer Adresse können Sie ihn selbst vorgeben.
+2. **Gruppen** wählen (optional).
+3. **Rechte** setzen (voreingestellt: Videokonferenzen). „Administrator:in“ sehen nur Admins.
+4. **Einladen**.
+
+Die Person bekommt eine E-Mail mit einem Link (72 Stunden gültig, einmal benutzbar) und legt ihr Passwort selbst fest. **Ist kein E-Mail-Versand eingerichtet**, zeigt das Portal den Link **einmalig** oben auf der Seite; geben Sie ihn persönlich weiter.
+
+### Aktionen pro Person
+
+Symbole rechts in der Zeile (Maus darüber zeigt den Namen):
+
+| Aktion | Wirkung |
+|---|---|
+| Stift **Bearbeiten** | Name, Gruppen und Rechte ändern |
+| Einladung erneut senden / Passwort-Link senden | Neuer Link, der alte wird ungültig |
+| Schild **Zwei-Faktor zurücksetzen** | App, Mail-Code und Notfallcodes entfernen, z. B. bei verlorenem Telefon (erscheint nur, wenn etwas eingerichtet ist) |
+| Zum Admin machen / Admin-Recht entziehen | nur für Admins |
+| Sperren / Entsperren | Anmeldung nicht mehr möglich / wieder möglich; Daten bleiben |
+| Löschen | Konto und dessen Meetings weg. Aufnahmen bleiben für Admins sichtbar; Kurzlinks und Formulare der Person bleiben erhalten und sind danach nur noch für Admins sichtbar |
+
+Das eigene Konto lässt sich nicht sperren, löschen oder vom Admin-Recht befreien (Schutz vor Aussperren). In der Spalte Status zeigt ein grünes Schild, wer Zwei-Faktor eingerichtet hat.
+
+### Gruppen
+
+Kasten **Gruppen** unten: **Neue Gruppe**, Name, Beschreibung und Mitglieder wählen. Gruppen werden genutzt, um
+
+- viele Personen auf einmal zu einem **Formular einzuladen** (alle aktuellen Mitglieder bekommen eine persönliche Einladung),
+- **Formulare im Portal freizugeben** (gilt für alle, die gerade Mitglied sind).
+
+Eine Person kann in mehreren Gruppen sein. Gruppen gibt es auch im Bearbeiten-Dialog der Person. Das Löschen einer Gruppe löscht keine Konten.
+
+### Passwort vergessen
+
+Benutzer:innen klicken auf der Anmeldeseite „Passwort vergessen?“. Der Link ist 2 Stunden gültig. Das Portal antwortet immer gleich, auch wenn die Adresse unbekannt ist (sonst ließe sich ausprobieren, wer ein Konto hat). Ist Zwei-Faktor aktiv, wird nach dem neuen Passwort trotzdem der zweite Faktor abgefragt.
+
+**Das Standard-Admin-Konto** wird beim allerersten Start angelegt. Legen Sie danach ein persönliches Admin-Konto für jede zuständige Person an und sperren Sie das Standardkonto oder behalten Sie es mit sicherem Passwort und Zwei-Faktor.
+
+## Anmeldung und Zwei-Faktor
+
+Kasten **Anmeldung & Zwei-Faktor** unter **Benutzer & Gruppen** (nur Admins).
+
+| Einstellung | Bedeutung |
+|---|---|
+| **Authenticator-App (TOTP)** | Erlaubt Apps wie Microsoft/Google Authenticator, FreeOTP oder Passwortverwaltungen (Standard RFC 6238, 6 Ziffern, 30 Sekunden) |
+| **Code per E-Mail** | Erlaubt sechsstellige Codes per Mail (10 Minuten gültig). Braucht eingerichteten Mailversand |
+| **Zwei-Faktor ist …** | **Freiwillig:** jede Person schaltet es unter Profil › Sicherheit selbst ein. **Pflicht für Administrator:innen** oder **Pflicht für alle** |
+
+**So wirkt die Pflicht:** Hat eine Person keine App eingerichtet, verlangt das Portal automatisch einen Code per E-Mail. Ist der nicht erlaubt, muss sie die App direkt nach der Anmeldung einrichten; vorher sind keine anderen Seiten erreichbar.
+
+**Wiederherstellungscodes:** Beim Einrichten bekommt jede Person zehn Notfallcodes. Hat jemand Telefon und Codes verloren: in der Benutzerliste **Zwei-Faktor zurücksetzen**. Bei Pflicht greift danach der Mail-Code bzw. die Neueinrichtung.
+
+**Empfehlung:** Mindestens „Pflicht für Administrator:innen“ mit erlaubter App. Admin-Konten haben Zugriff auf alle Aufnahmen und Formulardaten.
+
+Weitere Schutzmechanismen, die immer aktiv sind: Passwörter als Argon2-Hash, Bremse gegen Passwort-Raten (nach mehreren Fehlversuchen „Zu viele Versuche“), höchstens fünf falsche Codes je Anmeldung, jeder App-Code ist nur einmal gültig.
+
+## Module ein- und ausschalten
+
+Menü **Module** (nur Admins). **Kurzlinks & QR-Codes** und **Formulare** lassen sich komplett abschalten. Videokonferenzen sind die Kernfunktion und immer aktiv.
+
+Ein abgeschaltetes Modul
+
+- verschwindet aus dem Menü, der Rechteauswahl und den Startseiten,
+- ist **vollständig unerreichbar** – auch über bereits verteilte Links (Kurzlinks leiten nicht mehr weiter, öffentliche und persönliche Formular-Links zeigen „nicht verfügbar“),
+- behält alle Daten. Nach dem Wiedereinschalten ist alles wieder da.
+
+Die Umschaltung wirkt nach wenigen Sekunden, ohne Neustart.
 
 ## Aufnahmen und Transkription
 
@@ -78,6 +173,14 @@ Was während einer Aufnahme im Konferenz-Chat geschrieben wurde (Gruppenchat, ke
 - Beim Löschen „Nur Video und MP3“ bleibt das Chatprotokoll erhalten. Die beiden anderen Löschoptionen entfernen es.
 - Weisen Sie die Teilnehmenden darauf hin, dass der Chat zusammen mit der Aufnahme gespeichert wird.
 
+### Umfragen
+
+Umfragen, die während einer Aufnahme in der Konferenz gestellt oder beantwortet werden („…“ › Umfragen), hängt das Portal ebenfalls an die Aufnahme: **Frage, Antwortmöglichkeiten, Anzahl der Stimmen mit Prozent und die Namen der Abstimmenden**. Ändert jemand seine Stimme, zählt die letzte bis zum Ende der Aufnahme. Eine Umfrage, die vor der Aufnahme gestellt, aber währenddessen beantwortet wurde, gehört ebenfalls dazu. In der Aufnahmenliste zeigt ein Umfrage-Symbol mit Zahl, wie viele es sind; der TXT-Download „Chatprotokoll & Umfragen“ enthält beides.
+
+Es gelten dieselben Regeln wie beim Chat: nur Portal-Räume, Rohdaten ohne Aufnahme nach 48 Stunden gelöscht, „Nur Video und MP3 löschen“ behält die Umfragen.
+
+*Technisch:* Das Prosody-Modul `mod_portal_access_muc` schreibt neue Umfragen und Stimmen (Jitsi-Nachrichten `new-poll` und `answer-poll`) neben den Chat in `data/portal-chat/`. Nach dem Update auf diese Version einmal `docker compose restart prosody` ausführen, damit das Modul neu geladen wird.
+
 ### Aufnahmen löschen
 
 Löschen geht an drei Stellen: über das Papierkorb-Symbol in jeder Tabellenzeile, über **Löschen** in der Aufnahme selbst und für viele Aufnahmen auf einmal (Kästchen links anhaken, das Kästchen in der Kopfzeile wählt alle gefilterten aus, dann **Ausgewählte löschen**).
@@ -93,33 +196,6 @@ Ein Dialog fragt, was gelöscht werden soll. Angeboten wird nur, was bei der Auf
 Bei der Mehrfachauswahl gilt die gewählte Option für jede Aufnahme, soweit möglich. Was danach nichts mehr enthält (z. B. eine nie transkribierte Aufnahme bei „Nur Video und MP3 löschen“), wird ganz entfernt. Aufnahmen, die gerade verarbeitet werden, werden übersprungen.
 
 **Neu von SpeechMind laden:** Bei transkribierten Aufnahmen holt dieser Knopf Protokoll und Wortlaut erneut ab, z. B. nachdem Sie das Protokoll in SpeechMind überarbeitet haben. Wurde das Protokoll in SpeechMind gelöscht, scheitert der Abruf mit einer Meldung.
-
-## Benutzer verwalten und einladen
-
-**Neue Person einladen**
-
-1. **Benutzer** öffnen.
-2. Im Feld „E-Mail-Adressen“ eine oder **mehrere** Adressen eintippen oder aus einer Liste einfügen. Mit Enter, Komma oder Leerzeichen wird jede Adresse zum Etikett; ungültige Adressen werden nicht übernommen. Den Namen leitet das Portal aus der Adresse ab (`max.muster@…` → „Max Muster“); die Person kann ihn im Profil ändern. Bei nur einer Adresse können Sie den Namen im Feld darunter selbst vorgeben. „Administrator:in“ nur einschalten, wenn die Person Einstellungen und alle Aufnahmen verwalten soll.
-3. **Einladen** klicken.
-4. Die Person bekommt eine E-Mail mit einem Link (72 Stunden gültig, einmal benutzbar) und legt ihr Passwort selbst fest. Danach ist sie angemeldet.
-
-**Ist kein E-Mail-Versand eingerichtet**, zeigt das Portal den Link **einmalig** oben auf der Seite. Kopieren Sie ihn und geben Sie ihn weiter (z. B. persönlich oder per Telefon vorlesen). Danach ist er weg; über „Einladung erneut senden“ gibt es einen neuen.
-
-**Weitere Aktionen pro Person** (Symbole rechts in der Zeile; Maus darüber halten zeigt den Namen)
-
-| Aktion | Wirkung |
-|---|---|
-| Einladung erneut senden | Neuer Link, alter wird ungültig (bei noch nicht angenommener Einladung) |
-| Passwort-Link senden | Neuer Link zum Vergeben eines Passworts (bei bestehenden Konten) |
-| Sperren / Entsperren | Anmeldung nicht mehr möglich / wieder möglich; Daten bleiben |
-| Zum Admin machen / Admin-Recht entziehen | Rolle ändern |
-| Löschen | Konto und dessen Meetings weg; Aufnahmen bleiben für Admins sichtbar |
-
-Das eigene Konto lässt sich hier nicht sperren oder löschen (Schutz vor Aussperren).
-
-**Passwort vergessen (Benutzer:innen):** Auf der Login-Seite „Passwort vergessen?“ klicken, E-Mail eingeben. Der Link ist 2 Stunden gültig. Aus Sicherheitsgründen antwortet das Portal immer gleich, auch wenn die Adresse unbekannt ist.
-
-**Das Standard-Admin-Konto** wird beim allerersten Start angelegt. Legen Sie danach ein persönliches Admin-Konto für jede zuständige Person an und sperren Sie das Standardkonto oder behalten Sie es mit sicherem Passwort.
 
 ## Besprechungen planen
 
@@ -169,9 +245,59 @@ Auch für einen bestehenden Raum lässt sich nachträglich ein Termin festlegen.
 
 **Ohne eingerichteten E-Mail-Versand** wird die Besprechung trotzdem angelegt, es gehen aber keine Mails raus. Laden Sie dann die ICS-Datei herunter und versenden Sie sie selbst.
 
+## Kurzlinks und QR-Codes
+
+Menü **Kurzlinks** (Recht „Kurzlinks“). Funktionsumfang ähnlich wie Shlink: eigenes oder zufälliges Kürzel, Titel und Schlagwörter, Gültigkeitszeitraum, maximale Anzahl Aufrufe, Weitergabe von Parametern, Art der Weiterleitung (301/302/307/308), Aktivieren/Deaktivieren, Statistik und QR-Codes. Die Bedienung steht im [Benutzerhandbuch](BENUTZERHANDBUCH.md#7-kurzlinks-und-qr-codes).
+
+**Wer sieht was:** Jede Person sieht ihre eigenen Kurzlinks, Admins über **Alle anzeigen** alle (mit Spalte „Von“). Kürzel sind portalweit eindeutig und unabhängig von Groß-/Kleinschreibung.
+
+### Einstellungen (nur Admins)
+
+Unten auf der Kurzlink-Seite, Kasten **Einstellungen**:
+
+| Einstellung | Bedeutung |
+|---|---|
+| **Eigene Kurz-Domain** | Leer: Kurzlinks laufen über `https://<Portal-Domain>/s/<kürzel>`. Mit eigener Domain werden sie kürzer: `https://kurz.example.de/<kürzel>`. Das Portal trägt die Domain selbst in den Proxy ein; das Zertifikat kommt wie bei den anderen Domains (selbst signiert oder Let's Encrypt) |
+| **Ziel für unbekannte oder abgelaufene Kurzlinks** | Statt der Hinweisseite dorthin weiterleiten, z. B. zur Homepage. Gilt auch für die Startseite der Kurz-Domain |
+| **Länge zufälliger Kürzel** | 4–20 Zeichen (Standard 6). Zufällige Kürzel verwenden keine leicht verwechselbaren Zeichen (l, 1, o, 0, i) |
+
+**Kurz-Domain einrichten:** DNS-Eintrag (A/AAAA) der neuen Domain auf den Server setzen, Domain eintragen, speichern. Bei Let's Encrypt muss Port 80/443 auch für diese Domain erreichbar sein. Die Domain darf nicht gleich der Konferenz- oder Portal-Domain sein.
+
+### Statistik und Datenschutz
+
+- Gespeichert wird je Aufruf: Zeitpunkt, Browser, Betriebssystem, Gerätetyp (Desktop/Mobil/Tablet) und **nur der Hostname** der verweisenden Seite. **Keine IP-Adressen**, keine Cookies.
+- Aufrufe durch Bots, Vorschaudienste und Link-Prüfer von Mailservern (z. B. Microsoft Safe Links) werden erkannt und getrennt gezählt; sie zählen nicht gegen „Max. Aufrufe“.
+- Die Aufrufliste gibt es je Link als CSV. „Statistik zurücksetzen“ löscht alle Aufrufe eines Links.
+
+### QR-Generator
+
+Für jeden Kurzlink und frei für beliebige Inhalte (**QR-Generator**). Ausgabe mit Vorschau und Download als **SVG, PNG oder JPG**; Größe, Rand, Farben und Fehlerkorrektur (L/M/Q/H) einstellbar. Erzeugt wird alles auf dem eigenen Server (Bibliotheken Segno und Pillow).
+
+## Formulare
+
+Menü **Formulare** (Recht „Formulare“). Ein Formularserver mit Baukasten, vergleichbar mit Nextcloud Forms. Die Bedienung steht ausführlich im [Benutzerhandbuch](BENUTZERHANDBUCH.md#8-formulare-erstellen); hier das, was für die Betreuung wichtig ist.
+
+**Funktionsumfang**
+
+- Fragetypen: kurze Antwort (Text, E-Mail, Telefon, Zahl, eigenes Muster), langer Text, Einfach- und Mehrfachauswahl (mit „Sonstiges“, Mindest-/Höchstzahl, zufälliger Reihenfolge), Auswahlliste, Datum, Uhrzeit, Datum mit Uhrzeit, lineare Skala, Farbe, Datei-Upload (Endungen, Größe bis 20 MB, bis 10 Dateien).
+- Gliederung: Überschrift, Zwischenüberschrift, Hinweistext, Trennlinie, **Neue Seite** (mehrseitige Formulare mit Fortschrittsanzeige und Prüfung je Seite).
+- Verteilung: öffentlicher Link (mit QR-Code und Kurzlink), persönliche Einladungen an Benutzer, **Gruppen** und Gäste per E-Mail, Erinnerungen, Frist, anonyme Formulare, Mehrfachantworten.
+- Auswertung: Zusammenfassung mit Diagrammen, Einzelansicht, Export **CSV** (Semikolon, UTF-8 mit BOM – öffnet sich in Excel korrekt) und **JSON**.
+- Benachrichtigung bei neuen Antworten an die Besitzerin und weitere Adressen, wahlweise mit Antworten im Text und **CSV- und/oder JSON-Anhang** – nur die neue Antwort oder jeweils alle.
+- Eingangsbestätigung mit Kopie der Antworten an die ausfüllende Person.
+- **Freigabe im Portal** an Personen oder Gruppen in drei Stufen: 1 Ergebnisse einsehen, 2 zusätzlich einladen, 3 zusätzlich bearbeiten und löschen. Freigaben verwaltet die Besitzerin bzw. ein Admin.
+
+**Wer sieht was:** Besitzer:innen ihre Formulare, Admins alle (**Alle Formulare**), Kolleg:innen mit Freigabe die freigegebenen. Gehört ein Formular einer gelöschten Person, sehen es nur noch Admins.
+
+**Schutz vor Missbrauch öffentlicher Formulare:** unsichtbares Spam-Feld (Honigtopf), Begrenzung auf 30 Absendungen je Adresse in 10 Minuten, Prüfung aller Eingaben auf dem Server (Pflichtfelder, Formate, erlaubte Optionen, Dateityp und -größe).
+
+**Speicherort:** Antworten in der Datenbank (`data/portal/portal.db`), hochgeladene Dateien unter `data/portal/forms/<formular>/<antwort>/`. Beim Löschen einer Antwort oder eines Formulars werden die Dateien mitgelöscht. Uploads sind durch den Proxy auf 60 MB je Absendung begrenzt.
+
+**Mail-Vorlagen:** „Einladung zum Ausfüllen“, „Erinnerung zum Ausfüllen“, „Neue Antwort“ und „Eingangsbestätigung“ (Gruppe „Formulare“ unter E-Mail-Vorlagen).
+
 ## E-Mail-Vorlagen
 
-Menü **E-Mail-Vorlagen** (nur Admins). Hier stehen alle Mails, die das Portal verschickt, gruppiert nach Konten, Besprechungen und Aufnahmen.
+Menü **E-Mail-Vorlagen** (nur Admins). Hier stehen alle Mails, die das Portal verschickt, gruppiert nach Konten (Einladung, Passwort, Anmeldecode), Besprechungen, Aufnahmen und Formularen.
 
 - **Betreff** und **Text** sind frei änderbar. Platzhalter in geschweiften Klammern, z. B. `{name}` oder `{link}`, werden beim Versand ersetzt. Ein Klick auf einen Platzhalter unter dem Textfeld fügt ihn an der Cursorposition ein; mit der Maus darüber sehen Sie, was er enthält.
 - Rechts zeigt eine **Vorschau** das Ergebnis mit Beispieldaten, schon während Sie tippen.
@@ -239,8 +365,8 @@ Menü **Design & Branding**. Links stellen Sie ein, rechts sehen Sie sofort eine
 | Kopfleiste | Farbe der oberen Leiste: Primärfarbe, dunkel oder hell |
 | Farbschema | Voreinstellung hell, dunkel oder automatisch nach Geräteeinstellung. Jeder kann es oben rechts selbst umstellen |
 | Rundungen | Eckig, Standard oder stark gerundet |
-| Logo | PNG, JPG, WebP oder SVG bis 1 MB, am besten mit transparentem Hintergrund. Höhe einstellbar. „Name zeigen“ blendet den Namen neben dem Logo ein oder aus |
-| Favicon | Das kleine Symbol im Browser-Tab (PNG, ICO oder SVG bis 256 kB) |
+| Logo | PNG, JPG, WebP oder SVG, am besten mit transparentem Hintergrund. **Große Dateien sind kein Problem** (bis 40 MB, z. B. Druckvorlagen): Der Server verkleinert Rastergrafiken automatisch auf Anzeigegröße (höchstens 1600 × 320 Pixel) und meldet das. SVG bleibt unverändert (bis 2 MB). Höhe einstellbar, „Name zeigen“ blendet den Namen neben dem Logo ein oder aus |
+| Favicon | Das kleine Symbol im Browser-Tab (PNG, JPG, WebP, ICO oder SVG; wird auf 256 px verkleinert). **Ohne eigenes Favicon erzeugt das Portal es automatisch aus dem Logo** (Ränder abgeschnitten, quadratisch, 64 px); die Seite zeigt dann „automatisch aus dem Logo erzeugt“. Ein hochgeladenes Favicon hat Vorrang |
 
 **Auf Standard zurücksetzen** (unten) entfernt alle Design-Einstellungen samt Logo und Favicon.
 
@@ -269,7 +395,7 @@ Es gibt zwei Arten von Konferenzräumen:
 - Gäste dürfen **nicht aufnehmen** und werden **nie automatisch Moderator:innen**. Sind nur Gäste im Raum, hat die Konferenz bis zum Eintreffen einer angemeldeten Person keine Moderation. Ein Moderator kann einen Gast im Teilnehmermenü bewusst zum Moderator machen.
 - **Nach der Umstellung (Oktober 2026):** Einladungen, die vorher verschickt wurden, enthalten noch die direkte Konferenzadresse. Externe Gäste kommen damit nicht mehr in Portal-Räume. Für anstehende Besprechungen deshalb einmal **„Einladung erneut senden“** klicken, dann haben alle ihren persönlichen Link.
 
-**Schalter „Konferenzen ohne Anmeldung“** (unter **Benutzer**):
+**Schalter „Konferenzen ohne Anmeldung“** (unter **Benutzer & Gruppen**, nur Admins):
 
 - **Freigegeben** (Standard): freie Räume wie oben beschrieben.
 - **Gesperrt**: Auch jeder freie Raum verlangt eine Anmeldung oder einen Gastlink. Die Einstellung wirkt sofort, ohne Neustart.
@@ -386,7 +512,7 @@ In der Ausgabe muss `--autoplay-policy=no-user-gesture-required` stehen. Das Dia
 
 ## Admin-Passwort vergessen
 
-Wenn noch ein anderer Admin existiert: Dieser klickt unter **Benutzer** bei Ihnen auf „Passwort-Link senden“.
+Wenn noch ein anderer Admin existiert: Dieser klickt unter **Benutzer & Gruppen** bei Ihnen auf „Passwort-Link senden“ (und bei Bedarf „Zwei-Faktor zurücksetzen“).
 
 Wenn nicht: Auf dem Server (Notfallwerkzeug):
 
@@ -394,6 +520,7 @@ Wenn nicht: Auf dem Server (Notfallwerkzeug):
 docker compose exec portal python -m app.cli users                       # Konten anzeigen
 docker compose exec portal python -m app.cli set-password admin@example.org   # neues Passwort setzen
 docker compose exec portal python -m app.cli make-admin kollege@example.org   # Konto zum aktiven Admin machen
+docker compose exec portal python -m app.cli reset-2fa admin@example.org      # Zwei-Faktor zurücksetzen (Telefon verloren)
 ```
 
 Das Passwort wird nicht angezeigt, wenn Sie es eintippen. Das ist normal.
@@ -420,11 +547,13 @@ docker compose up -d --build
 
 Die Datenbank wird beim Start automatisch auf das neue Format gebracht. Vorher bitte [sichern](#sicherung-und-wiederherstellung).
 
+**Hat sich etwas an den Prosody-Modulen geändert** (Ordner `prosody/`, z. B. beim Update auf die Version mit Umfragen), zusätzlich `docker compose restart prosody`. Laufende Konferenzen werden dabei kurz getrennt – am besten außerhalb der Arbeitszeit. **Hat sich die Proxy-Vorlage geändert** (`caddy/Caddyfile`), übernimmt das Portal die Änderung beim Start automatisch in die verwaltete Konfiguration.
+
 **Jitsi aktualisieren:** In `.env` bei `JITSI_IMAGE_VERSION` die neue Version eintragen (Liste: <https://github.com/jitsi/docker-jitsi-meet/releases>), dann `docker compose pull && docker compose up -d`.
 
 ## Sicherung und Wiederherstellung
 
-**Was sichern?** Den Ordner `data/portal/` (Datenbank, MP3-Dateien), `data/caddy/` (Zertifikate) und die Datei `.env`. Bei Bedarf zusätzlich `data/recordings/` (Videos).
+**Was sichern?** Den Ordner `data/portal/` (Datenbank mit Benutzern, Meetings, Kurzlinks, Formularen und Antworten; MP3-Dateien; Logo; Formular-Uploads), `data/caddy/` (Zertifikate) und die Datei `.env`. Bei Bedarf zusätzlich `data/recordings/` (Videos).
 
 **Sauber sichern (Datenbank im laufenden Betrieb):**
 
@@ -432,11 +561,11 @@ Die Datenbank wird beim Start automatisch auf das neue Format gebracht. Vorher b
 docker compose exec portal python -c "import sqlite3; s=sqlite3.connect('/data/portal.db'); d=sqlite3.connect('/data/backup.db'); s.backup(d)"
 ```
 
-Danach `data/portal/backup.db` und `data/portal/audio/` wegkopieren, z. B. mit `rsync -a data/portal/ /pfad/zur/sicherung/`.
+Danach `data/portal/backup.db` sowie die Ordner `data/portal/audio/`, `data/portal/forms/` und `data/portal/branding/` wegkopieren, am einfachsten alles mit `rsync -a data/portal/ /pfad/zur/sicherung/`.
 
 **Wiederherstellen:** `docker compose down`, gesicherten Ordner `data/portal/` zurückkopieren (`backup.db` als `portal.db`), dieselbe `.env` verwenden, `docker compose up -d`.
 
-> Die `.env` muss **dieselbe** sein wie zum Zeitpunkt der Sicherung (besonders `PORTAL_SECRET_KEY`). Sonst sind gespeicherte Passwörter (SMTP, IMAP) und der SpeechMind-Key unlesbar; sie müssen dann neu eingegeben werden.
+> Die `.env` muss **dieselbe** sein wie zum Zeitpunkt der Sicherung (besonders `PORTAL_SECRET_KEY`). Sonst sind gespeicherte Passwörter (SMTP, IMAP), der SpeechMind-Key und die Authenticator-Schlüssel der Zwei-Faktor-Anmeldung unlesbar. Mail-Zugänge und Key müssen dann neu eingegeben, die Zwei-Faktor-Anmeldung aller Personen zurückgesetzt werden.
 
 ## Speicherplatz
 
@@ -469,4 +598,12 @@ Platz sparen: Aufnahmen nach Gebrauch in der Oberfläche löschen oder unter **S
 | Einladungsmail kommt nicht an | Spam-Ordner prüfen; **Benachrichtigungen** → Versandprotokoll ansehen; Testmail senden |
 | „Zu viele Versuche“ | Eingebaute Bremse gegen Passwort-Raten: ca. 10 Minuten warten |
 | Link „ungültig oder abgelaufen“ | Neuen Link anfordern (Admin: „Einladung erneut senden“, Benutzer: „Passwort vergessen?“) |
+| Menüpunkt fehlt bei einer Person | Recht in **Benutzer & Gruppen** setzen; ist das Modul unter **Module** abgeschaltet? |
+| Kurzlink zeigt „nicht verfügbar“ | Link deaktiviert, abgelaufen oder Aufruf-Limit erreicht (Detailseite des Links). Kurz-Domain: DNS und Zertifikat prüfen (**HTTPS & Zertifikat**, `docker compose logs caddy`) |
+| Formular: „Formular geschlossen“ | In den Formular-Einstellungen „Nimmt Antworten an“ und die Frist prüfen |
+| Formular-Upload scheitert | Dateityp/-größe in der Frage prüfen. Mehr als 60 MB je Absendung lässt der Proxy nicht zu |
+| Jemand hat Telefon für Zwei-Faktor verloren | **Benutzer & Gruppen** › Schild-Symbol „Zwei-Faktor zurücksetzen“ |
+| Anmeldecode per Mail kommt nicht an | Versandprotokoll unter **Benachrichtigungen** prüfen; Spam-Ordner; notfalls Zwei-Faktor zurücksetzen |
+| Logo-Upload: „Das Bild lässt sich nicht lesen“ | Datei ist beschädigt oder hat eine falsche Endung. In einem Grafikprogramm als PNG neu speichern |
+| Umfragen fehlen in der Aufnahme | Nur in Portal-Räumen und während einer Aufnahme. Nach dem Update `docker compose restart prosody` ausgeführt? |
 | Anderes | `docker compose logs --tail 100 portal` und die Meldung an die Betreuung weitergeben |
