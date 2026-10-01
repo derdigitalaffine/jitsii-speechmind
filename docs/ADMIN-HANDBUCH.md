@@ -7,15 +7,16 @@ Für alle, die den Videokonferenzserver der Verbandsgemeinde Otterbach-Otterberg
 1. [Die Oberfläche im Überblick](#die-oberfläche-im-überblick)
 2. [Aufnahmen und Transkription](#aufnahmen-und-transkription)
 3. [Benutzer verwalten und einladen](#benutzer-verwalten-und-einladen)
-4. [Design & Branding](#design--branding)
-5. [Konferenzen ohne Anmeldung](#konferenzen-ohne-anmeldung)
-6. [E-Mail einrichten](#e-mail-einrichten)
-7. [SpeechMind einrichten](#speechmind-einrichten)
-8. [Admin-Passwort vergessen](#admin-passwort-vergessen)
-9. [Alltag: Start, Stopp, Logs, Update](#alltag-start-stopp-logs-update)
-10. [Sicherung und Wiederherstellung](#sicherung-und-wiederherstellung)
-11. [Speicherplatz](#speicherplatz)
-12. [Wenn etwas nicht geht](#wenn-etwas-nicht-geht)
+4. [HTTPS und Zertifikat](#https-und-zertifikat)
+5. [Design & Branding](#design--branding)
+6. [Konferenzen ohne Anmeldung](#konferenzen-ohne-anmeldung)
+7. [E-Mail einrichten](#e-mail-einrichten)
+8. [SpeechMind einrichten](#speechmind-einrichten)
+9. [Admin-Passwort vergessen](#admin-passwort-vergessen)
+10. [Alltag: Start, Stopp, Logs, Update](#alltag-start-stopp-logs-update)
+11. [Sicherung und Wiederherstellung](#sicherung-und-wiederherstellung)
+12. [Speicherplatz](#speicherplatz)
+13. [Wenn etwas nicht geht](#wenn-etwas-nicht-geht)
 
 ## Die Oberfläche im Überblick
 
@@ -28,6 +29,7 @@ Nach der Anmeldung zeigt die obere Leiste für Admins:
 | **Benutzer** | Konten anlegen, einladen, sperren, löschen |
 | **Benachrichtigungen** | E-Mail-Versand (SMTP/IMAP), welche Hinweise verschickt werden, Versandprotokoll |
 | **SpeechMind** | API-Key, Projekt, Sprache, Protokollart |
+| **HTTPS & Zertifikat** | Selbst signiert oder Let's Encrypt, Zertifikatsstatus |
 | **Design & Branding** | Name, Farben, Logo, Fußzeile, Impressum-Link |
 | *Ihr Name* (oben rechts) | Profil, Passwort ändern, Abmelden |
 | Halbmond-Symbol (oben rechts) | Hell, Dunkel oder automatisch umschalten (gilt nur für Sie) |
@@ -89,6 +91,50 @@ Das eigene Konto lässt sich hier nicht sperren oder löschen (Schutz vor Ausspe
 **Passwort vergessen (Benutzer:innen):** Auf der Login-Seite „Passwort vergessen?“ klicken, E-Mail eingeben. Der Link ist 2 Stunden gültig. Aus Sicherheitsgründen antwortet das Portal immer gleich, auch wenn die Adresse unbekannt ist.
 
 **Das Standard-Admin-Konto** wird beim allerersten Start angelegt. Legen Sie danach ein persönliches Admin-Konto für jede zuständige Person an und sperren Sie das Standardkonto oder behalten Sie es mit sicherem Passwort.
+
+## HTTPS und Zertifikat
+
+Menü **HTTPS & Zertifikat**. Ein Reverse Proxy (Caddy) nimmt alle Zugriffe auf Konferenz und Portal entgegen und verschlüsselt sie. Oben sehen Sie für beide Adressen, welches Zertifikat gerade ausgeliefert wird (Aussteller, gültig bis, Fingerabdruck, vertrauenswürdig ja/nein).
+
+### Die zwei Modi
+
+| Modus | Wann sinnvoll | Browser |
+|---|---|---|
+| **Selbst signiert** (Standard) | Erster Start, Tests, interne Nutzung, wenn noch kein DNS vorhanden ist | Zeigt eine Warnung. Einmal „Erweitert › Trotzdem fortfahren“ wählen, oder das Root-Zertifikat auf den Geräten installieren (s. u.) |
+| **Let's Encrypt** | Echtbetrieb im Internet | Keine Warnung. Zertifikate werden automatisch beantragt und rechtzeitig vor Ablauf (nach ca. 60 Tagen) erneuert |
+
+### Let's Encrypt einschalten
+
+**Vorher prüfen** (rechts auf der Seite sehen Sie eine Kontrolle):
+
+1. Beide Domains (Konferenz und Portal) haben einen DNS-Eintrag auf die öffentliche IP des Servers. Die Seite zeigt je Domain „passt“, „andere IP“ oder „DNS fehlt“.
+2. Die Ports **80 und 443** sind aus dem Internet erreichbar (Firewall, Router, Rechenzentrum). Let's Encrypt prüft über Port 80. Ob das von außen klappt, kann das Portal nicht testen.
+
+**Dann:**
+
+1. Auf **Let's Encrypt** klicken.
+2. E-Mail-Adresse prüfen (für Warnungen, falls eine Erneuerung scheitert).
+3. *Empfohlen beim ersten Mal:* **Testumgebung** einschalten. So üben Sie ohne Sperre durch Anfrage-Limits. Die Zertifikate sind dann noch nicht vertrauenswürdig; zum Echtbetrieb später ausschalten und erneut speichern.
+4. **Speichern und anwenden**.
+5. Die Seite aktualisiert sich alle 10 Sekunden. Nach ca. einer Minute steht „vertrauenswürdig“ und als Aussteller „Let's Encrypt“.
+
+**Klappt es nicht?** Auf dem Server `docker compose logs caddy` ansehen. Häufige Ursachen: DNS zeigt woandershin, Port 80 ist zu, oder es gab zu viele Fehlversuche (Let's Encrypt sperrt kurz; mit der Testumgebung üben). Das Zurückschalten auf „Selbst signiert“ ist jederzeit möglich. Solange kein neues Zertifikat bereit ist, behält der Proxy sein Verhalten bei.
+
+### Zurück zu selbst signiert
+
+Auf **Selbst signiert** klicken und speichern. Nach wenigen Sekunden liefert der Proxy wieder selbst signierte Zertifikate aus.
+
+### Warnung bei selbst signierten Zertifikaten vermeiden
+
+Rechts auf der Seite gibt es **Root-Zertifikat herunterladen**. Dieses Zertifikat installieren Sie auf den Geräten als vertrauenswürdige Stammzertifizierungsstelle (Windows: Doppelklick › „Zertifikat installieren“ › „Vertrauenswürdige Stammzertifizierungsstellen“, in Organisationen per Gruppenrichtlinie). Danach gelten alle vom Proxy ausgestellten Zertifikate als vertrauenswürdig. Das Root-Zertifikat entsteht beim ersten Start des Proxys.
+
+### Gut zu wissen
+
+- **Aufnahmen** funktionieren in beiden Modi. Jibri ist so eingestellt, dass es auch selbst signierte Zertifikate akzeptiert (nur für den Aufruf der eigenen Konferenzseite). Wollen Sie das bei Let's Encrypt abstellen, setzen Sie in der `.env` `JIBRI_CHROMIUM_FLAGS=` (leer) und starten mit `docker compose up -d` neu.
+- **HSTS** (Browser merkt sich „nur HTTPS“) wird nur bei Let's Encrypt gesendet. Bei selbst signierten Zertifikaten würde es die Warnung unüberwindbar machen.
+- Die vom Portal erzeugte Konfiguration liegt in `data/caddy/conf/Caddyfile`. Bitte nicht von Hand ändern; das Portal überschreibt sie. Fehlerhafte Konfigurationen lädt der Proxy nicht, er bleibt dann bei der letzten funktionierenden.
+- Die Domains selbst (`MEET_DOMAIN`, `PORTAL_DOMAIN`) ändern Sie weiterhin in der `.env`.
+- Zertifikate und Schlüssel liegen unter `data/caddy/data/`. Sichern Sie den Ordner mit, dann muss nach einer Wiederherstellung nichts neu beantragt werden.
 
 ## Design & Branding
 
@@ -224,7 +270,7 @@ Die Datenbank wird beim Start automatisch auf das neue Format gebracht. Vorher b
 
 ## Sicherung und Wiederherstellung
 
-**Was sichern?** Den Ordner `data/portal/` (Datenbank, MP3-Dateien) und die Datei `.env`. Bei Bedarf zusätzlich `data/recordings/` (Videos).
+**Was sichern?** Den Ordner `data/portal/` (Datenbank, MP3-Dateien), `data/caddy/` (Zertifikate) und die Datei `.env`. Bei Bedarf zusätzlich `data/recordings/` (Videos).
 
 **Sauber sichern (Datenbank im laufenden Betrieb):**
 
@@ -253,6 +299,8 @@ Platz sparen: Aufnahmen nach Gebrauch in der Oberfläche löschen oder unter **S
 
 | Problem | Lösung |
 |---|---|
+| Browser zeigt eine Zertifikatswarnung | Normal im Modus „Selbst signiert“. Dauerhaft beheben: Let's Encrypt einschalten (Menü HTTPS & Zertifikat) oder das Root-Zertifikat installieren |
+| Let's Encrypt bleibt auf „wird beantragt“ | DNS und Port 80/443 prüfen, `docker compose logs caddy` lesen, zum Üben die Testumgebung nutzen |
 | Portal-Seite lädt nicht | `docker compose ps`, `docker compose logs caddy portal`. Zeigt der Browser einen Zertifikatsfehler: DNS prüfen und ein paar Minuten warten |
 | Konferenz öffnet, aber kein Bild/Ton | UDP 10000 nicht offen oder `JVB_ADVERTISE_IPS` ist nicht die öffentliche IP |
 | Beitritt endet in einer Schleife auf der Login-Seite | `JWT_*`-Werte in `.env` geändert? Dann `docker compose up -d --force-recreate` |

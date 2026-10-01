@@ -1,7 +1,7 @@
 # Jitsi Meet (self-hosted, JWT-Auth) + Jibri-Aufzeichnung + SpeechMind-Portal
 #
 # Aufbau:
-#   caddy   – TLS (Let's Encrypt) & Reverse Proxy für MEET_DOMAIN und PORTAL_DOMAIN
+#   caddy   – Reverse Proxy mit TLS (selbst signiert, Let's Encrypt per Admin-GUI) für MEET_DOMAIN und PORTAL_DOMAIN
 #   web     – Jitsi-Meet-Frontend
 #   prosody – XMPP-Server (JWT-Authentifizierung)
 #   jicofo  – Konferenz-Fokus
@@ -21,6 +21,13 @@ services:
   caddy:
     image: caddy:2
     restart: ${RESTART_POLICY:-unless-stopped}
+    # Startet mit der Datei, die das Portal verwaltet (Admin > HTTPS & Zertifikat) und lädt sie
+    # bei Änderungen selbst neu. Beim allerersten Start dient caddy/Caddyfile als Vorlage
+    # (selbst signiertes Zertifikat).
+    command:
+      - sh
+      - -c
+      - "[ -f /conf/Caddyfile ] || cp /etc/caddy/Caddyfile /conf/Caddyfile; exec caddy run --config /conf/Caddyfile --adapter caddyfile --watch"
     ports:
       - "80:80"
       - "443:443"
@@ -31,6 +38,7 @@ services:
       - ACME_EMAIL
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${CONFIG}/caddy/conf:/conf
       - ${CONFIG}/caddy/data:/data
       - ${CONFIG}/caddy/config:/config
     depends_on:
@@ -102,6 +110,9 @@ services:
       - DISPLAY=:0
       - JIBRI_RECORDING_DIR=/config/recordings
       - JIBRI_FINALIZE_RECORDING_SCRIPT_PATH=/config/finalize.sh
+      # Jibri öffnet die eigene Konferenz-Adresse. Mit selbst signiertem Zertifikat würde Chrome
+      # sonst abbrechen. Bei Let's Encrypt in .env JIBRI_CHROMIUM_FLAGS= (leer) setzen.
+      - CHROMIUM_FLAGS=${JIBRI_CHROMIUM_FLAGS---ignore-certificate-errors}
     volumes:
       - ${CONFIG}/jibri:/config:Z
       - ./jibri/finalize.sh:/config/finalize.sh:ro
@@ -132,8 +143,15 @@ services:
       - JWT_TOKEN_TTL_MINUTES=${JWT_TOKEN_TTL_MINUTES:-240}
       - RECORDINGS_DIR=/recordings
       - DATA_DIR=/data
+      - ACME_EMAIL
+      - PUBLIC_IP=${JVB_ADVERTISE_IPS:-}
+      - CADDY_CONF_DIR=/caddyconf
+      - CADDY_DATA_DIR=/caddydata
     volumes:
       - ${CONFIG}/portal:/data
+      # Proxy-Steuerung aus der Admin-Oberfläche: Konfiguration schreiben, Root-Zertifikat lesen
+      - ${CONFIG}/caddy/conf:/caddyconf
+      - ${CONFIG}/caddy/data:/caddydata:ro
       - ${CONFIG}/recordings:/recordings
     networks:
       meet.jitsi:

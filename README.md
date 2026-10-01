@@ -29,6 +29,7 @@ Name und Produktbezeichnung lassen sich über `BRAND_NAME` und `BRAND_PRODUCT` i
 - **MP3-Übersicht** im Admin-Bereich: alle Aufnahmen mit Dauer, Größe und Status, MP3-Download, Übergabe an SpeechMind.
 - **Benutzerverwaltung** für Admins mit **Einladung per E-Mail**: Die eingeladene Person legt ihr Passwort über einen Einmal-Link selbst fest. „Passwort vergessen“ nutzt denselben Weg. Optional eigene SpeechMind-Keys pro Benutzer:in.
 - **Benachrichtigungen per E-Mail** (SMTP, optional IMAP-Ablage): Einladungen, Passwort-Links und Hinweise zu neuen Aufnahmen, fertigen Transkripten und Fehlern. Nachrichten laufen über eine Warteschlange mit automatischen Wiederholungen und sichtbarem Protokoll.
+- **HTTPS mit Reverse Proxy (Caddy):** Start mit selbst signiertem Zertifikat, sofort lauffähig. **Let's Encrypt** (automatische Beantragung und Erneuerung) schaltet man bei Bedarf in der Admin-Oberfläche unter „HTTPS & Zertifikat“ ein – ohne Dateien zu bearbeiten, mit DNS-Prüfung, Testumgebung und Statusanzeige.
 - **Konferenzen ohne Anmeldung:** Wer kein Konto hat, kann über die Anmeldeseite sofort einen eigenen Raum eröffnen und Gäste einladen. **Aufnahmen sind dort ausgeschlossen** (Aufnahme-Recht fehlt im Token; Aufnahmen solcher Räume werden zusätzlich serverseitig verworfen). Im Admin-Bereich abschaltbar.
 - **Moderne Admin-Oberfläche** (Bootstrap 5, Font Awesome 7): Seitenleiste, hell/dunkel, durchsuchbare und sortierbare Tabellen (DataTables), Mehrfach-Einladung per E-Mail-Tags (Tagify), Bestätigungsdialoge (SweetAlert2). Alle Bibliotheken liegen lokal im Repository – keine Verbindung zu Drittanbietern.
 - **Design & Branding** im Admin-Bereich: Name, Hauptfarbe, Kopfleiste, Farbschema, Rundungen, Logo, Favicon, Anmelde-Hinweis, Fußzeile, Impressum-/Datenschutz-Links, mit Live-Vorschau; Farben und Logo lassen sich ein- und ausschalten und auf Standard zurücksetzen.
@@ -42,7 +43,7 @@ Name und Produktbezeichnung lassen sich über `BRAND_NAME` und `BRAND_PRODUCT` i
 | Wer den Server **installiert und betreibt** | diese Seite, danach [docs/ADMIN-HANDBUCH.md](docs/ADMIN-HANDBUCH.md) |
 | Wer **Konferenzen hält** (Mitarbeitende) | [docs/BENUTZERANLEITUNG.md](docs/BENUTZERANLEITUNG.md) |
 
-## Installation in 10 Schritten
+## Installation in 11 Schritten
 
 Sie brauchen: einen Linux-Server (Ubuntu/Debian), Zugriff per SSH mit `sudo`, und jemanden, der DNS-Einträge anlegen kann. **Rechnen Sie mit 30–60 Minuten.**
 
@@ -56,6 +57,8 @@ Sie brauchen: einen Linux-Server (Ubuntu/Debian), Zugriff per SSH mit `sudo`, un
 - [ ] **SpeechMind-API-Key** (kommt vom Anbieter) – nur für die Transkription nötig, kann nachgereicht werden.
 
 ### Schritt für Schritt
+
+> Für den allerersten Start brauchen Sie **keine** öffentliche Domain: Mit selbst signiertem Zertifikat läuft alles. Let's Encrypt kommt erst in Schritt 11 dazu.
 
 **1. Docker installieren** (einmalig, falls noch nicht vorhanden):
 
@@ -94,7 +97,7 @@ Das erste Mal dauert einige Minuten (Bilder werden geladen und gebaut).
 docker compose ps
 ```
 
-Alle Zeilen sollten „running“ oder „Up“ zeigen. Zertifikate holt sich Caddy beim ersten Aufruf von selbst (dauert ca. eine Minute).
+Alle Zeilen sollten „running“ oder „Up“ zeigen. Der Proxy startet mit **selbst signierten Zertifikaten**: Das Portal läuft sofort, der Browser zeigt aber eine Zertifikatswarnung (einmal „Trotzdem fortfahren“ wählen). Das richten Sie in Schritt 11 sauber ein.
 
 **6. Portal öffnen:** `https://<Ihre Portal-Domain>` im Browser. Anmelden mit der Admin-E-Mail und dem Startpasswort aus Schritt 3.
 
@@ -105,6 +108,8 @@ Alle Zeilen sollten „running“ oder „Up“ zeigen. Zertifikate holt sich Ca
 **9. SpeechMind verbinden:** Oben auf **SpeechMind**, API-Key eintragen, **Speichern**, **Verbindung testen**, ein Projekt auswählen, **Speichern**.
 
 **10. Kolleginnen und Kollegen einladen:** Oben auf **Benutzer**, Name und E-Mail eintragen, **Einladen**. Die Person bekommt eine Mail mit einem Link und legt ihr Passwort selbst fest.
+
+**11. Öffentliches Zertifikat (Let's Encrypt) einschalten:** Sind DNS-Einträge und Ports 80/443 bereit, im Portal links auf **HTTPS & Zertifikat**, **Let's Encrypt** wählen, E-Mail prüfen, **Speichern und anwenden**. Nach etwa einer Minute steht oben „vertrauenswürdig“ und die Browser-Warnung ist weg. Zum gefahrlosen Üben vorher „Testumgebung“ einschalten. Details im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#https-und-zertifikat).
 
 **Probelauf (empfohlen):** Legen Sie ein Meeting an, treten Sie bei, starten Sie über „…“ › „Aufnahme starten“, sprechen Sie ein paar Sätze, beenden Sie die Aufnahme. Nach kurzer Zeit erscheint sie unter **Aufnahmen** mit MP3.
 
@@ -176,7 +181,7 @@ Alles Persistente liegt unter `data/` (konfigurierbar über `CONFIG`):
 - `data/portal/audio/` – erzeugte MP3-Dateien
 - `data/portal/branding/` – hochgeladenes Logo und Favicon
 - `data/recordings/` – Jibri-Aufnahmen
-- `data/caddy/` – Zertifikate
+- `data/caddy/` – Zertifikate und die vom Portal verwaltete Proxy-Konfiguration (`conf/Caddyfile`)
 - übrige Ordner – Jitsi-Konfiguration (wird beim Start neu erzeugt)
 
 Sicherung: `data/portal/` und `.env` regelmäßig wegsichern. Für eine konsistente Kopie der Datenbank:
@@ -239,6 +244,7 @@ portal/app/
 ├── worker.py        Aufnahmen finden, MP3 erzeugen, Upload, Statusabfrage
 ├── notify.py        Benachrichtigungs-Engine (SMTP/IMAP, Warteschlange)
 ├── branding.py      Design & Branding (Farben, Logo, Theme-CSS)
+├── proxy.py         Reverse Proxy: Caddyfile erzeugen, Zertifikate prüfen
 ├── cli.py           Notfall-Werkzeug (Passwort setzen, Admin machen)
 ├── speechmind.py    Client für die SpeechMind GraphQL API v2
 ├── security.py      Passwörter, Verschlüsselung, CSRF, Jitsi-JWT

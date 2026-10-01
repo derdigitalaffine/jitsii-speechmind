@@ -195,6 +195,10 @@ DEFAULT_SETTINGS = {
     "notify_new_recording": "1",
     "notify_done": "1",
     "notify_failed": "1",
+    # HTTPS / Reverse Proxy
+    "tls_mode": "selfsigned",     # selfsigned | letsencrypt
+    "tls_email": "",
+    "tls_staging": "0",
     # Zugang
     "allow_anonymous": "1",
     # Design & Branding (siehe branding.py)
