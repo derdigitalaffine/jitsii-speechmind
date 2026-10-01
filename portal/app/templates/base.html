@@ -72,6 +72,7 @@
         </ul>
       </div>
       {% else %}
+      {% if 'laws' in modules %}<a class="btn btn-link" href="/recht"><i class="fa-solid fa-scale-balanced me-1"></i><span class="d-none d-sm-inline">Rechtstexte</span></a>{% endif %}
       <a class="btn btn-link" href="/login">Anmelden</a>
       {% endif %}
     </div>
@@ -98,15 +99,22 @@
             <li class="nav-section">Kurzlinks</li>
             {{ m.nav_item('/shortlinks', 'fa-link', 'Kurzlinks', path.startswith('/shortlinks')) }}
             {% endif %}
-            {% if (user.can('polls') and 'polls' in modules) or (user.can('bookings') and 'bookings' in modules) %}
+            {% set nav_polls = (user.can('polls') or 'polls' in shared_nav) and 'polls' in modules %}
+            {% set nav_bookings = (user.can('bookings') or 'bookings' in shared_nav) and 'bookings' in modules %}
+            {% if nav_polls or nav_bookings %}
             <li class="nav-section">Termine</li>
-            {% if user.can('polls') and 'polls' in modules %}{{ m.nav_item('/polls', 'fa-calendar-check', 'Terminumfragen', path.startswith('/polls')) }}{% endif %}
-            {% if user.can('bookings') and 'bookings' in modules %}{{ m.nav_item('/bookings', 'fa-calendar-plus', 'Terminbuchung', path.startswith('/bookings')) }}{% endif %}
+            {% if nav_polls %}{{ m.nav_item('/polls', 'fa-calendar-check', 'Terminumfragen', path.startswith('/polls')) }}{% endif %}
+            {% if nav_bookings %}{{ m.nav_item('/bookings', 'fa-calendar-plus', 'Terminbuchung', path.startswith('/bookings')) }}{% endif %}
             {% endif %}
             {% if 'forms' in modules %}
             <li class="nav-section">Formulare</li>
             {{ m.nav_item('/forms', 'fa-clipboard-list', 'Formulare' if user.can('forms') else 'Geteilte Formulare', path == '/forms' or (path.startswith('/forms/') and not path.startswith('/forms/inbox'))) }}
             {{ m.nav_item('/forms/inbox', 'fa-inbox', 'Zum Ausfüllen', path.startswith('/forms/inbox')) }}
+            {% endif %}
+            {% if 'laws' in modules %}
+            <li class="nav-section">Rechtstexte</li>
+            {{ m.nav_item('/recht', 'fa-scale-balanced', 'Ortsrecht ansehen', path.startswith('/recht')) }}
+            {% if user.can('laws') %}{{ m.nav_item('/laws', 'fa-pen-to-square', 'Rechtstexte pflegen', path.startswith('/laws')) }}{% endif %}
             {% endif %}
             {% if user.is_admin or user.can('users') %}
             <li class="nav-section">Verwaltung</li>
@@ -114,6 +122,7 @@
             {{ m.nav_item('/admin/users', 'fa-users', 'Benutzer &amp; Gruppen'|safe, path == '/admin/users') }}
             {% if user.is_admin %}
             {{ m.nav_item('/admin/modules', 'fa-puzzle-piece', 'Module', path == '/admin/modules') }}
+            {{ m.nav_item('/admin/sessions', 'fa-user-clock', 'Sitzungen &amp; Cookies'|safe, path == '/admin/sessions') }}
             {{ m.nav_item('/admin/notifications', 'fa-envelope', 'Benachrichtigungen', path.startswith('/admin/notifications')) }}
             {{ m.nav_item('/admin/templates', 'fa-envelope-open-text', 'E-Mail-Vorlagen', path == '/admin/templates') }}
             {{ m.nav_item('/admin/speechmind', 'fa-wand-magic-sparkles', 'SpeechMind', path == '/admin/speechmind') }}

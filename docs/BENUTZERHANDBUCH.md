@@ -14,6 +14,8 @@ Für alle, die im Portal der Verbandsgemeinde Otterbach-Otterberg arbeiten: Vide
 6. [Aufnahme, Chatprotokoll, Umfragen und Transkript](#6-aufnahme-chatprotokoll-umfragen-und-transkript)
 6a. [Terminumfragen (wie Doodle)](#6a-terminumfragen-wie-doodle)
 6b. [Terminbuchung (z. B. Vorstellungsgespräche)](#6b-terminbuchung-z-b-vorstellungsgespräche)
+6c. [Terminumfragen und Buchungsseiten teilen](#6c-terminumfragen-und-buchungsseiten-teilen)
+6d. [Rechtstexte (Ortsrecht online)](#6d-rechtstexte-ortsrecht-online)
 7. [Kurzlinks und QR-Codes](#7-kurzlinks-und-qr-codes)
 8. [Formulare erstellen](#8-formulare-erstellen)
 9. [Formulare verteilen](#9-formulare-verteilen)
@@ -56,7 +58,7 @@ Nach mehreren falschen Versuchen sperrt das Portal kurz („Zu viele Versuche“
 
 ## 2. Die Oberfläche
 
-- **Links das Menü** (auf dem Handy über die drei Striche oben links): gegliedert nach Videokonferenzen, Kurzlinks, Formulare und – falls Sie die Rechte haben – Verwaltung.
+- **Links das Menü** (auf dem Handy über die drei Striche oben links): gegliedert nach Videokonferenzen, Kurzlinks, Termine, Formulare, Rechtstexte und – falls Sie die Rechte haben – Verwaltung. Sie sehen nur die Bereiche, für die Sie freigeschaltet sind oder in denen etwas mit Ihnen geteilt wurde.
 - **Oben rechts Ihr Name:** Profil, Sicherheit (Zwei-Faktor), „Über dieses Portal“ und Abmelden.
 - **Halbkreis-Symbol** daneben: hell, dunkel oder automatisch nach Geräteeinstellung (gilt nur für Sie).
 - **Grüne und rote Meldungen** oben auf der Seite bestätigen eine Aktion bzw. erklären, was nicht geklappt hat.
@@ -302,6 +304,57 @@ Unter dem Kalender steht die **Terminliste**:
 
 ---
 
+## 6c. Terminumfragen und Buchungsseiten teilen
+
+Wie Formulare lassen sich auch Terminumfragen und Buchungsseiten **im Portal mit Kolleg:innen teilen** – etwa mit dem Auswahlgremium eines Bewerbungsverfahrens oder der Vertretung im Urlaub. Ganz unten auf der Umfrage bzw. Buchungsseite: **Im Portal freigeben**, Personen und/oder Gruppen wählen, Berechtigung festlegen, **Freigeben**.
+
+| Stufe | Terminumfrage | Buchungsseite |
+|---|---|---|
+| **1 – Ergebnisse einsehen** | Abstimmungsergebnis, Teilnehmende, CSV-Export | Kalender (nur lesend), Terminliste, Exporte |
+| **2 – Einladen** | zusätzlich Personen einladen, erinnern, Abstimmungslink verwalten | zusätzlich Personen zum Buchen einladen, Buchungslink und QR-Code |
+| **3 – Bearbeiten** | zusätzlich Vorschläge und Einstellungen ändern, Termin festlegen, Teilnehmende entfernen, Umfrage löschen | zusätzlich Zeitbereiche und Einstellungen, Kalender-Abo, Termine verschieben/absagen, Seite löschen |
+
+Die Stufe lässt sich in der Liste jederzeit ändern, das ✕ entfernt die Freigabe. Bekommt eine Person über ihre Gruppe und direkt unterschiedliche Stufen, gilt die höhere. Freigaben verwalten nur Sie als Besitzer:in (und Admins).
+
+**Was die Kolleg:innen sehen:** In **Terminumfragen** bzw. **Terminbuchung** erscheint der Bereich **„Mit mir geteilt“** – auch wenn sie selbst keine Umfragen oder Buchungsseiten anlegen dürfen. Ein Hinweis oben zeigt, von wem geteilt wurde und mit welcher Stufe; Knöpfe, die die Stufe nicht erlaubt, sind ausgeblendet. Mails an Gäste und Teilnehmende (Bestätigungen, Hinweise auf neue Buchungen) laufen weiter über Sie.
+
+---
+
+## 6d. Rechtstexte (Ortsrecht online)
+
+**Lesen – für alle, ohne Anmeldung:** über den Link **Rechtstexte** oben auf jeder Portalseite (Adresse `/recht`).
+
+- Die Startseite zeigt den **Rechtsbaum** von der Europäischen Union bis zu den Ortsgemeinden, darunter die jeweiligen Satzungen, Verordnungen und Gesetze. Ein Klick auf eine Ebene zeigt nur deren Texte.
+- **Suchen:** Suchbegriffe eingeben – gefunden werden Titel, Überschriften und Text; alle Wörter müssen vorkommen. Paragrafen lassen sich direkt suchen („§ 3 Hauptsatzung“). Die Fundstellen sind gelb markiert; ein Klick öffnet den Paragrafen mit Hervorhebung.
+- **Volltext** zeigt den ganzen Text in gewohnter Gesetzesform (zentrierte Paragrafenüberschriften, nummerierte Absätze). Links steht die **Inhaltsübersicht** als Baum (Teile und Abschnitte auf-/zuklappbar, Filterfeld); beim Scrollen ist der aktuelle Paragraf markiert.
+- **Einzelne Abschnitte** zeigt einen Paragrafen bzw. Abschnitt für sich, mit Vor/Zurück-Blättern.
+- Fährt man über eine Paragrafenüberschrift, erscheinen Knöpfe für **„einzeln anzeigen“** und **„Link kopieren“** (z. B. `…/recht/hauptsatzung/p3` für § 3 – ideal für Mails und Bescheide).
+- **Drucken** liefert eine saubere Druckfassung ohne Menüs; **Markdown** lädt den Text herunter.
+
+**Pflegen – mit dem Recht „Rechtstexte“:** Menü **Rechtstexte › Rechtstexte pflegen**.
+
+1. **Neuer Rechtstext**: Titel (oder leer lassen und den Text mit `# Titel` beginnen), Abkürzung, Art, **Ebene** (z. B. „Ortsgemeinde Katzweiler“), Stand/Fassung, Daten.
+2. Text einfügen oder **Datei laden** (.md oder .txt). Aus Word oder einer Webseite kopierter Text geht auch. Gliedern Sie so:
+
+   ```
+   # Hauptsatzung der Ortsgemeinde Musterdorf
+   Der Gemeinderat hat … beschlossen:          ← Eingangsformel
+
+   ## Erster Abschnitt – Allgemeines            ← Gliederung (##, ###, …)
+   ### § 1 Name                                  ← Paragraf mit Überschrift
+   (1) Erster Absatz …                           ← nummerierte Absätze
+   (2) Zweiter Absatz …
+   ```
+
+   Ohne `#` erkennt das Portal Zeilen wie „§ 1 Name“, „Artikel 2“ oder „Zweiter Abschnitt“ selbst.
+3. **Gliederung prüfen** zeigt rechts, was erkannt wurde – noch vor dem Speichern.
+4. **Öffentlich sichtbar** einschalten, wenn der Text erscheinen soll; sonst bleibt er ein Entwurf, den nur Bearbeiter:innen sehen.
+5. **Speichern.** Bei jeder Änderung wird die vorige Fassung aufbewahrt (rechts unter „Frühere Fassungen“ ansehen und wiederherstellen).
+
+Viele Texte auf einmal: **Dateien hochladen**, Ebene und Art wählen, mehrere Dateien markieren. Unter **Ebenen** legen Sie neue Ebenen an (z. B. einen Zweckverband), benennen um, verschieben und sortieren sie.
+
+---
+
 ## 7. Kurzlinks und QR-Codes
 
 Menü **Kurzlinks** (Recht „Kurzlinks“). Aus einer langen Adresse wird eine kurze, z. B. `https://…/s/sommerfest` – ideal für Aushänge, Flyer, Amtsblatt und Mails.
@@ -521,6 +574,10 @@ Einschalten (mit Ihrem Passwort bestätigen). Bei der Anmeldung schickt das Port
 Beim Einrichten zeigt das Portal **zehn Notfallcodes – nur einmal**. Drucken Sie sie aus oder speichern Sie sie in Ihrer Passwortverwaltung. Jeder Code funktioniert einmal, wenn Telefon oder Postfach nicht greifbar sind. Unter „Wiederherstellungscodes“ erzeugen Sie neue (die alten gelten dann nicht mehr).
 
 **Neues Telefon:** Unter Sicherheit „Neues Gerät einrichten“. Telefon verloren und keine Notfallcodes? Die Verwaltung kann Ihre Zwei-Faktor-Anmeldung zurücksetzen.
+
+### Angemeldete Geräte
+
+Unter **Sicherheit › Angemeldete Geräte** sehen Sie, wo Sie gerade angemeldet sind (Browser, System, Anmeldezeit, letzte Aktivität, IP-Adresse); „dieses Gerät“ ist das, an dem Sie sitzen. **Abmelden** beendet eine andere Anmeldung, **Alle anderen abmelden** alle außer der aktuellen – etwa wenn Sie sich an einem fremden Rechner nicht abgemeldet haben. Eine Anmeldung endet automatisch nach 12 Stunden ohne Aktivität. Wenn Sie Ihr Passwort ändern, werden alle anderen Geräte abgemeldet.
 
 ---
 

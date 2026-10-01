@@ -3,20 +3,25 @@
 {% block title %}{{ page.title }} · Terminbuchung{% endblock %}
 {% block content %}
 {% call m.page_head(page.title, (page.slot_minutes ~ ' Minuten' ~ (' + ' ~ page.pause_minutes ~ ' Minuten Pause' if page.pause_minutes else '') ~ (' · Videokonferenz' if page.online else (' · ' ~ page.location if page.location else '')))) %}
-  <a class="btn btn-outline-secondary" href="/bookings/{{ page.id }}/settings"><i class="fa-solid fa-sliders me-1"></i>Einstellungen</a>
+  {% if level >= 3 %}<a class="btn btn-outline-secondary" href="/bookings/{{ page.id }}/settings"><i class="fa-solid fa-sliders me-1"></i>Einstellungen</a>{% endif %}
   <a class="btn btn-outline-secondary" href="{{ public_url }}" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Buchungsseite</a>
   <div class="dropdown"><button class="btn btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Weitere Aktionen"><i class="fa-solid fa-ellipsis"></i></button>
     <ul class="dropdown-menu dropdown-menu-end">
       <li><a class="dropdown-item" href="/bookings/{{ page.id }}/export.csv"><i class="fa-solid fa-file-csv fa-fw me-2"></i>Buchungen als CSV</a></li>
-      <li><form method="post" action="/bookings/{{ page.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item"><i class="fa-regular fa-copy fa-fw me-2"></i>Kopie anlegen</button></form></li>
+      {% if user.can('bookings') %}<li><form method="post" action="/bookings/{{ page.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item"><i class="fa-regular fa-copy fa-fw me-2"></i>Kopie anlegen</button></form></li>{% endif %}
+      {% if level >= 2 %}
       <li><form method="post" action="/bookings/{{ page.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}">
-        {% if page.active %}<button class="dropdown-item" name="action" value="pause"><i class="fa-solid fa-pause fa-fw me-2"></i>Buchungen pausieren</button>{% else %}<button class="dropdown-item" name="action" value="resume"><i class="fa-solid fa-play fa-fw me-2"></i>Buchungen fortsetzen</button>{% endif %}
+        {% if level < 3 %}{% elif page.active %}<button class="dropdown-item" name="action" value="pause"><i class="fa-solid fa-pause fa-fw me-2"></i>Buchungen pausieren</button>{% else %}<button class="dropdown-item" name="action" value="resume"><i class="fa-solid fa-play fa-fw me-2"></i>Buchungen fortsetzen</button>{% endif %}
         <button class="dropdown-item" name="action" value="renew" data-confirm-title="Neuen Link erzeugen?" data-confirm="Der bisherige Link und alle Einladungslinks funktionieren danach nicht mehr. Verwaltungslinks gebuchter Termine bleiben gültig."><i class="fa-solid fa-rotate fa-fw me-2"></i>Neuer Link</button></form></li>
+      {% endif %}
+      {% if level >= 3 %}
       <li><hr class="dropdown-divider"></li>
       <li><button class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#delete-modal"><i class="fa-regular fa-trash-can fa-fw me-2"></i>Löschen</button></li>
+      {% endif %}
     </ul></div>
 {% endcall %}
 
+{% if level < 4 %}<div class="mb-3"><span class="badge text-bg-info"><i class="fa-solid fa-share-nodes me-1"></i>geteilt von {{ page.owner.name if page.owner else '–' }} · {{ share_levels[level][0] }}</span></div>{% endif %}
 {% if not page.active %}<div class="alert alert-warning"><i class="fa-solid fa-pause me-1"></i>Buchungen sind pausiert – die Buchungsseite zeigt einen Hinweis, bestehende Termine bleiben.</div>{% endif %}
 
 <div class="row g-3 mb-4">
@@ -30,8 +35,9 @@
   <span><i class="fa-regular fa-calendar me-2"></i>Wann kann gebucht werden?</span>
   <span class="small text-secondary d-flex gap-3"><span><span class="bk-legend bk-legend-window"></span>freigegeben</span><span><span class="bk-legend bk-legend-booking"></span>gebucht</span></span>
 </div><div class="card-body">
-  <p class="small text-secondary"><i class="fa-solid fa-hand-pointer me-1"></i><strong>Mit der Maus über den Kalender ziehen</strong>, um einen Zeitbereich freizugeben – er wird automatisch in Termine zu {{ page.slot_minutes }} Minuten{% if page.pause_minutes %} mit {{ page.pause_minutes }} Minuten Pause{% endif %} geteilt. <strong>Klick auf einen grünen Bereich</strong> entfernt ihn. Für Mittagspausen einfach zwei Bereiche anlegen.</p>
-  <div id="bk-calendar" data-page="{{ page.id }}" data-initial="{{ initial_date }}"></div>
+  {% if level >= 3 %}<p class="small text-secondary"><i class="fa-solid fa-hand-pointer me-1"></i><strong>Mit der Maus über den Kalender ziehen</strong>, um einen Zeitbereich freizugeben – er wird automatisch in Termine zu {{ page.slot_minutes }} Minuten{% if page.pause_minutes %} mit {{ page.pause_minutes }} Minuten Pause{% endif %} geteilt. <strong>Klick auf einen grünen Bereich</strong> entfernt ihn. Für Mittagspausen einfach zwei Bereiche anlegen.</p>{% endif %}
+  <div id="bk-calendar" data-page="{{ page.id }}" data-initial="{{ initial_date }}" {% if level < 3 %}data-readonly="1"{% endif %}></div>
+  {% if level >= 3 %}
   <details class="mt-3">
     <summary class="small fw-semibold">Zeitbereich per Formular hinzufügen (auch wöchentlich wiederholt)</summary>
     <form method="post" action="/bookings/{{ page.id }}/windows" class="row g-2 align-items-end mt-1">
@@ -46,6 +52,7 @@
     <form method="post" action="/bookings/{{ page.id }}/windows/clear" class="mt-3"><input type="hidden" name="csrf" value="{{ csrf }}">
       <button class="btn btn-sm btn-outline-danger" data-confirm-title="Alle künftigen Zeitbereiche entfernen?" data-confirm="Bestehende Buchungen bleiben erhalten."><i class="fa-regular fa-trash-can me-1"></i>Alle künftigen Zeitbereiche entfernen</button></form>
   </details>
+  {% endif %}
 </div></div>
 
 <div class="card mb-4" id="buchungen"><div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -81,9 +88,9 @@
         <td>{% if b.status == 'cancelled' %}<span class="badge text-bg-danger">abgesagt</span><div class="small text-secondary">von {{ 'Gast' if b.cancelled_by == 'guest' else 'Ihnen' }}{% if b.cancel_reason %}: {{ b.cancel_reason }}{% endif %}</div>{% elif b.ends_at < now %}<span class="badge text-bg-secondary">vergangen</span>{% else %}<span class="badge text-bg-success">gebucht</span>{% endif %}</td>
         <td class="col-actions">{% if active_b %}<div class="d-inline-flex gap-1">
           {% if b.meeting_id %}<a class="btn btn-sm btn-outline-primary" href="/meetings/{{ b.meeting_id }}/join" title="Videokonferenz betreten" aria-label="Videokonferenz betreten"><i class="fa-solid fa-video"></i></a>{% endif %}
-          <button class="btn btn-sm btn-outline-secondary" type="button" data-copy-text="{{ manage_link(b) }}" title="Verwaltungslink des Gastes kopieren" aria-label="Link kopieren"><i class="fa-regular fa-copy"></i></button>
+          {% if level >= 3 %}<button class="btn btn-sm btn-outline-secondary" type="button" data-copy-text="{{ manage_link(b) }}" title="Verwaltungslink des Gastes kopieren" aria-label="Link kopieren"><i class="fa-regular fa-copy"></i></button>
           <button class="btn btn-sm btn-outline-secondary" type="button" data-bk-move="{{ b.id }}" data-bk-name="{{ b.name }}" data-bk-when="{{ label(b.starts_at, b.ends_at) }}" title="Verschieben" aria-label="Verschieben"><i class="fa-solid fa-arrows-left-right"></i></button>
-          <button class="btn btn-sm btn-outline-danger" type="button" data-bk-cancel="{{ b.id }}" data-bk-name="{{ b.name }}" data-bk-when="{{ label(b.starts_at, b.ends_at) }}" title="Absagen" aria-label="Absagen"><i class="fa-solid fa-ban"></i></button>
+          <button class="btn btn-sm btn-outline-danger" type="button" data-bk-cancel="{{ b.id }}" data-bk-name="{{ b.name }}" data-bk-when="{{ label(b.starts_at, b.ends_at) }}" title="Absagen" aria-label="Absagen"><i class="fa-solid fa-ban"></i></button>{% endif %}
         </div>{% endif %}</td>
       </tr>{% endfor %}</tbody>
   </table>
@@ -93,7 +100,9 @@
   <hr>
   <div class="d-flex flex-wrap align-items-center gap-2">
     <span class="small fw-semibold"><i class="fa-solid fa-rss me-1"></i>Im eigenen Kalender abonnieren</span>
-    {% if feed_url %}
+    {% if level < 3 %}
+    <span class="form-text mt-0">Das Kalender-Abo richtet ein:e Bearbeiter:in der Seite ein.</span>
+    {% elif feed_url %}
     <div class="input-group input-group-sm flex-grow-1" style="max-width: 40rem"><input class="form-control" id="feed" readonly value="{{ feed_url }}"><button class="btn btn-outline-primary" type="button" data-copy="#feed"><i class="fa-regular fa-copy"></i></button></div>
     <form method="post" action="/bookings/{{ page.id }}/feed" class="d-flex gap-1"><input type="hidden" name="csrf" value="{{ csrf }}">
       <button class="btn btn-sm btn-outline-secondary" name="action" value="renew" title="Neuer Link"><i class="fa-solid fa-rotate"></i></button>
@@ -107,6 +116,7 @@
 </div></div>
 
 <div class="row g-4">
+  {% if level >= 2 %}
   <div class="col-12 col-xxl-5"><div class="card h-100"><div class="card-header"><i class="fa-solid fa-share-nodes me-2"></i>Link zur Buchung</div><div class="card-body">
     {% if page.invite_only %}<div class="alert alert-info small py-2"><i class="fa-solid fa-lock me-1"></i>Nur mit persönlicher Einladung buchbar – der allgemeine Link zeigt Gästen ohne Einladung einen Hinweis.</div>{% endif %}
     <div class="input-group mb-3"><input class="form-control" id="pub" readonly value="{{ public_url }}"><button class="btn btn-outline-primary" type="button" data-copy="#pub"><i class="fa-regular fa-copy"></i> Kopieren</button></div>
@@ -146,6 +156,10 @@
     </table>
     {% endif %}
   </div></div></div>
+  {% endif %}
+  {% if level >= 4 %}
+  <div class="col-12">{% set share_obj = page %}{% set share_base = '/bookings/' ~ page.id %}{% set share_noun = 'diese Buchungsseite' %}{% include "_share_panel.html" %}</div>
+  {% endif %}
 </div>
 
 {# Dialoge für Verschieben und Absagen (werden per JS mit der jeweiligen Buchung gefüllt) #}

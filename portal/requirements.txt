@@ -12,3 +12,4 @@ tzdata==2026.4
 icalendar==7.3.0
 segno==1.6.6
 pillow==11.3.0
+markdown-it-py==3.0.0

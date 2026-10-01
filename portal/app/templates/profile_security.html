@@ -88,5 +88,29 @@
       </form>
     </div>
   </div></div>
+  <div class="col-12" id="sitzungen"><div class="card">
+    <div class="card-header d-flex align-items-center"><i class="fa-solid fa-laptop me-2"></i>Angemeldete Geräte
+      {% if my_sessions | length > 1 %}
+      <form method="post" action="/profile/sessions/others/end" class="ms-auto"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn btn-sm btn-outline-danger" type="submit"><i class="fa-solid fa-right-from-bracket me-1"></i>Alle anderen abmelden</button></form>
+      {% endif %}
+    </div>
+    <div class="list-group list-group-flush">
+      {% for r in my_sessions %}
+      <div class="list-group-item d-flex flex-wrap align-items-center gap-3">
+        <i class="fa-solid {{ 'fa-mobile-screen' if 'Android' in r.agent or 'iPhone' in r.agent else 'fa-desktop' }} fa-lg text-secondary"></i>
+        <div class="flex-grow-1">
+          <div class="fw-semibold">{{ r.agent }} {% if r.current %}<span class="badge text-bg-primary ms-1">dieses Gerät</span>{% elif r.online %}<span class="badge text-bg-success ms-1">aktiv</span>{% endif %}</div>
+          <div class="small text-secondary">Angemeldet {{ r.s.created_at | local }} · zuletzt aktiv {{ r.s.last_seen_at | local }} · {{ r.s.ip }}</div>
+        </div>
+        {% if not r.current %}
+        <form method="post" action="/profile/sessions/{{ r.s.id }}/end"><input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-sm btn-outline-secondary" type="submit">Abmelden</button></form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="card-footer small text-secondary">Eine Anmeldung endet nach 12 Stunden ohne Aktivität oder mit „Abmelden“. Wenn Sie Ihr Passwort ändern, werden alle anderen Geräte abgemeldet.</div>
+  </div></div>
 </div>
 {% endblock %}

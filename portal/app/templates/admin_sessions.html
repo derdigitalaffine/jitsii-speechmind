@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Sitzungen &amp; Cookies{% endblock %}
+{% block content %}
+{% call m.page_head('Sitzungen & Cookies', 'Technische Übersicht: wer gerade angemeldet ist, von welchem Gerät, und welche Cookies das Portal setzt. Sitzungen lassen sich hier einzeln oder für eine Person beenden – z. B. bei einem verlorenen Laptop.') %}
+<form method="post" action="/admin/sessions/purge"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <button class="btn btn-outline-danger" type="submit" data-confirm="Alle anderen Personen werden sofort abgemeldet. Ihre eigene Sitzung bleibt bestehen." data-confirm-button="Alle anderen abmelden"><i class="fa-solid fa-user-slash me-1"></i>Alle anderen abmelden</button>
+</form>
+{% endcall %}
+
+{% set online_users = users | selectattr('online') | list %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">{{ m.stat('fa-signal', online_users | length, 'Personen aktiv (letzte ' ~ online_minutes ~ ' Min.)') }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-users', users | length, 'Personen angemeldet') }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-laptop', rows | length, 'Sitzungen gesamt') }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-hourglass-half', config.max_age ~ ' h', 'Ablauf ohne Aktivität') }}</div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header"><i class="fa-solid fa-user-check me-2"></i>Angemeldete Benutzer</div>
+  <div class="card-body">
+    <table class="table table-hover align-middle js-table w-100" data-order='[[3,"desc"]]'>
+      <thead><tr><th>Name</th><th>E-Mail</th><th>Sitzungen</th><th>Zuletzt aktiv</th><th class="no-sort text-end">Aktion</th></tr></thead>
+      <tbody>
+      {% for u in users %}
+      <tr>
+        <td><span class="me-2 {{ 'text-success' if u.online else 'text-secondary' }}" title="{{ 'gerade aktiv' if u.online else 'angemeldet, nicht aktiv' }}"><i class="fa-solid fa-circle fa-2xs"></i></span>{{ u.user.name }}{% if u.user.is_admin %} <span class="badge text-bg-dark">Admin</span>{% endif %}</td>
+        <td>{{ u.user.email }}</td>
+        <td>{{ u.count }}</td>
+        <td data-order="{{ u.last.isoformat() }}">{{ u.last | local }}</td>
+        <td class="text-end">
+          <form method="post" action="/admin/sessions/user/{{ u.user.id }}/end"><input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="btn btn-sm btn-outline-danger" type="submit" data-confirm="Alle Sitzungen von {{ u.user.name }} beenden?{% if u.user.id == user.id %} Ihre aktuelle Sitzung bleibt bestehen.{% endif %}" data-confirm-button="Abmelden"><i class="fa-solid fa-right-from-bracket me-1"></i>Alle abmelden</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header"><i class="fa-solid fa-laptop me-2"></i>Sitzungen</div>
+  <div class="card-body">
+    <table class="table table-hover align-middle js-table w-100 small" data-order='[[3,"desc"]]' data-page-length="25">
+      <thead><tr><th>Benutzer</th><th>Gerät / Browser</th><th>Angemeldet</th><th>Zuletzt aktiv</th><th>IP-Adresse</th><th>Zuletzt aufgerufen</th><th>Art</th><th class="no-sort text-end">Aktion</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><span class="me-1 {{ 'text-success' if r.online else 'text-secondary' }}"><i class="fa-solid fa-circle fa-2xs"></i></span>{{ r.s.user.name }}{% if r.current %} <span class="badge text-bg-primary">Ihre Sitzung</span>{% endif %}</td>
+        <td><span title="{{ r.s.user_agent }}">{{ r.agent }}</span></td>
+        <td data-order="{{ r.s.created_at.isoformat() }}">{{ r.s.created_at | local }}</td>
+        <td data-order="{{ r.s.last_seen_at.isoformat() }}">{{ r.s.last_seen_at | local }}</td>
+        <td><code>{{ r.s.ip }}</code></td>
+        <td><code class="text-break">{{ r.s.last_path }}</code></td>
+        <td>{{ {'password': 'Passwort', '2fa': 'Passwort + 2FA', 'bestehend': 'vor Update'}.get(r.s.method, r.s.method) }}</td>
+        <td class="text-end">
+          <form method="post" action="/admin/sessions/{{ r.s.id }}/end"><input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="btn btn-sm btn-outline-secondary" type="submit" {% if r.current %}data-confirm="Das ist Ihre eigene Sitzung – Sie werden abgemeldet."{% endif %}>Beenden</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-6"><div class="card h-100">
+    <div class="card-header"><i class="fa-solid fa-cookie-bite me-2"></i>Session-Cookie des Portals</div>
+    <div class="card-body">
+      <dl class="row small mb-0">
+        <dt class="col-5">Name</dt><dd class="col-7"><code>{{ config.name }}</code></dd>
+        <dt class="col-5">Gültigkeit</dt><dd class="col-7">{{ config.max_age }} Stunden, verlängert sich bei jedem Aufruf</dd>
+        <dt class="col-5">Pfad</dt><dd class="col-7"><code>{{ config.path }}</code></dd>
+        <dt class="col-5">HttpOnly</dt><dd class="col-7"><i class="fa-solid fa-check text-success me-1"></i>ja – für JavaScript unsichtbar</dd>
+        <dt class="col-5">SameSite</dt><dd class="col-7">{{ config.samesite }} – wird bei Formularen fremder Seiten nicht mitgeschickt</dd>
+        <dt class="col-5">Secure</dt><dd class="col-7">{% if config.secure %}<i class="fa-solid fa-check text-success me-1"></i>ja – nur über HTTPS{% else %}<i class="fa-solid fa-triangle-exclamation text-warning me-1"></i>nein – PORTAL_BASE_URL beginnt nicht mit https://{% endif %}</dd>
+        <dt class="col-5">Schutz</dt><dd class="col-7">mit dem Server-Schlüssel (SECRET_KEY) signiert, Inhalt nicht verschlüsselt; enthält keine Passwörter. Gültig nur, solange die Sitzung hier in der Liste steht.</dd>
+      </dl>
+    </div>
+  </div></div>
+  <div class="col-12 col-xl-6"><div class="card h-100">
+    <div class="card-header"><i class="fa-solid fa-magnifying-glass me-2"></i>Inhalt Ihres eigenen Session-Cookies</div>
+    <div class="card-body">
+      {% if not own.present %}
+      <p class="text-secondary small mb-0">Ihr Browser hat kein Session-Cookie mitgeschickt.</p>
+      {% elif not own.valid %}
+      <div class="alert alert-warning small mb-0">Die Signatur ist ungültig (z. B. nach einem Wechsel des SECRET_KEY).</div>
+      {% else %}
+      <p class="small text-secondary">{{ own.size }} Bytes, zuletzt signiert {{ own.signed_at.strftime('%d.%m.%Y, %H:%M:%S') }}. Geheime Werte sind gekürzt.</p>
+      <table class="table table-sm small mb-0">
+        <thead><tr><th>Schlüssel</th><th>Wert</th></tr></thead>
+        <tbody>
+        {% for e in own.entries %}<tr><td><code>{{ e.key }}</code></td><td class="text-break">{% if e.secret %}<i class="fa-solid fa-lock text-secondary me-1" title="gekürzt"></i>{% endif %}{{ e.value }}</td></tr>{% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+  </div></div>
+  <div class="col-12"><div class="card">
+    <div class="card-header"><i class="fa-solid fa-cookie me-2"></i>Cookies, die Ihr Browser an diesen Server schickt</div>
+    <div class="card-body">
+      <table class="table table-sm small align-middle mb-0">
+        <thead><tr><th>Name</th><th>Größe</th><th>Wert (gekürzt)</th><th>Zweck</th></tr></thead>
+        <tbody>
+        {% for c in cookies %}<tr><td><code>{{ c.name }}</code></td><td>{{ c.size }}&nbsp;B</td><td class="text-break"><code>{{ c.value }}</code></td><td>{{ c.purpose }}</td></tr>
+        {% else %}<tr><td colspan="4" class="text-secondary">Keine Cookies.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+      <p class="small text-secondary mt-3 mb-0">Das Portal setzt keine Tracking- oder Werbe-Cookies. Die Wahl des Farbschemas (hell/dunkel) liegt im lokalen Speicher des Browsers, nicht in einem Cookie.</p>
+    </div>
+  </div></div>
+</div>
+{% endblock %}
