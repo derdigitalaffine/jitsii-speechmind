@@ -1,6 +1,7 @@
 """Angaben für die Seite „Über dieses Portal“: Programmierung, verwendete Software und Lizenzen."""
 
-AUTHOR = "Dominik Tröster"
+PUBLISHER = "Verbandsgemeinde Otterbach-Otterberg"
+LICENSE = "MIT"
 
 # (Name, Version, Lizenz, Zweck, Adresse)
 COMPONENTS = {

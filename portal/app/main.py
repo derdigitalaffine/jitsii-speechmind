@@ -1245,7 +1245,7 @@ def profile_save(request: Request, name: str = Form(...), current_password: str 
 @app.get("/about")
 def about_page(request: Request, db: Session = Depends(get_db)):
     from . import about
-    return render(request, "about.html", session_user(request, db), author=about.AUTHOR,
+    return render(request, "about.html", session_user(request, db), publisher=about.PUBLISHER, license=about.LICENSE,
                   components=about.COMPONENTS, services=about.SERVICES)
 
 

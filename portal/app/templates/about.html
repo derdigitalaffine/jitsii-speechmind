@@ -4,20 +4,24 @@
 {% block content %}
 {{ m.page_head('Über dieses Portal', product ~ ' der ' ~ brand) }}
 <div class="row g-4 mb-4">
-  <div class="col-12 col-xl-5"><div class="card h-100"><div class="card-body">
+  <div class="col-12 col-xl-7"><div class="card h-100 border-top border-primary border-4"><div class="card-body p-4">
     <div class="d-flex align-items-center gap-3 mb-3">
-      <span class="avatar" style="width:3.5rem;height:3.5rem;font-size:1.2rem">{{ m.initials(author) }}</span>
-      <div><div class="small text-secondary">Konzeption &amp; Programmierung</div><div class="h4 mb-0">{{ author }}</div></div>
+      <span class="stat-icon"><i class="fa-solid fa-landmark"></i></span>
+      <div><div class="small text-secondary">Herausgegeben von</div><div class="h4 mb-0">{{ publisher }}</div></div>
     </div>
-    <p class="mb-2">Das Portal verbindet Videokonferenzen (Jitsi Meet) mit Aufnahme, Transkription über SpeechMind, Besprechungsplanung mit Kalendereinladungen, Kurzlinks mit QR-Codes und einem Formularserver.</p>
-    <p class="small text-secondary mb-0">Alle Bibliotheken der Oberfläche werden vom Server selbst ausgeliefert – ohne Aufrufe an Drittanbieter (CDN). Daten verlassen den Server nur an die unten genannten, ausdrücklich eingeschalteten Dienste.</p>
+    <p>Dieses Portal ist in der {{ publisher }} entstanden – aus dem Alltag einer Verwaltung heraus und mit viel Leidenschaft für gute, einfache und datenschutzfreundliche Werkzeuge. Videokonferenzen mit Aufnahme und Protokoll, Besprechungsplanung, Kurzlinks mit QR-Codes und Formulare: alles auf dem eigenen Server, ohne Abhängigkeit von großen Plattformen.</p>
+    <p>Geschrieben wurde es aber nicht nur für uns. <strong>Es ist ausdrücklich für alle anderen Verwaltungen gedacht</strong> – für Verbandsgemeinden, Städte, Kreise, Zweckverbände und alle, die öffentliche Aufgaben erfüllen. Nutzen Sie es, passen Sie es an Ihr Haus an und entwickeln Sie es weiter. Wenn Sie Verbesserungen haben: Teilen Sie sie, damit alle davon profitieren.</p>
+    <p class="mb-0 text-secondary small">Gute Software für die öffentliche Hand sollte öffentlich sein – „Public Money, Public Code“.</p>
   </div></div></div>
-  <div class="col-12 col-xl-7"><div class="card h-100"><div class="card-body">
-    <h2 class="h6"><i class="fa-solid fa-scale-balanced me-2 text-primary"></i>Open-Source-Software</h2>
-    <p class="small">Dieses Portal baut auf freier Software auf. Wir danken allen Entwicklerinnen und Entwicklern. Die Lizenztexte liegen den jeweiligen Paketen bei bzw. sind auf den verlinkten Projektseiten abrufbar.</p>
+  <div class="col-12 col-xl-5"><div class="card h-100"><div class="card-body p-4">
+    <h2 class="h6"><i class="fa-solid fa-scale-balanced me-2 text-primary"></i>Open Source – {{ license }}-Lizenz</h2>
+    <p class="small">Das Portal ist freie Software und steht unter der <strong>{{ license }}-Lizenz</strong>: Sie dürfen es kostenlos verwenden, kopieren, verändern und weitergeben – auch in Ihrer eigenen Verwaltung und auch kommerziell. Bedingung ist nur, dass der Urheberrechts- und Lizenzhinweis erhalten bleibt. Die Software wird ohne Gewährleistung bereitgestellt.</p>
+    <p class="small">Es baut auf freier Software auf; allen, die daran mitwirken, gilt unser Dank. Die Lizenztexte liegen den Paketen bei bzw. stehen auf den verlinkten Projektseiten.</p>
+    <p class="small text-secondary mb-2">Alle Bibliotheken der Oberfläche liefert der Server selbst aus – ohne Aufrufe an Drittanbieter (CDN). Daten verlassen den Server nur an die unten genannten, ausdrücklich eingeschalteten Dienste.</p>
     <div class="d-flex flex-wrap gap-2">{% for group, rows in components.items() %}<span class="badge text-bg-light border">{{ group }}: {{ rows | length }}</span>{% endfor %}</div>
   </div></div></div>
 </div>
+
 
 {% for group, rows in components.items() %}
 <div class="card mb-3"><div class="card-header fw-semibold">{{ group }}</div>
