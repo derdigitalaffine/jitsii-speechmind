@@ -33,15 +33,18 @@
   </div>
   {{ track(rec) }}
   {% if rec.error %}<p class="rec-error">{{ rec.error }}</p>{% endif %}
-  {% if rec.status in ('recorded', 'failed') %}
-  <form class="actions" method="post" action="/recordings/{{ rec.id }}/transcribe">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <button type="submit" class="{{ 'quiet' if rec.status == 'failed' else '' }}">
-      {{ 'Erneut versuchen' if rec.status == 'failed' else 'Mit SpeechMind transkribieren' }}
-    </button>
-  </form>
-  {% elif rec.status == 'done' %}
-  <div class="actions"><a class="button quiet" href="/recordings/{{ rec.id }}">Transkript lesen</a></div>
-  {% endif %}
+  <div class="actions">
+    {% if rec.audio_size %}<a class="button quiet" href="/recordings/{{ rec.id }}/audio.mp3">MP3 herunterladen ({{ rec.audio_size | filesize }})</a>{% endif %}
+    {% if rec.status in ('recorded', 'failed') %}
+    <form method="post" action="/recordings/{{ rec.id }}/transcribe">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button type="submit" class="{{ 'quiet' if rec.status == 'failed' else '' }}">
+        {{ 'Erneut versuchen' if rec.status == 'failed' else 'In SpeechMind bearbeiten' }}
+      </button>
+    </form>
+    {% elif rec.status == 'done' %}
+    <a class="button quiet" href="/recordings/{{ rec.id }}">Transkript lesen</a>
+    {% endif %}
+  </div>
 </article>
 {%- endmacro %}

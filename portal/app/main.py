@@ -3,6 +3,7 @@ import json
 import logging
 import secrets
 import shutil
+from datetime import timedelta
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote, urlencode
@@ -16,15 +17,15 @@ from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import worker
+from . import notify, worker
 from .config import settings
 from .db import (
     ACTIVE_STATUSES, STATUS_DONE, STATUS_FAILED, STATUS_QUEUED, STATUS_RECORDED, Meeting,
-    Recording, SessionLocal, User, get_settings, init_db, set_setting, to_local,
+    Notification, Recording, SessionLocal, User, get_settings, init_db, set_setting, to_local, utcnow,
 )
 from .security import (
     clean_room, csrf_token, csrf_valid, decrypt, encrypt, hash_password, jitsi_token,
-    mask_secret, room_slug, verify_password,
+    hash_token, mask_secret, new_token, room_slug, verify_password,
 )
 from .speechmind import SpeechMindClient, SpeechMindError
 
@@ -45,7 +46,8 @@ PIPELINE = [
     ("done", "Transkript"),
 ]
 STATUS_LABELS = {
-    "recorded": "Aufgezeichnet",
+    "new": "MP3 wird erzeugt",
+    "recorded": "MP3 bereit",
     "queued": "Wartet",
     "converting": "Audiospur wird extrahiert",
     "uploading": "Wird hochgeladen",
@@ -56,17 +58,19 @@ STATUS_LABELS = {
 
 
 def bootstrap_admin() -> None:
+    """Legt beim allerersten Start das Standard-Administratorkonto an."""
     with SessionLocal() as db:
         if db.scalar(select(func.count(User.id))) == 0:
-            if not settings.admin_email or not settings.admin_password:
-                log.warning("Keine Benutzer vorhanden und PORTAL_ADMIN_EMAIL/PASSWORD nicht gesetzt.")
-                return
+            password = settings.admin_password or secrets.token_urlsafe(12)
             db.add(User(
                 email=settings.admin_email, name="Administrator",
-                password_hash=hash_password(settings.admin_password), is_admin=True,
+                password_hash=hash_password(password), is_admin=True,
+                must_change_password=True,
             ))
             db.commit()
-            log.info("Admin-Konto %s angelegt", settings.admin_email)
+            log.warning("Standard-Admin angelegt: %s", settings.admin_email)
+            if not settings.admin_password:
+                log.warning("Startpasswort (einmalig, bitte nach der Anmeldung ändern): %s", password)
 
 
 @asynccontextmanager
@@ -89,6 +93,9 @@ app.add_middleware(
 )
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")
+templates.env.globals.update(brand=settings.brand_name, product=settings.brand_product)
+templates.env.filters["filesize"] = lambda n: (
+    "" if not n else f"{n / 1_000_000:.1f} MB".replace(".", ",") if n >= 1_000_000 else f"{max(n // 1000, 1)} kB")
 templates.env.filters["local"] = lambda dt, fmt="%d.%m.%Y, %H:%M": to_local(dt).strftime(fmt) if dt else ""
 
 
@@ -102,6 +109,16 @@ class LoginRequired(Exception):
 @app.exception_handler(LoginRequired)
 async def _login_redirect(_request: Request, exc: LoginRequired):
     return RedirectResponse(f"/login?next={quote(exc.next_url)}", status_code=303)
+
+
+class ForcedRedirect(Exception):
+    def __init__(self, url: str):
+        self.url = url
+
+
+@app.exception_handler(ForcedRedirect)
+async def _forced_redirect(_request: Request, exc: ForcedRedirect):
+    return RedirectResponse(exc.url, status_code=303)
 
 
 def get_db():
@@ -118,6 +135,9 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
     if user is None or not user.active:
         request.session.pop("uid", None)
         raise LoginRequired(str(request.url.path) + (f"?{request.url.query}" if request.url.query else ""))
+    if user.must_change_password and request.url.path != "/profile":
+        flash(request, "Bitte vergeben Sie zuerst ein eigenes Passwort.", "error")
+        raise ForcedRedirect("/profile")
     return user
 
 
@@ -214,7 +234,83 @@ def login(request: Request, email: str = Form(...), password: str = Form(...),
         return redirect(f"/login?next={quote(safe_next(next))}")
     request.session.clear()
     request.session["uid"] = user.id
-    return redirect(safe_next(next))
+    target = safe_next(next)
+    if user.is_admin and target == "/":
+        target = "/admin/recordings"
+    return redirect(target)
+
+
+# --- Einladung & Passwort zurücksetzen ----------------------------------------
+
+def issue_link(db: Session, target: User, kind: str) -> str:
+    """Erzeugt einen Einmal-Link (invite | reset) und speichert nur dessen Hash."""
+    token, digest = new_token()
+    ttl = settings.invite_ttl_hours if kind == "invite" else settings.reset_ttl_hours
+    target.token_hash = digest
+    target.token_expires_at = utcnow() + timedelta(hours=ttl)
+    return f"{settings.portal_base_url}/invite/{token}"
+
+
+def send_link(db: Session, target: User, kind: str) -> tuple[str, bool]:
+    """Link erzeugen und per Mail einreihen. Gibt (Link, Mail eingereiht?) zurück."""
+    link = issue_link(db, target, kind)
+    subject, body = (notify.invite_text if kind == "invite" else notify.reset_text)(target, link)
+    queued = notify.enqueue(db, target.email, subject, body, kind)
+    return link, queued
+
+
+def user_by_token(db: Session, token: str) -> User | None:
+    user = db.scalar(select(User).where(User.token_hash == hash_token(token)))
+    if user is None or not user.active or user.token_expires_at is None or user.token_expires_at < utcnow():
+        return None
+    return user
+
+
+@app.get("/invite/{token}")
+def invite_form(request: Request, token: str, db: Session = Depends(get_db)):
+    target = user_by_token(db, token)
+    if target is None:
+        return render(request, "invite.html", None, invalid=True, token=token, target=None)
+    return render(request, "invite.html", None, invalid=False, token=token, target=target)
+
+
+@app.post("/invite/{token}", dependencies=[Depends(check_csrf)])
+def invite_accept(request: Request, token: str, password: str = Form(...), password2: str = Form(...),
+                  db: Session = Depends(get_db)):
+    target = user_by_token(db, token)
+    if target is None:
+        return redirect(f"/invite/{token}")
+    if len(password) < 10:
+        flash(request, "Das Passwort braucht mindestens 10 Zeichen.", "error")
+        return redirect(f"/invite/{token}")
+    if password != password2:
+        flash(request, "Die beiden Passwörter stimmen nicht überein.", "error")
+        return redirect(f"/invite/{token}")
+    target.password_hash = hash_password(password)
+    target.password_set, target.must_change_password = True, False
+    target.token_hash = target.token_expires_at = None
+    db.commit()
+    request.session.clear()
+    request.session["uid"] = target.id
+    flash(request, "Passwort gespeichert. Sie sind angemeldet.")
+    return redirect("/")
+
+
+@app.get("/forgot")
+def forgot_form(request: Request):
+    return render(request, "forgot.html", None)
+
+
+@app.post("/forgot", dependencies=[Depends(check_csrf)])
+def forgot_send(request: Request, email: str = Form(...), db: Session = Depends(get_db)):
+    target = db.scalar(select(User).where(User.email == email.strip().lower()))
+    if target is not None and target.active:
+        send_link(db, target, "reset")
+        db.commit()
+        worker.wake()
+    # Gleiche Antwort in jedem Fall, damit sich Konten nicht erraten lassen
+    flash(request, "Falls ein Konto zu dieser Adresse existiert, wurde eine E-Mail mit weiteren Schritten verschickt.")
+    return redirect("/login")
 
 
 @app.post("/logout", dependencies=[Depends(check_csrf)])
@@ -231,9 +327,7 @@ def jitsi_auth(room: str = "", user: User = Depends(current_user), db: Session =
         return redirect("/")
     meeting = db.scalar(select(Meeting).where(Meeting.room == room))
     if meeting is None:
-        cfg = get_settings(db)
-        meeting = Meeting(owner_id=user.id, title=room.replace("-", " ").title(), room=room,
-                          transcribe=cfg.get("transcribe_default") == "1")
+        meeting = Meeting(owner_id=user.id, title=room.replace("-", " ").title(), room=room)
         db.add(meeting)
         db.commit()
     return redirect(join_url(user, room))
@@ -250,18 +344,15 @@ def dashboard(request: Request, user: User = Depends(current_user), db: Session 
         select(Recording).join(Meeting).where(Meeting.owner_id == user.id)
         .order_by(Recording.created_at.desc()).limit(8)
     ).all()
-    cfg = get_settings(db)
     return render(request, "dashboard.html", user, meetings=meetings, recent=recent,
-                  sm_ready=speechmind_ready(db, user),
-                  transcribe_default=cfg.get("transcribe_default") == "1")
+                  sm_ready=speechmind_ready(db, user))
 
 
 @app.post("/meetings", dependencies=[Depends(check_csrf)])
-def create_meeting(request: Request, title: str = Form(...), transcribe: str = Form(""),
+def create_meeting(request: Request, title: str = Form(...),
                    user: User = Depends(current_user), db: Session = Depends(get_db)):
     title = title.strip()[:200] or "Besprechung"
-    meeting = Meeting(owner_id=user.id, title=title, room=unique_room(db, room_slug(title)),
-                      transcribe=transcribe == "1")
+    meeting = Meeting(owner_id=user.id, title=title, room=unique_room(db, room_slug(title)))
     db.add(meeting)
     db.commit()
     flash(request, f"Meeting „{title}“ angelegt.")
@@ -280,12 +371,11 @@ def meeting_detail(request: Request, meeting_id: int, user: User = Depends(curre
 
 @app.post("/meetings/{meeting_id}/settings", dependencies=[Depends(check_csrf)])
 def meeting_settings(request: Request, meeting_id: int, title: str = Form(...),
-                     transcribe: str = Form(""), document_type: str = Form(""),
+                     document_type: str = Form(""),
                      language: str = Form(""), user: User = Depends(current_user),
                      db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
     meeting.title = title.strip()[:200] or meeting.title
-    meeting.transcribe = transcribe == "1"
     meeting.document_type = document_type if document_type in DOCUMENT_TYPES else None
     meeting.language = language if language in LANGUAGES else None
     db.commit()
@@ -321,7 +411,7 @@ def recording_detail(request: Request, rec_id: int, user: User = Depends(current
     summary = json.loads(rec.summary_json) if rec.summary_json else {}
     has_video = bool(rec.video_path and Path(rec.video_path).exists())
     return render(request, "recording.html", user, rec=rec, transcript=transcript,
-                  summary=summary, has_video=has_video,
+                  summary=summary, has_video=has_video, has_audio=rec.audio_size is not None,
                   participants=json.loads(rec.participants or "[]"))
 
 
@@ -344,6 +434,17 @@ def recording_transcribe(request: Request, rec_id: int, user: User = Depends(cur
         worker.wake()
         flash(request, "Die Aufnahme wird an SpeechMind übergeben.")
     return redirect(f"/recordings/{rec.id}")
+
+
+@app.get("/recordings/{rec_id}/audio.mp3")
+def recording_audio(rec_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    rec = own_recording(db, rec_id, user)
+    path = Path(rec.audio_path) if rec.audio_path else None
+    if not path or not path.exists():
+        raise HTTPException(404, "Die MP3-Datei ist (noch) nicht vorhanden.")
+    title = rec.meeting.title if rec.meeting else rec.room
+    return FileResponse(path, media_type="audio/mpeg",
+                        filename=f"aufnahme-{room_slug(title)}-{to_local(rec.created_at):%Y%m%d-%H%M}.mp3")
 
 
 @app.get("/recordings/{rec_id}/video")
@@ -386,6 +487,8 @@ def recording_delete(request: Request, rec_id: int, user: User = Depends(current
     root = settings.recordings_dir.resolve()
     if session_dir.exists() and root in session_dir.resolve().parents:
         shutil.rmtree(session_dir, ignore_errors=True)
+    if rec.audio_path:
+        Path(rec.audio_path).unlink(missing_ok=True)
     target = f"/meetings/{rec.meeting_id}" if rec.meeting_id else "/admin/recordings"
     db.delete(rec)
     db.commit()
@@ -418,6 +521,10 @@ def profile_save(request: Request, name: str = Form(...), current_password: str 
             flash(request, "Das aktuelle Passwort stimmt nicht.", "error")
             return redirect("/profile")
         user.password_hash = hash_password(new_password)
+        user.must_change_password = False
+    elif user.must_change_password:
+        flash(request, "Bitte vergeben Sie ein neues Passwort.", "error")
+        return redirect("/profile")
     if get_settings(db).get("allow_user_keys") == "1":
         if sm_remove_key == "1":
             user.sm_api_key_enc, user.sm_project_slug = None, None
@@ -446,7 +553,7 @@ def admin_speechmind_save(
     request: Request,
     sm_api_url: str = Form(...), sm_api_key: str = Form(""), sm_project_slug: str = Form(""),
     sm_language: str = Form("de-DE"), sm_document_type: str = Form("summary"),
-    transcribe_default: str = Form(""), allow_user_keys: str = Form(""),
+    allow_user_keys: str = Form(""),
     delete_after_upload: str = Form(""), send_participants: str = Form(""),
     user: User = Depends(admin_user), db: Session = Depends(get_db),
 ):
@@ -459,7 +566,7 @@ def admin_speechmind_save(
     set_setting(db, "sm_project_slug", sm_project_slug.strip())
     set_setting(db, "sm_language", sm_language if sm_language in LANGUAGES else "de-DE")
     set_setting(db, "sm_document_type", sm_document_type if sm_document_type in DOCUMENT_TYPES else "summary")
-    for key, value in (("transcribe_default", transcribe_default), ("allow_user_keys", allow_user_keys),
+    for key, value in (("allow_user_keys", allow_user_keys),
                        ("delete_after_upload", delete_after_upload),
                        ("send_participants", send_participants)):
         set_setting(db, key, "1" if value == "1" else "0")
@@ -502,11 +609,21 @@ async def admin_speechmind_create_project(request: Request, name: str = Form(...
 
 # --- Admin: Benutzer ----------------------------------------------------------
 
+def flash_link_result(request: Request, target: User, link: str, queued: bool) -> None:
+    if queued:
+        flash(request, f"E-Mail an {target.email} wird versendet.")
+    else:
+        # Ohne Mailversand muss der Link von Hand weitergegeben werden
+        request.session["invite_link"] = {"email": target.email, "link": link}
+
+
 @app.get("/admin/users")
 def admin_users(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
     users = db.scalars(select(User).order_by(User.name)).all()
     return render(request, "admin_users.html", user, users=users,
-                  new_password=request.session.pop("new_password", None))
+                  invite_link=request.session.pop("invite_link", None),
+                  mail_ready=notify.mail_configured(get_settings(db)),
+                  invite_ttl=settings.invite_ttl_hours)
 
 
 @app.post("/admin/users", dependencies=[Depends(check_csrf)])
@@ -514,17 +631,21 @@ def admin_users_create(request: Request, name: str = Form(...), email: str = For
                        is_admin: str = Form(""), user: User = Depends(admin_user),
                        db: Session = Depends(get_db)):
     email = email.strip().lower()
-    if "@" not in email:
+    if "@" not in email or " " in email:
         flash(request, "Bitte eine gültige E-Mail-Adresse angeben.", "error")
         return redirect("/admin/users")
     if db.scalar(select(User).where(User.email == email)):
         flash(request, f"{email} hat bereits ein Konto.", "error")
         return redirect("/admin/users")
-    password = secrets.token_urlsafe(12)
-    db.add(User(email=email, name=name.strip()[:200] or email, is_admin=is_admin == "1",
-                password_hash=hash_password(password)))
+    # Bis zur Annahme der Einladung ist das Passwort ein nicht erratbarer Zufallswert
+    target = User(email=email, name=name.strip()[:200] or email, is_admin=is_admin == "1",
+                  password_hash=hash_password(secrets.token_urlsafe(32)), password_set=False)
+    db.add(target)
+    link, queued = send_link(db, target, "invite")
     db.commit()
-    request.session["new_password"] = {"email": email, "password": password}
+    worker.wake()
+    flash_link_result(request, target, link, queued)
+    flash(request, f"Konto für {email} angelegt.")
     return redirect("/admin/users")
 
 
@@ -541,10 +662,13 @@ def admin_users_update(request: Request, uid: int, action: str = Form(...),
         target.is_admin = not target.is_admin
     elif action == "toggle_active":
         target.active = not target.active
-    elif action == "reset_password":
-        password = secrets.token_urlsafe(12)
-        target.password_hash = hash_password(password)
-        request.session["new_password"] = {"email": target.email, "password": password}
+    elif action in ("invite", "reset_password"):
+        kind = "reset" if target.password_set else "invite"
+        link, queued = send_link(db, target, kind)
+        db.commit()
+        worker.wake()
+        flash_link_result(request, target, link, queued)
+        return redirect("/admin/users")
     elif action == "delete":
         for meeting in target.meetings:
             for rec in meeting.recordings:
@@ -556,12 +680,105 @@ def admin_users_update(request: Request, uid: int, action: str = Form(...),
     return redirect("/admin/users")
 
 
+# --- Admin: Benachrichtigungen ------------------------------------------------
+
+MAIL_FIELDS = ("smtp_host", "smtp_user", "mail_from", "mail_from_name",
+               "imap_host", "imap_user", "imap_sent_folder")
+
+
+@app.get("/admin/notifications")
+def admin_notifications(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    cfg = get_settings(db)
+    log_rows = db.scalars(select(Notification).order_by(Notification.id.desc()).limit(50)).all()
+    return render(request, "admin_notifications.html", user, cfg=cfg, log_rows=log_rows,
+                  smtp_mask=mask_secret(decrypt(cfg.get("smtp_password_enc"))),
+                  imap_mask=mask_secret(decrypt(cfg.get("imap_password_enc"))),
+                  mail_ready=notify.mail_configured(cfg))
+
+
+@app.post("/admin/notifications", dependencies=[Depends(check_csrf)])
+def admin_notifications_save(
+    request: Request,
+    smtp_host: str = Form(""), smtp_port: str = Form("587"), smtp_security: str = Form("starttls"),
+    smtp_user: str = Form(""), smtp_password: str = Form(""),
+    mail_from: str = Form(""), mail_from_name: str = Form(""),
+    imap_host: str = Form(""), imap_port: str = Form("993"), imap_security: str = Form("ssl"),
+    imap_user: str = Form(""), imap_password: str = Form(""), imap_sent_folder: str = Form("Sent"),
+    imap_save_sent: str = Form(""), notify_new_recording: str = Form(""),
+    notify_done: str = Form(""), notify_failed: str = Form(""),
+    user: User = Depends(admin_user), db: Session = Depends(get_db),
+):
+    if mail_from.strip() and "@" not in mail_from:
+        flash(request, "Die Absenderadresse ist ungültig.", "error")
+        return redirect("/admin/notifications")
+    values = {
+        "smtp_host": smtp_host, "smtp_user": smtp_user, "mail_from": mail_from,
+        "mail_from_name": mail_from_name, "imap_host": imap_host, "imap_user": imap_user,
+        "imap_sent_folder": imap_sent_folder or "Sent",
+    }
+    for key, value in values.items():
+        set_setting(db, key, value.strip())
+    for key, value, default in (("smtp_port", smtp_port, "587"), ("imap_port", imap_port, "993")):
+        set_setting(db, key, value.strip() if value.strip().isdigit() else default)
+    set_setting(db, "smtp_security", smtp_security if smtp_security in ("starttls", "ssl", "none") else "starttls")
+    set_setting(db, "imap_security", imap_security if imap_security in ("ssl", "starttls", "none") else "ssl")
+    if smtp_password:
+        set_setting(db, "smtp_password_enc", encrypt(smtp_password))
+    if imap_password:
+        set_setting(db, "imap_password_enc", encrypt(imap_password))
+    for key, value in (("imap_save_sent", imap_save_sent), ("notify_new_recording", notify_new_recording),
+                       ("notify_done", notify_done), ("notify_failed", notify_failed)):
+        set_setting(db, key, "1" if value == "1" else "0")
+    db.commit()
+    flash(request, "Einstellungen gespeichert.")
+    return redirect("/admin/notifications")
+
+
+@app.post("/admin/notifications/test-smtp", dependencies=[Depends(check_csrf)])
+async def admin_notifications_test_smtp(request: Request, user: User = Depends(admin_user),
+                                        db: Session = Depends(get_db)):
+    cfg = get_settings(db)
+    try:
+        await asyncio.to_thread(notify.test_smtp, cfg, user.email)
+    except notify.MailError as exc:
+        flash(request, str(exc), "error")
+    else:
+        flash(request, f"Testnachricht an {user.email} verschickt.")
+    return redirect("/admin/notifications")
+
+
+@app.post("/admin/notifications/test-imap", dependencies=[Depends(check_csrf)])
+async def admin_notifications_test_imap(request: Request, user: User = Depends(admin_user),
+                                        db: Session = Depends(get_db)):
+    cfg = get_settings(db)
+    try:
+        info = await asyncio.to_thread(notify.test_imap, cfg)
+    except notify.MailError as exc:
+        flash(request, str(exc), "error")
+    else:
+        flash(request, info)
+    return redirect("/admin/notifications")
+
+
+@app.post("/admin/notifications/{nid}/retry", dependencies=[Depends(check_csrf)])
+def admin_notifications_retry(request: Request, nid: int, user: User = Depends(admin_user),
+                              db: Session = Depends(get_db)):
+    n = db.get(Notification, nid)
+    if n is not None and n.status == "failed":
+        n.status, n.attempts, n.next_attempt_at = "pending", 0, utcnow()
+        db.commit()
+        worker.wake()
+        flash(request, "Die Nachricht wird erneut versucht.")
+    return redirect("/admin/notifications")
+
+
 # --- Admin: alle Aufnahmen ----------------------------------------------------
 
 @app.get("/admin/recordings")
 def admin_recordings(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
     recordings = db.scalars(select(Recording).order_by(Recording.created_at.desc()).limit(200)).all()
-    return render(request, "admin_recordings.html", user, recordings=recordings)
+    return render(request, "admin_recordings.html", user, recordings=recordings,
+                  sm_ready=speechmind_ready(db))
 
 
 @app.exception_handler(StarletteHTTPException)

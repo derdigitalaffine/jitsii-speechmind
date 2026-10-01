@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Profil – Konferenz & Protokoll{% endblock %}
+{% block title %}Profil – {{ product }}{% endblock %}
 {% block content %}
 <h1>Profil</h1>
 <p class="lede">{{ user.email }}{% if user.is_admin %} – Administrator:in{% endif %}</p>

@@ -10,9 +10,16 @@ class Settings:
     portal_base_url = _env("PORTAL_BASE_URL", "http://localhost:8000").rstrip("/")
     meet_base_url = _env("MEET_BASE_URL", "http://localhost:8080").rstrip("/")
 
+    brand_name = _env("BRAND_NAME", "Verbandsgemeinde Otterbach-Otterberg")
+    brand_product = _env("BRAND_PRODUCT", "Videokonferenzserver")
+
     secret_key = _env("PORTAL_SECRET_KEY")
-    admin_email = _env("PORTAL_ADMIN_EMAIL").lower()
+    # Standard-Administrator, wird nur angelegt, solange es noch keinen Benutzer gibt.
+    # Ohne PORTAL_ADMIN_PASSWORD wird ein Zufallspasswort erzeugt und einmalig ins Log geschrieben.
+    admin_email = (_env("PORTAL_ADMIN_EMAIL") or "admin@portal.local").lower()
     admin_password = _env("PORTAL_ADMIN_PASSWORD")
+    if admin_password == "CHANGE_ME":
+        admin_password = ""
 
     jwt_app_id = _env("JWT_APP_ID", "jitsi-speechmind")
     jwt_app_secret = _env("JWT_APP_SECRET")
@@ -26,6 +33,9 @@ class Settings:
     poll_interval_seconds = int(_env("SPEECHMIND_POLL_SECONDS", "45") or 45)
     # Wie lange auf SpeechMind gewartet wird, bevor ein Auftrag als Fehler gilt
     poll_timeout_hours = int(_env("SPEECHMIND_POLL_TIMEOUT_HOURS", "12") or 12)
+
+    invite_ttl_hours = int(_env("INVITE_TTL_HOURS", "72") or 72)
+    reset_ttl_hours = int(_env("RESET_TTL_HOURS", "2") or 2)
 
     secure_cookies = portal_base_url.startswith("https://")
 

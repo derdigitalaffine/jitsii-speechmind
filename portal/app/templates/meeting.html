@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
-{% block title %}{{ meeting.title }} – Konferenz & Protokoll{% endblock %}
+{% block title %}{{ meeting.title }} – {{ product }}{% endblock %}
 {% block head %}{% if meeting.recordings | selectattr('status', 'in', active_statuses) | list %}<meta http-equiv="refresh" content="30">{% endif %}{% endblock %}
 {% block content %}
 <section class="meeting-hero">
@@ -27,7 +27,7 @@
 {% if meeting.recordings %}
   {% for rec in meeting.recordings %}{{ m.rec_card(rec, csrf) }}{% endfor %}
 {% else %}
-<p class="empty">Noch keine Aufnahme. Starten Sie in der Konferenz über „…“ › „Aufnahme starten“. Sobald Sie die Aufnahme beenden, taucht sie hier auf und geht {{ 'automatisch' if meeting.transcribe else 'auf Knopfdruck' }} an SpeechMind.</p>
+<p class="empty">Noch keine Aufnahme. Starten Sie in der Konferenz über „…“ › „Aufnahme starten“. Sobald Sie die Aufnahme beenden, taucht sie hier auf und liegt als MP3 bereit. Die Transkription starten Sie danach selbst.</p>
 {% endif %}
 
 <h2>Einstellungen</h2>
@@ -38,11 +38,6 @@
     <input id="mt-title" name="title" type="text" value="{{ meeting.title }}" maxlength="200" required>
     <span class="hint">Wird als Protokollname an SpeechMind übergeben.</span>
   </div>
-  <label class="check">
-    <input type="checkbox" name="transcribe" value="1" {% if meeting.transcribe %}checked{% endif %}>
-    <span><strong>Aufnahmen automatisch transkribieren</strong>
-      <span class="hint">Aus: Aufnahmen bleiben nur hier gespeichert, bis Sie sie einzeln senden.</span></span>
-  </label>
   <div class="field">
     <label for="doc">Protokollart</label>
     <select id="doc" name="document_type">

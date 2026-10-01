@@ -1,14 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Benutzer – Konferenz & Protokoll{% endblock %}
+{% block title %}Benutzer – {{ product }}{% endblock %}
 {% block content %}
 <h1>Benutzer</h1>
-<p class="lede">Wer hier ein Konto hat, kann Meetings eröffnen, moderieren und aufzeichnen. Gäste brauchen kein Konto.</p>
+<p class="lede">Wer hier ein Konto hat (Einladung per E-Mail), kann Meetings eröffnen, moderieren und aufzeichnen. Gäste brauchen kein Konto.</p>
 
-{% if new_password %}
+{% if invite_link %}
 <div class="notice" role="status">
-  Zugang für <strong>{{ new_password.email }}</strong>: Passwort <span class="secret">{{ new_password.password }}</span><br>
-  <span class="small">Wird nur einmal angezeigt. Bitte sicher weitergeben; das Passwort lässt sich im Profil ändern.</span>
+  Es ist kein E-Mail-Versand eingerichtet. Bitte geben Sie diesen Link an <strong>{{ invite_link.email }}</strong> weiter:<br>
+  <span class="secret" style="word-break:break-all">{{ invite_link.link }}</span><br>
+  <span class="small">Wird nur einmal angezeigt und läuft nach {{ invite_ttl }} Stunden ab. Unter <a href="/admin/notifications">Benachrichtigungen</a> richten Sie den Mailversand ein.</span>
 </div>
+{% elif not mail_ready %}
+<div class="notice"><strong>E-Mail-Versand ist nicht eingerichtet.</strong> Einladungen können erst per Mail verschickt werden, wenn unter <a href="/admin/notifications">Benachrichtigungen</a> SMTP hinterlegt ist.</div>
 {% endif %}
 
 <form class="panel" method="post" action="/admin/users">
@@ -16,9 +19,10 @@
   <div class="inline-form">
     <div class="field"><label for="n">Name</label><input id="n" name="name" type="text" required maxlength="200"></div>
     <div class="field"><label for="e">E-Mail</label><input id="e" name="email" type="email" required></div>
-    <button type="submit">Konto anlegen</button>
+    <button type="submit">Einladen</button>
   </div>
   <label class="check" style="margin-top:.9rem"><input type="checkbox" name="is_admin" value="1"><span>Administrator:in</span></label>
+  <p class="hint">Die Person erhält einen Link, über den sie ihr Passwort selbst festlegt.</p>
 </form>
 
 <div class="table-wrap" style="margin-top:2rem">
@@ -30,14 +34,14 @@
     <td>{{ u.name }}</td>
     <td>{{ u.email }}</td>
     <td>{{ 'Admin' if u.is_admin else 'Benutzer' }}</td>
-    <td>{% if u.active %}<span class="tag on">aktiv</span>{% else %}<span class="tag">gesperrt</span>{% endif %}</td>
+    <td>{% if not u.active %}<span class="tag">gesperrt</span>{% elif not u.password_set %}<span class="tag">eingeladen</span>{% else %}<span class="tag on">aktiv</span>{% endif %}</td>
     <td>
       {% if u.id != user.id %}
       <form method="post" action="/admin/users/{{ u.id }}" class="actions" style="margin:0">
         <input type="hidden" name="csrf" value="{{ csrf }}">
         <button class="link" name="action" value="toggle_admin">{{ 'Admin-Recht entziehen' if u.is_admin else 'Zum Admin machen' }}</button>
         <button class="link" name="action" value="toggle_active">{{ 'Sperren' if u.active else 'Entsperren' }}</button>
-        <button class="link" name="action" value="reset_password">Neues Passwort</button>
+        <button class="link" name="action" value="invite">{{ 'Einladung erneut senden' if not u.password_set else 'Passwort-Link senden' }}</button>
         <button class="link" name="action" value="delete" onclick="return confirm('{{ u.email }} wirklich löschen?')">Löschen</button>
       </form>
       {% else %}<span class="muted small">Ihr Konto</span>{% endif %}

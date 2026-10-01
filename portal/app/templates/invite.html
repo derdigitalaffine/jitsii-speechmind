@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Passwort festlegen – {{ product }}{% endblock %}
+{% block body %}
+<div class="login-wrap">
+  <div class="login">
+    <div class="brand"><span class="brand-lamp" aria-hidden="true"></span><span><strong>{{ brand }}</strong><small>{{ product }}</small></span></div>
+    {% for m in messages %}<div class="flash {{ m.kind }}" role="status">{{ m.text }}</div>{% endfor %}
+    {% if invalid %}
+    <div class="panel">
+      <p>Dieser Link ist ungültig oder abgelaufen.</p>
+      <p class="small"><a href="/forgot">Neuen Link per E-Mail anfordern</a> oder bei Ihrer Administration melden.</p>
+    </div>
+    {% else %}
+    <form class="panel" method="post" action="/invite/{{ token }}">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <p>Willkommen, <strong>{{ target.name }}</strong>. Bitte legen Sie das Passwort für <strong>{{ target.email }}</strong> fest.</p>
+      <div class="field">
+        <label for="p1">Neues Passwort</label>
+        <input id="p1" name="password" type="password" autocomplete="new-password" minlength="10" required autofocus>
+        <span class="hint">Mindestens 10 Zeichen.</span>
+      </div>
+      <div class="field">
+        <label for="p2">Passwort wiederholen</label>
+        <input id="p2" name="password2" type="password" autocomplete="new-password" minlength="10" required>
+      </div>
+      <button type="submit">Passwort speichern und anmelden</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

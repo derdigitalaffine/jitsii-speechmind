@@ -115,3 +115,15 @@ def jitsi_token(user, room: str) -> str:
         },
     }
     return jwt.encode(payload, settings.jwt_app_secret, algorithm="HS256")
+
+
+# --- Einladungs- und Zurücksetzen-Links ---------------------------------------
+
+def new_token() -> tuple[str, str]:
+    """Liefert (Token für den Link, Hash für die Datenbank)."""
+    token = secrets.token_urlsafe(32)
+    return token, hash_token(token)
+
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()

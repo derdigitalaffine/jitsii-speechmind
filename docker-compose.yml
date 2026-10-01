@@ -7,7 +7,7 @@
 #   jicofo  – Konferenz-Fokus
 #   jvb     – Videobridge (UDP 10000)
 #   jibri   – Server-Aufzeichnung (liefert die Audiospur für SpeechMind)
-#   portal  – Web-GUI: Login, Benutzer, Meetings, SpeechMind-Anbindung, Transkripte
+#   portal  – Web-GUI: Login, Benutzer, Benachrichtigungen, Meetings, SpeechMind-Anbindung, Transkripte
 #
 # Alle Werte kommen aus .env (siehe .env.example bzw. scripts/setup.sh).
 
@@ -49,6 +49,10 @@ services:
       - ENABLE_LETSENCRYPT=0
       # Nicht angemeldete Moderatoren werden zum Portal-Login geschickt.
       - TOKEN_AUTH_URL=https://${PORTAL_DOMAIN}/jitsi/auth?room={room}
+      # Branding der Konferenzoberfläche
+      - APP_NAME=${BRAND_NAME:-Verbandsgemeinde Otterbach-Otterberg}
+      - NATIVE_APP_NAME=${BRAND_NAME:-Verbandsgemeinde Otterbach-Otterberg}
+      - PROVIDER_NAME=${BRAND_NAME:-Verbandsgemeinde Otterbach-Otterberg}
     volumes:
       - ${CONFIG}/web:/config:Z
       - ${CONFIG}/web/crontabs:/var/spool/cron/crontabs:Z
@@ -120,6 +124,8 @@ services:
       - PORTAL_SECRET_KEY
       - PORTAL_ADMIN_EMAIL
       - PORTAL_ADMIN_PASSWORD
+      - BRAND_NAME=${BRAND_NAME:-Verbandsgemeinde Otterbach-Otterberg}
+      - BRAND_PRODUCT=${BRAND_PRODUCT:-Videokonferenzserver}
       - JWT_APP_ID
       - JWT_APP_SECRET
       - JWT_ACCEPTED_AUDIENCES

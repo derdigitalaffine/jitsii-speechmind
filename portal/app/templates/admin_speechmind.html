@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}SpeechMind – Konferenz & Protokoll{% endblock %}
+{% block title %}SpeechMind – {{ product }}{% endblock %}
 {% block content %}
 <h1>SpeechMind-Anbindung</h1>
 <p class="lede">Hier verbinden Sie das Portal mit Ihrem SpeechMind-Konto. Den API-Key erhalten Sie von SpeechMind (hello@speechmind.com) bzw. in Ihrer Organisationsverwaltung.</p>
@@ -47,11 +47,6 @@
 
   <h2>Verhalten</h2>
   <div class="panel">
-    <label class="check">
-      <input type="checkbox" name="transcribe_default" value="1" {% if cfg.transcribe_default == '1' %}checked{% endif %}>
-      <span><strong>Neue Meetings transkribieren automatisch</strong>
-        <span class="hint">Voreinstellung für neue Räume; lässt sich pro Meeting ändern.</span></span>
-    </label>
     <label class="check">
       <input type="checkbox" name="allow_user_keys" value="1" {% if cfg.allow_user_keys == '1' %}checked{% endif %}>
       <span><strong>Eigene SpeechMind-Keys erlauben</strong>

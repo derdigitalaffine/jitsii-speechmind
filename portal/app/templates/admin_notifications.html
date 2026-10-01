@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Benachrichtigungen – {{ product }}{% endblock %}
+{% block content %}
+<h1>Benachrichtigungen</h1>
+<p class="lede">E-Mails für Einladungen, Passwort-Links und Hinweise zu Aufnahmen. Versand über SMTP; optional wird eine Kopie jeder Nachricht per IMAP im Ordner „Gesendet“ abgelegt.</p>
+
+<form method="post" action="/admin/notifications">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+
+  <h2>Postausgang (SMTP)</h2>
+  <div class="panel">
+    <div class="field"><label for="sh">Server</label><input id="sh" name="smtp_host" type="text" value="{{ cfg.smtp_host }}" placeholder="smtp.example.org"></div>
+    <div class="inline-form">
+      <div class="field"><label for="sp">Port</label><input id="sp" name="smtp_port" type="number" min="1" max="65535" value="{{ cfg.smtp_port }}"></div>
+      <div class="field"><label for="ss">Verschlüsselung</label>
+        <select id="ss" name="smtp_security">
+          <option value="starttls" {% if cfg.smtp_security == 'starttls' %}selected{% endif %}>STARTTLS (587)</option>
+          <option value="ssl" {% if cfg.smtp_security == 'ssl' %}selected{% endif %}>SSL/TLS (465)</option>
+          <option value="none" {% if cfg.smtp_security == 'none' %}selected{% endif %}>keine</option>
+        </select></div>
+    </div>
+    <div class="field"><label for="su">Benutzername</label><input id="su" name="smtp_user" type="text" autocomplete="off" value="{{ cfg.smtp_user }}"></div>
+    <div class="field"><label for="spw">Passwort</label>
+      <input id="spw" name="smtp_password" type="password" autocomplete="new-password" placeholder="{{ smtp_mask or 'Nicht hinterlegt' }}">
+      <span class="hint">Wird verschlüsselt gespeichert. Nur ausfüllen, um es zu ersetzen.</span></div>
+    <div class="field"><label for="mf">Absenderadresse</label><input id="mf" name="mail_from" type="email" value="{{ cfg.mail_from }}" placeholder="videokonferenz@example.org"></div>
+    <div class="field"><label for="mn">Absendername</label><input id="mn" name="mail_from_name" type="text" value="{{ cfg.mail_from_name }}" placeholder="{{ brand }}"></div>
+  </div>
+
+  <h2>Postfach (IMAP)</h2>
+  <div class="panel">
+    <div class="field"><label for="ih">Server</label><input id="ih" name="imap_host" type="text" value="{{ cfg.imap_host }}" placeholder="imap.example.org"></div>
+    <div class="inline-form">
+      <div class="field"><label for="ip">Port</label><input id="ip" name="imap_port" type="number" min="1" max="65535" value="{{ cfg.imap_port }}"></div>
+      <div class="field"><label for="is">Verschlüsselung</label>
+        <select id="is" name="imap_security">
+          <option value="ssl" {% if cfg.imap_security == 'ssl' %}selected{% endif %}>SSL/TLS (993)</option>
+          <option value="starttls" {% if cfg.imap_security == 'starttls' %}selected{% endif %}>STARTTLS (143)</option>
+          <option value="none" {% if cfg.imap_security == 'none' %}selected{% endif %}>keine</option>
+        </select></div>
+    </div>
+    <div class="field"><label for="iu">Benutzername</label><input id="iu" name="imap_user" type="text" autocomplete="off" value="{{ cfg.imap_user }}"></div>
+    <div class="field"><label for="ipw">Passwort</label>
+      <input id="ipw" name="imap_password" type="password" autocomplete="new-password" placeholder="{{ imap_mask or 'Nicht hinterlegt' }}"></div>
+    <label class="check">
+      <input type="checkbox" name="imap_save_sent" value="1" {% if cfg.imap_save_sent == '1' %}checked{% endif %}>
+      <span><strong>Kopie gesendeter Nachrichten ablegen</strong></span>
+    </label>
+    <div class="field"><label for="if">Ordner für Gesendetes</label><input id="if" name="imap_sent_folder" type="text" value="{{ cfg.imap_sent_folder }}"></div>
+  </div>
+
+  <h2>Hinweise an Benutzer:innen</h2>
+  <div class="panel">
+    <p class="hint">Empfänger ist die Besitzerin bzw. der Besitzer des Meetings, bei Räumen ohne Meeting alle Admins. Einladungen und Passwort-Links werden immer verschickt.</p>
+    <label class="check"><input type="checkbox" name="notify_new_recording" value="1" {% if cfg.notify_new_recording == '1' %}checked{% endif %}><span>Neue Aufnahme liegt als MP3 bereit</span></label>
+    <label class="check"><input type="checkbox" name="notify_done" value="1" {% if cfg.notify_done == '1' %}checked{% endif %}><span>Transkript von SpeechMind ist fertig</span></label>
+    <label class="check"><input type="checkbox" name="notify_failed" value="1" {% if cfg.notify_failed == '1' %}checked{% endif %}><span>Verarbeitung ist fehlgeschlagen</span></label>
+  </div>
+
+  <div class="actions"><button type="submit">Speichern</button></div>
+</form>
+
+<h2>Verbindung prüfen</h2>
+<p class="hint">Zuerst speichern, dann testen.</p>
+<div class="actions">
+  <form method="post" action="/admin/notifications/test-smtp"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="quiet" type="submit">Testmail an {{ user.email }}</button></form>
+  <form method="post" action="/admin/notifications/test-imap"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="quiet" type="submit">IMAP testen</button></form>
+</div>
+
+<h2>Letzte Nachrichten</h2>
+{% if log_rows %}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Zeit</th><th>Empfänger</th><th>Betreff</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for n in log_rows %}
+  <tr>
+    <td>{{ n.created_at | local }}</td>
+    <td>{{ n.to_addr }}</td>
+    <td>{{ n.subject }}</td>
+    <td>{% if n.status == 'sent' %}<span class="tag on">gesendet</span>{% elif n.status == 'failed' %}<span class="tag">fehlgeschlagen</span>{% else %}<span class="tag">wartet ({{ n.attempts }}. Versuch)</span>{% endif %}
+      {% if n.error %}<div class="rec-error small">{{ n.error }}</div>{% endif %}</td>
+    <td>{% if n.status == 'failed' %}
+      <form method="post" action="/admin/notifications/{{ n.id }}/retry" style="margin:0"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="link">Erneut senden</button></form>
+    {% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="empty">Noch keine Nachrichten verschickt.</p>
+{% endif %}
+{% endblock %}

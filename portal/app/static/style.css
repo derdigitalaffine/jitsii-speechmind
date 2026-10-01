@@ -79,7 +79,11 @@ a:hover { text-decoration-thickness: 2px; }
   letter-spacing: -.01em;
 }
 
+.brand > span:last-child { display: flex; flex-direction: column; gap: .25rem; }
+.brand small { font: 400 .78rem/1 var(--font-body, inherit); color: var(--muted); letter-spacing: 0; }
+
 .brand-lamp {
+  flex: none;
   width: .7rem;
   height: .7rem;
   border-radius: 50%;

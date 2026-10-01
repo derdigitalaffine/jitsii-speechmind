@@ -1,12 +1,44 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
-{% block title %}Alle Aufnahmen – Konferenz & Protokoll{% endblock %}
+{% block title %}Aufnahmen – {{ product }}{% endblock %}
 {% block head %}{% if recordings | selectattr('status', 'in', active_statuses) | list %}<meta http-equiv="refresh" content="30">{% endif %}{% endblock %}
 {% block content %}
-<h1>Alle Aufnahmen</h1>
-<p class="lede">Aufnahmen aller Räume, auch solcher ohne Meeting im Portal. Neue Aufnahmen erscheinen hier, sobald Jibri sie abgeschlossen hat.</p>
+<h1>Aufnahmen</h1>
+<p class="lede">Alle Konferenzaufnahmen als MP3. Die Transkription läuft nie von selbst: Laden Sie die MP3 herunter oder übergeben Sie die Aufnahme mit „In SpeechMind bearbeiten“ an SpeechMind.</p>
+
+{% if not sm_ready %}
+<div class="notice"><strong>SpeechMind ist noch nicht verbunden.</strong> Unter <a href="/admin/speechmind">SpeechMind</a> API-Key und Projekt hinterlegen, dann lassen sich Aufnahmen übergeben.</div>
+{% endif %}
+
 {% if recordings %}
-  {% for rec in recordings %}{{ m.rec_card(rec, csrf, show_meeting=true) }}{% endfor %}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Aufnahme</th><th>Meeting / Raum</th><th>Dauer</th><th>MP3</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for rec in recordings %}
+  <tr>
+    <td><a href="/recordings/{{ rec.id }}">{{ rec.created_at | local }} Uhr</a></td>
+    <td>{{ rec.meeting.title if rec.meeting else rec.room ~ ' (ohne Meeting)' }}</td>
+    <td>{{ m.duration(rec.duration_seconds) }}</td>
+    <td>{% if rec.audio_size %}<a href="/recordings/{{ rec.id }}/audio.mp3" download>Herunterladen</a> <span class="muted small">{{ rec.audio_size | filesize }}</span>{% else %}<span class="muted">–</span>{% endif %}</td>
+    <td>{{ status_labels.get(rec.status, rec.status) }}{% if rec.error %}<div class="rec-error small">{{ rec.error }}</div>{% endif %}</td>
+    <td>
+      <div class="actions" style="margin:0">
+      {% if rec.status in ('recorded', 'failed') %}
+      <form method="post" action="/recordings/{{ rec.id }}/transcribe" style="margin:0">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button type="submit" class="{{ 'quiet' if rec.status == 'failed' else '' }}">{{ 'Erneut versuchen' if rec.status == 'failed' else 'In SpeechMind bearbeiten' }}</button>
+      </form>
+      {% elif rec.status == 'done' %}
+      <a class="button quiet" href="/recordings/{{ rec.id }}">Transkript</a>
+      {% endif %}
+      </div>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
 {% else %}
 <p class="empty">Noch keine Aufnahmen auf diesem Server.</p>
 {% endif %}

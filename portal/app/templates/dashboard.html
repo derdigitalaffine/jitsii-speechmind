@@ -3,12 +3,12 @@
 {% block head %}{% if recent | selectattr('status', 'in', active_statuses) | list %}<meta http-equiv="refresh" content="30">{% endif %}{% endblock %}
 {% block content %}
 <h1>Meetings</h1>
-<p class="lede">Legen Sie einen Raum an, laden Sie Gäste per Link ein und starten Sie in der Konferenz die Aufnahme. Danach erscheint das Transkript von SpeechMind hier.</p>
+<p class="lede">Legen Sie einen Raum an, laden Sie Gäste per Link ein und starten Sie in der Konferenz die Aufnahme. Danach liegt die Aufnahme als MP3 bereit; die Transkription durch SpeechMind starten Sie selbst.</p>
 
 {% if not sm_ready %}
 <div class="notice">
   <strong>SpeechMind ist noch nicht verbunden.</strong>
-  Aufnahmen werden gespeichert, aber erst transkribiert, wenn {% if user.is_admin %}Sie unter <a href="/admin/speechmind">SpeechMind</a> einen API-Key und ein Projekt hinterlegen{% else %}ein Admin die Anbindung eingerichtet hat{% endif %}.
+  Aufnahmen werden als MP3 gespeichert; transkribieren lassen sie sich erst, wenn {% if user.is_admin %}Sie unter <a href="/admin/speechmind">SpeechMind</a> einen API-Key und ein Projekt hinterlegen{% else %}ein Admin die Anbindung eingerichtet hat{% endif %}.
 </div>
 {% endif %}
 
@@ -21,10 +21,6 @@
     </div>
     <button type="submit">Meeting anlegen</button>
   </div>
-  <label class="check" style="margin-top:.9rem">
-    <input type="checkbox" name="transcribe" value="1" {% if transcribe_default %}checked{% endif %}>
-    <span>Aufnahmen automatisch an SpeechMind senden</span>
-  </label>
 </form>
 
 <h2>Ihre Räume</h2>
@@ -35,7 +31,6 @@
     <div>
       <a class="title" href="/meetings/{{ mt.id }}">{{ mt.title }}</a>
       <div class="meta">{{ meet_base_url }}/{{ mt.room }}
-        <span class="tag {{ 'on' if mt.transcribe else '' }}">{{ 'Transkription an' if mt.transcribe else 'Transkription aus' }}</span>
       </div>
     </div>
     <a class="button" href="/meetings/{{ mt.id }}/join">Beitreten</a>
