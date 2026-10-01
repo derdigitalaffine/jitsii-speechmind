@@ -161,6 +161,7 @@ Voraussetzung: Unter **Benachrichtigungen** ist IMAP eingerichtet und **„Antwo
 - Wird der Termin geändert, gelten frühere Antworten nicht mehr (wie in Outlook); die Spalte steht wieder auf „Offen“, bis neu geantwortet wird.
 - Antwortet jemand, an den die Einladung weitergeleitet wurde, erscheint er mit seiner Antwort in der Liste.
 - Wer in Outlook „Antwort nicht senden“ wählt, bleibt auf „Offen“.
+- Erkannt werden Antworten mit Kalenderdaten (Standard), Outlook-Antworten im Exchange-Format (`winmail.dat`) und notfalls Antworten, die nur am Betreff zu erkennen sind („Zugesagt: …“, „Abgelehnt: …“, „Mit Vorbehalt: …“, „Accepted: …“). Diese werden über die Absenderadresse und den Besprechungstitel im Betreff zugeordnet.
 - Einladungen, die **vor** dem Einschalten verschickt wurden, schicken ihre Antworten weiterhin direkt an die planende Person; dafür ggf. „Einladung erneut senden“.
 
 Auch für einen bestehenden Raum lässt sich nachträglich ein Termin festlegen. Wird ein Meeting mit anstehendem Termin gelöscht, erhalten die Eingeladenen automatisch eine Absage. Anstehende Besprechungen stehen auf der Startseite unter **Meetings**.
@@ -319,6 +320,8 @@ Im Kasten **„Zu- und Absagen auf Besprechungseinladungen“**:
 
 Unter dem Kasten steht, wann zuletzt abgerufen wurde und ob dabei ein Fehler auftrat. Beim ersten Abruf werden die Nachrichten der letzten 14 Tage geprüft, danach nur noch neue.
 
+**Postfach-Diagnose:** Unten auf der Seite „Postfach-Diagnose (Zu-/Absagen)“ zeigt die neuesten 25 Nachrichten im Antwort-Ordner. Je Nachricht steht dort, ob sie als Antwort erkannt wird und zu welcher Besprechung, oder warum nicht. Die Diagnose liest nur und verändert nichts. Mit „Nachrichten der letzten 14 Tage erneut auswerten“ werden auch bereits geprüfte Nachrichten noch einmal verbucht, etwa nach einer Korrektur der Einstellungen.
+
 ### Welche Hinweise werden verschickt
 
 Einladungen und Passwort-Links gehen immer. Zusätzlich schaltbar:
@@ -457,7 +460,7 @@ Platz sparen: Aufnahmen nach Gebrauch in der Oberfläche löschen oder unter **S
 | MP3 ist stumm, Etikett „kein Ton“ | Siehe [Aufnahme ohne Ton](#aufnahme-ohne-ton): `./scripts/diagnose-recording.sh` |
 | Im Video ist ein Fensterrahmen (IceWM) zu sehen, Konferenz füllt nicht das Bild | Chrome in Jibri läuft ohne Vollbild (`--kiosk`). Ursache war dieselbe falsche Einstellung wie bei stummen Aufnahmen; mit aktueller `docker-compose.yml` behoben. Prüfen: `./scripts/diagnose-recording.sh` |
 | Einladungen kommen in Outlook nicht an bzw. nicht als Besprechungsanfrage | Unter **Benachrichtigungen** „Testeinladung (Kalender) an mich“ an ein Outlook-Postfach schicken. Steht im Versandprotokoll „gesendet“, aber im Posteingang ist nichts: **Junk-E-Mail-Ordner** und bei Microsoft 365 die **Quarantäne** prüfen (Kalendereinladungen von schlecht authentifizierten Absendern werden dort gern abgefangen). Abhilfe: Für die Absenderdomain **SPF und DKIM** beim Mailanbieter einrichten bzw. den Absender in Exchange als vertrauenswürdig eintragen. Bis Oktober 2026 hatte der Kalenderteil zudem falsche Zeilenenden, die Outlook verwirft: aktuelle Version einspielen |
-| Zu-/Absagen erscheinen nicht | Unter **Benachrichtigungen** „Antworten im Postfach auswerten“ an? IMAP-Konto = Postfach der Absenderadresse? Fehlermeldung unter dem Kasten lesen, „Antworten jetzt abrufen“ testen. Alte Einladungen ggf. erneut senden |
+| Zu-/Absagen (z. B. aus Outlook) erscheinen nicht | 1. Unter **Benachrichtigungen** muss „Antworten im Postfach auswerten“ **vor dem Versand** eingeschaltet sein. Sonst ist die planende Person Organisator, und Outlook schickt die Antwort an sie. Abhilfe: einschalten und auf der Besprechungsseite „Einladung erneut senden“. 2. Das IMAP-Konto muss das Postfach der **Absenderadresse** sein. 3. „Postfach-Diagnose (Zu-/Absagen)“ öffnen. Taucht die Antwort dort nicht auf, ging sie an eine andere Adresse oder liegt im Junk-Ordner (dann Ordner eintragen bzw. Absender als sicher markieren). Steht dort „nein“, nennt die Zeile den Grund. 4. In Outlook beim Annehmen „Antwort jetzt senden“ wählen, nicht „Antwort nicht senden“ |
 | Designänderungen sind nicht zu sehen | Schalter „Eigenes Design“ oben auf der Seite einschalten und speichern. Für die Konferenz zusätzlich „Auch in der Konferenz anwenden“ |
 | Aufnahme-Knopf fehlt | Nur angemeldete Benutzer dürfen aufnehmen; Jibri-Log prüfen (`docker compose logs jibri`) |
 | Aufnahme erscheint nicht unter „Aufnahmen“ | In `data/recordings/<sitzung>/` muss eine Datei `.finalized` liegen. Fehlt sie: `chmod +x jibri/finalize.sh`, Jibri neu starten |

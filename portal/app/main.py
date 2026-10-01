@@ -1323,11 +1323,29 @@ async def admin_notifications_test_invite(request: Request, user: User = Depends
     return redirect("/admin/notifications")
 
 
+@app.get("/admin/notifications/rsvp-check")
+async def admin_notifications_rsvp_check(request: Request, user: User = Depends(admin_user),
+                                         db: Session = Depends(get_db)):
+    """Postfach-Diagnose: welche Nachrichten im Antwort-Ordner liegen und ob sie erkannt werden."""
+    from . import rsvp
+    cfg = get_settings(db)
+    rows, error = [], ""
+    if not cfg.get("imap_host"):
+        error = "Es ist kein IMAP-Server eingetragen."
+    else:
+        try:
+            rows = await asyncio.to_thread(rsvp.inspect_mailbox)
+        except notify.MailError as exc:
+            error = str(exc)
+    return render(request, "admin_rsvp_check.html", user, cfg=cfg, rows=rows, error=error)
+
+
 @app.post("/admin/notifications/rsvp-poll", dependencies=[Depends(check_csrf)])
-async def admin_notifications_rsvp_poll(request: Request, user: User = Depends(admin_user)):
+async def admin_notifications_rsvp_poll(request: Request, rescan: str = Form(""),
+                                        user: User = Depends(admin_user)):
     from . import rsvp
     try:
-        result = await asyncio.to_thread(rsvp.poll, True)
+        result = await asyncio.to_thread(rsvp.poll, True, rescan == "1")
     except notify.MailError as exc:
         flash(request, str(exc), "error")
     else:

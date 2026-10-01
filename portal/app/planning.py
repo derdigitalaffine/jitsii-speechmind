@@ -174,6 +174,9 @@ def send(db, meeting: Meeting, invitees: list[Invitee], kind: str, organizer: Us
             "beschreibung": meeting.description or "", "organisator": organizer.name,
             "organisator_email": organizer.email}
     org = organizer_identity(cfg, organizer)
+    # Werden Antworten im Postfach ausgewertet, kein abweichendes Reply-To: manche Outlook-Versionen
+    # schicken die Zu-/Absage sonst an diese Adresse statt an den Organisator (das Portal-Postfach).
+    reply_to = None if cfg.get("imap_rsvp") == "1" else organizer.email
     count = 0
     for inv in invitees:
         if kind in ("invite", "update"):
@@ -184,7 +187,7 @@ def send(db, meeting: Meeting, invitees: list[Invitee], kind: str, organizer: Us
         subject, body = mailtpl.render(db, f"meeting_{kind}", {**base, "name": inv.name or inv.email,
                                                                "link": link, "antwort_link": rsvp_link(inv)}, cfg)
         ics_text = _calendar(meeting, method, [(inv.name, inv.email)], org, link)
-        if notify.enqueue(db, inv.email, subject, body, f"meeting_{kind}", cfg, reply_to=organizer.email,
+        if notify.enqueue(db, inv.email, subject, body, f"meeting_{kind}", cfg, reply_to=reply_to,
                           attachments=[{"filename": filename, "content": ics_text, "calendar_method": method}]):
             inv.invited_at = utcnow()
             count += 1
