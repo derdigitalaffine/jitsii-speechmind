@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import (
-    Boolean, DateTime, ForeignKey, Integer, String, Text, create_engine, inspect, select, text,
+    Boolean, DateTime, ForeignKey, Integer, String, Text, create_engine, event, inspect, select, text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
@@ -32,6 +32,18 @@ engine = create_engine(
     f"sqlite:///{settings.data_dir / 'portal.db'}",
     connect_args={"check_same_thread": False},
 )
+
+
+@event.listens_for(engine, "connect")
+def _sqlite_pragmas(dbapi_conn, _record):
+    # Web-Anfragen und Worker-Thread schreiben gleichzeitig: WAL + Wartezeit statt "database is locked"
+    cur = dbapi_conn.cursor()
+    cur.execute("PRAGMA journal_mode=WAL")
+    cur.execute("PRAGMA busy_timeout=5000")
+    cur.execute("PRAGMA foreign_keys=ON")
+    cur.close()
+
+
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
@@ -76,7 +88,8 @@ class Meeting(Base):
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     title: Mapped[str] = mapped_column(String(255))
     room: Mapped[str] = mapped_column(String(128), unique=True, index=True)
-    transcribe: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Ungenutzt seit der Umstellung auf manuelle Transkription (Spalte bleibt aus Kompatibilität)
+    transcribe: Mapped[bool] = mapped_column(Boolean, default=False)
     document_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     language: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
@@ -161,7 +174,6 @@ DEFAULT_SETTINGS = {
     "sm_project_slug": "",
     "sm_language": "de-DE",
     "sm_document_type": "summary",
-    "transcribe_default": "1",
     "allow_user_keys": "0",
     "delete_after_upload": "0",
     "send_participants": "0",
@@ -205,6 +217,9 @@ def _migrate() -> None:
             for name, ddl in columns.items():
                 if name not in existing:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+        for name, table, column in (("ix_recordings_status", "recordings", "status"),
+                                    ("ix_recordings_meeting_id", "recordings", "meeting_id")):
+            conn.execute(text(f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({column})"))
 
 
 def init_db() -> None:

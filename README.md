@@ -32,31 +32,82 @@ Name und Produktbezeichnung lassen sich über `BRAND_NAME` und `BRAND_PRODUCT` i
 - **Standard-Admin** beim ersten Start, der beim ersten Login ein eigenes Passwort vergeben muss.
 - **Datensparsam:** keine externen Schriften oder Skripte im Portal; Videos können nach fertigem Transkript automatisch gelöscht werden.
 
-## Voraussetzungen
+## Dokumentation
 
-- Linux-Server mit Docker und Docker Compose v2
-- Zwei DNS-Einträge auf den Server, z. B. `meet.example.com` und `portal.example.com`
-- Offene Ports: **TCP 80, TCP 443, UDP 10000**
-- Ressourcen: Jitsi allein läuft mit 2 Kernen / 4 GB. **Jibri** braucht zusätzlich etwa 4 Kerne / 8 GB und nimmt **eine** Konferenz gleichzeitig auf.
-- Ein SpeechMind-Konto mit API-Zugang (API-Key über SpeechMind bzw. die Organisationsverwaltung)
+| Für wen | Datei |
+|---|---|
+| Wer den Server **installiert und betreibt** | diese Seite, danach [docs/ADMIN-HANDBUCH.md](docs/ADMIN-HANDBUCH.md) |
+| Wer **Konferenzen hält** (Mitarbeitende) | [docs/BENUTZERANLEITUNG.md](docs/BENUTZERANLEITUNG.md) |
 
-## Installation
+## Installation in 10 Schritten
+
+Sie brauchen: einen Linux-Server (Ubuntu/Debian), Zugriff per SSH mit `sudo`, und jemanden, der DNS-Einträge anlegen kann. **Rechnen Sie mit 30–60 Minuten.**
+
+### Vorher klären (Checkliste)
+
+- [ ] **Server:** mindestens 4 Kerne und 12 GB RAM, 100 GB Platz (Aufnahmen brauchen Speicher). Jitsi allein käme mit 2 Kernen / 4 GB aus, **Jibri** (die Aufnahme) braucht zusätzlich etwa 4 Kerne / 8 GB und nimmt **eine** Konferenz gleichzeitig auf.
+- [ ] **Öffentliche IP-Adresse** des Servers (`curl https://api.ipify.org` auf dem Server zeigt sie).
+- [ ] **Zwei Domainnamen**, die beide auf diese IP zeigen (DNS-Eintrag „A“), z. B. `meet.vg-otterbach-otterberg.example` und `portal.vg-otterbach-otterberg.example`. Den DNS-Eintrag legt Ihre IT oder der Domain-Anbieter an; es dauert bis zu einigen Stunden, bis er überall gilt.
+- [ ] **Firewall** (auch die des Rechenzentrums/Routers): **TCP 80, TCP 443 und UDP 10000** müssen von außen offen sein. UDP 10000 vergessen Leute am häufigsten, dann gibt es kein Bild und keinen Ton.
+- [ ] **E-Mail-Zugang für den Versand** (SMTP-Server, Benutzername, Passwort, Absenderadresse) – bekommen Sie von Ihrer IT. Ohne das geht alles außer E-Mails.
+- [ ] **SpeechMind-API-Key** (kommt vom Anbieter) – nur für die Transkription nötig, kann nachgereicht werden.
+
+### Schritt für Schritt
+
+**1. Docker installieren** (einmalig, falls noch nicht vorhanden):
 
 ```bash
-git clone https://github.com/<ihr-konto>/jitsi-speechmind.git
-cd jitsi-speechmind
-./scripts/setup.sh          # fragt Domains ab, erzeugt .env mit Zufalls-Secrets
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER      # danach einmal ab- und wieder anmelden
+docker compose version             # muss eine Versionsnummer zeigen
+```
+
+**2. Projekt herunterladen:**
+
+```bash
+git clone https://github.com/derdigitalaffine/jitsii-speechmind.git
+cd jitsii-speechmind
+```
+
+**3. Einrichtungsassistent starten** – er stellt Fragen und schreibt die Datei `.env` mit allen Passwörtern:
+
+```bash
+./scripts/setup.sh
+```
+
+Beantworten Sie die Fragen (Domains, E-Mail für Zertifikate, öffentliche IP, Admin-E-Mail). **Am Ende zeigt er das Startpasswort des Admins. Notieren Sie es jetzt**, es wird nicht wieder angezeigt.
+
+**4. Starten:**
+
+```bash
 docker compose up -d --build
 ```
 
-`setup.sh` gibt am Ende E-Mail und Startpasswort des Standard-Admins aus (ohne `PORTAL_ADMIN_PASSWORD` erzeugt das Portal eines und schreibt es einmalig ins Log: `docker compose logs portal`). Beim ersten Login muss ein eigenes Passwort vergeben werden. Danach:
+Das erste Mal dauert einige Minuten (Bilder werden geladen und gebaut).
 
-1. `https://portal.example.com` öffnen und anmelden.
-2. **Benachrichtigungen:** SMTP (und optional IMAP) eintragen, Testmail senden.
-3. **SpeechMind:** API-Key eintragen, speichern, „Verbindung testen“ klicken, Projekt auswählen, speichern.
-4. **Benutzer:** Teammitglieder per E-Mail einladen. Ohne eingerichteten Mailversand zeigt das Portal den Einladungslink einmalig zum Weitergeben an.
-5. **Meetings:** Meeting anlegen, „Konferenz betreten“, in Jitsi über das Menü die Aufnahme starten.
-6. **Aufnahmen:** Nach dem Beenden erscheint die Aufnahme nach kurzer Zeit mit MP3 unter „Aufnahmen“. Dort herunterladen oder „In SpeechMind bearbeiten“ klicken. SpeechMind braucht erfahrungsgemäß rund die halbe Aufnahmedauer.
+**5. Prüfen, ob alles läuft:**
+
+```bash
+docker compose ps
+```
+
+Alle Zeilen sollten „running“ oder „Up“ zeigen. Zertifikate holt sich Caddy beim ersten Aufruf von selbst (dauert ca. eine Minute).
+
+**6. Portal öffnen:** `https://<Ihre Portal-Domain>` im Browser. Anmelden mit der Admin-E-Mail und dem Startpasswort aus Schritt 3.
+
+**7. Eigenes Passwort vergeben.** Das Portal verlangt das sofort (alte Passwort = Startpasswort, neues mindestens 10 Zeichen). Erst danach sind die anderen Seiten erreichbar.
+
+**8. E-Mail einrichten:** Oben auf **Benachrichtigungen** klicken, SMTP-Daten eintragen, **Speichern**, dann **Testmail senden**. Kommt die Mail an, ist alles in Ordnung. Wie die Felder auszufüllen sind, steht im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#e-mail-einrichten).
+
+**9. SpeechMind verbinden:** Oben auf **SpeechMind**, API-Key eintragen, **Speichern**, **Verbindung testen**, ein Projekt auswählen, **Speichern**.
+
+**10. Kolleginnen und Kollegen einladen:** Oben auf **Benutzer**, Name und E-Mail eintragen, **Einladen**. Die Person bekommt eine Mail mit einem Link und legt ihr Passwort selbst fest.
+
+**Probelauf (empfohlen):** Legen Sie ein Meeting an, treten Sie bei, starten Sie über „…“ › „Aufnahme starten“, sprechen Sie ein paar Sätze, beenden Sie die Aufnahme. Nach kurzer Zeit erscheint sie unter **Aufnahmen** mit MP3.
+
+Fertig. Alles Weitere (Updates, Sicherung, Probleme) steht unten und im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md).
+
+> **Wichtig:** Die Datei `.env` enthält alle Geheimnisse. Niemals weitergeben, nicht in Git einchecken (ist ausgeschlossen) und **`PORTAL_SECRET_KEY` nie nachträglich ändern**, sonst sind gespeicherte Passwörter und Keys unlesbar.
 
 ### Produktion: Jitsi-Version pinnen
 
@@ -153,6 +204,10 @@ docker compose logs -f jibri
 **Aufnahme-Button fehlt oder Aufnahme startet nicht** – `docker compose logs jibri` prüfen. Häufige Ursachen: zu wenig Arbeitsspeicher, Jibri ist noch mit einer anderen Aufnahme beschäftigt, oder Jibri erreicht `https://MEET_DOMAIN` nicht. Ältere Jitsi-Versionen benötigen zusätzlich das Kernelmodul `snd-aloop` auf dem Host (`sudo modprobe snd-aloop`).
 
 **Aufnahme erscheint nicht im Portal** – Prüfen, ob in `data/recordings/<sitzung>/` eine `.finalized`-Datei liegt. Fehlt sie, wurde `finalize.sh` nicht ausgeführt: Ausführungsrecht prüfen (`chmod +x jibri/finalize.sh`) und `docker compose logs jibri` ansehen.
+
+**E-Mails kommen nicht an** – Unter „Benachrichtigungen“ ganz unten steht zu jeder Nachricht der Fehler. Häufig: falscher Port/Verschlüsselung (587 = STARTTLS, 465 = SSL/TLS), falsches Passwort, oder der Mailserver erlaubt die Absenderadresse nicht. Mehr im [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#e-mail-einrichten).
+
+**Admin-Passwort vergessen** – siehe [Admin-Handbuch](docs/ADMIN-HANDBUCH.md#admin-passwort-vergessen).
 
 **Status „Fehlgeschlagen“** – Die Fehlermeldung steht direkt an der Aufnahme. Bei Problemen mit Key oder Projekt in der GUI unter „SpeechMind“ „Verbindung testen“. Danach an der Aufnahme „Erneut versuchen“. Ist der Upload bereits gelungen, fragt „Erneut versuchen“ nur das Ergebnis neu ab, ohne doppelt hochzuladen.
 

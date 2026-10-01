@@ -166,9 +166,9 @@ def test_imap(cfg: dict[str, str]) -> str:
 
 # --- Warteschlange -----------------------------------------------------------
 
-def enqueue(db, to_addr: str, subject: str, body: str, kind: str) -> bool:
+def enqueue(db, to_addr: str, subject: str, body: str, kind: str, cfg: dict[str, str] | None = None) -> bool:
     """Reiht eine Mail ein. Ohne eingerichteten Versand passiert nichts (False)."""
-    if not mail_configured(get_settings(db)):
+    if not mail_configured(cfg or get_settings(db)):
         return False
     db.add(Notification(kind=kind, to_addr=to_addr, subject=subject, body=body))
     return True
@@ -244,7 +244,7 @@ def _recipients(db, rec: Recording) -> list[str]:
 def notify_recording(db, rec: Recording, event: str) -> None:
     """event: new_recording | done | failed. Muss vor db.commit() aufgerufen werden."""
     cfg = get_settings(db)
-    if cfg.get(f"notify_{event}") != "1":
+    if cfg.get(f"notify_{event}") != "1" or not mail_configured(cfg):
         return
     link = f"{settings.portal_base_url}/recordings/{rec.id}"
     label = _recording_label(rec)
@@ -260,4 +260,4 @@ def notify_recording(db, rec: Recording, event: str) -> None:
         body = (f"Bei der Aufnahme „{label}“ ist ein Fehler aufgetreten:\n\n{rec.error or 'unbekannt'}\n\n"
                 f"Details und erneuter Versuch:\n{link}\n")
     for addr in _recipients(db, rec):
-        enqueue(db, addr, subject, body + _footer(), event)
+        enqueue(db, addr, subject, body + _footer(), event, cfg)

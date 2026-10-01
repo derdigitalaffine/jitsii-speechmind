@@ -3,6 +3,7 @@ import json
 import logging
 import secrets
 import shutil
+import time
 from datetime import timedelta
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -13,7 +14,7 @@ from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Red
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -147,6 +148,22 @@ def admin_user(user: User = Depends(current_user)) -> User:
     return user
 
 
+_attempts: dict[str, list[float]] = {}
+
+
+def rate_limit(request: Request, bucket: str, limit: int = 10, window: int = 600) -> None:
+    """Einfache Bremse gegen Passwort-Raten und Mail-Fluten (pro Adresse, im Speicher)."""
+    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0].strip()
+    key, now = f"{bucket}:{ip}", time.monotonic()
+    hits = [t for t in _attempts.get(key, []) if now - t < window]
+    if len(hits) >= limit:
+        raise HTTPException(429, "Zu viele Versuche. Bitte in einigen Minuten erneut versuchen.")
+    hits.append(now)
+    _attempts[key] = hits
+    if len(_attempts) > 5000:
+        _attempts.clear()
+
+
 async def check_csrf(request: Request) -> None:
     form = await request.form()
     if not csrf_valid(request.session, form.get("csrf")):
@@ -228,6 +245,7 @@ def login_form(request: Request, next: str = "/"):
 @app.post("/login", dependencies=[Depends(check_csrf)])
 def login(request: Request, email: str = Form(...), password: str = Form(...),
           next: str = Form("/"), db: Session = Depends(get_db)):
+    rate_limit(request, "login")
     user = db.scalar(select(User).where(User.email == email.strip().lower()))
     if user is None or not user.active or not verify_password(user.password_hash, password):
         flash(request, "E-Mail oder Passwort ist falsch.", "error")
@@ -277,6 +295,7 @@ def invite_form(request: Request, token: str, db: Session = Depends(get_db)):
 @app.post("/invite/{token}", dependencies=[Depends(check_csrf)])
 def invite_accept(request: Request, token: str, password: str = Form(...), password2: str = Form(...),
                   db: Session = Depends(get_db)):
+    rate_limit(request, "invite")
     target = user_by_token(db, token)
     if target is None:
         return redirect(f"/invite/{token}")
@@ -303,6 +322,7 @@ def forgot_form(request: Request):
 
 @app.post("/forgot", dependencies=[Depends(check_csrf)])
 def forgot_send(request: Request, email: str = Form(...), db: Session = Depends(get_db)):
+    rate_limit(request, "forgot", limit=5)
     target = db.scalar(select(User).where(User.email == email.strip().lower()))
     if target is not None and target.active:
         send_link(db, target, "reset")
@@ -776,7 +796,7 @@ def admin_notifications_retry(request: Request, nid: int, user: User = Depends(a
 
 @app.get("/admin/recordings")
 def admin_recordings(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
-    recordings = db.scalars(select(Recording).order_by(Recording.created_at.desc()).limit(200)).all()
+    recordings = db.scalars(select(Recording).options(joinedload(Recording.meeting)).order_by(Recording.created_at.desc()).limit(200)).all()
     return render(request, "admin_recordings.html", user, recordings=recordings,
                   sm_ready=speechmind_ready(db))
 
