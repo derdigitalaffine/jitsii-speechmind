@@ -152,6 +152,37 @@
     update();
   });
 
+  /* ---- E-Mail-Vorlagen: Platzhalter einfügen, Live-Vorschau ---------- */
+  var sampleEl = document.getElementById('tpl-sample');
+  if (sampleEl) {
+    var sample = {};
+    try { sample = JSON.parse(sampleEl.textContent); } catch (e) { sample = {}; }
+    var fill = function (text) {
+      return text.replace(/\{([a-z_]+)\}/g, function (m, k) { return Object.prototype.hasOwnProperty.call(sample, k) ? sample[k] : m; });
+    };
+    $('form.js-template').forEach(function (form) {
+      var subj = form.elements.subject, body = form.elements.body, last = body;
+      var render = function () {
+        form.querySelector('.js-preview-subject').textContent = fill(subj.value).replace(/\s+/g, ' ');
+        form.querySelector('.js-preview-body').textContent = fill(body.value).replace(/\n{3,}/g, '\n\n');
+      };
+      [subj, body].forEach(function (el) {
+        el.addEventListener('input', render);
+        el.addEventListener('focus', function () { last = el; });
+      });
+      $('[data-insert]', form).forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var el = last, start = el.selectionStart || 0, end = el.selectionEnd || 0, text = btn.dataset.insert;
+          el.value = el.value.slice(0, start) + text + el.value.slice(end);
+          el.focus();
+          el.selectionStart = el.selectionEnd = start + text.length;
+          render();
+        });
+      });
+      render();
+    });
+  }
+
   /* ---- Kopieren ------------------------------------------------------- */
   $('[data-copy]').forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -180,7 +211,11 @@
 
   /* ---- E-Mail-Adressen als Tags (Tagify) ------------------------------ */
   $('input.js-emails').forEach(function (input) {
+    var whitelist = [];
+    try { whitelist = JSON.parse(input.dataset.suggest || '[]'); } catch (e) { whitelist = []; }
     new Tagify(input, {
+      whitelist: whitelist,
+      enforceWhitelist: false,
       pattern: /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/,
       delimiters: ',|;|\\s',
       editTags: 1,
@@ -188,7 +223,10 @@
       trim: true,
       originalInputValueFormat: function (v) { return v.map(function (x) { return x.value; }).join(','); },
       texts: { empty: 'Bitte ausfüllen', pattern: 'Ungültige E-Mail-Adresse', duplicate: 'Schon eingetragen' },
-      dropdown: { enabled: 0 }
+      dropdown: whitelist.length ? {
+        enabled: 1, maxItems: 8, searchKeys: ['value', 'name'], closeOnSelect: true,
+        mapValueTo: function (item) { return item.name ? item.name + ' <' + item.value + '>' : item.value; }
+      } : { enabled: 0 }
     });
   });
 

@@ -7,17 +7,19 @@ Für alle, die den Videokonferenzserver der Verbandsgemeinde Otterbach-Otterberg
 1. [Die Oberfläche im Überblick](#die-oberfläche-im-überblick)
 2. [Aufnahmen und Transkription](#aufnahmen-und-transkription)
 3. [Benutzer verwalten und einladen](#benutzer-verwalten-und-einladen)
-4. [HTTPS und Zertifikat](#https-und-zertifikat)
-5. [Design & Branding](#design--branding)
-6. [Konferenzen ohne Anmeldung](#konferenzen-ohne-anmeldung)
-7. [E-Mail einrichten](#e-mail-einrichten)
-8. [SpeechMind einrichten](#speechmind-einrichten)
-9. [Aufnahme ohne Ton](#aufnahme-ohne-ton)
-10. [Admin-Passwort vergessen](#admin-passwort-vergessen)
-11. [Alltag: Start, Stopp, Logs, Update](#alltag-start-stopp-logs-update)
-12. [Sicherung und Wiederherstellung](#sicherung-und-wiederherstellung)
-13. [Speicherplatz](#speicherplatz)
-14. [Wenn etwas nicht geht](#wenn-etwas-nicht-geht)
+4. [Besprechungen planen](#besprechungen-planen)
+5. [E-Mail-Vorlagen](#e-mail-vorlagen)
+6. [HTTPS und Zertifikat](#https-und-zertifikat)
+7. [Design & Branding](#design--branding)
+8. [Konferenzen ohne Anmeldung](#konferenzen-ohne-anmeldung)
+9. [E-Mail einrichten](#e-mail-einrichten)
+10. [SpeechMind einrichten](#speechmind-einrichten)
+11. [Aufnahme ohne Ton](#aufnahme-ohne-ton)
+12. [Admin-Passwort vergessen](#admin-passwort-vergessen)
+13. [Alltag: Start, Stopp, Logs, Update](#alltag-start-stopp-logs-update)
+14. [Sicherung und Wiederherstellung](#sicherung-und-wiederherstellung)
+15. [Speicherplatz](#speicherplatz)
+16. [Wenn etwas nicht geht](#wenn-etwas-nicht-geht)
 
 ## Die Oberfläche im Überblick
 
@@ -30,6 +32,8 @@ Nach der Anmeldung zeigt die obere Leiste für Admins:
 | **Benutzer** | Konten anlegen, einladen, sperren, löschen |
 | **Benachrichtigungen** | E-Mail-Versand (SMTP/IMAP), welche Hinweise verschickt werden, Versandprotokoll |
 | **SpeechMind** | API-Key, Projekt, Sprache, Protokollart |
+| **Besprechung planen** | Termin anlegen und Teilnehmende per Kalendereinladung einladen |
+| **E-Mail-Vorlagen** | Texte aller Mails anpassen |
 | **HTTPS & Zertifikat** | Selbst signiert oder Let's Encrypt, Zertifikatsstatus |
 | **Design & Branding** | Name, Farben, Logo, Fußzeile, Impressum-Link |
 | *Ihr Name* (oben rechts) | Profil, Passwort ändern, Abmelden |
@@ -107,6 +111,44 @@ Das eigene Konto lässt sich hier nicht sperren oder löschen (Schutz vor Ausspe
 **Passwort vergessen (Benutzer:innen):** Auf der Login-Seite „Passwort vergessen?“ klicken, E-Mail eingeben. Der Link ist 2 Stunden gültig. Aus Sicherheitsgründen antwortet das Portal immer gleich, auch wenn die Adresse unbekannt ist.
 
 **Das Standard-Admin-Konto** wird beim allerersten Start angelegt. Legen Sie danach ein persönliches Admin-Konto für jede zuständige Person an und sperren Sie das Standardkonto oder behalten Sie es mit sicherem Passwort.
+
+## Besprechungen planen
+
+Menü **Besprechung planen** (für alle angemeldeten Benutzer:innen).
+
+1. **Titel**, **Beginn**, **Dauer** und optional eine **Tagesordnung** eintragen.
+2. **Teilnehmende:** Namen oder Adresse eintippen. Portal-Benutzer werden vorgeschlagen; externe Gäste trägt man einfach mit E-Mail-Adresse ein (Enter, Komma oder Leerzeichen trennt). Externe brauchen kein Konto.
+3. **Kopie an mich** (empfohlen): Sie erhalten den Termin selbst als Kalendereintrag.
+4. **Planen und einladen**.
+
+Das Portal legt einen Konferenzraum an und schickt **jeder Person eine eigene Mail**. Sie enthält den Einwahllink und den Termin als **Outlook-Besprechungsanfrage** (Annehmen/Ablehnen direkt in Outlook) plus Datei `einladung.ics` für alle anderen Kalender (Thunderbird, Apple, Google). Die Empfänger sehen die anderen Adressen nicht. Zu-/Absagen aus Outlook gehen an die planende Person.
+
+**Auf der Seite des Meetings** (Bereich „Termin & Einladungen“):
+
+| Aktion | Wirkung |
+|---|---|
+| **Termin ändern** | Neue Zeit, Dauer oder Tagesordnung. Ist „Eingeladene informieren“ an, bekommen alle einen aktualisierten Kalendereintrag, der den alten ersetzt |
+| **Weitere Personen einladen** | Nur die neuen Personen bekommen eine Einladung |
+| Symbol **Ausladen** | Die Person bekommt eine Absage, der Termin verschwindet aus ihrem Kalender |
+| **Einladung erneut senden** | Schickt allen die aktuelle Einladung noch einmal (z. B. wenn jemand sie gelöscht hat) |
+| **Absagen** | Alle bekommen eine Absage; der Raum bleibt bestehen |
+| **ICS herunterladen** | Termin als Datei, z. B. zum Weiterleiten aus dem eigenen Mailprogramm |
+
+Auch für einen bestehenden Raum lässt sich nachträglich ein Termin festlegen. Wird ein Meeting mit anstehendem Termin gelöscht, erhalten die Eingeladenen automatisch eine Absage. Anstehende Besprechungen stehen auf der Startseite unter **Meetings**.
+
+**Ohne eingerichteten E-Mail-Versand** wird die Besprechung trotzdem angelegt, es gehen aber keine Mails raus. Laden Sie dann die ICS-Datei herunter und versenden Sie sie selbst.
+
+## E-Mail-Vorlagen
+
+Menü **E-Mail-Vorlagen** (nur Admins). Hier stehen alle Mails, die das Portal verschickt, gruppiert nach Konten, Besprechungen und Aufnahmen.
+
+- **Betreff** und **Text** sind frei änderbar. Platzhalter in geschweiften Klammern, z. B. `{name}` oder `{link}`, werden beim Versand ersetzt. Ein Klick auf einen Platzhalter unter dem Textfeld fügt ihn an der Cursorposition ein; mit der Maus darüber sehen Sie, was er enthält.
+- Rechts zeigt eine **Vorschau** das Ergebnis mit Beispieldaten, schon während Sie tippen.
+- **Speichern & Testmail an mich** schickt die Vorlage mit Beispieldaten an Ihre eigene Adresse.
+- **Standard** setzt die Vorlage auf den mitgelieferten Text zurück. Angepasste Vorlagen sind mit „angepasst“ markiert.
+- `{fusszeile}` ist die Standard-Signatur (Produkt, Organisation, Portal-Adresse). Wer eine eigene Signatur möchte, ersetzt den Platzhalter durch eigenen Text.
+- Ein falsch geschriebener Platzhalter bleibt einfach als Text stehen; es geht keine Mail verloren.
+- Die Mails sind reiner Text. Links werden in allen gängigen Mailprogrammen anklickbar angezeigt.
 
 ## HTTPS und Zertifikat
 

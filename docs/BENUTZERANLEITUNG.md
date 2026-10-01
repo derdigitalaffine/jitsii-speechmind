@@ -30,6 +30,15 @@ Falls Ihre Verwaltung das freigegeben hat, können Sie auch **ohne Konto** konfe
 - Gäste kommen hinein, sobald Sie im Raum sind. Bleiben Sie also im Raum, bis alle da sind.
 - Mit demselben Browser kommen Sie später wieder in Ihren Raum.
 
+### Eine Besprechung mit Einladung planen
+
+1. Links auf **Besprechung planen** klicken.
+2. Titel, Beginn, Dauer und auf Wunsch eine Tagesordnung eintragen.
+3. Bei **Teilnehmende** Namen oder E-Mail-Adressen eintippen. Kolleg:innen werden vorgeschlagen, externe Gäste tragen Sie mit ihrer Adresse ein.
+4. **Planen und einladen** klicken.
+
+Alle Eingeladenen bekommen eine E-Mail mit Einwahllink und einem Kalendereintrag. In Outlook erscheint sie wie eine normale Besprechungsanfrage mit „Annehmen“ und „Ablehnen“. Ändern Sie später den Termin oder sagen Sie ab, werden die Kalender der Eingeladenen automatisch aktualisiert. Das geht auf der Seite des Meetings im Bereich **Termin & Einladungen**.
+
 ## 3. Aufnehmen
 
 1. In der Konferenz unten rechts auf **„…“** (Weitere Aktionen) klicken.

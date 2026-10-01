@@ -6,6 +6,7 @@ fehlgeschlagene Mails werden mit wachsendem Abstand erneut versucht.
 """
 
 import imaplib
+import json
 import logging
 import smtplib
 import ssl
@@ -16,7 +17,7 @@ from email.utils import formataddr, formatdate, make_msgid
 
 from sqlalchemy import select
 
-from . import branding
+from . import branding, mailtpl
 from .config import settings
 from .db import Notification, Recording, SessionLocal, User, get_settings, to_local, utcnow
 from .security import decrypt
@@ -96,14 +97,29 @@ def _imap_connect(cfg: dict[str, str]) -> imaplib.IMAP4:
 
 # --- Senden ------------------------------------------------------------------
 
-def _build(cfg: dict[str, str], to_addr: str, subject: str, body: str) -> EmailMessage:
+def _build(cfg: dict[str, str], to_addr: str, subject: str, body: str,
+           attachments: list[dict] | None = None, reply_to: str | None = None) -> EmailMessage:
     msg = EmailMessage()
     msg["From"] = _sender(cfg)
     msg["To"] = to_addr
+    if reply_to:
+        msg["Reply-To"] = reply_to
     msg["Subject"] = subject
     msg["Date"] = formatdate(localtime=True)
     msg["Message-ID"] = make_msgid(domain=cfg["mail_from"].rsplit("@", 1)[-1] or None)
     msg.set_content(body)
+    for att in attachments or []:
+        method = att.get("calendar_method")
+        if method:
+            # Kalenderteil als Alternative: Outlook zeigt daraus die Besprechungsanfrage an
+            msg.add_alternative(att["content"], subtype="calendar", params={"method": method})
+    for att in attachments or []:
+        if att.get("calendar_method"):
+            msg.add_attachment(att["content"].encode("utf-8"), maintype="application", subtype="ics",
+                               filename=att["filename"])
+        else:
+            msg.add_attachment(att["content"].encode("utf-8"), maintype="application",
+                               subtype="octet-stream", filename=att["filename"])
     return msg
 
 
@@ -125,10 +141,11 @@ def _save_to_sent(cfg: dict[str, str], msg: EmailMessage) -> None:
         log.warning("Kopie konnte nicht per IMAP abgelegt werden: %s", exc)
 
 
-def deliver(cfg: dict[str, str], to_addr: str, subject: str, body: str) -> None:
+def deliver(cfg: dict[str, str], to_addr: str, subject: str, body: str,
+            attachments: list[dict] | None = None, reply_to: str | None = None) -> None:
     if not mail_configured(cfg):
         raise MailError("E-Mail-Versand ist nicht eingerichtet.")
-    msg = _build(cfg, to_addr, subject, body)
+    msg = _build(cfg, to_addr, subject, body, attachments, reply_to)
     server = _smtp_connect(cfg)
     try:
         server.send_message(msg)
@@ -171,11 +188,18 @@ def test_imap(cfg: dict[str, str]) -> str:
 
 # --- Warteschlange -----------------------------------------------------------
 
-def enqueue(db, to_addr: str, subject: str, body: str, kind: str, cfg: dict[str, str] | None = None) -> bool:
-    """Reiht eine Mail ein. Ohne eingerichteten Versand passiert nichts (False)."""
+def enqueue(db, to_addr: str, subject: str, body: str, kind: str, cfg: dict[str, str] | None = None,
+            *, attachments: list[dict] | None = None, reply_to: str | None = None) -> bool:
+    """Reiht eine Mail ein. Ohne eingerichteten Versand passiert nichts (False).
+
+    attachments: [{"filename": "einladung.ics", "content": "...", "calendar_method": "REQUEST"}]
+    Ein Anhang mit calendar_method wird zusätzlich als Kalenderteil eingebettet, damit Outlook
+    die Mail als Besprechungsanfrage (Annehmen/Ablehnen) anzeigt.
+    """
     if not mail_configured(cfg or get_settings(db)):
         return False
-    db.add(Notification(kind=kind, to_addr=to_addr, subject=subject, body=body))
+    db.add(Notification(kind=kind, to_addr=to_addr, subject=subject, body=body, reply_to=reply_to,
+                        attachments_json=json.dumps(attachments, ensure_ascii=False) if attachments else None))
     return True
 
 
@@ -192,7 +216,9 @@ def process_queue() -> int:
         for n in due:
             n.attempts += 1
             try:
-                deliver(cfg, n.to_addr, n.subject, n.body)
+                deliver(cfg, n.to_addr, n.subject, n.body,
+                        attachments=json.loads(n.attachments_json) if n.attachments_json else None,
+                        reply_to=n.reply_to)
             except MailError as exc:
                 n.error = str(exc)[:1000]
                 if n.attempts >= MAX_ATTEMPTS or not mail_configured(cfg):
@@ -207,32 +233,14 @@ def process_queue() -> int:
     return sent
 
 
-# --- Nachrichtentexte --------------------------------------------------------
+# --- Nachrichtentexte (bearbeitbar unter Admin > E-Mail-Vorlagen) --------------
 
-def _footer() -> str:
-    return (f"\n--\n{_b()['product']} der {_b()['name']}\n{settings.portal_base_url}\n")
-
-
-def invite_text(user: User, link: str) -> tuple[str, str]:
-    return (
-        f"Einladung zum {_b()['product']} der {_b()['name']}",
-        f"Guten Tag {user.name},\n\n"
-        f"für Sie wurde ein Konto im {_b()['product']} der {_b()['name']} angelegt. "
-        f"Über den folgenden Link legen Sie Ihr Passwort fest und melden sich an:\n\n{link}\n\n"
-        f"Der Link ist {settings.invite_ttl_hours} Stunden gültig und kann nur einmal verwendet werden.\n"
-        f"Ihr Benutzername ist Ihre E-Mail-Adresse: {user.email}\n" + _footer(),
-    )
-
-
-def reset_text(user: User, link: str) -> tuple[str, str]:
-    return (
-        f"Passwort zurücksetzen – {_b()['product']}",
-        f"Guten Tag {user.name},\n\n"
-        f"für Ihr Konto wurde das Zurücksetzen des Passworts angefordert. Über diesen Link "
-        f"vergeben Sie ein neues Passwort:\n\n{link}\n\n"
-        f"Der Link ist {settings.reset_ttl_hours} Stunden gültig. Haben Sie das nicht angefordert, "
-        f"können Sie diese Nachricht ignorieren.\n" + _footer(),
-    )
+def account_link_mail(db, user: User, link: str, kind: str) -> tuple[str, str]:
+    """kind: invite | reset"""
+    key = "account_invite" if kind == "invite" else "password_reset"
+    hours = settings.invite_ttl_hours if kind == "invite" else settings.reset_ttl_hours
+    return mailtpl.render(db, key, {"name": user.name, "email": user.email, "link": link,
+                                    "gueltig_stunden": hours})
 
 
 def _recording_label(rec: Recording) -> str:
@@ -246,28 +254,19 @@ def _recipients(db, rec: Recording) -> list[str]:
     return list(db.scalars(select(User.email).where(User.is_admin.is_(True), User.active.is_(True))))
 
 
+_RECORDING_TEMPLATE = {"new_recording": "recording_new", "done": "recording_done",
+                       "failed": "recording_failed", "silent": "recording_silent"}
+
+
 def notify_recording(db, rec: Recording, event: str) -> None:
-    """event: new_recording | done | failed. Muss vor db.commit() aufgerufen werden."""
+    """event: new_recording | done | failed | silent. Muss vor db.commit() aufgerufen werden."""
     cfg = get_settings(db)
     gate = "failed" if event == "silent" else event
     if cfg.get(f"notify_{gate}") != "1" or not mail_configured(cfg):
         return
-    link = f"{settings.portal_base_url}/recordings/{rec.id}"
-    label = _recording_label(rec)
-    if event == "new_recording":
-        subject = f"Neue Aufnahme: {label}"
-        body = (f"Die Aufnahme „{label}“ ist abgeschlossen und liegt als MP3 vor.\n\n"
-                f"Dort können Sie die MP3 herunterladen oder die Transkription in SpeechMind starten:\n{link}\n")
-    elif event == "done":
-        subject = f"Transkript fertig: {label}"
-        body = f"SpeechMind hat die Aufnahme „{label}“ verarbeitet.\n\nProtokoll und Wortlaut:\n{link}\n"
-    elif event == "silent":
-        subject = f"Aufnahme ohne Ton: {label}"
-        body = (f"Die Aufnahme „{label}“ enthält keinen hörbaren Ton.\n\n{rec.error or ''}\n\n"
-                f"Details:\n{link}\n")
-    else:
-        subject = f"Transkription fehlgeschlagen: {label}"
-        body = (f"Bei der Aufnahme „{label}“ ist ein Fehler aufgetreten:\n\n{rec.error or 'unbekannt'}\n\n"
-                f"Details und erneuter Versuch:\n{link}\n")
+    subject, body = mailtpl.render(db, _RECORDING_TEMPLATE[event], {
+        "aufnahme": _recording_label(rec), "link": f"{settings.portal_base_url}/recordings/{rec.id}",
+        "fehler": rec.error or "",
+    }, cfg)
     for addr in _recipients(db, rec):
-        enqueue(db, addr, subject, body + _footer(), event, cfg)
+        enqueue(db, addr, subject, body, event, cfg)

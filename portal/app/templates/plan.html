@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Besprechung planen{% endblock %}
+{% block content %}
+{{ m.page_head('Besprechung planen', 'Legt einen Konferenzraum an und lädt die Teilnehmenden per E-Mail ein. Die Einladung enthält einen Kalendereintrag (Outlook, Thunderbird, Apple, Google) mit Einwahllink.') }}
+
+{% if not mail_ready %}
+<div class="alert alert-warning d-flex gap-2"><i class="fa-solid fa-triangle-exclamation mt-1"></i>
+  <div><strong>E-Mail-Versand ist nicht eingerichtet.</strong> Die Besprechung wird angelegt, aber es gehen keine Einladungen raus. Den Termin können Sie danach als ICS-Datei herunterladen und selbst versenden.{% if user.is_admin %} Einrichten unter <a href="/admin/notifications">Benachrichtigungen</a>.{% endif %}</div></div>
+{% endif %}
+
+<form method="post" action="/meetings/plan" class="row g-4">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="col-12 col-xl-7"><div class="card h-100">
+    <div class="card-header"><i class="fa-regular fa-calendar me-2"></i>Termin</div>
+    <div class="card-body row g-3">
+      <div class="col-12"><label class="form-label" for="t">Titel</label>
+        <input class="form-control" id="t" name="title" type="text" maxlength="200" required placeholder="z. B. Teamrunde Bauamt"></div>
+      <div class="col-md-7"><label class="form-label" for="s">Beginn</label>
+        <input class="form-control" id="s" name="start" type="datetime-local" required value="{{ default_start }}"></div>
+      <div class="col-md-5"><label class="form-label" for="d">Dauer</label>
+        <select class="form-select js-select" id="d" name="duration">
+          {% for d in durations %}<option value="{{ d }}" {% if d == 60 %}selected{% endif %}>{{ d }} Minuten{% if d >= 60 and d % 60 == 0 %} ({{ d // 60 }} h){% endif %}</option>{% endfor %}
+        </select></div>
+      <div class="col-12"><label class="form-label" for="desc">Beschreibung / Tagesordnung</label>
+        <textarea class="form-control" id="desc" name="description" rows="6" maxlength="5000" placeholder="Optional. Erscheint in der Einladung und im Kalendereintrag."></textarea></div>
+    </div>
+  </div></div>
+
+  <div class="col-12 col-xl-5"><div class="card h-100">
+    <div class="card-header"><i class="fa-solid fa-user-group me-2"></i>Teilnehmende</div>
+    <div class="card-body">
+      <label class="form-label" for="inv">E-Mail-Adressen</label>
+      <input class="js-emails" id="inv" name="invitees" placeholder="Name oder Adresse eintippen" data-suggest='{{ users_json | tojson | forceescape }}'>
+      <div class="form-text mb-3">Portal-Benutzer werden beim Tippen vorgeschlagen. Externe Gäste einfach mit E-Mail-Adresse eintragen; sie brauchen kein Konto. Jede Person bekommt eine eigene Mail und sieht die anderen Adressen nicht.</div>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch" id="cm" name="copy_me" value="1" checked>
+        <label class="form-check-label" for="cm">Kopie mit Kalendereintrag an mich ({{ user.email }})</label>
+      </div>
+      <div class="alert alert-light border small mt-3 mb-0"><i class="fa-solid fa-circle-info me-1"></i>Antworten und Zu-/Absagen aus Outlook gehen an Ihre Adresse.</div>
+    </div>
+    <div class="card-footer bg-transparent"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-paper-plane me-1"></i>Planen und einladen</button></div>
+  </div></div>
+</form>
+{% endblock %}

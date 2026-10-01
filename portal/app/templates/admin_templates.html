@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}E-Mail-Vorlagen{% endblock %}
+{% block content %}
+{{ m.page_head('E-Mail-Vorlagen', 'Betreff und Text aller Mails, die das Portal verschickt. Platzhalter in geschweiften Klammern werden beim Versand ersetzt; ein Klick auf einen Platzhalter fügt ihn an der Cursorposition ein. Die Vorschau rechts zeigt das Ergebnis mit Beispieldaten.') }}
+
+<script type="application/json" id="tpl-sample">{{ sample | tojson }}</script>
+
+{% set groups = items | groupby('group') %}
+{% for group, entries in groups %}
+<h2 class="h5 mt-4 mb-3">{{ group }}</h2>
+<div class="accordion mb-3" id="acc-{{ loop.index }}">
+  {% for t in entries %}
+  <div class="accordion-item" id="{{ t.key }}">
+    <h3 class="accordion-header">
+      <button class="accordion-button {{ '' if open_key == t.key else 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#c-{{ t.key }}">
+        <span class="me-2">{{ t.label }}</span>
+        {% if t.custom %}<span class="badge text-bg-primary">angepasst</span>{% else %}<span class="badge text-bg-secondary">Standard</span>{% endif %}
+      </button>
+    </h3>
+    <div id="c-{{ t.key }}" class="accordion-collapse collapse {{ 'show' if open_key == t.key }}">
+      <div class="accordion-body">
+        <form method="post" action="/admin/templates/{{ t.key }}" class="row g-3 js-template">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <div class="col-12 col-xl-7">
+            <label class="form-label" for="s-{{ t.key }}">Betreff</label>
+            <input class="form-control mb-3" id="s-{{ t.key }}" name="subject" type="text" maxlength="300" value="{{ t.cur_subject }}" required>
+            <label class="form-label" for="b-{{ t.key }}">Text</label>
+            <textarea class="form-control font-monospace" id="b-{{ t.key }}" name="body" rows="14" required>{{ t.cur_body }}</textarea>
+            <div class="mt-2 small">
+              <div class="text-secondary mb-1">Platzhalter (Klick fügt ein):</div>
+              {% for name, desc in t.vars.items() %}<button type="button" class="btn btn-sm btn-outline-secondary me-1 mb-1" data-insert="{{ '{' ~ name ~ '}' }}" title="{{ desc }}">{{ '{' ~ name ~ '}' }}</button>{% endfor %}
+              {% for name, desc in common_vars.items() %}<button type="button" class="btn btn-sm btn-outline-secondary me-1 mb-1" data-insert="{{ '{' ~ name ~ '}' }}" title="{{ desc }}">{{ '{' ~ name ~ '}' }}</button>{% endfor %}
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+              <button class="btn btn-primary" type="submit" name="action" value="save"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
+              <button class="btn btn-outline-primary" type="submit" name="action" value="test"><i class="fa-regular fa-envelope me-1"></i>Speichern &amp; Testmail an mich</button>
+              <button class="btn btn-outline-danger" type="submit" name="action" value="reset" formnovalidate data-confirm-title="Auf Standardtext zurücksetzen?" data-confirm="Ihre Anpassungen an dieser Vorlage gehen verloren." data-confirm-button="Zurücksetzen"><i class="fa-solid fa-rotate-left me-1"></i>Standard</button>
+            </div>
+          </div>
+          <div class="col-12 col-xl-5">
+            <div class="form-label">Vorschau mit Beispieldaten</div>
+            <div class="border rounded p-3 bg-body-tertiary">
+              <div class="small text-secondary">Betreff</div>
+              <div class="fw-semibold mb-3 js-preview-subject"></div>
+              <div class="small text-secondary">Text</div>
+              <div class="js-preview-body" style="white-space: pre-wrap; font-size: .9rem"></div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+{% endblock %}
