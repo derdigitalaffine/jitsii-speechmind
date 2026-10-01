@@ -1,0 +1,16 @@
+# Secrets & Laufzeitdaten
+.env
+.env.bak
+data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+portal/dev-data/
+portal/dev-recordings/
+
+# Editor/OS
+.idea/
+.vscode/
+.DS_Store

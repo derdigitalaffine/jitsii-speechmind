@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Konferenz & Protokoll{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+{% block body %}
+<header class="topbar">
+  <a class="brand" href="/"><span class="brand-lamp" aria-hidden="true"></span>Konferenz &amp; Protokoll</a>
+  {% if user %}
+  <nav class="nav" aria-label="Hauptnavigation">
+    {% set path = request.url.path %}
+    <a href="/" {% if path == '/' or path.startswith('/meetings') %}aria-current="page"{% endif %}>Meetings</a>
+    {% if user.is_admin %}
+    <a href="/admin/recordings" {% if path == '/admin/recordings' %}aria-current="page"{% endif %}>Alle Aufnahmen</a>
+    <a href="/admin/users" {% if path == '/admin/users' %}aria-current="page"{% endif %}>Benutzer</a>
+    <a href="/admin/speechmind" {% if path == '/admin/speechmind' %}aria-current="page"{% endif %}>SpeechMind</a>
+    {% endif %}
+    <a href="/profile" {% if path == '/profile' %}aria-current="page"{% endif %}>{{ user.name }}</a>
+    <form method="post" action="/logout">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="link" type="submit">Abmelden</button>
+    </form>
+  </nav>
+  {% endif %}
+</header>
+<main>
+  {% for m in messages %}
+  <div class="flash {{ m.kind }}" role="status">{{ m.text }}</div>
+  {% endfor %}
+  {% block content %}{% endblock %}
+</main>
+{% endblock %}
+</body>
+</html>

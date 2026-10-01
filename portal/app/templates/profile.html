@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Profil – Konferenz & Protokoll{% endblock %}
+{% block content %}
+<h1>Profil</h1>
+<p class="lede">{{ user.email }}{% if user.is_admin %} – Administrator:in{% endif %}</p>
+
+<form method="post" action="/profile">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="panel">
+    <div class="field">
+      <label for="name">Anzeigename</label>
+      <input id="name" name="name" type="text" value="{{ user.name }}" required maxlength="200">
+      <span class="hint">So erscheinen Sie in der Konferenz.</span>
+    </div>
+    <div class="field">
+      <label for="cur">Aktuelles Passwort</label>
+      <input id="cur" name="current_password" type="password" autocomplete="current-password">
+    </div>
+    <div class="field">
+      <label for="new">Neues Passwort</label>
+      <input id="new" name="new_password" type="password" autocomplete="new-password" minlength="10">
+      <span class="hint">Leer lassen, um das Passwort zu behalten. Mindestens 10 Zeichen.</span>
+    </div>
+  </div>
+
+  {% if allow_user_keys %}
+  <h2>Eigener SpeechMind-Zugang</h2>
+  <div class="panel">
+    <p class="muted small" style="margin-top:0">Optional. Ist hier ein Key hinterlegt, landen Ihre Aufnahmen in Ihrem eigenen SpeechMind-Konto statt im gemeinsamen.</p>
+    <div class="field">
+      <label for="smkey">API-Key</label>
+      <input id="smkey" name="sm_api_key" type="password" autocomplete="off" placeholder="{{ own_key_mask or 'Kein eigener Key hinterlegt' }}">
+    </div>
+    <div class="field">
+      <label for="smproj">Projekt-Slug</label>
+      <input id="smproj" name="sm_project_slug" type="text" value="{{ user.sm_project_slug or '' }}">
+      <span class="hint">Leer lassen, um das Standardprojekt zu verwenden.</span>
+    </div>
+    {% if own_key_mask %}
+    <label class="check"><input type="checkbox" name="sm_remove_key" value="1"><span>Eigenen Key entfernen</span></label>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="actions"><button type="submit">Profil speichern</button></div>
+</form>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% macro track(rec) -%}
+{%- set order = {'recorded': 0, 'queued': 1, 'converting': 1, 'uploading': 2, 'processing': 3, 'done': 4} -%}
+{%- if rec.status == 'failed' -%}
+  {%- set pos = 3 if rec.sm_protocol_slug else 1 -%}
+{%- else -%}
+  {%- set pos = order.get(rec.status, 0) -%}
+{%- endif -%}
+<ol class="track {% if rec.status == 'done' %}done{% endif %}" aria-label="Verarbeitungsstand: {{ status_labels.get(rec.status, rec.status) }}">
+  {%- for key, label in pipeline %}
+  {%- set i = loop.index0 -%}
+  {%- if rec.status == 'failed' and i == pos -%}{%- set cls = 'broken' -%}
+  {%- elif i < pos or (rec.status == 'done' and i == pos) -%}{%- set cls = 'passed' -%}
+  {%- elif i == pos and rec.status in active_statuses -%}{%- set cls = 'current' -%}
+  {%- elif i == pos -%}{%- set cls = 'passed' -%}
+  {%- else -%}{%- set cls = '' -%}{%- endif %}
+  <li class="{{ cls }}{% if loop.first %} first{% endif %}{% if loop.last %} last{% endif %}"><span>{{ label }}</span></li>
+  {%- endfor %}
+</ol>
+{%- endmacro %}
+
+{% macro duration(seconds) -%}
+{%- if seconds -%}{{ seconds // 3600 }}:{{ '%02d' % (seconds % 3600 // 60) }}:{{ '%02d' % (seconds % 60) }} h{%- endif -%}
+{%- endmacro %}
+
+{% macro rec_card(rec, csrf, show_meeting=false) -%}
+<article class="panel rec-card">
+  <div class="rec-head">
+    <div>
+      <a class="title" href="/recordings/{{ rec.id }}"><strong>Aufnahme vom {{ rec.created_at | local }} Uhr</strong></a>
+      {% if show_meeting %}<div class="meta muted small">{{ rec.meeting.title if rec.meeting else 'Raum ' ~ rec.room ~ ' (ohne Meeting)' }}</div>{% endif %}
+    </div>
+    <span class="muted small">{{ status_labels.get(rec.status, rec.status) }}{% if rec.duration_seconds %} · {{ duration(rec.duration_seconds) }}{% endif %}</span>
+  </div>
+  {{ track(rec) }}
+  {% if rec.error %}<p class="rec-error">{{ rec.error }}</p>{% endif %}
+  {% if rec.status in ('recorded', 'failed') %}
+  <form class="actions" method="post" action="/recordings/{{ rec.id }}/transcribe">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button type="submit" class="{{ 'quiet' if rec.status == 'failed' else '' }}">
+      {{ 'Erneut versuchen' if rec.status == 'failed' else 'Mit SpeechMind transkribieren' }}
+    </button>
+  </form>
+  {% elif rec.status == 'done' %}
+  <div class="actions"><a class="button quiet" href="/recordings/{{ rec.id }}">Transkript lesen</a></div>
+  {% endif %}
+</article>
+{%- endmacro %}

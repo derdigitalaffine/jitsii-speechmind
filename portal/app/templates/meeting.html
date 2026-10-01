@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ meeting.title }} – Konferenz & Protokoll{% endblock %}
+{% block head %}{% if meeting.recordings | selectattr('status', 'in', active_statuses) | list %}<meta http-equiv="refresh" content="30">{% endif %}{% endblock %}
+{% block content %}
+<section class="meeting-hero">
+  <div>
+    <h1>{{ meeting.title }}</h1>
+    <div class="room-name">Raum <strong>{{ meeting.room }}</strong>{% if meeting.owner_id != user.id %} · gehört {{ meeting.owner.name }}{% endif %}</div>
+  </div>
+  <a class="button join" href="/meetings/{{ meeting.id }}/join">Konferenz betreten</a>
+</section>
+
+<div class="field">
+  <label for="guest">Einladungslink für Gäste</label>
+  <div class="copy-row">
+    <input id="guest" type="text" value="{{ guest_url }}" readonly>
+    <button type="button" class="quiet" data-copy="#guest">Kopieren</button>
+  </div>
+  <span class="hint">Gäste kommen in den Raum, sobald Sie als Moderator:in drin sind.</span>
+</div>
+
+<h2>Aufnahmen</h2>
+{% if not sm_ready %}
+<div class="notice"><strong>SpeechMind ist noch nicht verbunden.</strong> Aufnahmen werden gespeichert und können später transkribiert werden.</div>
+{% endif %}
+{% if meeting.recordings %}
+  {% for rec in meeting.recordings %}{{ m.rec_card(rec, csrf) }}{% endfor %}
+{% else %}
+<p class="empty">Noch keine Aufnahme. Starten Sie in der Konferenz über „…“ › „Aufnahme starten“. Sobald Sie die Aufnahme beenden, taucht sie hier auf und geht {{ 'automatisch' if meeting.transcribe else 'auf Knopfdruck' }} an SpeechMind.</p>
+{% endif %}
+
+<h2>Einstellungen</h2>
+<form class="panel" method="post" action="/meetings/{{ meeting.id }}/settings">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="field">
+    <label for="mt-title">Titel</label>
+    <input id="mt-title" name="title" type="text" value="{{ meeting.title }}" maxlength="200" required>
+    <span class="hint">Wird als Protokollname an SpeechMind übergeben.</span>
+  </div>
+  <label class="check">
+    <input type="checkbox" name="transcribe" value="1" {% if meeting.transcribe %}checked{% endif %}>
+    <span><strong>Aufnahmen automatisch transkribieren</strong>
+      <span class="hint">Aus: Aufnahmen bleiben nur hier gespeichert, bis Sie sie einzeln senden.</span></span>
+  </label>
+  <div class="field">
+    <label for="doc">Protokollart</label>
+    <select id="doc" name="document_type">
+      <option value="">Standard aus den Admin-Einstellungen</option>
+      {% for key, label in document_types.items() %}
+      <option value="{{ key }}" {% if meeting.document_type == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="lang">Sprache</label>
+    <select id="lang" name="language">
+      <option value="">Standard aus den Admin-Einstellungen</option>
+      {% for key, label in languages.items() %}
+      <option value="{{ key }}" {% if meeting.language == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit">Einstellungen speichern</button>
+</form>
+
+<form class="actions" method="post" action="/meetings/{{ meeting.id }}/delete"
+      onsubmit="return confirm('Meeting wirklich löschen? Aufnahmen bleiben für Admins erhalten.')">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button type="submit" class="danger">Meeting löschen</button>
+</form>
+
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var field = document.querySelector(btn.dataset.copy);
+    field.select();
+    (navigator.clipboard ? navigator.clipboard.writeText(field.value) : Promise.resolve(document.execCommand('copy')))
+      .then(function () { btn.textContent = 'Kopiert'; setTimeout(function () { btn.textContent = 'Kopieren'; }, 2000); });
+  });
+});
+</script>
+{% endblock %}

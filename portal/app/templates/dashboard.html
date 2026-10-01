@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block head %}{% if recent | selectattr('status', 'in', active_statuses) | list %}<meta http-equiv="refresh" content="30">{% endif %}{% endblock %}
+{% block content %}
+<h1>Meetings</h1>
+<p class="lede">Legen Sie einen Raum an, laden Sie Gäste per Link ein und starten Sie in der Konferenz die Aufnahme. Danach erscheint das Transkript von SpeechMind hier.</p>
+
+{% if not sm_ready %}
+<div class="notice">
+  <strong>SpeechMind ist noch nicht verbunden.</strong>
+  Aufnahmen werden gespeichert, aber erst transkribiert, wenn {% if user.is_admin %}Sie unter <a href="/admin/speechmind">SpeechMind</a> einen API-Key und ein Projekt hinterlegen{% else %}ein Admin die Anbindung eingerichtet hat{% endif %}.
+</div>
+{% endif %}
+
+<form class="panel" method="post" action="/meetings">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="inline-form">
+    <div class="field">
+      <label for="title">Neues Meeting</label>
+      <input id="title" name="title" type="text" placeholder="z. B. Teamrunde Bauamt" required maxlength="200">
+    </div>
+    <button type="submit">Meeting anlegen</button>
+  </div>
+  <label class="check" style="margin-top:.9rem">
+    <input type="checkbox" name="transcribe" value="1" {% if transcribe_default %}checked{% endif %}>
+    <span>Aufnahmen automatisch an SpeechMind senden</span>
+  </label>
+</form>
+
+<h2>Ihre Räume</h2>
+{% if meetings %}
+<ul class="rows">
+  {% for mt in meetings %}
+  <li>
+    <div>
+      <a class="title" href="/meetings/{{ mt.id }}">{{ mt.title }}</a>
+      <div class="meta">{{ meet_base_url }}/{{ mt.room }}
+        <span class="tag {{ 'on' if mt.transcribe else '' }}">{{ 'Transkription an' if mt.transcribe else 'Transkription aus' }}</span>
+      </div>
+    </div>
+    <a class="button" href="/meetings/{{ mt.id }}/join">Beitreten</a>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="empty">Noch keine Räume. Geben Sie oben einen Namen ein, um den ersten anzulegen.</p>
+{% endif %}
+
+{% if recent %}
+<h2>Letzte Aufnahmen</h2>
+{% for rec in recent %}{{ m.rec_card(rec, csrf, show_meeting=true) }}{% endfor %}
+{% endif %}
+{% endblock %}

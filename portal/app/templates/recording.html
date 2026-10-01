@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Aufnahme {{ rec.created_at | local('%d.%m.%Y') }} – Konferenz & Protokoll{% endblock %}
+{% block head %}{% if rec.status in active_statuses %}<meta http-equiv="refresh" content="20">{% endif %}{% endblock %}
+{% block content %}
+<p class="small"><a href="{{ '/meetings/%d' % rec.meeting_id if rec.meeting_id else '/admin/recordings' }}">‹ {{ rec.meeting.title if rec.meeting else 'Alle Aufnahmen' }}</a></p>
+<h1>Aufnahme vom {{ rec.created_at | local }} Uhr</h1>
+<p class="lede">
+  {{ status_labels.get(rec.status, rec.status) }}{% if rec.duration_seconds %}, Dauer {{ m.duration(rec.duration_seconds) }}{% endif %}.
+  {% if participants %}Teilnehmende laut Aufzeichnung: {{ participants | join(', ') }}.{% endif %}
+</p>
+
+<div class="panel">
+  {{ m.track(rec) }}
+  {% if rec.error %}<p class="rec-error">{{ rec.error }}</p>{% endif %}
+  <div class="actions">
+    {% if rec.status in ('recorded', 'failed') %}
+    <form method="post" action="/recordings/{{ rec.id }}/transcribe">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button type="submit">{{ 'Erneut versuchen' if rec.status == 'failed' else 'Mit SpeechMind transkribieren' }}</button>
+    </form>
+    {% endif %}
+    {% if rec.status == 'done' %}<a class="button" href="/recordings/{{ rec.id }}/transcript.txt">Transkript herunterladen</a>{% endif %}
+    {% if has_video %}<a class="button quiet" href="/recordings/{{ rec.id }}/video">Video herunterladen</a>{% endif %}
+    {% if rec.sm_protocol_slug %}<a class="button quiet" href="https://app.speechmind.com/" target="_blank" rel="noopener">In SpeechMind öffnen</a>{% endif %}
+  </div>
+</div>
+
+{% if rec.status == 'done' %}
+  {% set agenda = summary.get('agenda', []) %}
+  {% set tasks = summary.get('tasks', []) %}
+  {% if agenda %}
+  <h2>Protokoll</h2>
+  {% for item in agenda %}
+  <section class="agenda-item">
+    <h3>{{ item.title }}</h3>
+    {% set texts = (item.texts or []) | sort(attribute='depth') %}
+    {% if texts %}<p style="white-space: pre-line">{{ texts[0].text }}</p>{% endif %}
+    {% for r in item.resolutionList or [] %}
+    <p><strong>Beschluss:</strong> {{ r.resolution }}{% if r.decision %} – {{ r.decision }}{% endif %}</p>
+    {% endfor %}
+  </section>
+  {% endfor %}
+  {% endif %}
+
+  {% if tasks %}
+  <h2>Aufgaben</h2>
+  <ul>
+    {% for t in tasks %}
+    <li>{{ t.text }}{% if t.assignedTo %} – <strong>{{ t.assignedTo }}</strong>{% endif %}{% if t.date %} (bis {{ t.date }}){% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <h2>Wortlaut</h2>
+  {% if transcript %}
+  <div class="transcript">
+    {% for seg in transcript %}
+    <div class="utterance">
+      <time>{% if seg.start is not none %}{% set s = seg.start | int %}{{ '%d:%02d:%02d' % (s // 3600, s % 3600 // 60, s % 60) }}{% endif %}</time>
+      <div><span class="who">{{ seg.speaker }}</span><p>{{ seg.text }}</p></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty">SpeechMind hat kein Transkript geliefert. Prüfen Sie das Protokoll direkt in SpeechMind.</p>
+  {% endif %}
+{% elif rec.status in active_statuses %}
+<p class="muted">SpeechMind braucht erfahrungsgemäß etwa die halbe Aufnahmedauer. Diese Seite aktualisiert sich von selbst.</p>
+{% endif %}
+
+{% if rec.status not in active_statuses %}
+<form class="actions" style="margin-top:3rem" method="post" action="/recordings/{{ rec.id }}/delete"
+      onsubmit="return confirm('Aufnahme und Transkript hier löschen? Das Protokoll in SpeechMind bleibt bestehen.')">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button type="submit" class="danger">Aufnahme löschen</button>
+</form>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,321 @@
+"""Hintergrundprozesse des Portals.
+
+1. Watcher: findet abgeschlossene Jibri-Aufzeichnungen (Markierung .finalized)
+   und legt sie in der Datenbank an.
+2. Pipeline: extrahiert die Audiospur (ffmpeg), lädt sie zu SpeechMind hoch,
+   startet das Protokoll und holt das fertige Transkript ab.
+"""
+
+import asyncio
+import json
+import logging
+import re
+import shutil
+import time
+import uuid
+from datetime import timedelta
+from pathlib import Path
+
+from sqlalchemy import select
+
+from .config import settings
+from .db import (
+    ACTIVE_STATUSES, STATUS_CONVERTING, STATUS_DONE, STATUS_FAILED, STATUS_PROCESSING,
+    STATUS_QUEUED, STATUS_RECORDED, STATUS_UPLOADING, Meeting, Recording, SessionLocal,
+    get_settings, to_local, utcnow,
+)
+from .security import decrypt
+from .speechmind import SpeechMindClient, SpeechMindError
+
+log = logging.getLogger("portal.worker")
+
+WORK_DIR = settings.data_dir / "work"
+_FILENAME_TS = re.compile(r"_\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}$")
+_last_poll: dict[int, float] = {}
+_wakeup = asyncio.Event()
+_loop: asyncio.AbstractEventLoop | None = None
+
+
+def wake() -> None:
+    """Pipeline sofort anstoßen (z. B. nach Klick auf 'Transkribieren'). Thread-sicher."""
+    if _loop is not None and _loop.is_running():
+        _loop.call_soon_threadsafe(_wakeup.set)
+
+
+# --- Zugangsdaten ------------------------------------------------------------
+
+def resolve_credentials(db, meeting: Meeting | None) -> tuple[str, str, str]:
+    """Liefert (api_url, api_key, project_slug) für eine Aufnahme."""
+    cfg = get_settings(db)
+    api_key = decrypt(cfg.get("sm_api_key_enc"))
+    project = cfg.get("sm_project_slug", "")
+    if meeting and cfg.get("allow_user_keys") == "1":
+        owner = meeting.owner
+        own_key = decrypt(owner.sm_api_key_enc)
+        if own_key:
+            api_key = own_key
+            project = owner.sm_project_slug or project
+    return cfg["sm_api_url"], api_key, project
+
+
+# --- Watcher -----------------------------------------------------------------
+
+def _room_from_metadata(session_dir: Path, video: Path | None) -> tuple[str, list]:
+    room, participants = "", []
+    meta_file = session_dir / "metadata.json"
+    if meta_file.exists():
+        try:
+            meta = json.loads(meta_file.read_text(encoding="utf-8"))
+            url = meta.get("meeting_url") or meta.get("meetingUrl") or ""
+            room = url.split("?")[0].rstrip("/").rsplit("/", 1)[-1]
+            participants = meta.get("participants") or []
+        except (ValueError, OSError) as exc:
+            log.warning("metadata.json in %s nicht lesbar: %s", session_dir, exc)
+    if not room and video:
+        room = _FILENAME_TS.sub("", video.stem)
+    return room.lower(), participants
+
+
+def _participant_names(participants: list) -> list[str]:
+    names = []
+    for p in participants:
+        if not isinstance(p, dict):
+            continue
+        user = p.get("user") if isinstance(p.get("user"), dict) else {}
+        name = p.get("name") or p.get("displayName") or user.get("name") or ""
+        name = str(name).strip()
+        if name and "jibri" not in name.lower() and "recorder" not in name.lower() and name not in names:
+            names.append(name)
+    return names
+
+
+def scan_recordings() -> int:
+    root = settings.recordings_dir
+    if not root.exists():
+        return 0
+    found = 0
+    with SessionLocal() as db:
+        known = set(db.scalars(select(Recording.session_dir)).all())
+        cfg = get_settings(db)
+        for session_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+            if str(session_dir) in known or not (session_dir / ".finalized").exists():
+                continue
+            videos = sorted(session_dir.glob("*.mp4"), key=lambda p: p.stat().st_size, reverse=True)
+            video = videos[0] if videos else None
+            room, participants = _room_from_metadata(session_dir, video)
+            meeting = db.scalar(select(Meeting).where(Meeting.room == room)) if room else None
+
+            transcribe = meeting.transcribe if meeting else cfg.get("transcribe_default") == "1"
+            status = STATUS_QUEUED if (transcribe and meeting and video) else STATUS_RECORDED
+            error = None
+            if not video:
+                status, error = STATUS_FAILED, "Keine MP4-Datei im Aufnahmeordner gefunden."
+
+            db.add(Recording(
+                meeting_id=meeting.id if meeting else None,
+                room=room or session_dir.name,
+                session_dir=str(session_dir),
+                video_path=str(video) if video else None,
+                participants=json.dumps(_participant_names(participants), ensure_ascii=False),
+                status=status,
+                error=error,
+            ))
+            found += 1
+            log.info("Neue Aufnahme: %s (Raum %s, Status %s)", session_dir.name, room, status)
+        db.commit()
+    if found:
+        wake()
+    return found
+
+
+# --- Pipeline ----------------------------------------------------------------
+
+async def _run(*cmd: str) -> tuple[int, str]:
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+    )
+    out, _ = await proc.communicate()
+    return proc.returncode, out.decode(errors="replace")
+
+
+async def extract_audio(video: Path, target: Path) -> int | None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    code, out = await _run(
+        "ffmpeg", "-nostdin", "-y", "-i", str(video),
+        "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame", "-b:a", "64k", str(target),
+    )
+    if code != 0:
+        raise RuntimeError("ffmpeg konnte die Audiospur nicht extrahieren: " + out[-400:])
+    code, out = await _run(
+        "ffprobe", "-v", "error", "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1", str(target),
+    )
+    try:
+        return int(float(out.strip()))
+    except ValueError:
+        return None
+
+
+def _set(rec_id: int, **fields) -> None:
+    with SessionLocal() as db:
+        rec = db.get(Recording, rec_id)
+        if rec is None:
+            return
+        for k, v in fields.items():
+            setattr(rec, k, v)
+        db.commit()
+
+
+def _speaker_list(names: list[str]) -> list[dict]:
+    speakers = []
+    for name in names:
+        parts = name.split()
+        given = " ".join(parts[:-1]) if len(parts) > 1 else name
+        family = parts[-1] if len(parts) > 1 else ""
+        speakers.append({
+            "gender": "", "givenName": given, "familyName": family,
+            "party": "", "preTitle": "", "postTitle": "", "systemId": "",
+        })
+    return speakers
+
+
+async def submit_recording(rec_id: int) -> None:
+    with SessionLocal() as db:
+        rec = db.get(Recording, rec_id)
+        if rec is None or rec.status not in (STATUS_QUEUED, STATUS_CONVERTING, STATUS_UPLOADING):
+            return
+        meeting = rec.meeting
+        cfg = get_settings(db)
+        api_url, api_key, project = resolve_credentials(db, meeting)
+        video = Path(rec.video_path) if rec.video_path else None
+        title = meeting.title if meeting else rec.room
+        language = (meeting.language if meeting and meeting.language else cfg["sm_language"])
+        doc_type = (meeting.document_type if meeting and meeting.document_type else cfg["sm_document_type"])
+        names = json.loads(rec.participants or "[]") if cfg.get("send_participants") == "1" else []
+        rec.attempts += 1
+        created = to_local(rec.created_at)
+        db.commit()
+
+    try:
+        if not api_key:
+            raise SpeechMindError("Keine SpeechMind-Anbindung eingerichtet. Ein Admin muss im Bereich "
+                                  "„SpeechMind“ einen API-Key hinterlegen.")
+        if not project:
+            raise SpeechMindError("Kein SpeechMind-Projekt ausgewählt. Ein Admin wählt es im Bereich „SpeechMind“ aus.")
+        if not video or not video.exists():
+            raise RuntimeError("Die Videodatei der Aufnahme existiert nicht mehr.")
+
+        _set(rec_id, status=STATUS_CONVERTING, error=None)
+        audio = WORK_DIR / f"recording-{rec_id}.mp3"
+        duration = await extract_audio(video, audio)
+
+        _set(rec_id, status=STATUS_UPLOADING, duration_seconds=duration)
+        unique = f"jitsi-{rec_id}-{uuid.uuid4().hex[:12]}.mp3"
+        client = SpeechMindClient(api_url, api_key)
+        await client.upload_file(unique, audio)
+        stamp = created.strftime("%d.%m.%Y %H:%M")
+        slug = await client.init_protocol(
+            name=f"{title} – {stamp}",
+            date=created.strftime("%Y-%m-%d"),
+            language=language,
+            document_type=doc_type,
+            project_slug=project,
+            unique_obj_name=unique,
+            speakers=_speaker_list(names),
+        )
+        audio.unlink(missing_ok=True)
+        _set(rec_id, status=STATUS_PROCESSING, sm_unique_obj_name=unique,
+             sm_protocol_slug=slug, sm_submitted_at=utcnow())
+        log.info("Aufnahme %s an SpeechMind übergeben (Protokoll %s)", rec_id, slug)
+    except Exception as exc:  # noqa: BLE001 – Fehler landet sichtbar in der GUI
+        log.exception("Aufnahme %s fehlgeschlagen", rec_id)
+        _set(rec_id, status=STATUS_FAILED, error=str(exc))
+
+
+async def poll_recording(rec_id: int) -> None:
+    with SessionLocal() as db:
+        rec = db.get(Recording, rec_id)
+        if rec is None or rec.status != STATUS_PROCESSING or not rec.sm_protocol_slug:
+            return
+        api_url, api_key, _ = resolve_credentials(db, rec.meeting)
+        slug = rec.sm_protocol_slug
+        submitted = rec.sm_submitted_at or rec.updated_at
+        delete_local = get_settings(db).get("delete_after_upload") == "1"
+        session_dir = Path(rec.session_dir)
+
+    try:
+        client = SpeechMindClient(api_url, api_key)
+        results = await client.get_results(slug)
+        if not results.get("creationDone"):
+            if utcnow() - submitted > timedelta(hours=settings.poll_timeout_hours):
+                _set(rec_id, status=STATUS_FAILED,
+                     error=f"SpeechMind hat nach {settings.poll_timeout_hours} Stunden kein Ergebnis geliefert.")
+            return
+        transcript = await client.get_transcript(slug)
+        summary = {
+            "agenda": results.get("agendaItemList") or [],
+            "tasks": results.get("taskItemList") or [],
+        }
+        fields = dict(
+            status=STATUS_DONE, error=None,
+            transcript_json=json.dumps(transcript, ensure_ascii=False),
+            summary_json=json.dumps(summary, ensure_ascii=False),
+        )
+        if delete_local and session_dir.exists():
+            shutil.rmtree(session_dir, ignore_errors=True)
+            fields["video_path"] = None
+        _set(rec_id, **fields)
+        log.info("Transkript für Aufnahme %s abgeholt (%d Segmente)", rec_id, len(transcript))
+    except SpeechMindError as exc:
+        # Vorübergehende Fehler beim Pollen nicht sofort als Abbruch werten
+        log.warning("Abfrage für Aufnahme %s fehlgeschlagen: %s", rec_id, exc)
+        _set(rec_id, error=f"Letzte Abfrage fehlgeschlagen: {exc}")
+
+
+async def pipeline_tick() -> None:
+    with SessionLocal() as db:
+        queued = db.scalars(
+            select(Recording.id).where(Recording.status == STATUS_QUEUED).order_by(Recording.id)
+        ).all()
+        processing = db.scalars(
+            select(Recording.id).where(Recording.status == STATUS_PROCESSING)
+        ).all()
+
+    for rec_id in queued:
+        await submit_recording(rec_id)
+
+    now = time.monotonic()
+    for rec_id in processing:
+        if now - _last_poll.get(rec_id, 0) >= settings.poll_interval_seconds:
+            _last_poll[rec_id] = now
+            await poll_recording(rec_id)
+
+
+def reset_interrupted() -> None:
+    """Nach einem Neustart abgebrochene Schritte erneut einreihen."""
+    with SessionLocal() as db:
+        for rec in db.scalars(select(Recording).where(
+                Recording.status.in_([STATUS_CONVERTING, STATUS_UPLOADING]))):
+            rec.status = STATUS_QUEUED
+        db.commit()
+
+
+async def run_forever() -> None:
+    global _loop
+    _loop = asyncio.get_running_loop()
+    reset_interrupted()
+    log.info("Worker gestartet – überwache %s", settings.recordings_dir)
+    while True:
+        try:
+            await asyncio.to_thread(scan_recordings)
+            await pipeline_tick()
+        except Exception:  # noqa: BLE001
+            log.exception("Fehler im Worker-Durchlauf")
+        _wakeup.clear()
+        try:
+            await asyncio.wait_for(_wakeup.wait(), timeout=settings.watch_interval_seconds)
+        except asyncio.TimeoutError:
+            pass
+
+
+__all__ = ["run_forever", "wake", "resolve_credentials", "ACTIVE_STATUSES", "STATUS_RECORDED"]

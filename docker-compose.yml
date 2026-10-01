@@ -1,0 +1,136 @@
+# Jitsi Meet (self-hosted, JWT-Auth) + Jibri-Aufzeichnung + SpeechMind-Portal
+#
+# Aufbau:
+#   caddy   – TLS (Let's Encrypt) & Reverse Proxy für MEET_DOMAIN und PORTAL_DOMAIN
+#   web     – Jitsi-Meet-Frontend
+#   prosody – XMPP-Server (JWT-Authentifizierung)
+#   jicofo  – Konferenz-Fokus
+#   jvb     – Videobridge (UDP 10000)
+#   jibri   – Server-Aufzeichnung (liefert die Audiospur für SpeechMind)
+#   portal  – Web-GUI: Login, Benutzer, Meetings, SpeechMind-Anbindung, Transkripte
+#
+# Alle Werte kommen aus .env (siehe .env.example bzw. scripts/setup.sh).
+
+x-jitsi-common: &jitsi-common
+  restart: ${RESTART_POLICY:-unless-stopped}
+  env_file: .env
+  networks:
+    meet.jitsi:
+
+services:
+  caddy:
+    image: caddy:2
+    restart: ${RESTART_POLICY:-unless-stopped}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      - MEET_DOMAIN
+      - PORTAL_DOMAIN
+      - ACME_EMAIL
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${CONFIG}/caddy/data:/data
+      - ${CONFIG}/caddy/config:/config
+    depends_on:
+      - web
+      - portal
+    networks:
+      meet.jitsi:
+
+  web:
+    <<: *jitsi-common
+    image: jitsi/web:${JITSI_IMAGE_VERSION:-stable}
+    environment:
+      # TLS macht Caddy, der Container spricht nur HTTP.
+      - DISABLE_HTTPS=1
+      - ENABLE_HTTP_REDIRECT=0
+      - ENABLE_LETSENCRYPT=0
+      # Nicht angemeldete Moderatoren werden zum Portal-Login geschickt.
+      - TOKEN_AUTH_URL=https://${PORTAL_DOMAIN}/jitsi/auth?room={room}
+    volumes:
+      - ${CONFIG}/web:/config:Z
+      - ${CONFIG}/web/crontabs:/var/spool/cron/crontabs:Z
+    depends_on:
+      - jvb
+
+  prosody:
+    <<: *jitsi-common
+    image: jitsi/prosody:${JITSI_IMAGE_VERSION:-stable}
+    expose:
+      - "5222"
+      - "5347"
+      - "5280"
+    volumes:
+      - ${CONFIG}/prosody/config:/config:Z
+      - ${CONFIG}/prosody/prosody-plugins-custom:/prosody-plugins-custom:Z
+    networks:
+      meet.jitsi:
+        aliases:
+          - ${XMPP_SERVER:-xmpp.meet.jitsi}
+
+  jicofo:
+    <<: *jitsi-common
+    image: jitsi/jicofo:${JITSI_IMAGE_VERSION:-stable}
+    volumes:
+      - ${CONFIG}/jicofo:/config:Z
+    depends_on:
+      - prosody
+
+  jvb:
+    <<: *jitsi-common
+    image: jitsi/jvb:${JITSI_IMAGE_VERSION:-stable}
+    ports:
+      - "${JVB_PORT:-10000}:${JVB_PORT:-10000}/udp"
+    volumes:
+      - ${CONFIG}/jvb:/config:Z
+    depends_on:
+      - prosody
+
+  jibri:
+    <<: *jitsi-common
+    image: jitsi/jibri:${JITSI_IMAGE_VERSION:-stable}
+    shm_size: "2gb"
+    cap_add:
+      - SYS_ADMIN
+    environment:
+      - DISPLAY=:0
+      - JIBRI_RECORDING_DIR=/config/recordings
+      - JIBRI_FINALIZE_RECORDING_SCRIPT_PATH=/config/finalize.sh
+    volumes:
+      - ${CONFIG}/jibri:/config:Z
+      - ./jibri/finalize.sh:/config/finalize.sh:ro
+      - ${CONFIG}/recordings:/config/recordings:Z
+    # Jibri öffnet https://MEET_DOMAIN in Chrome. Damit das ohne Hairpin-NAT
+    # klappt, zeigt die Domain im Container direkt auf den Host (Caddy).
+    extra_hosts:
+      - "${MEET_DOMAIN}:host-gateway"
+    depends_on:
+      - jicofo
+
+  portal:
+    build: ./portal
+    image: ${PORTAL_IMAGE:-jitsi-speechmind-portal:local}
+    restart: ${RESTART_POLICY:-unless-stopped}
+    environment:
+      - TZ
+      - PORTAL_BASE_URL=https://${PORTAL_DOMAIN}
+      - MEET_BASE_URL=https://${MEET_DOMAIN}
+      - PORTAL_SECRET_KEY
+      - PORTAL_ADMIN_EMAIL
+      - PORTAL_ADMIN_PASSWORD
+      - JWT_APP_ID
+      - JWT_APP_SECRET
+      - JWT_ACCEPTED_AUDIENCES
+      - JWT_TOKEN_TTL_MINUTES=${JWT_TOKEN_TTL_MINUTES:-240}
+      - RECORDINGS_DIR=/recordings
+      - DATA_DIR=/data
+    volumes:
+      - ${CONFIG}/portal:/data
+      - ${CONFIG}/recordings:/recordings
+    networks:
+      meet.jitsi:
+
+networks:
+  meet.jitsi:

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Anmelden – Konferenz & Protokoll{% endblock %}
+{% block body %}
+<div class="login-wrap">
+  <div class="login">
+    <div class="brand"><span class="brand-lamp" aria-hidden="true"></span>Konferenz &amp; Protokoll</div>
+    {% for m in messages %}<div class="flash {{ m.kind }}" role="status">{{ m.text }}</div>{% endfor %}
+    <form class="panel" method="post" action="/login">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="field">
+        <label for="email">E-Mail</label>
+        <input id="email" name="email" type="email" autocomplete="username" required autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Passwort</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit">Anmelden</button>
+    </form>
+    <p class="muted small">Als Gast brauchen Sie kein Konto – öffnen Sie einfach den Einladungslink.</p>
+  </div>
+</div>
+{% endblock %}

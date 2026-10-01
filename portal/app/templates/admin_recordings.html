@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Alle Aufnahmen – Konferenz & Protokoll{% endblock %}
+{% block head %}{% if recordings | selectattr('status', 'in', active_statuses) | list %}<meta http-equiv="refresh" content="30">{% endif %}{% endblock %}
+{% block content %}
+<h1>Alle Aufnahmen</h1>
+<p class="lede">Aufnahmen aller Räume, auch solcher ohne Meeting im Portal. Neue Aufnahmen erscheinen hier, sobald Jibri sie abgeschlossen hat.</p>
+{% if recordings %}
+  {% for rec in recordings %}{{ m.rec_card(rec, csrf, show_meeting=true) }}{% endfor %}
+{% else %}
+<p class="empty">Noch keine Aufnahmen auf diesem Server.</p>
+{% endif %}
+{% endblock %}
