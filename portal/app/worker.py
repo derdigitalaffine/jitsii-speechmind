@@ -144,8 +144,9 @@ async def _run(*cmd: str) -> tuple[int, str]:
     return proc.returncode, out.decode(errors="replace")
 
 
-NO_SOUND_CAUSE = ("Meist fehlt auf dem Server das Kernelmodul snd-aloop oder dem Jibri-Container die "
-                  "Audio-Schnittstelle /dev/snd (siehe Admin-Handbuch, Abschnitt „Aufnahme ohne Ton“).")
+NO_SOUND_CAUSE = ("Entweder hat in der Konferenz niemand hörbar gesprochen (Mikrofon stumm?), oder Jibri erfasst "
+                  "den Ton nicht. Diagnose auf dem Server: ./scripts/diagnose-recording.sh "
+                  "(siehe Admin-Handbuch, Abschnitt „Aufnahme ohne Ton“).")
 NO_SOUND_HINT = "Die Aufnahme enthält keinen hörbaren Ton. " + NO_SOUND_CAUSE
 _VOLUME = re.compile(r"max_volume:\s*(-?[\d.]+|-inf)\s*dB")
 

@@ -72,6 +72,4 @@ echo "Zertifikat: zunächst selbst signiert (Browser warnt). Let's Encrypt schal
 echo "             Portal ein: Admin > HTTPS & Zertifikat (DNS muss auf diesen Server zeigen)."
 echo
 echo "Firewall: TCP 80, 443 und UDP ${JVB_PORT:-10000} freigeben."
-echo "WICHTIG:   Vor dem Start den Ton für Aufnahmen einrichten (sonst sind MP3-Dateien stumm):"
-echo "             ./scripts/setup-recording-audio.sh"
 echo "Start:     docker compose up -d --build"
