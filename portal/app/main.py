@@ -978,12 +978,15 @@ def recording_video(rec_id: int, user: User = Depends(video_user), db: Session =
 @app.get("/recordings/{rec_id}/chat.txt", response_class=PlainTextResponse)
 def recording_chat_txt(rec_id: int, user: User = Depends(video_user), db: Session = Depends(get_db)):
     rec = own_recording(db, rec_id, user)
-    if not rec.chat:
+    if not rec.chat and not rec.polls:
         raise HTTPException(404, "Zu dieser Aufnahme gibt es kein Chatprotokoll.")
     title = rec.meeting.title if rec.meeting else rec.room
     filename = f"chatprotokoll-{room_slug(title)}-{to_local(rec.created_at):%Y%m%d-%H%M}.txt"
     head = f"Chatprotokoll: {title}, Aufnahme vom {to_local(rec.created_at):%d.%m.%Y %H:%M} Uhr\n\n"
-    return PlainTextResponse(head + chat.as_text(rec.chat, to_local),
+    body = chat.as_text(rec.chat, to_local) if rec.chat else ""
+    if rec.polls:
+        body += ("\n" if body else "") + "UMFRAGEN\n\n" + chat.polls_as_text(rec.polls, to_local)
+    return PlainTextResponse(head + body,
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
@@ -1032,12 +1035,12 @@ def delete_recording(db: Session, rec: Recording, mode: str) -> str:
     if rec.status in ACTIVE_STATUSES:
         return "busy"
     _remove_media(rec)
-    if mode == "media" and (rec.transcript_json or rec.sm_protocol_slug or rec.chat_json):
+    if mode == "media" and (rec.transcript_json or rec.sm_protocol_slug or rec.chat_json or rec.polls_json):
         if rec.status != STATUS_DONE:
             rec.error = None
         return "media"
     if mode == "keep_link" and rec.sm_protocol_slug:
-        rec.transcript_json = rec.summary_json = rec.chat_json = None
+        rec.transcript_json = rec.summary_json = rec.chat_json = rec.polls_json = None
         rec.status, rec.error = STATUS_REMOTE, None
         return "remote"
     db.delete(rec)
@@ -1656,7 +1659,7 @@ DESIGN_TEXT_FIELDS = ("ui_brand_name", "ui_product", "ui_login_text", "ui_footer
 def branding_file(kind: str):
     if kind == "jitsi.json":
         return branding_jitsi()
-    path = branding.file_path(kind) if kind in ("logo", "favicon") else None
+    path = branding.file_path(kind) if kind in ("logo", "favicon", "favicon_auto") else None
     if path is None:
         raise HTTPException(404)
     media = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp",
@@ -1680,7 +1683,8 @@ def admin_design(request: Request, user: User = Depends(admin_user), db: Session
     cfg = get_settings(db)
     return render(request, "admin_design.html", user, cfg=cfg, navbars=branding.NAVBARS,
                   radii=branding.RADII, default_primary=branding.DEFAULT_PRIMARY,
-                  logo_url=branding._file(cfg, "ui_logo")[1], favicon_url=branding._file(cfg, "ui_favicon")[1])
+                  logo_url=branding._file(cfg, "ui_logo")[1], favicon_url=branding._file(cfg, "ui_favicon")[1],
+                  favicon_auto_url=branding._file(cfg, "ui_favicon_auto")[1] if cfg.get("ui_logo") else "")
 
 
 @app.post("/admin/design", dependencies=[Depends(check_csrf)])
@@ -1709,25 +1713,41 @@ async def admin_design_save(
     set_setting(db, "ui_show_name", "1" if ui_show_name == "1" else "0")
     set_setting(db, "ui_jitsi", "1" if ui_jitsi == "1" else "0")
 
-    errors = []
-    for key, upload, remove, allowed, limit in (
-        ("ui_logo", logo, remove_logo, branding.LOGO_TYPES, 1_000_000),
-        ("ui_favicon", favicon, remove_favicon, branding.FAVICON_TYPES, 256_000),
-    ):
+    errors, notes = [], []
+    for key, upload, remove, allowed in (("ui_logo", logo, remove_logo, branding.LOGO_TYPES),
+                                         ("ui_favicon", favicon, remove_favicon, branding.FAVICON_TYPES)):
+        label = "Logo" if key == "ui_logo" else "Favicon"
         if remove == "1":
             _drop_brand_file(db, key)
-        if upload is not None and upload.filename:
-            data = await upload.read(limit + 1)
-            try:
-                ext = branding.check_upload(data, upload.filename, allowed, limit)
-            except ValueError as exc:
-                errors.append(f"{'Logo' if key == 'ui_logo' else 'Favicon'}: {exc}")
-                continue
-            _drop_brand_file(db, key)
-            branding.BRAND_DIR.mkdir(parents=True, exist_ok=True)
-            name = f"{key.removeprefix('ui_')}-{secrets.token_hex(4)}.{ext}"
-            (branding.BRAND_DIR / name).write_bytes(data)
-            set_setting(db, key, name)
+            if key == "ui_logo":
+                _drop_brand_file(db, "ui_favicon_auto")
+        if upload is None or not upload.filename:
+            continue
+        data = await upload.read(branding.MAX_UPLOAD + 1)
+        try:
+            ext = branding.check_upload(data, upload.filename, allowed, branding.MAX_UPLOAD)
+            if key == "ui_logo":
+                stored, ext, shrunk = await asyncio.to_thread(branding.shrink_logo, data, ext)
+                if shrunk:
+                    notes.append(f"Das Logo wurde für die Anzeige verkleinert ({len(data) // 1024} kB → "
+                                 f"{len(stored) // 1024} kB).")
+                icon, icon_ext = await asyncio.to_thread(branding.make_favicon, stored, ext)
+            else:
+                stored, ext = await asyncio.to_thread(branding.make_favicon, data, ext, 256)
+        except ValueError as exc:
+            errors.append(f"{label}: {exc}")
+            continue
+        _drop_brand_file(db, key)
+        branding.BRAND_DIR.mkdir(parents=True, exist_ok=True)
+        name = f"{key.removeprefix('ui_')}-{secrets.token_hex(4)}.{ext}"
+        (branding.BRAND_DIR / name).write_bytes(stored)
+        set_setting(db, key, name)
+        if key == "ui_logo":
+            # Favicon aus dem Logo: gilt, solange kein eigenes Favicon hochgeladen ist
+            _drop_brand_file(db, "ui_favicon_auto")
+            auto = f"favicon_auto-{secrets.token_hex(4)}.{icon_ext}"
+            (branding.BRAND_DIR / auto).write_bytes(icon)
+            set_setting(db, "ui_favicon_auto", auto)
     db.commit()
     branding.invalidate()
     for err in errors:
@@ -1739,6 +1759,8 @@ async def admin_design_save(
               "noch nicht sichtbar. Schalten Sie oben „Eigenes Design“ ein und speichern Sie erneut.", "error")
     else:
         flash(request, "Design gespeichert und angewendet.")
+    for note in notes:
+        flash(request, note)
     return redirect("/admin/design")
 
 
@@ -1767,7 +1789,7 @@ def branding_jitsi():
 @app.post("/admin/design/reset", dependencies=[Depends(check_csrf)])
 def admin_design_reset(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
     from .db import DEFAULT_SETTINGS
-    for key in ("ui_logo", "ui_favicon"):
+    for key in ("ui_logo", "ui_favicon", "ui_favicon_auto"):
         _drop_brand_file(db, key)
     for key, value in DEFAULT_SETTINGS.items():
         if key.startswith("ui_"):

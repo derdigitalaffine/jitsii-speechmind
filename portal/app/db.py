@@ -208,6 +208,16 @@ class Recording(Base):
     media_deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Chatprotokoll aus der Konferenz während der Aufnahme: JSON-Liste [{time, name, text}]
     chat_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Umfragen aus der Konferenz während der Aufnahme: JSON-Liste (siehe chat.collect_polls)
+    polls_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    @property
+    def polls(self) -> list[dict]:
+        import json as _json
+        try:
+            return _json.loads(self.polls_json) if self.polls_json else []
+        except ValueError:
+            return []
 
     @property
     def chat(self) -> list[dict]:
@@ -492,7 +502,7 @@ _NEW_COLUMNS = {
         "permissions": "VARCHAR(255) NOT NULL DEFAULT 'video'",
     },
     "recordings": {"audio_path": "VARCHAR(1024)", "audio_max_db": "FLOAT", "media_deleted_at": "DATETIME",
-                   "chat_json": "TEXT"},
+                   "chat_json": "TEXT", "polls_json": "TEXT"},
     "meetings": {"starts_at": "DATETIME", "duration_minutes": "INTEGER", "description": "TEXT",
                  "ics_uid": "VARCHAR(255)", "ics_sequence": "INTEGER NOT NULL DEFAULT 0",
                  "cancelled_at": "DATETIME", "guest_token": "VARCHAR(64)"},

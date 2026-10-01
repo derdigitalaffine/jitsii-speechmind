@@ -20,7 +20,7 @@
 	tls internal
 	encode gzip
 	request_body {
-		max_size 10MB
+		max_size 60MB
 	}
 	header {
 		X-Content-Type-Options "nosniff"

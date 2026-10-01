@@ -80,7 +80,7 @@ def render(cfg: dict[str, str]) -> str:
         "\t# Design der Konferenzoberfläche (dynamicBrandingUrl) und Logo kommen vom Portal\n"
         "\thandle /branding/* {\n\t\treverse_proxy portal:8000\n\t}\n"
         "\thandle {\n\t\treverse_proxy web:80\n\t}\n}\n\n"
-        f"{h['portal']} {{\n{tls}\tencode gzip\n\trequest_body {{\n\t\tmax_size 10MB\n\t}}\n"
+        f"{h['portal']} {{\n{tls}\tencode gzip\n\trequest_body {{\n\t\tmax_size 60MB\n\t}}\n"
         "\theader {\n"
         f"{hsts}"
         '\t\tX-Content-Type-Options "nosniff"\n'

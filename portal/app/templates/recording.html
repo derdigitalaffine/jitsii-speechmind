@@ -24,7 +24,7 @@
         <button class="btn btn-outline-secondary" type="submit" title="Erzeugt die MP3 aus dem Video neu und misst den Ton erneut"><i class="fa-solid fa-arrows-rotate me-1"></i>MP3 neu erzeugen</button></form>
       {% endif %}
       {% if has_audio %}<a class="btn btn-outline-secondary" href="/recordings/{{ rec.id }}/audio.mp3"><i class="fa-solid fa-download me-1"></i>MP3 ({{ rec.audio_size | filesize }})</a>{% endif %}
-      {% if rec.chat_json %}<a class="btn btn-outline-secondary" href="/recordings/{{ rec.id }}/chat.txt"><i class="fa-regular fa-comments me-1"></i>Chatprotokoll (TXT)</a>{% endif %}
+      {% if rec.chat_json or rec.polls_json %}<a class="btn btn-outline-secondary" href="/recordings/{{ rec.id }}/chat.txt"><i class="fa-regular fa-comments me-1"></i>Chatprotokoll{{ ' & Umfragen' if rec.polls_json }} (TXT)</a>{% endif %}
       {% if rec.status == 'done' %}<a class="btn btn-outline-secondary" href="/recordings/{{ rec.id }}/transcript.txt"><i class="fa-solid fa-file-arrow-down me-1"></i>Transkript (TXT)</a>{% endif %}
       {% if has_video %}<a class="btn btn-outline-secondary" href="/recordings/{{ rec.id }}/video"><i class="fa-solid fa-film me-1"></i>Video</a>{% endif %}
       {% if rec.sm_protocol_slug and rec.status in ('remote', 'done', 'failed') %}
@@ -57,6 +57,31 @@
     </div>
     {% endfor %}
   </div>
+</div>
+{% endif %}
+
+{% set polls = rec.polls %}
+{% if polls %}
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="fa-solid fa-square-poll-horizontal me-2"></i>Umfragen ({{ polls | length }})</span>
+    <a class="btn btn-sm btn-outline-secondary" href="/recordings/{{ rec.id }}/chat.txt"><i class="fa-solid fa-download me-1"></i>TXT</a>
+  </div>
+  <div class="card-body"><div class="row g-3">
+    {% for p in polls %}{% set total = p.options | sum(attribute='count') %}
+    <div class="col-12 col-xl-6"><div class="border rounded p-3 h-100">
+      <div class="fw-semibold">{{ p.question }}</div>
+      <div class="small text-secondary mb-2">{{ p.time | isodate | local('%H:%M') }} Uhr{% if p.name %} · gestellt von {{ p.name }}{% endif %} · {{ p.voters }} Teilnehmende</div>
+      {% for o in p.options %}{% set pct = (100 * o.count / p.voters) | round | int if p.voters else 0 %}
+      <div class="mb-2">
+        <div class="d-flex justify-content-between small"><span>{{ o.label }}</span><span class="fw-semibold">{{ o.count }} ({{ pct }} %)</span></div>
+        <div class="progress" role="progressbar" aria-label="{{ o.label }}" style="height: .6rem"><div class="progress-bar" style="width: {{ pct }}%"></div></div>
+        {% if o.voters %}<div class="small text-secondary">{{ o.voters | join(', ') }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div></div>
+    {% endfor %}
+  </div></div>
 </div>
 {% endif %}
 

@@ -217,6 +217,10 @@ async def convert_recording(rec_id: int) -> None:
         if messages:
             _set(rec_id, chat_json=json.dumps(messages, ensure_ascii=False))
             log.info("Chatprotokoll mit %d Nachricht(en) an Aufnahme %s gehängt", len(messages), rec_id)
+        polls = chat.polls_for_video(room, video, duration)
+        if polls:
+            _set(rec_id, polls_json=json.dumps(polls, ensure_ascii=False))
+            log.info("%d Umfrage(n) an Aufnahme %s gehängt", len(polls), rec_id)
         silent = max_db is not None and max_db < SILENCE_DB
         if silent:
             log.warning("Aufnahme %s ist stumm (lauteste Stelle %.1f dB)", rec_id, max_db)

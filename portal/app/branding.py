@@ -5,6 +5,7 @@ Navigationsleiste und Rundungen greifen nur, wenn „Eigenes Design“ eingescha
 Das Ergebnis wird kurz zwischengespeichert; Änderungen rufen invalidate() auf.
 """
 
+import io
 import re
 import time
 from pathlib import Path
@@ -21,7 +22,12 @@ THEMES = {"auto": "Automatisch (nach Geräteeinstellung)", "light": "Immer hell"
 RADII = {"0": "Eckig", "0.375rem": "Standard", "0.75rem": "Stark gerundet"}
 
 LOGO_TYPES = {"png": b"\x89PNG", "jpg": b"\xff\xd8\xff", "webp": b"RIFF", "svg": b"", }
-FAVICON_TYPES = {"png": b"\x89PNG", "ico": b"\x00\x00\x01\x00", "svg": b""}
+FAVICON_TYPES = {"png": b"\x89PNG", "ico": b"\x00\x00\x01\x00", "svg": b"", "jpg": b"\xff\xd8\xff", "webp": b"RIFF"}
+# Uploads dürfen groß sein; Rastergrafiken verkleinert der Server auf eine sinnvolle Größe
+MAX_UPLOAD = 40_000_000
+MAX_SVG = 2_000_000
+LOGO_BOX = (1600, 320)    # reicht für 80 px Logohöhe auch auf hochauflösenden Bildschirmen (4x)
+FAVICON_SIZE = 64
 
 _cache: tuple[float, dict] | None = None
 
@@ -157,7 +163,8 @@ def build(cfg: dict) -> dict:
             pass
         b["show_name"] = cfg.get("ui_show_name", "1") == "1"
         b["logo"] = _file(cfg, "ui_logo")[1]
-        b["favicon"] = _file(cfg, "ui_favicon")[1]
+        # Ohne eigenes Favicon: automatisch aus dem Logo erzeugte Fassung
+        b["favicon"] = _file(cfg, "ui_favicon")[1] or (_file(cfg, "ui_favicon_auto")[1] if b["logo"] else "")
     nav_bg = {"primary": b["primary"], "dark": "#1b2430"}.get(b["navbar"], "")
     b["navbar_dark"] = (on_color(nav_bg) == "#ffffff") if nav_bg else False
     b["css"] = theme_css(b)
@@ -181,7 +188,10 @@ def invalidate() -> None:
 
 def file_path(kind: str) -> Path | None:
     with SessionLocal() as db:
-        name = get_settings(db).get(f"ui_{kind}") or ""
+        cfg = get_settings(db)
+    name = cfg.get(f"ui_{kind}") or ""
+    if kind == "favicon_auto" and not cfg.get("ui_logo"):
+        name = ""
     path = BRAND_DIR / name
     return path if name and "/" not in name and path.exists() else None
 
@@ -195,7 +205,9 @@ def check_upload(data: bytes, filename: str, allowed: dict[str, bytes], max_byte
     if ext not in allowed:
         raise ValueError("Erlaubt sind: " + ", ".join(sorted(allowed)).upper() + ".")
     if len(data) > max_bytes:
-        raise ValueError(f"Die Datei ist größer als {max_bytes // 1024} kB.")
+        raise ValueError(f"Die Datei ist größer als {max_bytes // 1_000_000} MB.")
+    if ext == "svg" and len(data) > MAX_SVG:
+        raise ValueError(f"SVG-Dateien dürfen höchstens {MAX_SVG // 1_000_000} MB groß sein.")
     if ext == "svg":
         text = data.decode("utf-8", errors="ignore").lower()
         if "<svg" not in text or any(x in text for x in ("<script", "javascript:", "onload=", "onerror=", "<foreignobject")):
@@ -203,3 +215,60 @@ def check_upload(data: bytes, filename: str, allowed: dict[str, bytes], max_byte
     elif not data.startswith(allowed[ext]):
         raise ValueError("Der Dateiinhalt passt nicht zur Endung.")
     return ext
+
+
+# --- Verkleinern und Favicon ----------------------------------------------------
+
+def _open(data: bytes):
+    from PIL import Image, ImageOps
+    Image.MAX_IMAGE_PIXELS = 120_000_000  # Schutz vor „Dekompressionsbomben“
+    try:
+        img = Image.open(io.BytesIO(data))
+        img.load()
+    except Exception as exc:  # noqa: BLE001 – Pillow wirft je nach Format verschiedene Fehler
+        raise ValueError("Das Bild lässt sich nicht lesen.") from exc
+    return ImageOps.exif_transpose(img)
+
+
+def _encode(img, ext: str) -> tuple[bytes, str]:
+    buf = io.BytesIO()
+    has_alpha = img.mode in ("RGBA", "LA", "P") and (img.mode != "P" or "transparency" in img.info)
+    if ext == "jpg" and not has_alpha:
+        img.convert("RGB").save(buf, format="JPEG", quality=90, optimize=True, progressive=True)
+        return buf.getvalue(), "jpg"
+    if ext == "webp":
+        img.save(buf, format="WEBP", quality=90, method=6)
+        return buf.getvalue(), "webp"
+    img.convert("RGBA" if has_alpha else "RGB").save(buf, format="PNG", optimize=True)
+    return buf.getvalue(), "png"
+
+
+def shrink_logo(data: bytes, ext: str) -> tuple[bytes, str, bool]:
+    """Verkleinert große Rastergrafiken (SVG bleibt). Gibt (Daten, Endung, verkleinert?) zurück."""
+    if ext == "svg":
+        return data, ext, False
+    img = _open(data)
+    if img.width <= LOGO_BOX[0] and img.height <= LOGO_BOX[1] and len(data) <= 1_000_000:
+        return data, ext, False
+    from PIL import Image
+    img.thumbnail(LOGO_BOX, Image.Resampling.LANCZOS)
+    out, new_ext = _encode(img, ext)
+    return out, new_ext, True
+
+
+def make_favicon(data: bytes, ext: str, size: int = FAVICON_SIZE) -> tuple[bytes, str]:
+    """Quadratisches Favicon (PNG, transparent aufgefüllt). SVG wird unverändert verwendet."""
+    if ext in ("svg", "ico"):
+        return data, ext
+    from PIL import Image
+    img = _open(data).convert("RGBA")
+    # Ränder ohne Inhalt abschneiden, damit das Symbol im kleinen Format möglichst groß ist
+    box = img.getbbox()
+    if box:
+        img = img.crop(box)
+    img.thumbnail((size, size), Image.Resampling.LANCZOS)
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    canvas.paste(img, ((size - img.width) // 2, (size - img.height) // 2), img)
+    buf = io.BytesIO()
+    canvas.save(buf, format="PNG", optimize=True)
+    return buf.getvalue(), "png"

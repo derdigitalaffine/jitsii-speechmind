@@ -11,6 +11,9 @@
 --    nach /portal-chat/<raum>/<JJJJ-MM-TT>.jsonl geschrieben. Das Portal hängt die Nachrichten,
 --    die während einer Aufnahme geschrieben wurden, als "Chatprotokoll" an die Aufnahme und
 --    löscht die Rohdateien nach kurzer Zeit. Private Nachrichten und freie Räume: nie.
+-- 4. Umfragen: Jitsi verschickt Umfragen und Stimmen als <json-message> (Typ new-poll bzw.
+--    answer-poll) an alle im Raum. Sie landen in derselben Datei (kind = "poll"), das Portal
+--    wertet sie zur Aufnahme aus (Frage, Antworten, Stimmen mit Namen).
 
 local st = require "util.stanza";
 local jid = require "util.jid";
@@ -139,23 +142,58 @@ local function sender_name(event)
     return nick;
 end
 
+local function chat_file(room)
+    local node = jid.split(room.jid);
+    node = node and string.lower(node);
+    if not node or not node:match("^[a-z0-9._-]+$") then return nil; end
+    if not load_state().rooms[node] then return nil; end  -- nur Portal-Räume
+    local dir = chat_dir .. "/" .. node;
+    if not lfs.attributes(dir) then lfs.mkdir(dir); end
+    local f = io.open(dir .. "/" .. os.date("!%Y-%m-%d", os.time()) .. ".jsonl", "a");
+    if not f then module:log("warn", "Chatprotokoll für %s nicht schreibbar (%s)", node, chat_dir); end
+    return f;
+end
+
 module:hook("muc-occupant-groupchat", function(event)
     local session = event.origin;
     if not session or (main_domain and session.host ~= main_domain) then return; end
     local body = event.stanza:get_child_text("body");
     if not body or body == "" then return; end
-    local node = jid.split(event.room.jid);
-    node = node and string.lower(node);
-    if not node or not node:match("^[a-z0-9._-]+$") then return; end
-    if not load_state().rooms[node] then return; end  -- nur Portal-Räume
-    local dir = chat_dir .. "/" .. node;
-    if not lfs.attributes(dir) then lfs.mkdir(dir); end
+    local f = chat_file(event.room);
+    if not f then return; end
     local now = os.time();
-    local f = io.open(dir .. "/" .. os.date("!%Y-%m-%d", now) .. ".jsonl", "a");
-    if not f then
-        module:log("warn", "Chatprotokoll für %s nicht schreibbar (%s)", node, chat_dir);
-        return;
-    end
     f:write(json.encode({ ts = now, name = sender_name(event), text = body:sub(1, 4000) }), "\n");
+    f:close();
+end, -10);
+
+-- --- Umfragen ---------------------------------------------------------------------
+
+-- Jede Nachricht, die an alle im Raum geht (auch von der Umfrage-Komponente). Nur Umfrage-Daten
+-- werden geschrieben, normale Chatnachrichten erfasst der Hook oben.
+module:hook("muc-broadcast-message", function(event)
+    local stanza = event.stanza;
+    local raw = stanza:get_child_text("json-message", "http://jitsi.org/jitmeet");
+    if not raw or raw == "" then return; end
+    local data = json.decode(raw);
+    if type(data) ~= "table" or (data.type ~= "new-poll" and data.type ~= "answer-poll") then return; end
+    local f = chat_file(event.room);
+    if not f then return; end
+    local entry = { ts = os.time(), kind = "poll", type = data.type, pollId = tostring(data.pollId or "") };
+    if data.type == "new-poll" then
+        entry.question = tostring(data.question or ""):sub(1, 1000);
+        entry.name = tostring(data.senderName or data.senderId or "");
+        local answers = {};
+        for _, a in ipairs(type(data.answers) == "table" and data.answers or {}) do
+            answers[#answers + 1] = tostring(type(a) == "table" and (a.name or "") or a):sub(1, 500);
+        end
+        entry.answers = answers;
+    else
+        entry.voterId = tostring(data.voterId or "");
+        entry.name = tostring(data.voterName or data.voterId or "");
+        local votes = {};
+        for _, v in ipairs(type(data.answers) == "table" and data.answers or {}) do votes[#votes + 1] = v == true; end
+        entry.votes = votes;
+    end
+    f:write(json.encode(entry), "\n");
     f:close();
 end, -10);
