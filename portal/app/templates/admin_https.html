@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}HTTPS &amp; Zertifikat{% endblock %}
+{% block content %}
+{% set le_pending = cfg.tls_mode == 'letsencrypt' and not (certs | selectattr('trusted') | list | length == certs | length) %}
+<div {% if le_pending %}data-autorefresh="10"{% endif %}>
+{% call m.page_head('HTTPS & Zertifikat', 'Der Reverse Proxy (Caddy) verschlüsselt den Zugriff auf Konferenz und Portal. Standardmäßig mit selbst signierten Zertifikaten; mit einem Klick lässt sich automatisches Let\'s Encrypt einschalten.') %}
+  <span class="badge text-bg-{{ 'success' if cfg.tls_mode == 'letsencrypt' else 'secondary' }} fs-6 align-self-start">
+    <i class="fa-solid {{ 'fa-lock' if cfg.tls_mode == 'letsencrypt' else 'fa-lock-open' }} me-1"></i>{{ "Let's Encrypt" if cfg.tls_mode == 'letsencrypt' else 'Selbst signiert' }}</span>
+{% endcall %}
+
+{% if not available %}
+<div class="alert alert-danger d-flex gap-2"><i class="fa-solid fa-triangle-exclamation mt-1"></i>
+  <div><strong>Der Proxy ist von hier aus nicht steuerbar.</strong> Der Ordner für die Proxy-Konfiguration ist nicht eingebunden. Prüfen Sie, ob in der <code>docker-compose.yml</code> beim Portal das Volume <code>caddy/conf</code> eingetragen ist, und starten Sie mit <code>docker compose up -d</code> neu.</div></div>
+{% endif %}
+
+{% if le_pending %}
+<div class="alert alert-info d-flex gap-2"><i class="fa-solid fa-circle-notch fa-spin mt-1"></i>
+  <div><strong>Zertifikat wird beantragt …</strong> Diese Seite aktualisiert sich alle 10 Sekunden. Klappt es nach ein paar Minuten nicht, prüfen Sie DNS und Ports (siehe unten) und die Meldungen mit <code>docker compose logs caddy</code>.</div></div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  {% for key, host in hosts.items() %}
+  {% set c = certs[loop.index0] %}
+  <div class="col-12 col-xl-6"><div class="card h-100">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="fa-solid {{ 'fa-video' if key == 'meet' else 'fa-gauge' }} me-2"></i>{{ 'Konferenz' if key == 'meet' else 'Portal' }}</span>
+      {% if c.ok %}<span class="badge text-bg-{{ 'success' if c.trusted else 'warning' }}">{{ 'vertrauenswürdig' if c.trusted else 'nicht vertrauenswürdig' }}</span>
+      {% else %}<span class="badge text-bg-danger">kein Zertifikat</span>{% endif %}
+    </div>
+    <div class="card-body">
+      <div class="fw-semibold mb-2"><i class="fa-solid fa-globe me-1 text-secondary"></i>{{ host }}</div>
+      {% if c.ok %}
+      <dl class="row mb-0 small">
+        <dt class="col-sm-4">Aussteller</dt><dd class="col-sm-8">{{ c.issuer }}</dd>
+        <dt class="col-sm-4">Gültig bis</dt><dd class="col-sm-8">{{ c.not_after | local('%d.%m.%Y, %H:%M') }}</dd>
+        <dt class="col-sm-4">Fingerabdruck</dt><dd class="col-sm-8 text-break"><code class="small">{{ c.fingerprint }}</code></dd>
+      </dl>
+      {% if not c.trusted %}<div class="form-text mt-2">Browser zeigen hier eine Warnung, solange kein öffentlich anerkanntes Zertifikat vorliegt.</div>{% endif %}
+      {% else %}
+      <div class="text-danger small">{{ c.error or 'Keine Verbindung zum Proxy.' }}</div>
+      {% endif %}
+    </div>
+  </div></div>
+  {% endfor %}
+</div>
+
+<form method="post" action="/admin/https" class="row g-4">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="col-12 col-xl-7"><div class="card h-100">
+    <div class="card-header"><i class="fa-solid fa-shield-halved me-2"></i>Zertifikat</div>
+    <div class="card-body">
+      <div class="form-check border rounded p-3 ps-5 mb-3">
+        <input class="form-check-input" type="radio" name="tls_mode" id="m1" value="selfsigned" {% if cfg.tls_mode != 'letsencrypt' %}checked{% endif %}>
+        <label class="form-check-label" for="m1"><strong>Selbst signiert</strong> <span class="badge text-bg-secondary ms-1">Standard</span>
+          <div class="form-text mt-1">Funktioniert sofort und ohne öffentliche Domain. Der Browser warnt, solange das Root-Zertifikat nicht auf den Geräten installiert ist (siehe rechts). Konferenzen und Aufnahmen funktionieren trotzdem.</div></label>
+      </div>
+      <div class="form-check border rounded p-3 ps-5 mb-3">
+        <input class="form-check-input" type="radio" name="tls_mode" id="m2" value="letsencrypt" {% if cfg.tls_mode == 'letsencrypt' %}checked{% endif %}>
+        <label class="form-check-label" for="m2"><strong>Let's Encrypt</strong> <span class="badge text-bg-success ms-1">automatisch</span>
+          <div class="form-text mt-1">Kostenlose, öffentlich anerkannte Zertifikate. Werden automatisch beantragt und rechtzeitig erneuert. Voraussetzung: beide Domains zeigen auf diesen Server, die Ports 80 und 443 sind aus dem Internet erreichbar.</div></label>
+      </div>
+      <div id="le-options" class="ps-1">
+        <label class="form-label" for="em">E-Mail für Let's Encrypt</label>
+        <input class="form-control mb-1" id="em" name="tls_email" type="email" value="{{ default_email }}" placeholder="it@example.org">
+        <div class="form-text mb-3">Für Warnungen, falls eine Erneuerung scheitert. Wird nur bei Let's Encrypt verwendet.</div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch" id="st" name="tls_staging" value="1" {% if cfg.tls_staging == '1' %}checked{% endif %}>
+          <label class="form-check-label" for="st">Testumgebung von Let's Encrypt verwenden<div class="form-text mt-0">Zum gefahrlosen Ausprobieren. Die Zertifikate sind <strong>nicht</strong> vertrauenswürdig. Für den Echtbetrieb ausschalten.</div></label>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer bg-transparent"><button class="btn btn-primary" type="submit" {% if not available %}disabled{% endif %}><i class="fa-solid fa-floppy-disk me-1"></i>Speichern und anwenden</button></div>
+  </div></div>
+
+  <div class="col-12 col-xl-5">
+    <div class="card mb-3"><div class="card-header"><i class="fa-solid fa-list-check me-2"></i>Voraussetzungen für Let's Encrypt</div>
+      <ul class="list-group list-group-flush">
+        {% for d in dns %}
+        <li class="list-group-item d-flex justify-content-between align-items-start gap-2">
+          <div><div class="fw-semibold small">{{ d.host }}</div>
+            <div class="small text-secondary">{% if d.resolves %}zeigt auf {{ d.ips | join(', ') }}{% else %}DNS-Eintrag fehlt{% endif %}</div></div>
+          {% if not d.resolves %}<span class="badge text-bg-danger">DNS fehlt</span>
+          {% elif d.matches is none %}<span class="badge text-bg-secondary">unbekannt</span>
+          {% elif d.matches %}<span class="badge text-bg-success">passt</span>
+          {% else %}<span class="badge text-bg-warning">andere IP</span>{% endif %}
+        </li>
+        {% endfor %}
+        <li class="list-group-item small text-secondary">Erwartete öffentliche IP: {{ public_ips | join(', ') or 'nicht angegeben (JVB_ADVERTISE_IPS)' }}<br>
+          Die Erreichbarkeit der Ports 80 und 443 von außen kann das Portal nicht prüfen. Stellen Sie sie in der Firewall bereit.</li>
+      </ul>
+    </div>
+    <div class="card"><div class="card-header"><i class="fa-solid fa-certificate me-2"></i>Warnung im Browser vermeiden</div>
+      <div class="card-body small">
+        <p>Bei selbst signierten Zertifikaten kann das Root-Zertifikat auf den Geräten installiert werden (z. B. per Gruppenrichtlinie). Danach erscheint keine Warnung mehr.</p>
+        {% if has_root %}<a class="btn btn-outline-secondary btn-sm" href="/admin/https/root.crt"><i class="fa-solid fa-download me-1"></i>Root-Zertifikat herunterladen</a>
+        {% else %}<span class="text-secondary">Das Root-Zertifikat entsteht beim ersten Start des Proxys.</span>{% endif %}
+      </div></div>
+  </div>
+</form>
+</div>
+{% endblock %}

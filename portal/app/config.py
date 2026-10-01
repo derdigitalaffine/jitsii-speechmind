@@ -34,6 +34,13 @@ class Settings:
     # Wie lange auf SpeechMind gewartet wird, bevor ein Auftrag als Fehler gilt
     poll_timeout_hours = int(_env("SPEECHMIND_POLL_TIMEOUT_HOURS", "12") or 12)
 
+    # Reverse Proxy (Caddy): Konfigurationsordner und Zertifikatsspeicher des Caddy-Containers
+    caddy_conf_dir = Path(_env("CADDY_CONF_DIR", "/caddyconf"))
+    caddy_data_dir = Path(_env("CADDY_DATA_DIR", "/caddydata"))
+    proxy_host = _env("PROXY_HOST", "caddy")
+    public_ips = [ip.strip() for ip in _env("PUBLIC_IP").split(",") if ip.strip()]
+    acme_email = _env("ACME_EMAIL").lower()
+
     invite_ttl_hours = int(_env("INVITE_TTL_HOURS", "72") or 72)
     reset_ttl_hours = int(_env("RESET_TTL_HOURS", "2") or 2)
 

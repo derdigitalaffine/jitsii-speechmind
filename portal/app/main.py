@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session, joinedload
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import branding, notify, worker
+from . import branding, notify, proxy, worker
 from .config import settings
 from .db import (
     ACTIVE_STATUSES, STATUS_DONE, STATUS_FAILED, STATUS_QUEUED, STATUS_RECORDED, Meeting,
@@ -80,6 +80,8 @@ def bootstrap_admin() -> None:
 async def lifespan(_app: FastAPI):
     init_db()
     bootstrap_admin()
+    with SessionLocal() as db:
+        proxy.sync(get_settings(db))
     task = asyncio.create_task(worker.run_forever())
     yield
     task.cancel()
@@ -875,6 +877,55 @@ def admin_recordings(request: Request, user: User = Depends(admin_user), db: Ses
     }
     return render(request, "admin_recordings.html", user, recordings=recordings, stats=stats,
                   sm_ready=speechmind_ready(db))
+
+
+# --- Admin: HTTPS / Zertifikat ------------------------------------------------
+
+@app.get("/admin/https")
+async def admin_https(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    cfg = get_settings(db)
+    h = proxy.hosts()
+    certs = await asyncio.gather(*(asyncio.to_thread(proxy.inspect, host) for host in h.values()))
+    dns = await asyncio.gather(*(asyncio.to_thread(proxy.dns_check, host) for host in h.values()))
+    return render(request, "admin_https.html", user, cfg=cfg, hosts=h, certs=certs, dns=dns,
+                  available=proxy.available(), has_root=proxy.root_cert_path() is not None,
+                  default_email=cfg.get("tls_email") or settings.acme_email or user.email,
+                  public_ips=settings.public_ips)
+
+
+@app.post("/admin/https", dependencies=[Depends(check_csrf)])
+def admin_https_save(request: Request, tls_mode: str = Form("selfsigned"), tls_email: str = Form(""),
+                     tls_staging: str = Form(""), user: User = Depends(admin_user),
+                     db: Session = Depends(get_db)):
+    mode = "letsencrypt" if tls_mode == "letsencrypt" else "selfsigned"
+    email = tls_email.strip().lower()
+    if mode == "letsencrypt" and not proxy.valid_email(email):
+        flash(request, "Für Let's Encrypt wird eine gültige E-Mail-Adresse benötigt.", "error")
+        return redirect("/admin/https")
+    if not proxy.available():
+        flash(request, "Der Konfigurationsordner des Proxys ist nicht eingebunden (siehe Admin-Handbuch).", "error")
+        return redirect("/admin/https")
+    new = {"tls_mode": mode, "tls_email": email, "tls_staging": "1" if tls_staging == "1" else "0"}
+    try:
+        proxy.write({**get_settings(db), **new})
+    except (ValueError, OSError) as exc:
+        flash(request, f"Die Proxy-Konfiguration konnte nicht geschrieben werden: {exc}", "error")
+        return redirect("/admin/https")
+    for key, value in new.items():
+        set_setting(db, key, value)
+    db.commit()
+    flash(request, "Gespeichert. Der Proxy übernimmt die Einstellung innerhalb weniger Sekunden"
+          + (" und beantragt das Zertifikat bei Let's Encrypt (dauert meist unter einer Minute)." if mode == "letsencrypt"
+             else " und stellt wieder selbst signierte Zertifikate aus."))
+    return redirect("/admin/https")
+
+
+@app.get("/admin/https/root.crt")
+def admin_https_root(user: User = Depends(admin_user)):
+    path = proxy.root_cert_path()
+    if path is None:
+        raise HTTPException(404, "Es gibt noch kein Root-Zertifikat. Es entsteht beim ersten Start des Proxys.")
+    return FileResponse(path, media_type="application/x-x509-ca-cert", filename="proxy-root-ca.crt")
 
 
 # --- Admin: Zugang ohne Anmeldung --------------------------------------------
