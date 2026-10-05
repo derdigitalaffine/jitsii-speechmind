@@ -153,6 +153,13 @@ def application_detail(request: Request, form_id: int, resp_id: int, user: User 
     task = workflow.open_task(resp)
     step = workflow.step_of(task) if task else None
     answers = workflow.current_answers(resp)
+    compose = None
+    if task and task.kind == "request" and task.state == "open" and step:
+        titles = {(q.get("title") or "").strip().lower(): q["id"] for q in fm.questions(items)}
+        compose = {"task_id": task.id, "title": step.get("public_name") or step["name"],
+                   "message": workflow.fill(step.get("message", ""), resp), "items": step.get("items", []),
+                   "reopen": [titles[t.strip().lower()] for t in step.get("reopen", []) if t.strip().lower() in titles],
+                   "due_days": step.get("due_days") or 14}
     geo_features = [f for q in fm.questions(items) if q["type"] == "geo"
                     for f in fm.geo_features(answers.get(q["id"]), q.get("title") or "Ort")]
     from .routes_maps import map_bundle
@@ -163,7 +170,7 @@ def application_detail(request: Request, form_id: int, resp_id: int, user: User 
                   groups=db.scalars(select(Group).order_by(Group.name)).all(), now=utcnow(),
                   track_link=apps.track_link(resp), applicant=apps.applicant_email(resp.form, resp),
                   checksum_ok=apps.checksum(resp) == resp.checksum, mail_ready=apps.mail_ready(db),
-                  task=task, step=step, geo_features=geo_features,
+                  task=task, step=step, geo_features=geo_features, compose=compose,
                   geo_bundle=map_bundle(db, request, user, None, "forms") if geo_features else None,
                   can_work=bool(task and workflow.can_work(db, user, task)),
                   four_eyes=workflow.four_eyes_block(task, user) if task and task.kind == "approval" else "",
@@ -250,6 +257,7 @@ def application_status(request: Request, token: str, db: Session = Depends(get_d
                       questions=fm.questions(items), display=fm.display, statuses=apps.STATUSES, closed=apps.CLOSED,
                       events=[e for e in resp.events if e.public], progress=workflow.progress(resp),
                       open_requests=workflow.open_requests(resp), current=workflow.current_answers(resp),
+                      confirm_task=workflow.open_confirm(resp), applicant=apps.applicant_email(resp.form, resp),
                       corrections=workflow.corrections(resp), documents=[d for d in resp.documents if d.public])
     response.headers["Cache-Control"] = "no-store"
     response.headers["Referrer-Policy"] = "no-referrer"   # geheimer Link soll nicht weitergegeben werden

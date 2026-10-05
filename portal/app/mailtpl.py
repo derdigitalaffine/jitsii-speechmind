@@ -424,6 +424,16 @@ TEMPLATES: dict[str, dict] = {
         "body": ("{von} hat zum Antrag {aktenzeichen} („{titel}“) die angeforderten Angaben nachgereicht:\n\n"
                  "{antworten}\n\nVorgang öffnen: {link}\n\n{fusszeile}"),
     },
+    "app_confirm": {
+        "group": "Online-Anträge", "label": "E-Mail-Adresse bestätigen (Double-Opt-in)",
+        "vars": _APP_VARS | {"name": "Name der antragstellenden Person", "bestaetigen_link": "Link zum Bestätigen",
+                             "bestaetigen_bis": "Frist zum Bestätigen", "nachricht": "Hinweis aus dem Prozess"},
+        "subject": "Bitte bestätigen Sie Ihren Antrag {aktenzeichen}",
+        "body": ("Guten Tag {name},\n\nbitte bestätigen Sie, dass der Antrag „{titel}“ ({aktenzeichen}) von Ihnen stammt "
+                 "und diese E-Mail-Adresse Ihnen gehört. Klicken Sie dazu bis zum {bestaetigen_bis} auf diesen Link:\n\n"
+                 "{bestaetigen_link}\n\n{nachricht}\n\nErst danach wird Ihr Antrag bearbeitet. Wenn Sie keinen Antrag gestellt "
+                 "haben, ignorieren Sie diese Nachricht bitte.\n\n{fusszeile}"),
+    },
 }
 
 SAMPLE = {
@@ -450,6 +460,7 @@ SAMPLE = {
     "schritt": "Fachliche Prüfung", "anleitung": "Bitte Vollständigkeit und Zuständigkeit prüfen.",
     "schritt_frist": "12.10.2026", "aufgaben_link": "https://portal.example.org/tasks",
     "bearbeiter": "Gruppe Ordnungsamt", "eskalation": "Die Aufgabe wurde an Sie als Vertretung weitergeleitet.",
+    "bestaetigen_link": "https://portal.example.org/a/beispiel/confirm/abc", "bestaetigen_bis": "12.10.2026",
     "angefordert": "– Lageplan (Datei)\n– Telefonnummer", "nachreichen_bis": "bis zum 19.10.2026",
 }
 
