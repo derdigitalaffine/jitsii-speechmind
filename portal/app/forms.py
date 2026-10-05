@@ -43,6 +43,7 @@ TYPES = {
     "file": ("Datei-Upload", "fa-paperclip", True),
     "geo": ("Ort in der Karte (Punkt, Linie, Fläche)", "fa-location-dot", True),
     "address": ("Adresse / PLZ und Ort", "fa-house", True),
+    "block": ("Datenblock", "fa-cubes", False),
     "heading": ("Überschrift", "fa-heading", False),
     "subheading": ("Zwischenüberschrift", "fa-text-height", False),
     "text": ("Hinweistext", "fa-paragraph", False),
@@ -53,7 +54,7 @@ SUBTYPES = {"text": "Text", "email": "E-Mail-Adresse", "phone": "Telefonnummer",
             "regex": "Eigenes Muster (regulärer Ausdruck)"}
 CHOICE_TYPES = {"radio", "checkbox", "dropdown"}
 GEOMETRIES = {"point": "Punkt", "line": "Linie", "polygon": "Fläche"}
-HIDDEN_TYPES = {"datetime"}   # nur noch für ältere Formulare; neu: „Datum“ mit Option „mit Uhrzeit“
+HIDDEN_TYPES = {"datetime", "block"}   # „block“ kommt über die eigene Palette „Datenblöcke“   # nur noch für ältere Formulare; neu: „Datum“ mit Option „mit Uhrzeit“
 OTHER = "__other__"
 MAX_FILE_MB = 20
 PHONE_RE = re.compile(r"^\+?[0-9 ()/\-.]{3,30}$")
@@ -168,6 +169,10 @@ def clean_schema(raw) -> list[dict]:
             item["show_inputs"] = src.get("show_inputs") is not False
             item["allow_gps"] = src.get("allow_gps") is not False
             item["show_inputs"] = src.get("show_inputs") is not False
+        elif kind == "block":
+            if not str(src.get("block_id") or "").isdigit():
+                continue
+            item["block_id"] = int(src["block_id"])
         elif kind == "address":
             item["mode"] = "zip_city" if src.get("mode") == "zip_city" else "full"
             for flag, default in (("search", True), ("locate", True), ("district", False), ("coords", True)):
@@ -176,6 +181,7 @@ def clean_schema(raw) -> list[dict]:
             pass
         items.append(item)
     known = {i["id"] for i in items if TYPES[i["type"]][2]}
+    known |= {f"{i['id']}_{c['id']}" for i in items if i["type"] == "block" for c in block_items(i["block_id"])}
     for item in items:
         for key in ("show_if", "required_if"):
             if key in item:
@@ -244,16 +250,87 @@ def visibility(items: list[dict], answers: dict) -> dict[str, bool]:
             page_visible = condition_met(item.get("show_if"), answers)
             out[item["id"]] = page_visible
             continue
-        out[item["id"]] = page_visible and condition_met(item.get("show_if"), answers)
+        out[item["id"]] = page_visible and condition_met(item.get("show_if"), answers) and condition_met(item.get("show_if2"), answers)
     return out
 
 
-def schema(form: Form) -> list[dict]:
+def raw_schema(form: Form) -> list[dict]:
+    """Aufbau wie gespeichert (Datenblöcke als Verweis) – für den Baukasten."""
     try:
         data = json.loads(form.schema_json or "[]")
     except ValueError:
         data = []
     return data if isinstance(data, list) else []
+
+
+def schema(form: Form) -> list[dict]:
+    """Aufbau zum Ausfüllen, Prüfen und Auswerten: Datenblöcke werden durch ihre aktuellen Felder ersetzt."""
+    return expand(raw_schema(form))
+
+
+def block_items(block_id: int) -> list[dict]:
+    from .db import FormBlock, SessionLocal
+    with SessionLocal() as db:
+        block = db.get(FormBlock, block_id)
+        if block is None:
+            return []
+        try:
+            data = json.loads(block.schema_json or "[]")
+        except ValueError:
+            return []
+    return [i for i in data if isinstance(i, dict) and i.get("type") != "block"] if isinstance(data, list) else []
+
+
+def _remap(cond: dict | None, mapping: dict) -> dict | None:
+    if not cond:
+        return None
+    return {"mode": cond["mode"], "rules": [{**r, "q": mapping.get(r["q"], r["q"])} for r in cond["rules"]]}
+
+
+def expand(items: list[dict]) -> list[dict]:
+    """Ersetzt Datenblöcke durch Überschrift + Felder. Feld-IDs: <block-element>_<feld>, damit derselbe Block
+    mehrfach in einem Formular stehen kann. Bedingungen des Blocks gelten für alle seine Felder."""
+    if not any(i.get("type") == "block" for i in items):
+        return items
+    from .db import FormBlock, SessionLocal
+    ids = {i["block_id"] for i in items if i.get("type") == "block" and isinstance(i.get("block_id"), int)}
+    with SessionLocal() as db:
+        blocks = {b.id: b for b in db.query(FormBlock).filter(FormBlock.id.in_(ids)).all()} if ids else {}
+        defs = {}
+        for bid, b in blocks.items():
+            try:
+                data = json.loads(b.schema_json or "[]")
+            except ValueError:
+                data = []
+            defs[bid] = (b.name, b.description, [i for i in data if isinstance(i, dict) and i.get("type") != "block"])
+    out = []
+    for item in items:
+        if item.get("type") != "block":
+            out.append(item)
+            continue
+        name, description, children = defs.get(item.get("block_id"), ("", "", []))
+        if not children:
+            continue
+        prefix = item["id"]
+        mapping = {c["id"]: f"{prefix}_{c['id']}" for c in children}
+        out.append({"id": prefix, "type": "subheading", "title": item.get("title") or name,
+                    "description": item.get("description") or description,
+                    "block": True, **({"show_if": item["show_if"]} if item.get("show_if") else {})})
+        for child in children:
+            c = json.loads(json.dumps(child))
+            c["id"] = mapping[child["id"]]
+            own = _remap(c.get("show_if"), mapping)
+            if item.get("show_if"):
+                c["show_if"] = item["show_if"]
+                if own:
+                    c["show_if2"] = own
+            elif own:
+                c["show_if"] = own
+            if c.get("required_if"):
+                c["required_if"] = _remap(c["required_if"], mapping)
+            c["block_id"] = item["block_id"]
+            out.append(c)
+    return out
 
 
 def questions(items: list[dict]) -> list[dict]:
@@ -299,7 +376,7 @@ def validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
     sichtbar und welche Pflicht sind. Ausgeblendete Felder werden weder geprüft noch gespeichert.
     data: Formularwerte (getlist/get), files: {feldname: [UploadFile]}
     """
-    if not any(i.get("show_if") or i.get("required_if") for i in items):
+    if not any(i.get("show_if") or i.get("show_if2") or i.get("required_if") for i in items):
         return _validate(items, data, files)
     loose = [{**i, "required": False, "location_required": False} for i in items]
     first, _e, _u = _validate(loose, data, files)
@@ -1023,9 +1100,15 @@ def respondent_email(form: Form, answers: dict) -> str:
 
 
 def copy_form(db, form: Form, owner: User) -> Form:
-    items = schema(form)
+    items = raw_schema(form)
+    mapping = {}
     for item in items:  # neue IDs, damit nichts mit dem Original verwechselt wird
-        item["id"] = new_id()
+        mapping[item["id"]] = item["id"] = new_id()
+    for item in items:   # Bedingungen auf die neuen IDs umstellen (auch Felder in Datenblöcken)
+        for key in ("show_if", "required_if"):
+            if item.get(key):
+                item[key]["rules"] = [{**r, "q": mapping.get(r["q"]) or "_".join([mapping.get(r["q"].split("_", 1)[0], ""), *r["q"].split("_", 1)[1:]])}
+                                      for r in item[key]["rules"]]
     clone = Form(owner_id=owner.id, title=(form.title + " (Kopie)")[:255], description=form.description,
                  schema_json=json.dumps(items, ensure_ascii=False), anonymous=form.anonymous,
                  multiple=form.multiple, submit_message=form.submit_message, confirm_mail=form.confirm_mail,

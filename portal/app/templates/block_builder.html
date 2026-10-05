@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ block.name }} · Datenblöcke{% endblock %}
+{% block content %}
+<nav aria-label="Pfad" class="small mb-2"><a href="/forms">Formulare</a> › <a href="/forms/blocks">Datenblöcke</a> › {{ block.name }}</nav>
+<div class="alert alert-info small d-flex gap-2 align-items-start"><i class="fa-solid fa-link mt-1"></i><div>Ein Datenblock ist <strong>verknüpft</strong>: Änderungen gelten sofort für alle Formulare, die ihn nutzen{% if used_in %} – zurzeit {% for f in used_in %}<a href="/forms/{{ f.id }}">{{ f.title }}</a>{{ ', ' if not loop.last }}{% endfor %}{% endif %}. Bereits eingegangene Antworten bleiben erhalten; gelöschte Felder fehlen danach in Auswertung und Export.</div></div>
+
+<form method="post" action="/forms/blocks/{{ block.id }}/schema" id="builder-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="items_json" id="schema-json">
+  <div class="row g-4">
+    <div class="col-lg-3 order-lg-2">
+      <div class="builder-palette card position-sticky" style="top: 5rem">
+        <div class="card-header"><i class="fa-solid fa-toolbox me-2"></i>Felder</div>
+        <div class="card-body p-2">
+          <div class="d-grid gap-1 mb-3" id="palette-questions">
+            {% for key, t in types.items() if t[2] and key not in hidden_types %}<button type="button" class="btn btn-sm btn-outline-secondary text-start" data-add="{{ key }}"><i class="fa-solid {{ t[1] }} fa-fw me-2"></i>{{ t[0] }}</button>{% endfor %}
+          </div>
+          <div class="small text-secondary px-1 mb-1">Gliederung</div>
+          <div class="d-grid gap-1" id="palette-layout">
+            {% for key, t in types.items() if not t[2] and key not in hidden_types %}<button type="button" class="btn btn-sm btn-outline-secondary text-start" data-add="{{ key }}"><i class="fa-solid {{ t[1] }} fa-fw me-2"></i>{{ t[0] }}</button>{% endfor %}
+          </div>
+          <div class="form-text px-1 mt-2">Tipp: Feldbreiten nutzen (z. B. Vorname und Nachname je halbe Breite).</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-9 order-lg-1">
+      <div class="card mb-3 border-primary-subtle"><div class="card-body">
+        <div class="d-flex gap-2 align-items-center mb-2">
+          <select class="form-select w-auto" name="icon" aria-label="Symbol">{% for ic in icons %}<option value="{{ ic }}" {% if ic == block.icon %}selected{% endif %}>{{ ic[3:] }}</option>{% endfor %}</select>
+          <input class="form-control form-control-lg fw-semibold border-0 border-bottom rounded-0 px-0" name="title" value="{{ block.name }}" maxlength="200" required aria-label="Name des Datenblocks" placeholder="Name, z. B. Hund">
+        </div>
+        <textarea class="form-control border-0 px-0" name="description" rows="2" maxlength="2000" placeholder="Hinweis, der über den Feldern erscheint (optional)" aria-label="Beschreibung">{{ block.description }}</textarea>
+      </div></div>
+      <div id="builder-items" class="d-flex flex-column gap-3"></div>
+      <div class="text-center text-secondary py-4 d-none" id="builder-empty"><i class="fa-solid fa-hand-pointer fa-2x mb-2"></i><p>Noch leer – fügen Sie rechts Felder hinzu.</p></div>
+    </div>
+  </div>
+  <div class="builder-savebar d-flex align-items-center gap-3">
+    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
+    <span class="small text-secondary" id="builder-state">Alle Änderungen gespeichert</span>
+    <span class="small text-secondary ms-auto d-none d-md-inline" id="builder-count"></span>
+  </div>
+</form>
+<div class="d-flex gap-2 mt-4">
+  <form method="post" action="/forms/blocks/{{ block.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-secondary" type="submit"><i class="fa-regular fa-clone me-1"></i>Kopie anlegen</button></form>
+  <form method="post" action="/forms/blocks/{{ block.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" type="submit" {% if used_in %}disabled title="Wird noch in Formularen verwendet"{% endif %} data-confirm-title="Datenblock löschen?" data-confirm="Der Block wird aus der Bibliothek entfernt." data-confirm-button="Löschen"><i class="fa-regular fa-trash-can me-1"></i>Löschen</button></form>
+</div>
+<script type="application/json" id="builder-data">{{ {'items': schema, 'types': types, 'subtypes': subtypes, 'maxFileMb': max_file_mb, 'ops': cond_ops, 'widths': widths, 'blocks': {}, 'canBlocks': false} | tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/sortablejs/Sortable.min.js"></script>
+<script src="/static/form-builder.js"></script>
+{% endblock %}

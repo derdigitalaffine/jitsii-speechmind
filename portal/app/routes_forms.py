@@ -101,13 +101,26 @@ def forms_inbox(request: Request, user: User = Depends(current_user), db: Sessio
 def form_builder(request: Request, form_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     form, level = _form(db, form_id, user, fm.EDIT)
     return render(request, "form_builder.html", user, **_ctx(db, form, "build", level),
-                  schema=fm.schema(form), subtypes=fm.SUBTYPES, max_file_mb=fm.MAX_FILE_MB, **builder_extras())
+                  schema=fm.raw_schema(form), subtypes=fm.SUBTYPES, max_file_mb=fm.MAX_FILE_MB,
+                  **builder_extras(db, user))
 
 
-def builder_extras() -> dict:
+def builder_extras(db, user: User | None = None) -> dict:
     """Zusätzliche Daten für den Baukasten (Reihenfolge als Listen, weil tojson Schlüssel sortiert)."""
+    from .db import FormBlock
+    blocks = {}
+    for b in db.scalars(select(FormBlock).order_by(FormBlock.name)):
+        try:
+            children = json.loads(b.schema_json or "[]")
+        except ValueError:
+            children = []
+        blocks[str(b.id)] = {"id": b.id, "name": b.name, "icon": b.icon, "description": b.description,
+                             "items": [{"id": c.get("id"), "type": c.get("type"), "title": c.get("title", ""),
+                                        "options": c.get("options", [])} for c in children if isinstance(c, dict)]}
     return {"cond_ops": list(fm.COND_OPS.items()), "widths": list(fm.WIDTHS.items()),
-            "hidden_types": fm.HIDDEN_TYPES}
+            "hidden_types": fm.HIDDEN_TYPES, "blocks": blocks,
+            "block_order": [b["id"] for b in sorted(blocks.values(), key=lambda b: b["name"].lower())],
+            "can_blocks": bool(user and user.can("formblocks"))}
 
 
 @app.post("/forms/{form_id}/schema", dependencies=[Depends(check_csrf)])
@@ -519,8 +532,14 @@ async def _submit(request: Request, db: Session, form: Form, invite: FormInvite 
 
 
 def _guess_name(form: Form, answers: dict) -> str:
-    """Name der antragstellenden Person: erste kurze Textfrage mit „Name“ im Titel."""
-    for q in fm.questions(fm.schema(form)):
+    """Name der antragstellenden Person: Vorname + Nachname (z. B. aus dem Datenblock), sonst die erste kurze
+    Textfrage mit „Name“ im Titel."""
+    qs = fm.questions(fm.schema(form))
+    first = next((answers.get(q["id"]) for q in qs if (q.get("title") or "").strip().lower() == "vorname" and answers.get(q["id"])), "")
+    last = next((answers.get(q["id"]) for q in qs if (q.get("title") or "").strip().lower() in ("nachname", "familienname") and answers.get(q["id"])), "")
+    if first or last:
+        return " ".join(str(x) for x in (first, last) if x)[:255]
+    for q in qs:
         if q["type"] == "short" and q.get("subtype", "text") == "text" and "name" in (q.get("title") or "").lower():
             value = answers.get(q["id"])
             if value:

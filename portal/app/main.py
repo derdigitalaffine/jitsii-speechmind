@@ -118,7 +118,7 @@ def _forms_mod():
 templates.env.filters["geocenter"] = lambda v: _forms_mod().geo_center(v)
 templates.env.filters["geoinput"] = lambda v: _forms_mod().geo_input(v)
 templates.env.globals["geo_position"] = lambda v, raw="": _forms_mod().geo_position(v, raw)
-templates.env.globals["perm_modules"] = {"processes": "applications"}
+templates.env.globals["perm_modules"] = {"processes": "applications", "formblocks": "forms"}
 templates.env.globals.update(planning_when=planning.when, cancel_recipients=planning.cancel_recipients, local_input=planning.local_input,
                              is_upcoming=planning.is_upcoming, rsvp_labels=planning.RSVP_LABELS,
                              rsvp_summary=planning.rsvp_summary)
@@ -2233,6 +2233,7 @@ __all__ = ["app", "STATUS_RECORDED"]
 
 # Weitere Bereiche (registrieren ihre Routen an derselben App)
 from . import routes_shortlinks  # noqa: E402,F401
+from . import routes_blocks  # noqa: E402,F401  (vor routes_forms: /forms/blocks vor /forms/{id})
 from . import routes_applications  # noqa: E402,F401  (vor routes_forms: /forms/applications vor /forms/{id})
 from . import routes_forms  # noqa: E402,F401
 from . import routes_workflow  # noqa: E402,F401

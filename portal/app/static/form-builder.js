@@ -7,6 +7,8 @@
   var items = data.items || [];
   var TYPES = data.types;
   var SUBTYPES = data.subtypes;
+  var BLOCKS = data.blocks || {};
+  var QTYPES = { short: 1, long: 1, radio: 1, checkbox: 1, dropdown: 1, date: 1, time: 1, datetime: 1, scale: 1, color: 1, file: 1, geo: 1, address: 1 };
   var list = document.getElementById('builder-items');
   var empty = document.getElementById('builder-empty');
   var form = document.getElementById('builder-form');
@@ -126,6 +128,13 @@
           (it.capture_location ? switchHtml('location_required', 'Standort ist Pflicht', it.location_required) : '') + '</div></div></div>' +
           '<div class="col-12 small text-secondary"><i class="fa-solid fa-ruler me-1"></i>Länge und Fläche werden automatisch berechnet. Die Karte zeigt die Grundkarten, die unter Verwaltung › Kartenlayer für Formulare freigegeben sind.</div>';
         break;
+      case 'block':
+        var bd = BLOCKS[it.block_id];
+        h += '<div class="col-12 small">' + (bd ? '<div class="text-secondary mb-1">Felder aus der Bibliothek (Änderungen am Block gelten für alle Formulare):</div><div class="d-flex flex-wrap gap-1">' +
+          bd.items.map(function (c) { return '<span class="badge text-bg-light border fw-normal"><i class="fa-solid ' + ((TYPES[c.type] || [0, 'fa-circle'])[1]) + ' me-1"></i>' + esc(c.title || (TYPES[c.type] || [''])[0]) + '</span>'; }).join('') + '</div>' +
+          (data.canBlocks ? '<a class="small d-inline-block mt-2" href="/forms/blocks/' + it.block_id + '" target="_blank"><i class="fa-solid fa-pen me-1"></i>Datenblock bearbeiten</a>' : '')
+          : '<span class="text-danger">Dieser Datenblock existiert nicht mehr.</span>') + '</div>';
+        break;
       case 'address':
         h += field('Umfang', '<select class="form-select form-select-sm" data-key="mode"><option value="full"' + (it.mode !== 'zip_city' ? ' selected' : '') + '>Straße, Hausnummer, PLZ, Ort</option>' +
           '<option value="zip_city"' + (it.mode === 'zip_city' ? ' selected' : '') + '>nur PLZ und Ort</option></select>');
@@ -151,19 +160,26 @@
   /* --- Darstellung und Bedingungen ------------------------------------- */
   var OPS = {}, OPS_KEYS = [], WIDTHS = data.widths || [['full', 'ganze Zeile']];
   (data.ops || []).forEach(function (o) { OPS[o[0]] = o[1]; OPS_KEYS.push(o[0]); });
-  function questionLabel(q) {
-    var n = items.filter(function (x) { return isQuestion(x.type); }).indexOf(q) + 1;
-    return 'Frage ' + n + ': ' + (q.title || TYPES[q.type][0]);
+  function sources(upTo) {   // Fragen (auch Felder aus Datenblöcken) oberhalb eines Elements
+    var out = [], n = 0;
+    items.slice(0, upTo < 0 ? items.length : upTo).forEach(function (x) {
+      if (isQuestion(x.type)) { n++; out.push({ id: x.id, label: 'Frage ' + n + ': ' + (x.title || TYPES[x.type][0]), options: x.options }); }
+      if (x.type === 'block' && BLOCKS[x.block_id]) {
+        var b = BLOCKS[x.block_id];
+        b.items.forEach(function (c) { if (QTYPES[c.type]) { out.push({ id: x.id + '_' + c.id, label: (x.title || b.name) + ' › ' + (c.title || TYPES[c.type][0]), options: c.options }); } });
+      }
+    });
+    return out;
   }
   function condRules(it, key) {
     var c = it[key];
-    var before = items.slice(0, items.indexOf(it)).filter(function (x) { return isQuestion(x.type); });
+    var before = sources(items.indexOf(it));
     if (!before.length) { return '<div class="small text-secondary">Bedingungen beziehen sich auf Fragen <em>oberhalb</em> dieses Elements – davor gibt es noch keine.</div>'; }
     var h = '<div class="d-flex flex-wrap align-items-center gap-2 small mb-1">' + (key === 'show_if' ? 'Anzeigen, wenn' : 'Pflicht, wenn') +
       ' <select class="form-select form-select-sm w-auto" data-ckey="' + key + '" data-cmode>' +
       '<option value="all"' + (c.mode !== 'any' ? ' selected' : '') + '>alle Regeln</option><option value="any"' + (c.mode === 'any' ? ' selected' : '') + '>eine der Regeln</option></select> zutreffen:</div>';
     c.rules.forEach(function (r, i) {
-      var q = items.filter(function (x) { return x.id === r.q; })[0];
+      var q = before.filter(function (x) { return x.id === r.q; })[0];
       var valueHtml = '';
       if (r.op !== 'filled' && r.op !== 'empty') {
         if (q && q.options && q.options.length) {
@@ -174,7 +190,7 @@
         }
       }
       h += '<div class="row g-1 mb-1 align-items-center"><div class="col-md-5"><select class="form-select form-select-sm" data-ckey="' + key + '" data-ri="' + i + '" data-cfield="q">' +
-        before.map(function (b) { return '<option value="' + esc(b.id) + '"' + (b.id === r.q ? ' selected' : '') + '>' + esc(questionLabel(b)) + '</option>'; }).join('') + '</select></div>' +
+        before.map(function (b) { return '<option value="' + esc(b.id) + '"' + (b.id === r.q ? ' selected' : '') + '>' + esc(b.label) + '</option>'; }).join('') + '</select></div>' +
         '<div class="col-md-3"><select class="form-select form-select-sm" data-ckey="' + key + '" data-ri="' + i + '" data-cfield="op">' +
         OPS_KEYS.map(function (k) { return '<option value="' + k + '"' + (k === r.op ? ' selected' : '') + '>' + OPS[k] + '</option>'; }).join('') + '</select></div>' +
         '<div class="col-md-3">' + valueHtml + '</div>' +
@@ -190,7 +206,7 @@
       h += '<div class="col-md-4"><label class="form-label small mb-1">Pflichtfeld</label><select class="form-select form-select-sm" data-reqmode>' +
         [['no', 'Nein'], ['yes', 'Ja'], ['if', 'Nur unter Bedingung …']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === mode ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
     }
-    if (['pagebreak', 'divider', 'heading'].indexOf(it.type) < 0) {
+    if (['pagebreak', 'divider', 'heading', 'block'].indexOf(it.type) < 0) {
       h += '<div class="col-md-4"><label class="form-label small mb-1">Breite (am Bildschirm)</label><select class="form-select form-select-sm" data-key="width">' +
         WIDTHS.map(function (w) { return '<option value="' + w[0] + '"' + ((it.width || 'full') === w[0] ? ' selected' : '') + '>' + w[1] + '</option>'; }).join('') + '</select></div>';
     }
@@ -214,7 +230,7 @@
   function cardHtml(it, index) {
     var t = TYPES[it.type];
     var q = isQuestion(it.type);
-    var titlePh = { heading: 'Überschrift', subheading: 'Zwischenüberschrift', text: 'Titel des Hinweises (optional)',
+    var titlePh = { block: (BLOCKS[it.block_id] || {}).name || 'Datenblock', heading: 'Überschrift', subheading: 'Zwischenüberschrift', text: 'Titel des Hinweises (optional)',
       pagebreak: 'Titel der neuen Seite (optional)', divider: '' }[it.type] || 'Frage';
     var number = q ? items.slice(0, index + 1).filter(function (x) { return isQuestion(x.type); }).length : 0;
     var page = items.slice(0, index + 1).filter(function (x) { return x.type === 'pagebreak'; }).length + 1;
@@ -231,7 +247,8 @@
       '</div></div>';
     if (selected !== it.id) {   // kompakte Ansicht – Klick öffnet die Einstellungen
       if (it.type === 'divider') { return h + '<hr class="my-2"></div>'; }
-      return h + '<div class="builder-compact" role="button" tabindex="0" title="Klicken zum Bearbeiten"><div class="fw-semibold">' + (esc(it.title) || '<span class="text-secondary fw-normal">' + esc(titlePh || 'ohne Titel') + '</span>') + '</div>' +
+      var bdesc = it.type === 'block' && BLOCKS[it.block_id] ? '<div class="small text-secondary text-truncate">' + BLOCKS[it.block_id].items.map(function (c) { return esc(c.title); }).join(' · ') + '</div>' : '';
+      return h + '<div class="builder-compact" role="button" tabindex="0" title="Klicken zum Bearbeiten"><div class="fw-semibold">' + (esc(it.title) || (it.type === 'block' && BLOCKS[it.block_id] ? '<i class="fa-solid ' + esc(BLOCKS[it.block_id].icon) + ' me-1 text-primary"></i>' + esc(BLOCKS[it.block_id].name) : '<span class="text-secondary fw-normal">' + esc(titlePh || 'ohne Titel') + '</span>')) + '</div>' + bdesc +
         (it.description ? '<div class="small text-secondary text-truncate">' + esc(it.description) + '</div>' : '') +
         '<div class="d-flex flex-wrap gap-1 mt-1">' + badges(it) + '</div></div></div>';
     }
@@ -298,7 +315,7 @@
   }
 
   function firstQuestionBefore(it) {
-    var before = items.slice(0, items.indexOf(it)).filter(function (x) { return isQuestion(x.type); });
+    var before = sources(items.indexOf(it));
     return before.length ? before[before.length - 1] : null;
   }
   function newRule(it) {
@@ -327,9 +344,9 @@
   }
 
   /* --- Ereignisse --------------------------------------------------------- */
-  document.querySelectorAll('[data-add]').forEach(function (btn) {
+  document.querySelectorAll('[data-add], [data-add-block]').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      var it = blank(btn.dataset.add);
+      var it = btn.dataset.addBlock ? { id: uid(), type: 'block', block_id: parseInt(btn.dataset.addBlock, 10), title: '', description: '' } : blank(btn.dataset.add);
       var at = items.length;
       for (var i = 0; i < items.length; i++) { if (items[i].id === selected) { at = i + 1; } }
       items.splice(at, 0, it);

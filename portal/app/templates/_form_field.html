@@ -1,9 +1,11 @@
 {# Ein Element im Ausfüllformular. Erwartet: item, values, errors, other #}
 {% set qid = item.id %}{% set name = 'q_' ~ qid %}{% set err = errors.get(qid) %}{% set val = values.get(qid) %}
 {% set wcls = {'half': 'col-md-6', 'third': 'col-md-4', 'two_thirds': 'col-md-8'}.get(item.width, '') %}
-<div class="fill-item col-12 {{ wcls }}" data-qid="{{ qid }}"{% if item.show_if %} data-show-if="{{ item.show_if | tojson | forceescape }}"{% endif %}{% if item.required_if %} data-required-if="{{ item.required_if | tojson | forceescape }}"{% endif %}{% if item.required %} data-required-base="1"{% endif %}>
+<div class="fill-item col-12 {{ wcls }}" data-qid="{{ qid }}"{% if item.show_if %} data-show-if="{{ item.show_if | tojson | forceescape }}"{% endif %}{% if item.show_if2 %} data-show-if2="{{ item.show_if2 | tojson | forceescape }}"{% endif %}{% if item.required_if %} data-required-if="{{ item.required_if | tojson | forceescape }}"{% endif %}{% if item.required %} data-required-base="1"{% endif %}>
 {% if item.type == 'heading' %}
   <h2 class="h4 mt-3 mb-1">{{ item.title }}</h2>{% if item.description %}<p class="text-secondary">{{ item.description | richtext }}</p>{% endif %}
+{% elif item.type == 'subheading' and item.block %}
+  <div class="block-head mt-2"><h3 class="h5 mb-0">{{ item.title }}</h3>{% if item.description %}<div class="text-secondary small">{{ item.description | richtext }}</div>{% endif %}</div>
 {% elif item.type == 'subheading' %}
   <h3 class="h5 mt-2 mb-1">{{ item.title }}</h3>{% if item.description %}<p class="text-secondary small">{{ item.description | richtext }}</p>{% endif %}
 {% elif item.type == 'text' %}

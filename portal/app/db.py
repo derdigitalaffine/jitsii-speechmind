@@ -101,6 +101,7 @@ PERMISSIONS = {
     "polls": ("Terminumfragen", "fa-calendar-check", "Terminumfragen (wie Doodle) erstellen und auswerten"),
     "bookings": ("Terminbuchung", "fa-calendar-plus", "Buchungsseiten mit freien Zeitfenstern anbieten (z. B. Vorstellungsgespräche)"),
     "laws": ("Rechtstexte", "fa-scale-balanced", "Gesetze, Satzungen und Verordnungen einstellen, gliedern und veröffentlichen"),
+    "formblocks": ("Formularbausteine", "fa-cubes", "Datenblöcke (z. B. Antragsteller:in, Hund) in der zentralen Bibliothek anlegen und ändern"),
     "processes": ("Prozesse", "fa-diagram-project", "Bearbeitungsprozesse für Online-Anträge im Prozesseditor gestalten und veröffentlichen"),
     "maps": ("Karten", "fa-map-location-dot", "Im Kartenbrowser eigene WMS/WFS-Layer hinzufügen, Karten speichern und teilen"),
     "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
@@ -684,6 +685,84 @@ class GeoCache(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class FormBlock(Base):
+    """Datenblock (z. B. „Antragsteller:in“, „Hund“): gruppierte Felder, zentral gepflegt und in Formularen
+    verknüpft eingesetzt – Änderungen wirken in allen Formularen, die den Block nutzen."""
+    __tablename__ = "form_blocks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    icon: Mapped[str] = mapped_column(String(40), default="fa-cubes")
+    schema_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+_O = lambda *labels: [{"id": f"o{n}", "label": label} for n, label in enumerate(labels)]  # noqa: E731
+DEFAULT_BLOCKS = [
+    ("Antragsteller:in (Person)", "fa-user", "Name, Geburtsdatum, Anschrift und Kontakt einer Person.", [
+        {"id": "anrede", "type": "dropdown", "title": "Anrede", "width": "third", "options": _O("Frau", "Herr", "divers", "keine Angabe")},
+        {"id": "vorname", "type": "short", "title": "Vorname", "required": True, "width": "third", "subtype": "text"},
+        {"id": "nachname", "type": "short", "title": "Nachname", "required": True, "width": "third", "subtype": "text"},
+        {"id": "geburt", "type": "date", "title": "Geburtsdatum", "width": "third"},
+        {"id": "telefon", "type": "short", "title": "Telefon", "width": "third", "subtype": "phone"},
+        {"id": "email", "type": "short", "title": "E-Mail-Adresse", "required": True, "width": "third", "subtype": "email"},
+        {"id": "anschrift", "type": "address", "title": "Anschrift", "required": True, "mode": "full", "search": True,
+         "locate": False, "district": False, "coords": True}]),
+    ("Firma / Organisation", "fa-building", "Firmenname, Rechtsform, Register, Ansprechperson und Anschrift.", [
+        {"id": "firma", "type": "short", "title": "Firmenname", "required": True, "width": "two_thirds", "subtype": "text"},
+        {"id": "rechtsform", "type": "dropdown", "title": "Rechtsform", "width": "third",
+         "options": _O("Einzelunternehmen", "GbR", "GmbH", "UG (haftungsbeschränkt)", "AG", "e. K.", "KG", "OHG", "e. V.", "Sonstige")},
+        {"id": "register", "type": "short", "title": "Registergericht und -nummer", "width": "half", "subtype": "text",
+         "placeholder": "z. B. Amtsgericht Kaiserslautern HRB 1234"},
+        {"id": "ansprech", "type": "short", "title": "Ansprechperson", "width": "half", "subtype": "text"},
+        {"id": "anschrift", "type": "address", "title": "Geschäftsanschrift", "required": True, "mode": "full", "search": True,
+         "locate": False, "district": False, "coords": True},
+        {"id": "telefon", "type": "short", "title": "Telefon", "width": "half", "subtype": "phone"},
+        {"id": "email", "type": "short", "title": "E-Mail-Adresse", "width": "half", "subtype": "email"}]),
+    ("Adresse", "fa-house", "Straße, Hausnummer, PLZ und Ort mit Adresssuche.", [
+        {"id": "anschrift", "type": "address", "title": "Anschrift", "required": True, "mode": "full", "search": True,
+         "locate": True, "district": True, "coords": True}]),
+    ("Bankverbindung", "fa-building-columns", "Kontoinhaber:in, IBAN, BIC und Kreditinstitut.", [
+        {"id": "inhaber", "type": "short", "title": "Kontoinhaber:in", "required": True, "subtype": "text"},
+        {"id": "iban", "type": "short", "title": "IBAN", "required": True, "width": "two_thirds", "subtype": "regex",
+         "pattern": "[A-Za-z]{2}[0-9]{2}[A-Za-z0-9 ]{11,32}", "pattern_hint": "Bitte eine gültige IBAN angeben, z. B. DE12 3456 7890 1234 5678 90",
+         "placeholder": "DE00 0000 0000 0000 0000 00"},
+        {"id": "bic", "type": "short", "title": "BIC (optional)", "width": "third", "subtype": "text"},
+        {"id": "bank", "type": "short", "title": "Kreditinstitut", "subtype": "text"}]),
+    ("Hund", "fa-dog", "Angaben zum Hund für Hundesteuer und Anmeldung.", [
+        {"id": "name", "type": "short", "title": "Name des Hundes", "width": "half", "subtype": "text"},
+        {"id": "rasse", "type": "short", "title": "Rasse", "required": True, "width": "half", "subtype": "text",
+         "placeholder": "bei Mischlingen die erkennbaren Rassen"},
+        {"id": "geschlecht", "type": "radio", "title": "Geschlecht", "required": True, "width": "third", "options": _O("Rüde", "Hündin")},
+        {"id": "wurftag", "type": "date", "title": "Wurftag", "required": True, "width": "third"},
+        {"id": "seit", "type": "date", "title": "Gehalten seit", "required": True, "width": "third"},
+        {"id": "farbe", "type": "short", "title": "Farbe / Kennzeichen", "width": "half", "subtype": "text"},
+        {"id": "chip", "type": "short", "title": "Chipnummer (Transponder)", "width": "half", "subtype": "regex",
+         "pattern": "[0-9]{15}", "pattern_hint": "Die Chipnummer hat 15 Ziffern."},
+        {"id": "herkunft", "type": "dropdown", "title": "Herkunft", "width": "half",
+         "options": _O("Züchter:in", "Tierheim / Tierschutz", "Privatperson", "aus eigener Zucht", "Sonstiges")},
+        {"id": "nachweis", "type": "file", "title": "Nachweis (z. B. Kaufvertrag, Heimtierausweis)", "width": "half",
+         "file_types": ["pdf", "jpg", "jpeg", "png"], "max_files": 3, "max_size_mb": 10}]),
+    ("Fahrzeug", "fa-car", "Kennzeichen, Hersteller, Modell und Farbe.", [
+        {"id": "kennzeichen", "type": "short", "title": "Amtliches Kennzeichen", "required": True, "width": "third", "subtype": "text",
+         "placeholder": "KL-AB 123"},
+        {"id": "hersteller", "type": "short", "title": "Hersteller", "width": "third", "subtype": "text"},
+        {"id": "modell", "type": "short", "title": "Typ / Modell", "width": "third", "subtype": "text"},
+        {"id": "farbe", "type": "short", "title": "Farbe", "width": "third", "subtype": "text"}]),
+]
+
+
+def seed_form_blocks(db) -> None:
+    """Startbibliothek der Datenblöcke (nur bei leerer Bibliothek)."""
+    import json as _json
+    if db.scalar(select(FormBlock.id).limit(1)) is not None:
+        return
+    for name, icon, description, items in DEFAULT_BLOCKS:
+        db.add(FormBlock(name=name, icon=icon, description=description, schema_json=_json.dumps(items, ensure_ascii=False)))
+
+
 class Poll(Base):
     """Terminumfrage (wie Doodle): Teilnehmende stimmen je Terminvorschlag mit Ja, Wenn nötig oder Nein."""
     __tablename__ = "polls"
@@ -1250,6 +1329,7 @@ def init_db() -> None:
                 db.add(Setting(key=key, value=value))
         seed_law_levels(db)
         seed_map_layers(db)
+        seed_form_blocks(db)
         db.commit()
 
 

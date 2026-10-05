@@ -66,16 +66,16 @@
       if (!on && star) { star.remove(); }
     }
   }
-  var condItems = Array.prototype.slice.call(form.querySelectorAll('.fill-item[data-show-if], .fill-item[data-required-if]'));
+  var condItems = Array.prototype.slice.call(form.querySelectorAll('.fill-item[data-show-if], .fill-item[data-show-if2], .fill-item[data-required-if]'));
   var condPages = pages.filter(function (p) { return p.dataset.showIf; });
   function parse(s) { try { return JSON.parse(s); } catch (e) { return null; } }
-  condItems.forEach(function (el) { el._show = parse(el.dataset.showIf); el._req = parse(el.dataset.requiredIf); });
+  condItems.forEach(function (el) { el._show = parse(el.dataset.showIf); el._show2 = parse(el.dataset.showIf2); el._req = parse(el.dataset.requiredIf); });
   condPages.forEach(function (p) { p._show = parse(p.dataset.showIf); });
   function applyConditions() {
     condPages.forEach(function (p) { p._hidden = !met(p._show); });
     condItems.forEach(function (el) {
-      if (el._show) {
-        var show = met(el._show);
+      if (el._show || el._show2) {
+        var show = met(el._show) && met(el._show2);
         el.classList.toggle('d-none', !show);
         el.querySelectorAll('input, select, textarea').forEach(function (x) { x.disabled = !show; });
       }
