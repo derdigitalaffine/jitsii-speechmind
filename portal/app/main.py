@@ -140,7 +140,7 @@ MODULES = {
     "bookings": ("Terminbuchung", "module_bookings", ("/bookings", "/b/")),
     "laws": ("Rechtstexte", "module_laws", ("/laws", "/recht")),
     "maps": ("Kartenbrowser", "module_maps", ("/karte", "/maps")),
-    "applications": ("Online-Anträge", "module_applications", ("/antraege", "/a/")),
+    "applications": ("Online-Anträge", "module_applications", ("/antraege", "/a/", "/tasks", "/processes")),
 }
 _module_cache: dict = {"at": 0.0, "enabled": set(MODULES)}
 
@@ -382,6 +382,15 @@ def _shared_nav(user: User | None) -> set[str]:
                 if not user.can(kind) and shares.has_any(db, perm, user)}
 
 
+def _task_badge(user: User | None) -> int:
+    """Anzahl offener Arbeitsschritte für die Navigation."""
+    if user is None or "applications" not in enabled_modules():
+        return 0
+    from . import workflow
+    with SessionLocal() as db:
+        return workflow.task_count(db, user)
+
+
 def render(request: Request, name: str, user: User | None = None, **ctx) -> HTMLResponse:
     messages = request.session.pop("flash", [])
     ui = branding.load()
@@ -396,6 +405,7 @@ def render(request: Request, name: str, user: User | None = None, **ctx) -> HTML
         "meet_base_url": settings.meet_base_url,
         "modules": enabled_modules(),
         "shared_nav": _shared_nav(user),
+        "task_badge": _task_badge(user),
         **ctx,
     })
 
@@ -2210,6 +2220,7 @@ __all__ = ["app", "STATUS_RECORDED"]
 from . import routes_shortlinks  # noqa: E402,F401
 from . import routes_applications  # noqa: E402,F401  (vor routes_forms: /forms/applications vor /forms/{id})
 from . import routes_forms  # noqa: E402,F401
+from . import routes_workflow  # noqa: E402,F401
 from . import routes_polls  # noqa: E402,F401
 from . import routes_bookings  # noqa: E402,F401
 from . import routes_sessions  # noqa: E402,F401

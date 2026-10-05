@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Meine Aufgaben{% endblock %}
+{% macro task_row(t, pool) %}
+{% set r = t.response %}{% set late = t.due_at and t.due_at < now %}
+<li class="list-group-item d-flex flex-wrap align-items-center gap-3 {{ 'bg-danger-subtle' if late }}">
+  <span class="pe-icon text-{{ {'task': 'primary', 'approval': 'info', 'request': 'warning', 'auto': 'success'}.get(t.kind, 'secondary') }}" title="{{ types[t.kind][0] }}"><i class="fa-solid {{ types[t.kind][1] }}"></i></span>
+  <div class="flex-grow-1" style="min-width: 14rem">
+    <a class="fw-semibold" href="/forms/{{ r.form_id }}/applications/{{ r.id }}#schritt">{{ t.name }}</a>
+    <div class="small text-secondary"><span class="font-monospace">{{ r.ref_no }}</span> · {{ r.form.title }}{% if r.name %} · {{ r.name }}{% endif %}</div>
+  </div>
+  <div class="small text-nowrap {{ 'text-danger fw-semibold' if late else 'text-secondary' }}">{% if t.due_at %}<i class="fa-regular fa-calendar me-1"></i>{{ 'überfällig seit ' if late else 'bis ' }}{{ t.due_at | local('%d.%m.%Y') }}{% else %}ohne Frist{% endif %}</div>
+  {% if pool %}<div class="small text-secondary text-nowrap"><i class="fa-solid fa-users me-1"></i>{{ t.group.name if t.group else '' }}</div>{% endif %}
+  <div class="d-flex gap-1">
+    {% if pool %}
+    <form method="post" action="/forms/{{ r.form_id }}/applications/{{ r.id }}/task/{{ t.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="claim"><input type="hidden" name="back" value="tasks">
+      <button class="btn btn-sm btn-outline-primary" type="submit"><i class="fa-solid fa-hand me-1"></i>Übernehmen</button></form>
+    {% endif %}
+    <a class="btn btn-sm btn-primary" href="/forms/{{ r.form_id }}/applications/{{ r.id }}#schritt">Bearbeiten<i class="fa-solid fa-arrow-right ms-1"></i></a>
+  </div>
+</li>
+{% endmacro %}
+{% block content %}
+{% call m.page_head('Meine Aufgaben', 'Arbeitsschritte aus Online-Anträgen, die Ihnen oder Ihren Gruppen zugewiesen sind – nach Frist sortiert.') %}
+<a class="btn btn-outline-secondary" href="/forms/applications"><i class="fa-solid fa-file-signature me-1"></i>Antragseingang</a>
+{% endcall %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">{{ m.stat('fa-user-check', mine | length, 'mir zugewiesen') }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-users', pool | length, 'für meine Gruppen') }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-triangle-exclamation', tasks | selectattr('due_at') | selectattr('due_at', 'lt', now) | list | length, 'überfällig') }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-hourglass-half', waiting | length, 'warten auf Antragsteller:innen') }}</div>
+</div>
+
+<div class="card mb-4"><div class="card-header"><i class="fa-solid fa-user-check me-2"></i>Mir zugewiesen</div>
+  {% if mine %}<ul class="list-group list-group-flush">{% for t in mine %}{{ task_row(t, false) }}{% endfor %}</ul>
+  {% else %}<div class="card-body text-center text-secondary py-4"><i class="fa-regular fa-face-smile fa-2x mb-2"></i><p class="mb-0">Keine offenen Aufgaben – gut gemacht.</p></div>{% endif %}
+</div>
+
+{% if pool %}
+<div class="card mb-4"><div class="card-header"><i class="fa-solid fa-users me-2"></i>Für meine Gruppen <span class="small text-secondary fw-normal">– übernehmen Sie eine Aufgabe, damit niemand doppelt arbeitet</span></div>
+  <ul class="list-group list-group-flush">{% for t in pool %}{{ task_row(t, true) }}{% endfor %}</ul>
+</div>
+{% endif %}
+
+{% if waiting %}
+<div class="card"><div class="card-header"><i class="fa-solid fa-hourglass-half me-2"></i>Warten auf Antragsteller:innen</div>
+  <ul class="list-group list-group-flush">
+    {% for q in waiting %}{% set r = q.response %}{% set late = q.due_at and q.due_at < now %}
+    <li class="list-group-item d-flex flex-wrap align-items-center gap-3">
+      <div class="flex-grow-1"><a href="/forms/{{ r.form_id }}/applications/{{ r.id }}#nachforderungen">{{ q.title }}</a>
+        <div class="small text-secondary"><span class="font-monospace">{{ r.ref_no }}</span> · {{ r.form.title }}{% if r.name %} · {{ r.name }}{% endif %} · angefordert {{ q.created_at | local('%d.%m.%Y') }}</div></div>
+      <div class="small {{ 'text-danger fw-semibold' if late else 'text-secondary' }}">{% if q.due_at %}{{ 'Frist abgelaufen ' if late else 'bis ' }}{{ q.due_at | local('%d.%m.%Y') }}{% endif %}{% if q.reminded_at %} · erinnert{% endif %}</div>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}

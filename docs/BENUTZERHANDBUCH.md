@@ -365,13 +365,14 @@ Menü **Kartenbrowser** (oder `/karte`, auch ohne Anmeldung).
 
 - **Links die Seitenleiste:** oben Koordinatensuche (z. B. `49.49, 7.77` oder `UTM 32 412345 5483210`), darunter die **Grundkarte** (basemap.de, OpenStreetMap …) und die **Ebenen** nach Gruppen. Häkchen schaltet eine Ebene ein; dann erscheinen ein Regler für die **Deckkraft** und – bei Zeitreihen (WMS-T) – ein **Zeitregler**. Mit ⠿ ändern Sie die Reihenfolge, ☰ zeigt die **Legende**.
 - **Klick in die Karte** zeigt Sachinformationen der eingeschalteten Fachdaten und die Koordinate.
-- **Werkzeuge unten:** Strecke messen, Fläche messen, Kartenbild als PNG speichern, Link zu diesem Ausschnitt kopieren.
+- **Zeichnen & messen** (Seitenleiste): **Punkt**, **Linie** oder **Fläche** wählen und in die Karte klicken. Während des Zeichnens stehen Länge bzw. Fläche oben in der Karte; **Doppelklick** oder **Fertig** beendet, bei Flächen auch ein Klick auf den ersten Punkt. Rücktaste (oder ↶) nimmt den letzten Punkt zurück, Esc bricht ab. Jede Zeichnung erscheint in der Liste: Namen eintippen, Farbe wählen, 🔍 springt hin, 🗑 löscht. Ein Klick auf eine Zeichnung wählt sie aus – ihre Eckpunkte lassen sich dann mit der Maus verschieben. **GeoJSON** lädt die Zeichnungen herunter (z. B. für QGIS), **GeoJSON laden** holt welche in die Karte.
+- **Werkzeuge unten:** Kartenbild als PNG speichern, Link zu diesem Ausschnitt kopieren.
 - Rechts: Zoomen, nach Norden ausrichten, **eigener Standort**, Vollbild. Unten links stehen die Koordinaten unter dem Mauszeiger in WGS84 und UTM 32.
 
 **Mit dem Recht „Karten“** zusätzlich:
 
 1. **Layer hinzufügen**: Art (WMS/WMS-T, WFS, WMTS) wählen, Adresse des Dienstes eintragen, **Dienst abfragen**, gewünschte Layer anhaken, **Ausgewählte hinzufügen**. Kachelvorlagen mit `{z}/{x}/{y}` gehen auch ohne Abfrage.
-2. **Speichern** (Diskette): Titel, Beschreibung und auf Wunsch **öffentlicher Link**. Gespeichert werden Ausschnitt, Grundkarte, Ebenen mit Deckkraft und Zeit sowie Ihre eigenen Layer.
+2. **Speichern** (Diskette): Titel, Beschreibung und auf Wunsch **öffentlicher Link**. Gespeichert werden Ausschnitt, Grundkarte, Ebenen mit Deckkraft und Zeit, Ihre eigenen Layer und Ihre **Zeichnungen** (auch in geteilten und eingebetteten Karten sichtbar).
 3. **Meine Karten**: gespeicherte Karten öffnen, Link kopieren, **Einbettungscode** für Webseiten kopieren, öffentlichen Link abschalten, löschen.
 
 ---
@@ -445,7 +446,7 @@ Menü **Formulare** (Recht „Formulare“). Damit bauen Sie Umfragen, Anmeldung
 | **Lineare Skala** | Zufriedenheit, Bewertung | von 0 oder 1 bis 2–10, Beschriftung links/rechts |
 | **Farbe** | Farbwahl | – |
 | **Datei-Upload** | Nachweise, Fotos, Anträge | erlaubte Dateiendungen (z. B. `pdf, jpg, png`), größte Datei (bis 20 MB), Anzahl Dateien (bis 10) |
-| **GPS-Koordinaten** | Ort eines Schadens, Standort einer Veranstaltung, Lage eines Grundstücks | Knopf „Meinen Standort verwenden“ (GPS des Handys), Felder für Breite und Länge anzeigen |
+| **Ort in der Karte** | **Punkt:** Ort eines Schadens, Standort einer Veranstaltung · **Linie:** Leitungstrasse, Umleitungsstrecke · **Fläche:** Baufläche, Sondernutzungsfläche | Was wird erfasst (Punkt, Linie, Fläche), Knopf für den Standort des Geräts (bei Linie/Fläche als nächster Eckpunkt – z. B. beim Abgehen einer Grenze), bei Punkten Felder für Breite und Länge. Länge und Fläche werden automatisch berechnet |
 
 Jede Frage hat einen **Titel**, eine optionale **Beschreibung** (Hilfetext) und den Schalter **Pflichtfeld**.
 
@@ -576,7 +577,7 @@ Ein **Online-Antrag** ist ein Formular, bei dem jede Einsendung zum Vorgang wird
 ### Antrag anlegen
 
 1. **Formulare**, Titel eintippen, daneben **Online-Antrag** wählen, **Anlegen**. Name und E-Mail-Adresse (Pflicht) sind schon enthalten – die Adresse braucht es für Bestätigung und Rückfragen.
-2. Fragen ergänzen wie bei jedem Formular (z. B. Datei-Upload für Nachweise, GPS-Koordinaten für den Ort).
+2. Fragen ergänzen wie bei jedem Formular (z. B. Datei-Upload für Nachweise, „Ort in der Karte“ für Standort, Trasse oder Fläche).
 3. Reiter **Antrag**: Kürzel für das Aktenzeichen (z. B. `SN` für Sondernutzung), Bearbeitungsfrist in Tagen, zuständige Person/Gruppe/Funktionspostfach, bei Bedarf **Weiterleitungsregeln** (z. B. „Ortsgemeinde = Katzweiler → Kolleg:in X“) und den Eintrag im **Antragskatalog** mit Kategorie, Gebühr, Bearbeitungsdauer und benötigten Unterlagen.
 4. Fertig: Der Antrag steht im öffentlichen Katalog (`/antraege`) und hat einen öffentlichen Link (Reiter „Teilen“, mit QR-Code).
 
@@ -598,6 +599,31 @@ Im Vorgang:
 - Der Hinweis „unverändert seit Eingang“ bestätigt über eine Prüfsumme, dass die Angaben nicht nachträglich verändert wurden.
 
 Läuft eine Frist ab, erinnert das Portal die Zuständigen einmal per Mail.
+
+### Angaben und Unterlagen nachfordern
+
+Fehlt etwas, klicken Sie im Vorgang auf **Nachfordern**:
+
+1. Betreff und Nachricht eintragen – oder eine **Vorlage** wählen (z. B. „Lageplan nachreichen“).
+2. **Zusätzliche Felder** hinzufügen: kurze Antwort, Text, Auswahl, Datum, **Datei-Upload**, Ort in der Karte … Jedes Feld braucht eine Bezeichnung; „Pflicht“ legt fest, ob es ausgefüllt werden muss.
+3. Unter **Angaben aus dem Antrag zur Korrektur öffnen** Fragen anhaken, die die antragstellende Person berichtigen soll (z. B. eine falsche Adresse).
+4. **Nachreichen bis** (vorgeschlagen: 14 Tage) und **Nachforderung senden**.
+
+Die antragstellende Person bekommt eine Mail und sieht auf ihrer Statusseite oben einen gelben Kasten **Jetzt ergänzen**. Was sie nachreicht, steht im Vorgang unter **Nachforderungen** (mit Dateien); korrigierte Angaben sind markiert, der ursprüngliche Wert bleibt sichtbar. Sie bekommen eine Mail, sobald etwas eingeht. Ist die Frist abgelaufen, erinnert das Portal einmal; **Erinnern** und **Zurücknehmen** gehen auch von Hand.
+
+### Arbeitsschritte und „Meine Aufgaben“
+
+Ist dem Antragsformular ein **Prozess** zugeordnet (Reiter „Antrag“ › Bearbeitungsprozess; Prozesse gestalten Kolleg:innen mit dem Recht „Prozesse“ unter **Prozesse**), läuft jeder Antrag durch festgelegte Schritte:
+
+- **Meine Aufgaben** (Navigation, die Zahl zeigt offene Schritte) listet alles, was Ihnen oder Ihren Gruppen zugewiesen ist – nach Frist sortiert. Bei Gruppenaufgaben **Übernehmen** klicken, damit niemand doppelt arbeitet.
+- Im Vorgang zeigt oben die **Schrittleiste**, wo der Antrag steht (✓ erledigt, blau = aktuell, durchgestrichen = übersprungen).
+- **Aufgabe:** Prüfpunkte abhaken, interne Angaben (z. B. Gebühr) eintragen, optional Vermerk, **Erledigt**. Der Knopf wird erst aktiv, wenn alle Prüfpunkte abgehakt sind.
+- **Freigabe:** **Genehmigen** oder **Ablehnen/Zurückgeben** (mit Begründung). Beim Vier-Augen-Prinzip darf nicht freigeben, wer den Schritt davor erledigt hat.
+- **Nachforderung:** Der Antrag wartet auf die antragstellende Person und geht weiter, sobald die Angaben eingehen. Mit **Nicht mehr nötig – weiter** geht es ohne Antwort weiter.
+- **Automatik-Schritte** (z. B. Bescheid als PDF erzeugen und verschicken) laufen von selbst; erzeugte Dokumente stehen im Vorgang unter **Dokumente** und können für die Statusseite freigegeben werden.
+- Unter „Schritt umverteilen, Frist ändern oder überspringen“ helfen Sie bei Urlaub oder Krankheit aus.
+
+Antragsteller:innen sehen auf ihrer Statusseite eine Fortschrittsleiste mit den Schritten, die für sie gedacht sind.
 
 ---
 

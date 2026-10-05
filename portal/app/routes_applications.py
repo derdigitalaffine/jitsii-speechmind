@@ -8,8 +8,8 @@ from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import applications as apps, forms as fm, worker
-from .db import LOCAL_TZ, Form, FormResponse, Group, User, get_settings, set_setting, utcnow
+from . import applications as apps, forms as fm, worker, workflow
+from .db import LOCAL_TZ, Form, FormResponse, Group, Process, User, get_settings, set_setting, utcnow
 from .main import (
     app, check_csrf, current_user, enabled_modules, flash, get_db, rate_limit, redirect, render, session_user,
 )
@@ -44,7 +44,8 @@ def form_application(request: Request, form_id: int, user: User = Depends(curren
                   users=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(),
                   groups=db.scalars(select(Group).order_by(Group.name)).all(),
                   has_email=any(q["type"] == "short" and q.get("subtype") == "email" for q in fm.questions(items)),
-                  catalog_url=f"{request.base_url}antraege", mail_ready=apps.mail_ready(db))
+                  catalog_url=f"{request.base_url}antraege", mail_ready=apps.mail_ready(db),
+                  processes=workflow.processes_for_select(db), can_processes=user.can("processes"))
 
 
 @app.post("/forms/{form_id:int}/application", dependencies=[Depends(check_csrf)])
@@ -68,6 +69,9 @@ async def form_application_save(request: Request, form_id: int, user: User = Dep
         form.app_deadline_days = max(0, min(365, int(data.get("app_deadline_days", 14) or 0)))
     except ValueError:
         form.app_deadline_days = 14
+    if "process_id" in data:
+        pid = str(data.get("process_id", ""))
+        form.process_id = int(pid) if pid.isdigit() and db.get(Process, int(pid)) else None
     form.app_catalog = data.get("app_catalog") == "1"
     form.app_pdf = data.get("app_pdf") == "1"
     rules = [{"question": q, "value": v, "user_id": u, "group_id": g, "email": e} for q, v, u, g, e in zip(
@@ -146,12 +150,34 @@ def application_detail(request: Request, form_id: int, resp_id: int, user: User 
     _module_on()
     resp, level = _application(db, form_id, resp_id, user, 1)
     items = fm.schema(resp.form)
+    task = workflow.open_task(resp)
+    step = workflow.step_of(task) if task else None
+    answers = workflow.current_answers(resp)
+    geo_features = [f for f in (fm.geo_feature(answers.get(q["id"]), q.get("title") or "Ort")
+                                for q in fm.questions(items) if q["type"] == "geo") if f]
+    from .routes_maps import map_bundle
+    import json
     return render(request, "application.html", user, resp=resp, form=resp.form, level=level, items=items,
                   questions=fm.questions(items), display=fm.display, statuses=apps.STATUSES, closed=apps.CLOSED,
                   users=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(),
                   groups=db.scalars(select(Group).order_by(Group.name)).all(), now=utcnow(),
                   track_link=apps.track_link(resp), applicant=apps.applicant_email(resp.form, resp),
-                  checksum_ok=apps.checksum(resp) == resp.checksum, mail_ready=apps.mail_ready(db))
+                  checksum_ok=apps.checksum(resp) == resp.checksum, mail_ready=apps.mail_ready(db),
+                  task=task, step=step, geo_features=geo_features,
+                  geo_bundle=map_bundle(db, request, user, None, "forms") if geo_features else None,
+                  can_work=bool(task and workflow.can_work(db, user, task)),
+                  four_eyes=workflow.four_eyes_block(task, user) if task and task.kind == "approval" else "",
+                  steps=workflow.steps_of(resp), step_types=workflow.STEP_TYPES, current=workflow.current_answers(resp),
+                  corrections=workflow.corrections(resp), fields=resp.fields,
+                  field_labels={f["key"]: f["label"] for s in workflow.steps_of(resp) for f in s.get("fields", [])},
+                  can_start=bool(not resp.process_version_id and not resp.closed_at and resp.form.process
+                                 and resp.form.process.current),
+                  request_bundle=({"types": {k: fm.TYPES[k][:2] for k in workflow.REQUEST_TYPES},
+                                             "subtypes": fm.SUBTYPES,
+                                             "order": {"types": list(workflow.REQUEST_TYPES), "subtypes": list(fm.SUBTYPES)},
+                                             "templates": [{"id": t.id, "name": t.name, "message": t.message,
+                                                            "items": json.loads(t.schema_json or "[]"), "due_days": t.due_days}
+                                                           for t in workflow.request_templates(db)]}))
 
 
 @app.post("/forms/{form_id:int}/applications/{resp_id:int}/action", dependencies=[Depends(check_csrf)])
@@ -222,7 +248,9 @@ def application_status(request: Request, token: str, db: Session = Depends(get_d
     items = fm.schema(resp.form)
     response = render(request, "application_status.html", session_user(request, db), resp=resp, form=resp.form,
                       questions=fm.questions(items), display=fm.display, statuses=apps.STATUSES, closed=apps.CLOSED,
-                      events=[e for e in resp.events if e.public])
+                      events=[e for e in resp.events if e.public], progress=workflow.progress(resp),
+                      open_requests=workflow.open_requests(resp), current=workflow.current_answers(resp),
+                      corrections=workflow.corrections(resp), documents=[d for d in resp.documents if d.public])
     response.headers["Cache-Control"] = "no-store"
     response.headers["Referrer-Policy"] = "no-referrer"   # geheimer Link soll nicht weitergegeben werden
     return response

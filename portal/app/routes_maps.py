@@ -290,6 +290,7 @@ def _clean_state(raw) -> dict:
         if defn:
             custom.append({"def": defn, "opacity": max(0.0, min(1.0, float(item.get("opacity", 1) or 0)))})
     out["custom"] = custom
+    out["drawings"] = mp.clean_drawings(raw.get("drawings"))
     return out
 
 

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ process.name }} · Prozesse{% endblock %}
+{% block content %}
+<nav aria-label="Pfad" class="small mb-2"><a href="/processes">Prozesse</a> › {{ process.name }}</nav>
+<div class="d-flex flex-wrap align-items-start gap-2 mb-3">
+  <div class="flex-grow-1" style="min-width: 18rem">
+    <input class="form-control form-control-lg fw-semibold border-0 border-bottom rounded-0 px-0" id="pe-name" value="{{ process.name }}" maxlength="200" aria-label="Name des Prozesses">
+    <textarea class="form-control border-0 px-0 small" id="pe-desc" rows="2" maxlength="5000" placeholder="Kurzbeschreibung (optional) – wofür ist der Prozess gedacht?" aria-label="Beschreibung">{{ process.description }}</textarea>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="/processes/{{ process.id }}/export.json" title="Als JSON-Datei exportieren"><i class="fa-solid fa-file-export"></i><span class="d-none d-xl-inline ms-1">Export</span></a>
+    <form method="post" action="/processes/{{ process.id }}/duplicate"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-secondary" type="submit" title="Kopie anlegen"><i class="fa-regular fa-clone"></i><span class="d-none d-xl-inline ms-1">Kopieren</span></button></form>
+    <form method="post" action="/processes/{{ process.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-danger" type="submit" title="Löschen" data-confirm-title="Prozess löschen?" data-confirm="Antragsformulare, die ihn nutzen, arbeiten danach ohne Prozess. Laufende Vorgänge verhindern das Löschen." data-confirm-button="Löschen"><i class="fa-regular fa-trash-can"></i></button></form>
+  </div>
+</div>
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3 small">
+  {% if process.current %}<span class="badge text-bg-success-subtle text-success-emphasis border border-success-subtle"><i class="fa-solid fa-circle-check me-1"></i>Version {{ process.current.version }} veröffentlicht am {{ process.current.published_at | local('%d.%m.%Y') }}</span>{% else %}<span class="badge text-bg-secondary">Noch nicht veröffentlicht</span>{% endif %}
+  <span class="text-secondary"><i class="fa-regular fa-file-lines me-1"></i>Genutzt von: {% for f in usage.forms %}<a href="/forms/{{ f.id }}/application#prozess">{{ f.title }}</a>{{ ', ' if not loop.last }}{% else %}noch keinem Antragsformular (Zuordnung im Formular unter „Antrag“){% endfor %}</span>
+  {% if usage.running %}<span class="text-secondary">· {{ usage.running }} laufende Vorgänge</span>{% endif %}
+</div>
+
+<div id="pe-hints" class="alert alert-warning small py-2 {{ 'd-none' if not hints }}" role="status"><div class="fw-semibold mb-1"><i class="fa-solid fa-lightbulb me-1"></i>Hinweise</div><ul class="mb-0 ps-3" id="pe-hint-list">{% for h in hints %}<li>{{ h }}</li>{% endfor %}</ul></div>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div id="pe-steps" aria-label="Schritte des Prozesses"></div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card pe-panel" id="pe-panel"><div class="card-body" id="pe-panel-body"></div></div>
+  </div>
+</div>
+
+<div class="pe-savebar d-flex flex-wrap align-items-center gap-2" id="pe-savebar">
+  <button class="btn btn-outline-primary" type="button" id="pe-save"><i class="fa-solid fa-floppy-disk me-1"></i>Entwurf speichern</button>
+  <button class="btn btn-primary" type="button" id="pe-publish-open"><i class="fa-solid fa-rocket me-1"></i>Veröffentlichen …</button>
+  <span class="small text-secondary" id="pe-state">{{ 'Entwurf weicht von der veröffentlichten Version ab' if process.draft_changed and process.current else 'Gespeichert' }}</span>
+  <span class="small text-secondary ms-auto d-none d-md-inline">Strg+S speichert</span>
+</div>
+
+{% if process.versions %}
+<details class="card mt-4"><summary class="card-header"><i class="fa-solid fa-code-branch me-2"></i>Versionen ({{ process.versions | length }})</summary>
+  <ul class="list-group list-group-flush">
+    {% for v in process.versions %}
+    <li class="list-group-item d-flex flex-wrap align-items-center gap-2 small">
+      <strong>Version {{ v.version }}</strong><span class="text-secondary">{{ v.published_at | local }} · {{ v.published_by }}</span>{% if v.note %}<span>– {{ v.note }}</span>{% endif %}
+      {% if not loop.first %}<form method="post" action="/processes/{{ process.id }}/restore/{{ v.id }}" class="ms-auto"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link" type="submit" data-confirm-title="Version {{ v.version }} laden?" data-confirm="Der aktuelle Entwurf wird durch diese Version ersetzt." data-confirm-button="Laden">In Entwurf laden</button></form>{% else %}<span class="badge text-bg-success ms-auto">aktuell</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</details>
+{% endif %}
+
+<div class="modal fade" id="pe-publish" tabindex="-1" aria-labelledby="pub-title" aria-hidden="true"><div class="modal-dialog"><form class="modal-content" method="post" action="/processes/{{ process.id }}/publish" id="pe-publish-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="modal-header"><h2 class="modal-title h5" id="pub-title">Version {{ (process.current.version if process.current else 0) + 1 }} veröffentlichen</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+  <div class="modal-body">
+    <p class="small">Neue Anträge laufen ab sofort nach dieser Version. <strong>Laufende Vorgänge bleiben auf ihrer bisherigen Version</strong> und werden nicht verändert.</p>
+    <div id="pe-publish-hints" class="alert alert-warning small d-none"></div>
+    <label class="form-label" for="pub-note">Was hat sich geändert? (optional)</label>
+    <input class="form-control" id="pub-note" name="note" maxlength="500" placeholder="z. B. Freigabe durch Amtsleitung ergänzt">
+  </div>
+  <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button><button class="btn btn-primary" type="submit"><i class="fa-solid fa-rocket me-1"></i>Veröffentlichen</button></div>
+</form></div></div>
+
+<script type="application/json" id="pe-data">{{ editor | tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/sortablejs/Sortable.min.js"></script>
+<script src="/static/field-list.js"></script>
+<script src="/static/process-editor.js"></script>
+{% endblock %}

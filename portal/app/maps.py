@@ -18,6 +18,7 @@ import ipaddress
 import json
 import os
 import re
+import secrets
 import socket
 import time
 import xml.etree.ElementTree as ET
@@ -519,3 +520,56 @@ def view_state(raw: str) -> dict:
     except ValueError:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+# --- Zeichnungen (Kartenbrowser) und Geometrien (Formulare) ----------------------------------
+
+_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def _coord(p) -> list[float] | None:
+    try:
+        lon, lat = float(p[0]), float(p[1])
+    except (TypeError, ValueError, IndexError):
+        return None
+    if not (-180 <= lon <= 180 and -90 <= lat <= 90):
+        return None
+    return [round(lon, 7), round(lat, 7)]
+
+
+def clean_geometry(g, max_points: int = 5000) -> dict | None:
+    """Nur Point, LineString und Polygon (äußerer Ring) mit gültigen WGS84-Koordinaten."""
+    if not isinstance(g, dict):
+        return None
+    kind, coords = g.get("type"), g.get("coordinates")
+    if kind == "Point":
+        c = _coord(coords)
+        return {"type": "Point", "coordinates": c} if c else None
+    if kind == "LineString" and isinstance(coords, list):
+        pts = [c for c in (_coord(p) for p in coords[:max_points]) if c]
+        return {"type": "LineString", "coordinates": pts} if len(pts) >= 2 else None
+    if kind == "Polygon" and isinstance(coords, list) and coords and isinstance(coords[0], list):
+        pts = [c for c in (_coord(p) for p in coords[0][:max_points + 1]) if c]
+        if len(pts) >= 2 and pts[0] == pts[-1]:
+            pts = pts[:-1]
+        return {"type": "Polygon", "coordinates": [pts + [pts[0]]]} if len(pts) >= 3 else None
+    return None
+
+
+def clean_drawings(raw) -> list[dict]:
+    out = []
+    for f in raw[:500] if isinstance(raw, list) else []:
+        if not isinstance(f, dict):
+            continue
+        geom = clean_geometry(f.get("geometry"))
+        if geom is None:
+            continue
+        props = f.get("properties") if isinstance(f.get("properties"), dict) else {}
+        color = str(props.get("color") or "")
+        fid = str(f.get("id") or "")
+        out.append({"type": "Feature", "id": fid if re.fullmatch(r"[0-9a-z]{1,16}", fid) else secrets.token_hex(4),
+                    "geometry": geom,
+                    "properties": {"name": " ".join(str(props.get("name") or "").split())[:200],
+                                   "color": color if _COLOR_RE.match(color) else "#d62828",
+                                   "kind": {"Point": "point", "LineString": "line", "Polygon": "polygon"}[geom["type"]]}})
+    return out

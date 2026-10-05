@@ -12,7 +12,7 @@ Für alle, die das Portal der Verbandsgemeinde Otterbach-Otterberg betreuen: Vid
 6. [Besprechungen planen](#besprechungen-planen)
 7. [Kurzlinks und QR-Codes](#kurzlinks-und-qr-codes)
 8. [Formulare](#formulare)
-8e. [Online-Anträge](#online-anträge)
+8e. [Online-Anträge](#online-anträge) (mit [Prozesse und Workflow](#prozesse-und-workflow))
 8f. [Kartenlayer und Kartenbrowser](#kartenlayer-und-kartenbrowser)
 8a. [Terminumfragen](#terminumfragen)
 8b. [Terminbuchung](#terminbuchung)
@@ -72,6 +72,7 @@ Jede Person bekommt einzeln die Bereiche freigeschaltet, die sie braucht:
 | **Formulare** | Formulare erstellen, verteilen, auswerten (geteilte Formulare und „Zum Ausfüllen“ sehen alle, auch ohne dieses Recht) |
 | **Terminbuchung** | Buchungsseiten anlegen, in denen andere selbst freie Zeitfenster buchen (z. B. Vorstellungsgespräche). Online-Termine mit eigener Videokonferenz brauchen zusätzlich „Videokonferenzen“ |
 | **Terminumfragen** | Terminumfragen wie Doodle anlegen, verteilen und auswerten. Aus dem festgelegten Termin eine Besprechung anlegen geht nur mit zusätzlichem Recht „Videokonferenzen“ |
+| **Prozesse** | Bearbeitungsprozesse für Online-Anträge im Prozesseditor anlegen, ändern, veröffentlichen, exportieren und Vorlagen für Nachforderungen pflegen. Arbeitsschritte erledigen kann jede:r, dem ein Schritt zugewiesen ist – dafür braucht es kein Recht |
 | **Karten** | Im Kartenbrowser eigene WMS/WFS/WMTS-Dienste hinzufügen, Karten speichern und per Link oder iframe teilen. Ansehen kann den Kartenbrowser jede:r, auch ohne Anmeldung |
 | **Rechtstexte** | Gesetze, Satzungen und Verordnungen einstellen, ändern, veröffentlichen und den Rechtsbaum (Ebenen) pflegen. Lesen kann jede:r ohne Anmeldung unter `/recht` |
 | **Benutzerverwaltung** | Benutzer und Gruppen anlegen, bearbeiten, sperren, löschen – aber keine Admin-Konten ändern und niemanden zum Admin machen |
@@ -322,7 +323,7 @@ Menü **Formulare** (Recht „Formulare“). Ein Formularserver mit Baukasten, v
 
 **Funktionsumfang**
 
-- Fragetypen: kurze Antwort (Text, E-Mail, Telefon, Zahl, eigenes Muster), langer Text, Einfach- und Mehrfachauswahl (mit „Sonstiges“, Mindest-/Höchstzahl, zufälliger Reihenfolge), Auswahlliste, Datum, Uhrzeit, Datum mit Uhrzeit, lineare Skala, Farbe, Datei-Upload (Endungen, Größe bis 20 MB, bis 10 Dateien), **GPS-Koordinaten** (Karte mit den unter Kartenlayer für Formulare freigegebenen Grundkarten, Standort des Geräts, Eingabe von Breite/Länge; gespeichert als WGS84 mit Genauigkeit und Herkunft).
+- Fragetypen: kurze Antwort (Text, E-Mail, Telefon, Zahl, eigenes Muster), langer Text, Einfach- und Mehrfachauswahl (mit „Sonstiges“, Mindest-/Höchstzahl, zufälliger Reihenfolge), Auswahlliste, Datum, Uhrzeit, Datum mit Uhrzeit, lineare Skala, Farbe, Datei-Upload (Endungen, Größe bis 20 MB, bis 10 Dateien), **Ort in der Karte** (Karte mit den unter Kartenlayer für Formulare freigegebenen Grundkarten): als **Punkt** (Klick, GPS des Geräts, Eingabe von Breite/Länge; gespeichert als WGS84 mit Genauigkeit und Herkunft), als **Linie** oder **Fläche** (gezeichnet, Eckpunkte verschiebbar, GPS-Standort als Stützpunkt; gespeichert als GeoJSON-Geometrie mit Länge, Fläche und Mittelpunkt, höchstens 1000 Punkte).
 - Gliederung: Überschrift, Zwischenüberschrift, Hinweistext, Trennlinie, **Neue Seite** (mehrseitige Formulare mit Fortschrittsanzeige und Prüfung je Seite).
 - Verteilung: öffentlicher Link (mit QR-Code und Kurzlink), persönliche Einladungen an Benutzer, **Gruppen** und Gäste per E-Mail, Erinnerungen, Frist, anonyme Formulare, Mehrfachantworten.
 - Auswertung: Zusammenfassung mit Diagrammen, Einzelansicht, Export **CSV** (Semikolon, UTF-8 mit BOM – öffnet sich in Excel korrekt) und **JSON**.
@@ -366,13 +367,42 @@ Ein Antrag braucht eine Frage vom Typ **E-Mail-Adresse** (Pflicht), sonst gibt e
 
 **Antragskatalog einbinden:** Unten im Antragseingang (nur Admins) stehen Link, iframe-Code (`/antraege-embed`) und die erlaubten Webseiten. Aus dem eingebetteten Katalog öffnen sich Anträge in einem neuen Fenster.
 
-**Mail-Vorlagen:** Gruppe „Online-Anträge“ unter E-Mail-Vorlagen: Eingangsbestätigung, Neuer Antrag, Statusänderung/Nachricht, Antwort der antragstellenden Person, Zugewiesen, Frist überschritten.
+**Mail-Vorlagen:** Gruppe „Online-Anträge“ unter E-Mail-Vorlagen: Eingangsbestätigung, Neuer Antrag, Statusänderung/Nachricht, Antwort der antragstellenden Person, Zugewiesen, Frist überschritten, Neuer Arbeitsschritt, Arbeitsschritt überfällig/Eskalation, Nachforderung, Erinnerung an eine Nachforderung, Nachforderung beantwortet.
 
 **Datenschutz:** Verfahren ins Verzeichnis der Verarbeitungstätigkeiten aufnehmen, Löschfristen festlegen (Anträge löschen Sie im Reiter „Antworten“ des Formulars), Hinweistext zum Datenschutz ins Formular aufnehmen. Der Statuslink ist geheim und steht nicht im PDF.
 
+### Prozesse und Workflow
+
+Menü **Formulare › Prozesse** (Recht „Prozesse“). Ein Prozess beschreibt, wie Anträge bearbeitet werden – als Folge von Arbeitsschritten. Er ist **wiederverwendbar**: Im Reiter **Antrag** eines Antragsformulars wählen Sie unter „Bearbeitungsprozess“, welcher Prozess für neue Anträge gilt. Ohne Prozess wird wie bisher frei über den Status gearbeitet.
+
+**Schritttypen**
+
+| Typ | Was passiert | Einstellungen |
+|---|---|---|
+| **Aufgabe** | Die Sachbearbeitung hakt Prüfpunkte ab und erfasst interne Felder (Text, Zahl, Betrag, Datum, Auswahl, Ja/Nein). Erst wenn alle Prüfpunkte abgehakt und Pflichtfelder gefüllt sind, lässt sich der Schritt erledigen | Checkliste (eine Zeile je Punkt), interne Felder, Anleitung, „danach weiter mit …“ |
+| **Freigabe** | Genehmigen oder ablehnen (Ablehnung nur mit Begründung) | **Vier-Augen-Prinzip** (wer den vorigen Schritt erledigt hat, darf nicht freigeben), bei Ablehnung: Vorgang beenden (Status wählbar) oder **zurück** zu einem früheren Schritt |
+| **Nachforderung** | Die antragstellende Person bekommt eine Mail mit Link und reicht Angaben/Dateien über ihre Statusseite nach; der Prozess wartet so lange (Status „Rückfrage“) | Nachricht, Felder (wie im Formular-Baukasten, auch Datei-Upload und Kartenfragen), Antragsfragen zur Korrektur, Frist (danach einmal Erinnerung) |
+| **Automatik** | Läuft sofort ohne Zutun | Aktionen: E-Mail (an Antragsteller:in, Zuständige oder feste Adresse; optional mit Antrag oder Dokumenten als Anhang), Status setzen, **Dokument als PDF** erzeugen (z. B. Bescheid; Briefkopf, Anschrift, Datum und Aktenzeichen setzt das Portal), Zuständigkeit ändern |
+
+**Für jeden Schritt:** interner Name und – optional – **Name für Antragsteller:in** (erscheint als Fortschrittsleiste auf der Statusseite; leer = Schritt bleibt unsichtbar), Status beim Start, **Bedingung** (Schritt nur ausführen, wenn eine Antwort, ein internes Feld oder das Ergebnis eines früheren Schritts passt – sonst wird er übersprungen). Aufgaben und Freigaben haben eine **Zuständigkeit** (Zuständige des Vorgangs, bestimmte Person, Gruppe, wer den vorigen Schritt erledigt hat), eine **Frist** in Tagen und optional eine **Eskalation** (nach X Tagen Überschreitung Vertretung bzw. Leitung informieren oder die Aufgabe übertragen). Am **Ende** setzt der Prozess den Abschluss-Status (z. B. Genehmigt) und informiert auf Wunsch die antragstellende Person.
+
+**Platzhalter** in Mails, Mitteilungen und Dokumenten: `{aktenzeichen}`, `{titel}`, `{name}`, `{eingang}`, `{datum}`, `{status}`, `{bearbeiter}`, `{statuslink}`, `{gebuehr}`, `{feld:schluessel}` (internes Feld, der Schlüssel steht neben dem Feld im Editor) und `{frage:Titel der Frage}` (Antwort aus dem Antrag).
+
+**Bedienung des Editors:** links die Schritte (Ziehen am Griff ändert die Reihenfolge, „Schritt hinzufügen“ fügt nach dem ausgewählten Schritt ein), rechts die Einstellungen des gewählten Schritts. **Entwurf speichern** (Strg+S) prüft den Prozess und zeigt Hinweise (fehlende Person, leere Nachforderung, Rücksprünge). **Veröffentlichen** macht aus dem Entwurf eine neue **Version**: Neue Anträge laufen nach ihr, **laufende Vorgänge bleiben auf ihrer Version**. Frühere Versionen lassen sich in den Entwurf laden. Vorlagen beim Anlegen: „Einfache Prüfung“ und „Prüfung, Freigabe und Bescheid“. **Export/Import** als JSON (Zuständigkeiten werden beim Import zurückgesetzt). Löschen geht erst, wenn keine laufenden Vorgänge mehr den Prozess nutzen.
+
+**Vorlagen für Nachforderungen** (unten auf der Seite Prozesse): häufige Nachforderungen einmal anlegen, im Vorgang mit einem Klick auswählen.
+
+**Im Alltag:**
+
+- **Meine Aufgaben** (Navigation, mit Zähler) listet offene Schritte, die mir oder meinen Gruppen zugewiesen sind, nach Frist; Gruppenaufgaben mit „Übernehmen“. Darunter: Nachforderungen, auf deren Antwort gewartet wird.
+- Im **Vorgang** zeigt die Schrittleiste den Stand; der aktuelle Schritt lässt sich dort erledigen, umverteilen, mit neuer Frist versehen oder überspringen. Wer einen Schritt zugewiesen bekommt, sieht den Vorgang und darf ihn bearbeiten – auch ohne Freigabe des Formulars.
+- **Nachfordern** geht jederzeit auch ohne Prozess (Knopf im Vorgang): eigene Felder zusammenklicken, Vorlage wählen oder Antragsfragen zur Korrektur öffnen. Die ursprünglichen Angaben bleiben unverändert (Prüfsumme bleibt gültig); Korrekturen stehen markiert daneben, nachgereichte Dateien liegen unter `data/portal/forms/<formular>/<antrag>/req<nr>/`, erzeugte Dokumente unter `…/docs/`.
+- Wird ein Vorgang über den Status abgeschlossen oder zurückgezogen, enden offene Schritte und Nachforderungen.
+- Fristen, Erinnerungen und Eskalationen prüft der Hintergrunddienst alle 5 Minuten.
+
 ## Kartenlayer und Kartenbrowser
 
-**Kartenlayer** (Verwaltung › Kartenlayer, nur Admins) sind die systemweite Grundlage für den Kartenbrowser und für GPS-Fragen in Formularen – auch wenn das Modul Kartenbrowser abgeschaltet ist.
+**Kartenlayer** (Verwaltung › Kartenlayer, nur Admins) sind die systemweite Grundlage für den Kartenbrowser und für Kartenfragen in Formularen – auch wenn das Modul Kartenbrowser abgeschaltet ist.
 
 **Voreingestellt:** basemap.de farbig und grau (WMTS-Kacheln, über das Portal), basemap.de Vektor (ausgeschaltet; wird direkt beim BKG geladen) und OpenStreetMap (über das Portal, eine Woche zwischengespeichert, wie es die Nutzungsrichtlinie der OSM Foundation verlangt). Startausschnitt: Verbandsgemeinde Otterbach-Otterberg – unter „Einstellungen“ per Kartenausschnitt änderbar.
 
@@ -382,7 +412,7 @@ Ein Antrag braucht eine Frage vom Typ **E-Mail-Adresse** (Pflicht), sonst gibt e
 
 **Weitere Funktionen:** Reihenfolge per Ziehen (= Reihenfolge im Kartenbrowser), **Erreichbarkeit prüfen** (Probeanfrage mit Antwortzeit; zeigt Dienstfehler wie „Layer not defined“), Duplizieren, **Export/Import** aller Layer als JSON (z. B. Austausch zwischen Verwaltungen), Zwischenspeicher je Layer oder ganz leeren, **Übernahme** von Diensten, die Benutzer:innen in gespeicherten Karten verwenden (als ausgeschalteter Systemlayer). Kaputte Kacheln und Dienstfehler erscheinen im Kartenbrowser unsichtbar statt als Fehlerbild.
 
-**Kartenbrowser** (Modul, `/karte`, einbettbar unter `/karte-embed`): öffentlich mit allen aktiven, öffentlichen Layern; angemeldet zusätzlich mit den internen. Mit dem Recht „Karten“ können Personen eigene Dienste hinzufügen und Karten speichern/teilen. Eigene Dienste laufen immer über den Proxy – aber nur mit vom Server signierter Beschreibung und nur zu öffentlichen Adressen (kein Zugriff auf `localhost`, interne Netze oder Docker-Dienste). Admins dürfen in der Layerverwaltung auch Dienste im eigenen Netz eintragen.
+**Kartenbrowser** (Modul, `/karte`, einbettbar unter `/karte-embed`): öffentlich mit allen aktiven, öffentlichen Layern; angemeldet zusätzlich mit den internen. **Zeichnen & messen** (Punkt, Linie, Fläche; benennen, einfärben, Eckpunkte verschieben, GeoJSON laden/herunterladen) steht allen offen. Mit dem Recht „Karten“ können Personen eigene Dienste hinzufügen und Karten samt Zeichnungen speichern/teilen (höchstens 500 Zeichnungen je Karte, Geometrien werden auf dem Server geprüft). Eigene Dienste laufen immer über den Proxy – aber nur mit vom Server signierter Beschreibung und nur zu öffentlichen Adressen (kein Zugriff auf `localhost`, interne Netze oder Docker-Dienste). Admins dürfen in der Layerverwaltung auch Dienste im eigenen Netz eintragen.
 
 **Einbetten:** Unter Einstellungen „Einbetten erlaubt“ und optional die erlaubten Webseiten. Gespeicherte Karten mit öffentlichem Link liefern ihren iframe-Code unter „Meine Karten“.
 

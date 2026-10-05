@@ -36,7 +36,7 @@
     }
     if (type === 'scale') { it.min = 1; it.max = 5; it.low_label = ''; it.high_label = ''; }
     if (type === 'file') { it.file_types = []; it.max_size_mb = Math.min(10, data.maxFileMb); it.max_files = 1; }
-    if (type === 'geo') { it.title = 'Ort'; it.allow_gps = true; it.show_inputs = true; }
+    if (type === 'geo') { it.title = 'Ort'; it.geometry = 'point'; it.allow_gps = true; it.show_inputs = true; }
     if (type === 'heading') { it.title = 'Abschnitt'; }
     if (type === 'pagebreak') { it.title = ''; }
     return it;
@@ -108,8 +108,12 @@
         h += field('Beschriftung rechts', input('high_label', it.high_label, 'placeholder="z. B. sehr zufrieden"'), 'md-4');
         break;
       case 'geo':
-        h += '<div class="col-12 d-flex flex-wrap gap-3 small">' + switchHtml('allow_gps', 'Knopf „Meinen Standort verwenden“ (GPS des Geräts)', it.allow_gps !== false) +
-          switchHtml('show_inputs', 'Felder für Breite und Länge anzeigen', it.show_inputs !== false) + '</div>' +
+        h += field('Was wird erfasst?', '<select class="form-select form-select-sm" data-key="geometry">' +
+          [['point', 'Punkt (z. B. Standort, Fundort)'], ['line', 'Linie (z. B. Leitungstrasse, Wegstrecke)'], ['polygon', 'Fläche (z. B. Baufläche, Sondernutzungsfläche)']].map(function (g) {
+            return '<option value="' + g[0] + '"' + ((it.geometry || 'point') === g[0] ? ' selected' : '') + '>' + g[1] + '</option>'; }).join('') + '</select>');
+        h += '<div class="col-12 d-flex flex-wrap gap-3 small">' + switchHtml('allow_gps', (it.geometry || 'point') === 'point' ? 'Knopf „Meinen Standort verwenden“ (GPS des Geräts)' : 'Knopf „Standort als Punkt“ (GPS, z. B. beim Abgehen einer Grenze)', it.allow_gps !== false) +
+          ((it.geometry || 'point') === 'point' ? switchHtml('show_inputs', 'Felder für Breite und Länge anzeigen', it.show_inputs !== false) : '') + '</div>' +
+          ((it.geometry || 'point') !== 'point' ? '<div class="col-12 small text-secondary"><i class="fa-solid fa-ruler me-1"></i>Länge bzw. Fläche wird automatisch berechnet und mit der Antwort gespeichert.</div>' : '') +
           '<div class="col-12 small text-secondary"><i class="fa-solid fa-map me-1"></i>Die Karte zeigt die Grundkarten, die unter Verwaltung › Kartenlayer für Formulare freigegeben sind.</div>';
         break;
       case 'file':

@@ -381,6 +381,49 @@ TEMPLATES: dict[str, dict] = {
         "body": ("Die Bearbeitungsfrist für den Antrag {aktenzeichen} („{titel}“) ist am {frist} abgelaufen.\n\n"
                  "Stand: {status}\nZuständig: {zustaendig}\n\nBearbeiten: {link}\n\n{fusszeile}"),
     },
+    "app_task": {
+        "group": "Online-Anträge", "label": "Neuer Arbeitsschritt (an die Zuständigen)",
+        "vars": _APP_VARS | {"schritt": "Name des Arbeitsschritts", "anleitung": "Hinweise zum Schritt aus dem Prozess",
+                             "schritt_frist": "Frist des Arbeitsschritts", "aufgaben_link": "Link zu „Meine Aufgaben“"},
+        "subject": "Neue Aufgabe: {schritt} – {aktenzeichen}",
+        "body": ("Für den Antrag {aktenzeichen} („{titel}“) ist ein Arbeitsschritt für Sie bereit:\n\n"
+                 "    {schritt}\n    Frist: {schritt_frist}\n\n{anleitung}\n\nVorgang öffnen: {link}\n"
+                 "Alle Ihre Aufgaben: {aufgaben_link}\n\n{fusszeile}"),
+    },
+    "app_task_overdue": {
+        "group": "Online-Anträge", "label": "Arbeitsschritt überfällig / Eskalation",
+        "vars": _APP_VARS | {"schritt": "Name des Arbeitsschritts", "schritt_frist": "Frist des Arbeitsschritts",
+                             "bearbeiter": "Bisher zuständig für den Schritt", "eskalation": "Hinweis bei Eskalation"},
+        "subject": "Überfällig: {schritt} – {aktenzeichen}",
+        "body": ("Der Arbeitsschritt „{schritt}“ im Antrag {aktenzeichen} („{titel}“) ist seit {schritt_frist} "
+                 "überfällig.\n\nZuständig: {bearbeiter}\n{eskalation}\n\nVorgang öffnen: {link}\n\n{fusszeile}"),
+    },
+    "app_request": {
+        "group": "Online-Anträge", "label": "Nachforderung (an die antragstellende Person)",
+        "vars": _APP_VARS | {"name": "Name der antragstellenden Person", "nachricht": "Text der Nachforderung",
+                             "angefordert": "Liste der angeforderten Angaben und Dateien",
+                             "nachreichen_bis": "Frist zum Nachreichen"},
+        "subject": "Bitte ergänzen Sie Ihren Antrag {aktenzeichen}",
+        "body": ("Guten Tag {name},\n\nfür die Bearbeitung Ihres Antrags „{titel}“ ({aktenzeichen}) benötigen wir "
+                 "noch folgende Angaben:\n\n{angefordert}\n\n{nachricht}\n\nBitte reichen Sie diese {nachreichen_bis} "
+                 "über Ihre Antragsseite nach:\n{status_link}\n\n{fusszeile}"),
+    },
+    "app_request_reminder": {
+        "group": "Online-Anträge", "label": "Erinnerung an eine Nachforderung",
+        "vars": _APP_VARS | {"name": "Name der antragstellenden Person", "angefordert": "Liste der angeforderten Angaben",
+                             "nachreichen_bis": "Frist zum Nachreichen"},
+        "subject": "Erinnerung: Angaben zu Ihrem Antrag {aktenzeichen} fehlen noch",
+        "body": ("Guten Tag {name},\n\nwir warten noch auf folgende Angaben zu Ihrem Antrag „{titel}“ "
+                 "({aktenzeichen}):\n\n{angefordert}\n\nBitte reichen Sie diese {nachreichen_bis} nach:\n{status_link}\n\n"
+                 "Ohne diese Angaben können wir Ihren Antrag nicht weiter bearbeiten.\n\n{fusszeile}"),
+    },
+    "app_request_answered": {
+        "group": "Online-Anträge", "label": "Nachforderung beantwortet (an die Zuständigen)",
+        "vars": _APP_VARS | {"von": "Antragsteller:in", "antworten": "Nachgereichte Angaben"},
+        "subject": "Nachgereicht: {aktenzeichen} – {titel}",
+        "body": ("{von} hat zum Antrag {aktenzeichen} („{titel}“) die angeforderten Angaben nachgereicht:\n\n"
+                 "{antworten}\n\nVorgang öffnen: {link}\n\n{fusszeile}"),
+    },
 }
 
 SAMPLE = {
@@ -404,6 +447,10 @@ SAMPLE = {
     "frei": "11", "zeitraum": "13.10.2026 bis 15.10.2026",
     "aktenzeichen": "GEW-2026-00042", "status": "In Bearbeitung", "status_link": "https://portal.example.org/a/beispiel",
     "zustaendig": "Max Muster, Gruppe Ordnungsamt", "hinweise": "Bitte halten Sie Ihren Personalausweis bereit.\nGebühr: 26 €",
+    "schritt": "Fachliche Prüfung", "anleitung": "Bitte Vollständigkeit und Zuständigkeit prüfen.",
+    "schritt_frist": "12.10.2026", "aufgaben_link": "https://portal.example.org/tasks",
+    "bearbeiter": "Gruppe Ordnungsamt", "eskalation": "Die Aufgabe wurde an Sie als Vertretung weitergeleitet.",
+    "angefordert": "– Lageplan (Datei)\n– Telefonnummer", "nachreichen_bis": "bis zum 19.10.2026",
 }
 
 

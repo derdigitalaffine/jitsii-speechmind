@@ -64,7 +64,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - **Auswerten:** Zusammenfassung mit Diagrammen, Einzelansicht, Export **CSV** (Excel) und **JSON**.
 - **Benachrichtigung** bei neuen Antworten, wahlweise mit CSV- und/oder JSON-Anhang – nur die neue Antwort oder jeweils alle.
 - **Im Portal teilen** mit Personen oder Gruppen in drei Stufen: Ergebnisse einsehen · zusätzlich einladen · zusätzlich bearbeiten und löschen.
-- **Fragetyp GPS-Koordinaten:** Ort per Klick in die Karte (basemap.de, OpenStreetMap), per Standort des Geräts oder per Eingabe; Auswertung als Karte mit allen Punkten, Export mit Koordinaten.
+- **Fragetyp „Ort in der Karte“:** **Punkt** per Klick in die Karte (basemap.de, OpenStreetMap), per GPS des Geräts oder per Eingabe – oder **Linie** bzw. **Fläche** zeichnen (Eckpunkte verschiebbar, GPS-Standort als Stützpunkt). Länge und Fläche werden berechnet; Auswertung als Karte mit allen Antworten, Export als GeoJSON-Geometrie.
 
 ### Online-Anträge (abschaltbares Modul, Teil des Formularservers)
 
@@ -73,12 +73,16 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - **Antragseingang** mit Filtern (offen, mir zugewiesen, überfällig, Rückfrage) und Vorgangsansicht mit Verlauf, internen Notizen und Nachrichten an die antragstellende Person.
 - **Statusseite für Antragsteller:innen** über einen geheimen Link: Stand und Verlauf ansehen, auf Rückfragen antworten, Antrag zurückziehen, PDF herunterladen.
 - **PDF des Antrags** (mit Prüfsumme gegen nachträgliche Änderungen) als Anhang der Eingangsbestätigung und der Mail an Zuständige bzw. Funktionspostfach – für die E-Akte.
+- **Workflow-Engine mit Prozesseditor:** wiederverwendbare Bearbeitungsprozesse aus Arbeitsschritten – **Aufgabe** (Checkliste, interne Felder wie Gebühr), **Freigabe** (genehmigen/ablehnen, Vier-Augen-Prinzip, Rücksprung), **Nachforderung** an die antragstellende Person und **Automatik** (Mail, Status, Zuständigkeit, **Bescheid als PDF** aus Textvorlage mit Platzhaltern). Je Schritt Zuständigkeit (Person, Gruppe, Vorgang, Vorbearbeiter), Frist mit Erinnerung und **Eskalation**, Bedingungen (nach Antworten, internen Feldern oder Ergebnis früherer Schritte). **Versionen:** laufende Vorgänge bleiben auf ihrer Version. Vorlagen, Export/Import. Eigenes Recht „Prozesse“.
+- **Meine Aufgaben:** offene Schritte für mich und meine Gruppen nach Frist, Übernehmen mit einem Klick, Zähler in der Navigation.
+- **Nachforderungen:** Sachbearbeitung fordert zusätzliche Angaben und **Dateien** (Felder wie im Baukasten, auch Kartenfragen) oder die **Korrektur von Antragsfeldern** an – ad hoc oder aus Vorlagen; die antragstellende Person reicht über ihre Statusseite nach, Erinnerung bei Fristablauf. Ursprüngliche Angaben bleiben unverändert (Prüfsumme), Korrekturen werden daneben angezeigt.
+- **Fortschritt für Antragsteller:innen:** öffentliche Schrittnamen als Fortschrittsleiste auf der Statusseite, Bescheide zum Herunterladen.
 - **Öffentlicher Antragskatalog** unter `/antraege` mit Kategorien, Suche, Gebühren, Unterlagen und Bearbeitungsdauer – auch per iframe in die Homepage einbettbar.
 
 ### Kartenbrowser und Kartenlayer (abschaltbares Modul)
 
-- **Kartenbrowser** mit MapLibre GL unter `/karte` für alle, auch ohne Anmeldung (einbettbar): Grundkarten (basemap.de farbig/grau/Vektor, OpenStreetMap), Fachdaten als **WMS, WMS-T (Zeitregler), WFS, WMTS/XYZ** und GeoJSON, Transparenz, Reihenfolge per Ziehen, Legende, Sachinformation per Klick, Strecken- und Flächenmessung, Koordinaten in WGS84 und UTM 32, Koordinatensuche, Kartenbild als PNG, Link auf den Ausschnitt.
-- Angemeldete mit Recht „Karten“ fügen **eigene Dienste** komfortabel hinzu („Dienst abfragen“ liest die Layer aus GetCapabilities), **speichern Karten** und **teilen** sie per Link oder iframe.
+- **Kartenbrowser** mit MapLibre GL unter `/karte` für alle, auch ohne Anmeldung (einbettbar): Grundkarten (basemap.de farbig/grau/Vektor, OpenStreetMap), Fachdaten als **WMS, WMS-T (Zeitregler), WFS, WMTS/XYZ** und GeoJSON, Transparenz, Reihenfolge per Ziehen, Legende, Sachinformation per Klick, **Zeichnen und Messen** von Punkten, Linien und Flächen (benennen, einfärben, Eckpunkte verschieben, GeoJSON laden und herunterladen), Koordinaten in WGS84 und UTM 32, Koordinatensuche, Kartenbild als PNG, Link auf den Ausschnitt.
+- Angemeldete mit Recht „Karten“ fügen **eigene Dienste** komfortabel hinzu („Dienst abfragen“ liest die Layer aus GetCapabilities), **speichern Karten** samt Zeichnungen und **teilen** sie per Link oder iframe.
 - **Systemweite Layerverwaltung** für Admins: Layer anlegen (mit Dienstabfrage), Grundkarte oder Überlagerung, Gruppen, Reihenfolge per Ziehen, öffentlich/intern, Startsichtbarkeit, Verwendung in Formularen, WMS-T-Zeitwerte, Legende, Erreichbarkeit prüfen, Duplizieren, Export/Import als JSON, Übernahme von Benutzer-Layern, Startausschnitt, Zwischenspeicher.
 - Je Layer wählbar: **über das Portal laden** (Proxy mit Kachel-Zwischenspeicher, keine IP-Adressen an Dritte, keine CORS-Probleme) oder direkt beim Anbieter. Eigene Layer von Benutzer:innen laufen immer über den Proxy – mit Schutz vor Zugriffen ins interne Netz.
 
@@ -93,7 +97,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 
 ### Verwaltung und Sicherheit
 
-- **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Terminumfragen, Terminbuchung, Karten, Rechtstexte, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
+- **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Terminumfragen, Terminbuchung, Prozesse, Karten, Rechtstexte, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
 - **Gehärtet:** Content-Security-Policy und weitere Sicherheits-Header, CSRF-Schutz für alle Formulare, Bremse gegen Passwort-Raten je IP und je Konto, keine Kontenermittlung über Antwortzeiten, Uploads nur als Download, aktuelle Bibliotheken ohne bekannte Sicherheitslücken.
 - **Zwei-Faktor-Anmeldung** per **Authenticator-App (TOTP)** oder **Code per E-Mail**, mit Notfallcodes; freiwillig oder Pflicht für Admins/alle. „Passwort vergessen“ per Mail-Link.
 - **Module** Kurzlinks, Formulare, Online-Anträge, Terminumfragen, Terminbuchung, Kartenbrowser und Rechtstexte komplett abschaltbar.

@@ -148,9 +148,10 @@
   }
 
   /* --- Klick: Sachinformation (WMS) und Objekte (WFS/GeoJSON) ----------------------- */
-  var tool = null;
   map.on('click', function (ev) {
-    if (tool) { return; }
+    if (draw.mode()) { return; }
+    var mine = draw.layerIds().filter(function (id) { return map.getLayer(id); });
+    if (mine.length && map.queryRenderedFeatures(ev.point, { layers: mine }).length) { return; }   // Klick wählt eine Zeichnung
     var html = '';
     var feats = map.queryRenderedFeatures(ev.point, { layers: kit.vectorLayerIds() });
     if (feats.length) {
@@ -178,53 +179,104 @@
     });
   });
 
-  /* --- Messen -------------------------------------------------------------------------- */
-  var pts = [], measureBox = document.getElementById('map-measure');
-  function measureData() {
-    var feats = [];
-    if (pts.length > 1) { feats.push({ type: 'Feature', geometry: { type: tool === 'area' && pts.length > 2 ? 'Polygon' : 'LineString', coordinates: tool === 'area' && pts.length > 2 ? [pts.concat([pts[0]])] : pts } }); }
-    pts.forEach(function (p) { feats.push({ type: 'Feature', geometry: { type: 'Point', coordinates: p } }); });
-    return { type: 'FeatureCollection', features: feats };
-  }
-  function ensureMeasureLayer() {
-    if (map.getSource('measure')) { return; }
-    map.addSource('measure', { type: 'geojson', data: measureData() });
-    map.addLayer({ id: 'measure-fill', type: 'fill', source: 'measure', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#1f5fa8', 'fill-opacity': 0.15 } });
-    map.addLayer({ id: 'measure-line', type: 'line', source: 'measure', paint: { 'line-color': '#1f5fa8', 'line-width': 2.5, 'line-dasharray': [2, 1] } });
-    map.addLayer({ id: 'measure-pt', type: 'circle', source: 'measure', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 4, 'circle-color': '#fff', 'circle-stroke-color': '#1f5fa8', 'circle-stroke-width': 2 } });
-  }
-  function updateMeasure() {
-    ensureMeasureLayer();
-    map.getSource('measure').setData(measureData());
-    var len = 0;
-    for (var i = 1; i < pts.length; i++) { len += MapKit.haversine(pts[i - 1], pts[i]); }
-    var text = tool === 'area' ? (pts.length > 2 ? 'Fläche: ' + MapKit.fmtArea(MapKit.ringArea(pts)) + ' · Umfang: ' + MapKit.fmtLen(len + MapKit.haversine(pts[pts.length - 1], pts[0])) : 'Mindestens drei Punkte setzen')
-      : (pts.length > 1 ? 'Strecke: ' + MapKit.fmtLen(len) : 'Punkte in die Karte klicken');
-    measureBox.innerHTML = '<i class="fa-solid ' + (tool === 'area' ? 'fa-draw-polygon' : 'fa-ruler') + ' me-1"></i>' + text +
-      ' <button class="btn btn-sm btn-link py-0" type="button" data-measure-end>Beenden</button>';
-  }
-  function endMeasure() {
-    tool = null; pts = [];
-    measureBox.hidden = true;
-    if (map.getSource('measure')) { map.getSource('measure').setData(measureData()); }
-    map.getCanvas().style.cursor = '';
-    document.querySelectorAll('[data-tool]').forEach(function (b) { b.classList.remove('active'); });
-  }
-  document.querySelectorAll('[data-tool]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var t = btn.dataset.tool;
-      if (tool === t) { endMeasure(); return; }
-      endMeasure();
-      tool = t;
-      btn.classList.add('active');
+  /* --- Zeichnen und Messen ------------------------------------------------------------- */
+  var measureBox = document.getElementById('map-measure'), drawList = document.getElementById('draw-list');
+  var KIND = { point: ['Punkt', 'fa-location-dot'], line: ['Linie', 'fa-route'], polygon: ['Fläche', 'fa-draw-polygon'] };
+  var kindOf = function (f) { return f.properties.kind || { Point: 'point', LineString: 'line', Polygon: 'polygon' }[f.geometry.type]; };
+  var draw = MapDraw.create(map, {
+    onChange: renderDrawings,
+    onSelect: function (id) {
+      drawList.querySelectorAll('[data-fid]').forEach(function (r) { r.classList.toggle('active', r.dataset.fid === id); });
+      var row = id && drawList.querySelector('[data-fid="' + id + '"]');
+      if (row) { shell.classList.remove('panel-hidden'); row.scrollIntoView({ block: 'nearest' }); }
+    },
+    onSketch: function (info) {
+      document.querySelectorAll('[data-draw]').forEach(function (b) { b.classList.toggle('active', !!info && b.dataset.draw === info.mode); });
+      if (!info) { measureBox.hidden = true; return; }
       measureBox.hidden = false;
-      map.getCanvas().style.cursor = 'crosshair';
-      updateMeasure();
+      var hint = info.mode === 'point' ? 'In die Karte klicken' :
+        info.count < info.min ? (info.mode === 'polygon' ? 'Eckpunkte setzen (mind. 3)' : 'Punkte setzen (mind. 2)') :
+        (info.mode === 'polygon' ? 'Ersten Punkt oder doppelt klicken zum Schließen' : 'Doppelklick oder „Fertig“ beendet');
+      measureBox.innerHTML = '<i class="fa-solid ' + KIND[info.mode][1] + ' me-1"></i>' + (info.text ? '<strong>' + esc(info.text) + '</strong> · ' : '') + esc(hint) +
+        '<span class="ms-2 text-nowrap">' + (info.count >= info.min && info.mode !== 'point' ? '<button class="btn btn-sm btn-primary py-0" type="button" data-sk="finish">Fertig</button> ' : '') +
+        (info.count ? '<button class="btn btn-sm btn-outline-secondary py-0" type="button" data-sk="undo" title="Letzten Punkt entfernen (Rücktaste)"><i class="fa-solid fa-rotate-left"></i></button> ' : '') +
+        '<button class="btn btn-sm btn-outline-secondary py-0" type="button" data-sk="cancel">Abbrechen</button></span>';
+    }
+  });
+  measureBox.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-sk]');
+    if (b) { draw[b.dataset.sk](); }
+  });
+  document.querySelectorAll('[data-draw]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (draw.mode() === btn.dataset.draw) { draw.cancel(); return; }
+      draw.start(btn.dataset.draw);
+      if (window.innerWidth < 768) { shell.classList.add('panel-hidden'); setTimeout(function () { map.resize(); }, 50); }
     });
   });
-  measureBox.addEventListener('click', function (ev) { if (ev.target.closest('[data-measure-end]')) { endMeasure(); } });
-  map.on('click', function (ev) { if (tool) { pts.push([ev.lngLat.lng, ev.lngLat.lat]); updateMeasure(); } });
-  map.on('style.load', function () { if (tool) { updateMeasure(); } });
+  function renderDrawings(list) {
+    if (typing) { return; }
+    list = list || draw.features();
+    document.getElementById('draw-actions').hidden = !list.length;
+    drawList.innerHTML = list.length ? list.map(function (f, i) {
+      var k = kindOf(f);
+      return '<div class="draw-row" data-fid="' + esc(f.id) + '">' +
+        '<input type="color" class="form-control form-control-color form-control-sm flex-none" value="' + esc(f.properties.color || '#d62828') + '" data-dc title="Farbe" aria-label="Farbe">' +
+        '<div class="flex-grow-1 min-w-0"><input class="form-control form-control-sm" value="' + esc(f.properties.name || '') + '" placeholder="' + KIND[k][0] + ' ' + (i + 1) + '" data-dn aria-label="Bezeichnung">' +
+        '<div class="small text-secondary text-truncate mt-1"><i class="fa-solid ' + KIND[k][1] + ' me-1"></i>' + esc(MapDraw.describe(f)) + '</div></div>' +
+        '<div class="btn-group-vertical btn-group-sm flex-none"><button class="btn btn-link py-0" type="button" data-dz title="Hinzoomen" aria-label="Hinzoomen"><i class="fa-solid fa-magnifying-glass-location"></i></button>' +
+        '<button class="btn btn-link text-danger py-0" type="button" data-dd title="Löschen" aria-label="Löschen"><i class="fa-regular fa-trash-can"></i></button></div></div>';
+    }).join('') : '<div class="small text-secondary">Noch nichts gezeichnet. Wählen Sie oben Punkt, Linie oder Fläche – Länge und Fläche werden dabei gemessen.</div>';
+    var sel = draw.selected();
+    if (sel) { var r = drawList.querySelector('[data-fid="' + sel + '"]'); if (r) { r.classList.add('active'); } }
+  }
+  var typing = false;
+  drawList.addEventListener('input', function (ev) {
+    var row = ev.target.closest('[data-fid]');
+    if (!row) { return; }
+    typing = true;   // Liste beim Tippen nicht neu aufbauen (Fokus bleibt im Feld)
+    draw.update(row.dataset.fid, ev.target.hasAttribute('data-dc') ? { color: ev.target.value } : { name: ev.target.value.slice(0, 200) });
+    typing = false;
+  });
+  drawList.addEventListener('click', function (ev) {
+    var row = ev.target.closest('[data-fid]');
+    if (!row) { return; }
+    if (ev.target.closest('[data-dd]')) { draw.remove(row.dataset.fid); return; }
+    if (ev.target.closest('[data-dz]')) { draw.zoomTo(row.dataset.fid); draw.select(row.dataset.fid); return; }
+    if (!ev.target.closest('input')) { draw.select(row.dataset.fid); }
+  });
+  document.getElementById('draw-export').addEventListener('click', function () {
+    var data = { type: 'FeatureCollection', features: draw.features().map(function (f) {
+      var m = MapDraw.measure(f);
+      return { type: 'Feature', geometry: f.geometry, properties: { name: f.properties.name || '', farbe: f.properties.color, laenge_m: Math.round(m.length * 10) / 10, flaeche_m2: Math.round(m.area) } };
+    }) };
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/geo+json' }));
+    a.download = 'zeichnungen.geojson';
+    a.click();
+  });
+  document.getElementById('draw-import').addEventListener('change', function (ev) {
+    var file = ev.target.files[0];
+    if (!file) { return; }
+    file.text().then(function (text) {
+      var data = JSON.parse(text), list = data.type === 'FeatureCollection' ? data.features : [data];
+      var ok = list.filter(function (f) { return f && f.geometry && /^(Point|LineString|Polygon)$/.test(f.geometry.type); }).slice(0, 500).map(function (f, i) {
+        var p = f.properties || {};
+        return { type: 'Feature', geometry: f.geometry, properties: { name: String(p.name || p.bezeichnung || '').slice(0, 200), color: /^#[0-9a-f]{6}$/i.test(p.farbe || p.color || '') ? (p.farbe || p.color) : MapDraw.COLORS[i % MapDraw.COLORS.length] } };
+      });
+      draw.setFeatures(draw.features().concat(ok));
+      if (ok.length) { draw.zoomTo(draw.features()[draw.features().length - 1].id); }
+      toast(ok.length + ' Objekt(e) übernommen', !ok.length);
+    }).catch(function () { toast('Die Datei ist kein gültiges GeoJSON.', true); });
+    ev.target.value = '';
+  });
+  document.getElementById('draw-clear').addEventListener('click', function () {
+    var go = function () { draw.clear(); };
+    if (window.Swal) { Swal.fire({ title: 'Alle Zeichnungen löschen?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Löschen', cancelButtonText: 'Abbrechen' }).then(function (r) { if (r.isConfirmed) { go(); } }); }
+    else if (confirm('Alle Zeichnungen löschen?')) { go(); }
+  });
+  draw.setFeatures((bundle.state && bundle.state.drawings) || []);
+  renderDrawings();
 
   /* --- Export und Link ------------------------------------------------------------------ */
   function toast(text, error) {
@@ -308,7 +360,7 @@
     var out = document.getElementById('sm-result');
     if (!title) { out.innerHTML = '<div class="text-danger small">Bitte einen Titel angeben.</div>'; return; }
     post('/maps/save', { id: asNew ? '' : (meta.mapId || ''), title: title, description: document.getElementById('sm-desc').value,
-      public: document.getElementById('sm-public').checked ? '1' : '0', state: JSON.stringify(kit.state()) }).then(function (d) {
+      public: document.getElementById('sm-public').checked ? '1' : '0', state: JSON.stringify(Object.assign(kit.state(), { drawings: draw.features() })) }).then(function (d) {
       if (!d.ok) { out.innerHTML = '<div class="text-danger small">' + esc(d.error) + '</div>'; return; }
       meta.mapId = d.id;
       var pub = d.public ? location.origin + d.public : '';

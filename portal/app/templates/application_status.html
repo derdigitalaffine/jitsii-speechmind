@@ -13,8 +13,43 @@
     </div>
   </div></div>
 
-  {% if resp.status == 'query' %}
+  {% if progress %}
+  <div class="card mb-3"><div class="card-body">
+    <div class="small text-secondary mb-2">Bearbeitungsschritte</div>
+    <ol class="wf-steps" aria-label="Fortschritt Ihres Antrags">
+      {% for p in progress %}
+      <li class="wf-step wf-{{ 'done' if p.state == 'done' else ('current' if p.state == 'current' else 'todo') }}" {% if p.state == 'current' %}aria-current="step"{% endif %}>
+        <span class="wf-dot"><i class="fa-solid {{ 'fa-check' if p.state == 'done' else ('fa-hourglass-half' if p.waiting else ('fa-gears' if p.state == 'current' else 'fa-circle')) }}"></i></span>
+        <span class="wf-label">{{ p.name }}{% if p.waiting %} – Ihre Mithilfe nötig{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </div></div>
+  {% endif %}
+
+  {% for r in open_requests %}
+  <div class="card mb-3 border-warning border-2" id="nachforderung-{{ r.id }}"><div class="card-body">
+    <div class="d-flex flex-wrap align-items-start gap-3">
+      <span class="pe-icon text-warning fs-5"><i class="fa-solid fa-file-circle-question"></i></span>
+      <div class="flex-grow-1">
+        <h2 class="h5 mb-1">{{ r.title }}</h2>
+        <p class="mb-2">Bitte ergänzen Sie Ihren Antrag{% if r.due_at %} bis zum <strong>{{ r.due_at | local('%d.%m.%Y') }}</strong>{% endif %}. Ohne diese Angaben können wir nicht weiterarbeiten.</p>
+        {% if r.message %}<div class="bg-body-tertiary rounded p-2 mb-2" style="white-space: pre-line">{{ r.message }}</div>{% endif %}
+        <ul class="small mb-3">{% for q in r.items if q.type != 'text' %}<li>{{ q.title or 'Angabe' }}{% if q.type == 'file' %} <span class="text-secondary">(Datei)</span>{% endif %}</li>{% endfor %}{% for qid in r.reopen %}{% set q = questions | selectattr('id', 'equalto', qid) | first %}{% if q %}<li>{{ q.title }} <span class="text-secondary">(bitte prüfen und ggf. korrigieren)</span></li>{% endif %}{% endfor %}</ul>
+        <a class="btn btn-warning" href="/a/{{ resp.track_token }}/request/{{ r.id }}"><i class="fa-solid fa-pen-to-square me-1"></i>Jetzt ergänzen</a>
+      </div>
+    </div>
+  </div></div>
+  {% endfor %}
+
+  {% if resp.status == 'query' and not open_requests %}
   <div class="alert alert-warning"><i class="fa-solid fa-circle-question me-1"></i><strong>Rückfrage der Verwaltung.</strong> Bitte lesen Sie die Nachricht unten und antworten Sie über das Feld „Nachricht an die Verwaltung“.</div>
+  {% endif %}
+
+  {% if documents %}
+  <div class="card mb-3"><div class="card-header"><i class="fa-regular fa-file-pdf me-2"></i>Dokumente zu Ihrem Antrag</div>
+    <ul class="list-group list-group-flush">{% for d in documents %}<li class="list-group-item d-flex align-items-center gap-2"><a href="/a/{{ resp.track_token }}/documents/{{ d.id }}"><i class="fa-regular fa-file-pdf me-1"></i>{{ d.name }}</a><span class="small text-secondary ms-auto">{{ d.created_at | local('%d.%m.%Y') }}</span></li>{% endfor %}</ul>
+  </div>
   {% endif %}
 
   <div class="card mb-3"><div class="card-header"><i class="fa-solid fa-clock-rotate-left me-2"></i>Verlauf</div>
@@ -22,11 +57,11 @@
       {% for e in events | reverse %}
       <li class="list-group-item">
         <div class="d-flex flex-wrap gap-2 small">
-          <strong>{{ {'created': 'Antrag eingegangen', 'status': 'Neuer Stand', 'message': 'Nachricht der Verwaltung', 'reply': 'Ihre Nachricht'}.get(e.kind, e.kind) }}</strong>
+          <strong>{{ {'created': 'Antrag eingegangen', 'status': 'Neuer Stand', 'message': 'Nachricht der Verwaltung', 'reply': 'Ihre Nachricht', 'request': 'Bitte um Ergänzung', 'document': 'Dokument'}.get(e.kind, e.kind) }}</strong>
           {% if e.status %}{% set es = statuses.get(e.status, (e.status, 'secondary', 'fa-circle')) %}<span class="badge text-bg-{{ es[1] }}">{{ es[0] }}</span>{% endif %}
           <span class="text-secondary ms-auto">{{ e.at | local }}</span>
         </div>
-        {% if e.text and e.kind != 'created' %}<div class="mt-1 {{ 'bg-body-tertiary rounded p-2' if e.kind in ('message', 'reply') }}" style="white-space: pre-line">{{ e.text }}</div>{% endif %}
+        {% if e.text and e.kind not in ('created', 'document') %}<div class="mt-1 {{ 'bg-body-tertiary rounded p-2' if e.kind in ('message', 'reply') }}" style="white-space: pre-line">{{ e.text }}</div>{% endif %}
       </li>
       {% endfor %}
     </ul></div>
@@ -42,8 +77,8 @@
 
   <details class="card mb-3"><summary class="card-header" style="cursor: pointer"><i class="fa-regular fa-file-lines me-2"></i>Ihre Angaben</summary><div class="card-body">
     <dl class="row mb-0">
-      {% for q in questions %}{% set v = resp.answers.get(q.id) %}
-      <dt class="col-sm-4">{{ q.title or 'Frage' }}</dt><dd class="col-sm-8 text-break" style="white-space: pre-line">{% if q.type == 'file' and v %}{% for f in v %}<i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}<br>{% endfor %}{% else %}{{ display(q, v) or '–' }}{% endif %}</dd>
+      {% for q in questions %}{% set v = current.get(q.id) %}
+      <dt class="col-sm-4">{{ q.title or 'Frage' }}{% if corrections.get(q.id) %} <span class="badge text-bg-light border">ergänzt</span>{% endif %}</dt><dd class="col-sm-8 text-break" style="white-space: pre-line">{% if q.type == 'file' and v %}{% for f in v %}<i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}<br>{% endfor %}{% else %}{{ display(q, v) or '–' }}{% endif %}</dd>
       {% endfor %}
     </dl>
   </div></details>
