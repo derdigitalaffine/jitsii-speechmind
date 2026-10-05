@@ -16,12 +16,14 @@ Für alle, die im Portal der Verbandsgemeinde Otterbach-Otterberg arbeiten: Vide
 6b. [Terminbuchung (z. B. Vorstellungsgespräche)](#6b-terminbuchung-z-b-vorstellungsgespräche)
 6c. [Terminumfragen und Buchungsseiten teilen](#6c-terminumfragen-und-buchungsseiten-teilen)
 6d. [Rechtstexte (Ortsrecht online)](#6d-rechtstexte-ortsrecht-online)
+6e. [Kartenbrowser](#6e-kartenbrowser)
 7. [Kurzlinks und QR-Codes](#7-kurzlinks-und-qr-codes)
 8. [Formulare erstellen](#8-formulare-erstellen)
 9. [Formulare verteilen](#9-formulare-verteilen)
 10. [Antworten auswerten](#10-antworten-auswerten)
 11. [Formulare mit Kolleg:innen teilen](#11-formulare-mit-kolleginnen-teilen)
 12. [Formulare ausfüllen („Zum Ausfüllen“)](#12-formulare-ausfüllen-zum-ausfüllen)
+12a. [Online-Anträge erstellen und bearbeiten](#12a-online-anträge-erstellen-und-bearbeiten)
 13. [Profil und Sicherheit (Zwei-Faktor)](#13-profil-und-sicherheit-zwei-faktor)
 14. [Datenschutz in der Praxis](#14-datenschutz-in-der-praxis)
 15. [Hilfe bei Problemen](#15-hilfe-bei-problemen)
@@ -357,6 +359,23 @@ Viele Texte auf einmal: **Dateien hochladen**, Ebene und Art wählen, mehrere Da
 
 ---
 
+## 6e. Kartenbrowser
+
+Menü **Kartenbrowser** (oder `/karte`, auch ohne Anmeldung).
+
+- **Links die Seitenleiste:** oben Koordinatensuche (z. B. `49.49, 7.77` oder `UTM 32 412345 5483210`), darunter die **Grundkarte** (basemap.de, OpenStreetMap …) und die **Ebenen** nach Gruppen. Häkchen schaltet eine Ebene ein; dann erscheinen ein Regler für die **Deckkraft** und – bei Zeitreihen (WMS-T) – ein **Zeitregler**. Mit ⠿ ändern Sie die Reihenfolge, ☰ zeigt die **Legende**.
+- **Klick in die Karte** zeigt Sachinformationen der eingeschalteten Fachdaten und die Koordinate.
+- **Werkzeuge unten:** Strecke messen, Fläche messen, Kartenbild als PNG speichern, Link zu diesem Ausschnitt kopieren.
+- Rechts: Zoomen, nach Norden ausrichten, **eigener Standort**, Vollbild. Unten links stehen die Koordinaten unter dem Mauszeiger in WGS84 und UTM 32.
+
+**Mit dem Recht „Karten“** zusätzlich:
+
+1. **Layer hinzufügen**: Art (WMS/WMS-T, WFS, WMTS) wählen, Adresse des Dienstes eintragen, **Dienst abfragen**, gewünschte Layer anhaken, **Ausgewählte hinzufügen**. Kachelvorlagen mit `{z}/{x}/{y}` gehen auch ohne Abfrage.
+2. **Speichern** (Diskette): Titel, Beschreibung und auf Wunsch **öffentlicher Link**. Gespeichert werden Ausschnitt, Grundkarte, Ebenen mit Deckkraft und Zeit sowie Ihre eigenen Layer.
+3. **Meine Karten**: gespeicherte Karten öffnen, Link kopieren, **Einbettungscode** für Webseiten kopieren, öffentlichen Link abschalten, löschen.
+
+---
+
 ## 7. Kurzlinks und QR-Codes
 
 Menü **Kurzlinks** (Recht „Kurzlinks“). Aus einer langen Adresse wird eine kurze, z. B. `https://…/s/sommerfest` – ideal für Aushänge, Flyer, Amtsblatt und Mails.
@@ -426,6 +445,7 @@ Menü **Formulare** (Recht „Formulare“). Damit bauen Sie Umfragen, Anmeldung
 | **Lineare Skala** | Zufriedenheit, Bewertung | von 0 oder 1 bis 2–10, Beschriftung links/rechts |
 | **Farbe** | Farbwahl | – |
 | **Datei-Upload** | Nachweise, Fotos, Anträge | erlaubte Dateiendungen (z. B. `pdf, jpg, png`), größte Datei (bis 20 MB), Anzahl Dateien (bis 10) |
+| **GPS-Koordinaten** | Ort eines Schadens, Standort einer Veranstaltung, Lage eines Grundstücks | Knopf „Meinen Standort verwenden“ (GPS des Handys), Felder für Breite und Länge anzeigen |
 
 Jede Frage hat einen **Titel**, eine optionale **Beschreibung** (Hilfetext) und den Schalter **Pflichtfeld**.
 
@@ -546,6 +566,38 @@ Beim Ausfüllen (auch für Gäste über einen Link):
 - Bei mehrseitigen Formularen **Weiter** und **Zurück**; ein Balken zeigt den Fortschritt.
 - Stimmt eine Angabe nicht (z. B. E-Mail-Adresse), markiert das Formular das Feld und erklärt den Fehler.
 - **Absenden** speichert die Antwort; danach erscheint der Dank-Text.
+
+---
+
+## 12a. Online-Anträge erstellen und bearbeiten
+
+Ein **Online-Antrag** ist ein Formular, bei dem jede Einsendung zum Vorgang wird – mit Aktenzeichen, Status, Zuständigkeit und Frist.
+
+### Antrag anlegen
+
+1. **Formulare**, Titel eintippen, daneben **Online-Antrag** wählen, **Anlegen**. Name und E-Mail-Adresse (Pflicht) sind schon enthalten – die Adresse braucht es für Bestätigung und Rückfragen.
+2. Fragen ergänzen wie bei jedem Formular (z. B. Datei-Upload für Nachweise, GPS-Koordinaten für den Ort).
+3. Reiter **Antrag**: Kürzel für das Aktenzeichen (z. B. `SN` für Sondernutzung), Bearbeitungsfrist in Tagen, zuständige Person/Gruppe/Funktionspostfach, bei Bedarf **Weiterleitungsregeln** (z. B. „Ortsgemeinde = Katzweiler → Kolleg:in X“) und den Eintrag im **Antragskatalog** mit Kategorie, Gebühr, Bearbeitungsdauer und benötigten Unterlagen.
+4. Fertig: Der Antrag steht im öffentlichen Katalog (`/antraege`) und hat einen öffentlichen Link (Reiter „Teilen“, mit QR-Code).
+
+### Was Antragsteller:innen erleben
+
+Nach dem Absenden zeigt die Seite das **Aktenzeichen**. Per Mail kommt die Eingangsbestätigung mit allen Angaben (auf Wunsch als PDF) und einem **persönlichen Link** zur Statusseite. Dort sehen sie den Stand und alle Nachrichten der Verwaltung, antworten auf Rückfragen, laden das PDF herunter oder ziehen den Antrag zurück.
+
+### Anträge bearbeiten
+
+Menü **Antragseingang**: alle Anträge, für die Sie zuständig sind (direkt oder über eine Gruppe) oder die zu Ihren Antragsformularen gehören. Oben die Kacheln „offen“, „mir zugewiesen“, „Frist überschritten“, „Rückfrage offen“; darunter Filter und Suche (Aktenzeichen, Name, E-Mail). Überfällige Anträge sind rot markiert.
+
+Im Vorgang:
+
+- **Selbst übernehmen** – Sie werden zuständig, der Status wechselt auf „In Bearbeitung“.
+- **Status ändern** – mit Mitteilung (z. B. Begründung) und auf Wunsch Mail an die antragstellende Person. **Rückfrage** stellt eine Frage; die Antwort kommt per Mail zu Ihnen, der Antrag springt zurück auf „In Bearbeitung“.
+- **Nachricht** an die antragstellende Person oder **interne Notiz** (sieht nur die Verwaltung).
+- **Zuweisen** an Person oder Gruppe (mit Mail an die neu Zuständigen) und **Frist** ändern.
+- **PDF** für die E-Akte, Anhänge herunterladen, Ort in der Karte ansehen.
+- Der Hinweis „unverändert seit Eingang“ bestätigt über eine Prüfsumme, dass die Angaben nicht nachträglich verändert wurden.
+
+Läuft eine Frist ab, erinnert das Portal die Zuständigen einmal per Mail.
 
 ---
 

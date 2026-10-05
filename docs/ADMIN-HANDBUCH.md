@@ -12,6 +12,8 @@ Für alle, die das Portal der Verbandsgemeinde Otterbach-Otterberg betreuen: Vid
 6. [Besprechungen planen](#besprechungen-planen)
 7. [Kurzlinks und QR-Codes](#kurzlinks-und-qr-codes)
 8. [Formulare](#formulare)
+8e. [Online-Anträge](#online-anträge)
+8f. [Kartenlayer und Kartenbrowser](#kartenlayer-und-kartenbrowser)
 8a. [Terminumfragen](#terminumfragen)
 8b. [Terminbuchung](#terminbuchung)
 8c. [Rechtstexte (Ortsrecht online)](#rechtstexte-ortsrecht-online)
@@ -70,6 +72,7 @@ Jede Person bekommt einzeln die Bereiche freigeschaltet, die sie braucht:
 | **Formulare** | Formulare erstellen, verteilen, auswerten (geteilte Formulare und „Zum Ausfüllen“ sehen alle, auch ohne dieses Recht) |
 | **Terminbuchung** | Buchungsseiten anlegen, in denen andere selbst freie Zeitfenster buchen (z. B. Vorstellungsgespräche). Online-Termine mit eigener Videokonferenz brauchen zusätzlich „Videokonferenzen“ |
 | **Terminumfragen** | Terminumfragen wie Doodle anlegen, verteilen und auswerten. Aus dem festgelegten Termin eine Besprechung anlegen geht nur mit zusätzlichem Recht „Videokonferenzen“ |
+| **Karten** | Im Kartenbrowser eigene WMS/WFS/WMTS-Dienste hinzufügen, Karten speichern und per Link oder iframe teilen. Ansehen kann den Kartenbrowser jede:r, auch ohne Anmeldung |
 | **Rechtstexte** | Gesetze, Satzungen und Verordnungen einstellen, ändern, veröffentlichen und den Rechtsbaum (Ebenen) pflegen. Lesen kann jede:r ohne Anmeldung unter `/recht` |
 | **Benutzerverwaltung** | Benutzer und Gruppen anlegen, bearbeiten, sperren, löschen – aber keine Admin-Konten ändern und niemanden zum Admin machen |
 | **Administrator:in** | Alles, auch Systemeinstellungen (Mail, HTTPS, Design, SpeechMind, Module, Zwei-Faktor) und alle Aufnahmen, Kurzlinks und Formulare |
@@ -168,7 +171,7 @@ Weitere Schutzmechanismen, die immer aktiv sind:
 
 ## Module ein- und ausschalten
 
-Menü **Module** (nur Admins). **Kurzlinks & QR-Codes**, **Formulare**, **Terminumfragen**, **Terminbuchung** und **Rechtstexte** lassen sich komplett abschalten. Videokonferenzen sind die Kernfunktion und immer aktiv.
+Menü **Module** (nur Admins). **Kurzlinks & QR-Codes**, **Formulare**, **Online-Anträge** (nur zusammen mit Formularen), **Terminumfragen**, **Terminbuchung**, **Kartenbrowser** und **Rechtstexte** lassen sich komplett abschalten. Videokonferenzen sind die Kernfunktion und immer aktiv.
 
 Ein abgeschaltetes Modul
 
@@ -319,7 +322,7 @@ Menü **Formulare** (Recht „Formulare“). Ein Formularserver mit Baukasten, v
 
 **Funktionsumfang**
 
-- Fragetypen: kurze Antwort (Text, E-Mail, Telefon, Zahl, eigenes Muster), langer Text, Einfach- und Mehrfachauswahl (mit „Sonstiges“, Mindest-/Höchstzahl, zufälliger Reihenfolge), Auswahlliste, Datum, Uhrzeit, Datum mit Uhrzeit, lineare Skala, Farbe, Datei-Upload (Endungen, Größe bis 20 MB, bis 10 Dateien).
+- Fragetypen: kurze Antwort (Text, E-Mail, Telefon, Zahl, eigenes Muster), langer Text, Einfach- und Mehrfachauswahl (mit „Sonstiges“, Mindest-/Höchstzahl, zufälliger Reihenfolge), Auswahlliste, Datum, Uhrzeit, Datum mit Uhrzeit, lineare Skala, Farbe, Datei-Upload (Endungen, Größe bis 20 MB, bis 10 Dateien), **GPS-Koordinaten** (Karte mit den unter Kartenlayer für Formulare freigegebenen Grundkarten, Standort des Geräts, Eingabe von Breite/Länge; gespeichert als WGS84 mit Genauigkeit und Herkunft).
 - Gliederung: Überschrift, Zwischenüberschrift, Hinweistext, Trennlinie, **Neue Seite** (mehrseitige Formulare mit Fortschrittsanzeige und Prüfung je Seite).
 - Verteilung: öffentlicher Link (mit QR-Code und Kurzlink), persönliche Einladungen an Benutzer, **Gruppen** und Gäste per E-Mail, Erinnerungen, Frist, anonyme Formulare, Mehrfachantworten.
 - Auswertung: Zusammenfassung mit Diagrammen, Einzelansicht, Export **CSV** (Semikolon, UTF-8 mit BOM – öffnet sich in Excel korrekt) und **JSON**.
@@ -334,6 +337,56 @@ Menü **Formulare** (Recht „Formulare“). Ein Formularserver mit Baukasten, v
 **Speicherort:** Antworten in der Datenbank (`data/portal/portal.db`), hochgeladene Dateien unter `data/portal/forms/<formular>/<antwort>/`. Beim Löschen einer Antwort oder eines Formulars werden die Dateien mitgelöscht. Uploads sind durch den Proxy auf 60 MB je Absendung begrenzt.
 
 **Mail-Vorlagen:** „Einladung zum Ausfüllen“, „Erinnerung zum Ausfüllen“, „Neue Antwort“ und „Eingangsbestätigung“ (Gruppe „Formulare“ unter E-Mail-Vorlagen).
+
+## Online-Anträge
+
+Modul **Online-Anträge** (Verwaltung › Module, setzt „Formulare“ voraus). Ein Online-Antrag ist ein Formular mit Vorgangsbearbeitung. Anlegen: unter **Formulare** beim Anlegen „Online-Antrag“ wählen oder bei einem bestehenden Formular den Reiter **Antrag** öffnen und „Als Online-Antrag verwenden“ einschalten.
+
+**Einstellungen im Reiter „Antrag“**
+
+| Einstellung | Bedeutung |
+|---|---|
+| Kürzel | Präfix des Aktenzeichens, z. B. `GEW` → `GEW-2026-00001`. Der Zähler beginnt jedes Jahr neu. Ohne Kürzel: `A<Formularnummer>` |
+| Bearbeitungsfrist | Tage ab Eingang; bei Überschreitung bekommen die Zuständigen einmal eine Erinnerung (Prüfung alle 5 Minuten) |
+| PDF anhängen | Antrag als PDF (A4, mit Prüfsumme) an Eingangsbestätigung und Hinweis an die Zuständigen bzw. das Funktionspostfach |
+| Zuständig | Vorgabe: Person, Gruppe (alle Mitglieder) und/oder Funktionspostfach (z. B. für die E-Akte) |
+| Weiterleitung | Regeln: Antwort auf Frage X lautet Y → Person/Gruppe/Postfach. Die erste passende Regel gilt, sonst die Vorgabe |
+| Antragskatalog | Eintrag im öffentlichen Katalog `/antraege` mit Kategorie, Gebühr, Bearbeitungsdauer und Hinweisen (Unterlagen, Rechtsgrundlage). Einschalten erzeugt automatisch den öffentlichen Link |
+
+Ein Antrag braucht eine Frage vom Typ **E-Mail-Adresse** (Pflicht), sonst gibt es weder Eingangsbestätigung noch Statusmails – der Reiter weist darauf hin.
+
+**Ablauf.** Beim Absenden: Aktenzeichen, Status „Eingegangen“, Zuständigkeit nach Regeln, Frist, geheimer Statuslink (`/a/<schlüssel>`), SHA-256-Prüfsumme über Aktenzeichen, Eingang und Angaben. Mails: „Eingangsbestätigung mit Aktenzeichen“ an die antragstellende Person, „Neuer Antrag“ an die Zuständigen (jeweils optional mit PDF). Die antragstellende Person sieht das Aktenzeichen sofort auf der Dankeseite.
+
+**Bearbeitung** unter **Formulare › Antragseingang**. Sichtbar sind Anträge, die einer Person direkt oder über eine Gruppe zugewiesen sind, sowie alle Anträge eigener oder freigegebener Antragsformulare (Admins: alle). Bearbeiten (Status, Nachrichten, Notizen, Zuweisung, Frist) dürfen Zuständige, Besitzer:innen und Freigaben ab Stufe 2; Stufe 1 sieht nur. Zuständige brauchen **kein** Recht „Formulare“.
+
+- **Status:** Eingegangen, In Bearbeitung, Rückfrage, Genehmigt, Abgelehnt, Erledigt, Zurückgezogen – mit optionaler Mitteilung und Mail an die antragstellende Person. Genehmigt/Abgelehnt/Erledigt/Zurückgezogen schließen den Vorgang.
+- **Rückfrage:** Die antragstellende Person antwortet auf der Statusseite; der Antrag springt dann automatisch auf „In Bearbeitung“, die Zuständigen bekommen eine Mail.
+- **Interne Notizen** sieht nur die Verwaltung; Nachrichten und Status erscheinen auch auf der Statusseite.
+- **Prüfsumme:** Die Vorgangsansicht zeigt „unverändert seit Eingang“ – oder warnt, wenn die gespeicherten Angaben nachträglich verändert wurden.
+
+**Antragskatalog einbinden:** Unten im Antragseingang (nur Admins) stehen Link, iframe-Code (`/antraege-embed`) und die erlaubten Webseiten. Aus dem eingebetteten Katalog öffnen sich Anträge in einem neuen Fenster.
+
+**Mail-Vorlagen:** Gruppe „Online-Anträge“ unter E-Mail-Vorlagen: Eingangsbestätigung, Neuer Antrag, Statusänderung/Nachricht, Antwort der antragstellenden Person, Zugewiesen, Frist überschritten.
+
+**Datenschutz:** Verfahren ins Verzeichnis der Verarbeitungstätigkeiten aufnehmen, Löschfristen festlegen (Anträge löschen Sie im Reiter „Antworten“ des Formulars), Hinweistext zum Datenschutz ins Formular aufnehmen. Der Statuslink ist geheim und steht nicht im PDF.
+
+## Kartenlayer und Kartenbrowser
+
+**Kartenlayer** (Verwaltung › Kartenlayer, nur Admins) sind die systemweite Grundlage für den Kartenbrowser und für GPS-Fragen in Formularen – auch wenn das Modul Kartenbrowser abgeschaltet ist.
+
+**Voreingestellt:** basemap.de farbig und grau (WMTS-Kacheln, über das Portal), basemap.de Vektor (ausgeschaltet; wird direkt beim BKG geladen) und OpenStreetMap (über das Portal, eine Woche zwischengespeichert, wie es die Nutzungsrichtlinie der OSM Foundation verlangt). Startausschnitt: Verbandsgemeinde Otterbach-Otterberg – unter „Einstellungen“ per Kartenausschnitt änderbar.
+
+**Neuer Layer:** Art wählen (Kacheln XYZ/WMTS, WMS/WMS-T, WFS, GeoJSON, Vektorkarte), Adresse eintragen, **Dienst abfragen** – die Layer des Dienstes erscheinen zur Auswahl; ein Klick übernimmt Layername, Version, Zeitwerte (WMS-T), Legende und Abfragbarkeit. Dann Name, Gruppe, Rolle (Grundkarte/Überlagerung), Deckkraft, Zoombereich, Quellenangabe. **Speichern und Vorschau** zeigt den Layer auf der Startgrundkarte.
+
+**Schalter je Layer:** aktiv · öffentlich (auch ohne Anmeldung) · Formulare (Grundkarte für GPS-Fragen) · sichtbar (beim Öffnen eingeschaltet) · **Proxy**. Mit Proxy lädt der Browser alles vom Portal: Besucher:innen bleiben dem Anbieter unbekannt, Kacheln werden zwischengespeichert (je Layer einstellbar, Gesamtgröße unter Einstellungen), es gibt keine CORS-Probleme. Ohne Proxy lädt der Browser direkt beim Anbieter – dann gehört der Anbieter in die Datenschutzerklärung; das Portal erlaubt dessen Adresse automatisch in seiner Sicherheitsrichtlinie (weitere Hosts, etwa für Schriften von Vektorkarten, unter „Zusätzliche Hosts“).
+
+**Weitere Funktionen:** Reihenfolge per Ziehen (= Reihenfolge im Kartenbrowser), **Erreichbarkeit prüfen** (Probeanfrage mit Antwortzeit; zeigt Dienstfehler wie „Layer not defined“), Duplizieren, **Export/Import** aller Layer als JSON (z. B. Austausch zwischen Verwaltungen), Zwischenspeicher je Layer oder ganz leeren, **Übernahme** von Diensten, die Benutzer:innen in gespeicherten Karten verwenden (als ausgeschalteter Systemlayer). Kaputte Kacheln und Dienstfehler erscheinen im Kartenbrowser unsichtbar statt als Fehlerbild.
+
+**Kartenbrowser** (Modul, `/karte`, einbettbar unter `/karte-embed`): öffentlich mit allen aktiven, öffentlichen Layern; angemeldet zusätzlich mit den internen. Mit dem Recht „Karten“ können Personen eigene Dienste hinzufügen und Karten speichern/teilen. Eigene Dienste laufen immer über den Proxy – aber nur mit vom Server signierter Beschreibung und nur zu öffentlichen Adressen (kein Zugriff auf `localhost`, interne Netze oder Docker-Dienste). Admins dürfen in der Layerverwaltung auch Dienste im eigenen Netz eintragen.
+
+**Einbetten:** Unter Einstellungen „Einbetten erlaubt“ und optional die erlaubten Webseiten. Gespeicherte Karten mit öffentlichem Link liefern ihren iframe-Code unter „Meine Karten“.
+
+**Hinweis für die Installation:** Die Adressen von basemap.de und OpenStreetMap entsprechen den Dienstbeschreibungen der Anbieter. Prüfen Sie nach dem ersten Start mit „Erreichbarkeit prüfen“, ob Ihr Server sie erreicht (Firewall/Proxy).
 
 ## Terminumfragen
 

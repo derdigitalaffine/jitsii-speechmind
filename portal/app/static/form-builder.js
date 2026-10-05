@@ -36,6 +36,7 @@
     }
     if (type === 'scale') { it.min = 1; it.max = 5; it.low_label = ''; it.high_label = ''; }
     if (type === 'file') { it.file_types = []; it.max_size_mb = Math.min(10, data.maxFileMb); it.max_files = 1; }
+    if (type === 'geo') { it.title = 'Ort'; it.allow_gps = true; it.show_inputs = true; }
     if (type === 'heading') { it.title = 'Abschnitt'; }
     if (type === 'pagebreak') { it.title = ''; }
     return it;
@@ -105,6 +106,11 @@
           return '<option' + (Number(it.max) === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select>', 'md-2');
         h += field('Beschriftung links', input('low_label', it.low_label, 'placeholder="z. B. gar nicht zufrieden"'), 'md-4');
         h += field('Beschriftung rechts', input('high_label', it.high_label, 'placeholder="z. B. sehr zufrieden"'), 'md-4');
+        break;
+      case 'geo':
+        h += '<div class="col-12 d-flex flex-wrap gap-3 small">' + switchHtml('allow_gps', 'Knopf „Meinen Standort verwenden“ (GPS des Geräts)', it.allow_gps !== false) +
+          switchHtml('show_inputs', 'Felder für Breite und Länge anzeigen', it.show_inputs !== false) + '</div>' +
+          '<div class="col-12 small text-secondary"><i class="fa-solid fa-map me-1"></i>Die Karte zeigt die Grundkarten, die unter Verwaltung › Kartenlayer für Formulare freigegeben sind.</div>';
         break;
       case 'file':
         h += field('Erlaubte Dateiendungen', input('file_types', (it.file_types || []).join(', '), 'placeholder="leer = alle, z. B. pdf, jpg, png, docx"'));

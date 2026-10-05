@@ -131,8 +131,9 @@ def _build(cfg: dict[str, str], to_addr: str, subject: str, body: str,
                                filename=att["filename"])
         else:
             maintype, _, subtype = (att.get("mime") or "application/octet-stream").partition("/")
-            msg.add_attachment(att["content"].encode("utf-8"), maintype=maintype,
-                               subtype=subtype or "octet-stream", filename=att["filename"])
+            # Binäre Anhänge (z. B. PDF) liegen base64-kodiert in der Warteschlange
+            data = base64.b64decode(att["content_b64"]) if att.get("content_b64") else att["content"].encode("utf-8")
+            msg.add_attachment(data, maintype=maintype, subtype=subtype or "octet-stream", filename=att["filename"])
     return msg
 
 

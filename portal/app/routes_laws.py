@@ -10,8 +10,9 @@ from sqlalchemy.orm import Session
 
 from . import laws as lx, sessions
 from .config import settings
-from .db import LawLevel, LawSection, LawText, LawVersion, SessionLocal, User, get_settings, set_setting
-from .main import app, build_csp, check_csrf, flash, get_db, redirect, render, require, session_user
+from .db import LawLevel, LawSection, LawText, LawVersion, User, get_settings, set_setting
+from .main import app, check_csrf, flash, get_db, redirect, render, require, session_user
+from .main import embed_enabled as main_embed_enabled
 
 law_user = require("laws")
 MAX_VERSIONS = 50
@@ -51,28 +52,7 @@ EMBED = "/recht-embed"
 
 
 def embed_enabled(db: Session) -> bool:
-    return get_settings(db).get("laws_embed", "1") == "1"
-
-
-def embed_origins(db: Session) -> list[str]:
-    raw = get_settings(db).get("laws_embed_origins", "")
-    return [o for o in re.split(r"[\s,;]+", raw) if ORIGIN_RE.match(o)]
-
-
-@app.middleware("http")
-async def _frame_headers(request: Request, call_next):
-    """Nur die Einbettungsseiten dürfen in fremden Seiten (iframe) erscheinen, alles andere nie."""
-    response = await call_next(request)
-    path = request.url.path
-    if path == EMBED or path.startswith(EMBED + "/"):
-        with SessionLocal() as db:
-            origins = embed_origins(db)
-        response.headers["Content-Security-Policy"] = build_csp(" ".join(["'self'", *origins]) if origins else "*")
-        if "x-frame-options" in response.headers:
-            del response.headers["x-frame-options"]
-    elif "x-frame-options" not in response.headers:
-        response.headers["X-Frame-Options"] = "DENY"
-    return response
+    return main_embed_enabled(db, EMBED)
 
 
 def _ctx(db: Session, request: Request, embed: bool) -> tuple[User | None, dict]:

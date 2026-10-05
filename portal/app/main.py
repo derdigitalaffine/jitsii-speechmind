@@ -139,6 +139,8 @@ MODULES = {
     "polls": ("Terminumfragen", "module_polls", ("/polls", "/t/")),
     "bookings": ("Terminbuchung", "module_bookings", ("/bookings", "/b/")),
     "laws": ("Rechtstexte", "module_laws", ("/laws", "/recht")),
+    "maps": ("Kartenbrowser", "module_maps", ("/karte", "/maps")),
+    "applications": ("Online-Anträge", "module_applications", ("/antraege", "/a/")),
 }
 _module_cache: dict = {"at": 0.0, "enabled": set(MODULES)}
 
@@ -148,7 +150,10 @@ def enabled_modules() -> set[str]:
     if time.monotonic() - _module_cache["at"] > 5:
         with SessionLocal() as db:
             cfg = get_settings(db)
-        _module_cache["enabled"] = {key for key, (_, setting, _) in MODULES.items() if cfg.get(setting, "1") == "1"}
+        enabled = {key for key, (_, setting, _) in MODULES.items() if cfg.get(setting, "1") == "1"}
+        if "forms" not in enabled:
+            enabled.discard("applications")   # Anträge bauen auf dem Formularserver auf
+        _module_cache["enabled"] = enabled
         _module_cache["at"] = time.monotonic()
     return _module_cache["enabled"]
 
@@ -164,22 +169,45 @@ def module_for_path(path: str) -> str | None:
 _MEET_ORIGIN = "{0.scheme}://{0.netloc}".format(urlparse(settings.meet_base_url)) if settings.meet_base_url else ""
 
 
-def build_csp(frame_ancestors: str = "'none'") -> str:
+def build_csp(frame_ancestors: str = "'none'", hosts: list[str] | tuple = ()) -> str:
     """Content-Security-Policy für Portalseiten. Alle Bibliotheken liegen lokal, daher nur 'self'.
     Inline-Skripte sind (noch) nötig; die Richtlinie verhindert trotzdem fremde Skripte, Datenabfluss
-    zu fremden Servern, <base>/<object>-Tricks und Formulare an fremde Ziele."""
+    zu fremden Servern, <base>/<object>-Tricks und Formulare an fremde Ziele.
+    hosts: zusätzliche Herkünfte für Bilder und Abrufe (direkt geladene Kartendienste)."""
     form_targets = " ".join(x for x in ("'self'", _MEET_ORIGIN) if x)
+    extra = "".join(" " + h for h in hosts if re.fullmatch(r"https?://[A-Za-z0-9.-]+(:\d+)?", h))
     return ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; "
-            "frame-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; "
+            f"img-src 'self' data: blob:{extra}; font-src 'self' data:; connect-src 'self'{extra}; "
+            "media-src 'self' blob:; frame-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; "
             f"form-action {form_targets}; frame-ancestors {frame_ancestors}")
+
+
+# Seiten, die sich in fremde Webseiten einbetten lassen: Pfad-Präfix → (Schalter, erlaubte Herkünfte)
+EMBED_PREFIXES = {"/recht-embed": ("laws_embed", "laws_embed_origins"),
+                  "/karte-embed": ("maps_embed", "maps_embed_origins"),
+                  "/antraege-embed": ("apps_embed", "apps_embed_origins")}
+EMBED_ORIGIN_RE = re.compile(r"^https?://[a-z0-9.-]+(:\d+)?$|^https?://\*\.[a-z0-9.-]+$", re.I)
+
+
+def embed_prefix(path: str) -> str | None:
+    return next((p for p in EMBED_PREFIXES if path == p or path.startswith(p + "/")), None)
+
+
+def embed_origins(db, prefix: str) -> list[str]:
+    raw = get_settings(db).get(EMBED_PREFIXES[prefix][1], "")
+    return [o for o in re.split(r"[\s,;]+", raw) if EMBED_ORIGIN_RE.match(o)]
+
+
+def embed_enabled(db, prefix: str) -> bool:
+    return get_settings(db).get(EMBED_PREFIXES[prefix][0], "1") == "1"
 
 
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "same-origin",
     "Cross-Origin-Opener-Policy": "same-origin",
-    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+    # Standort nur für das Portal selbst (GPS-Fragen in Formularen, Kartenbrowser)
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(self), payment=(), usb=(), interest-cohort=()",
 }
 
 
@@ -189,9 +217,21 @@ async def _security_headers(request: Request, call_next):
     response = await call_next(request)
     for key, value in SECURITY_HEADERS.items():
         response.headers.setdefault(key, value)
+    prefix = embed_prefix(request.url.path)
+    frame_ancestors = "'none'"
+    if prefix:
+        # Einbettbar (iframe): nur die freigegebenen Webseiten, ohne Liste alle
+        with SessionLocal() as db:
+            origins = embed_origins(db, prefix)
+        frame_ancestors = " ".join(["'self'", *origins]) if origins else "*"
+        if "x-frame-options" in response.headers:
+            del response.headers["x-frame-options"]
+    elif "x-frame-options" not in response.headers:
+        response.headers["X-Frame-Options"] = "DENY"
     if "content-security-policy" not in response.headers and \
             response.headers.get("content-type", "").startswith("text/html"):
-        response.headers["Content-Security-Policy"] = build_csp()
+        response.headers["Content-Security-Policy"] = build_csp(frame_ancestors,
+                                                                getattr(request.state, "csp_hosts", ()))
     if request.url.path.startswith(("/admin", "/profile", "/login", "/invite", "/laws")) and \
             response.headers.get("content-type", "").startswith("text/html"):
         response.headers.setdefault("Cache-Control", "no-store")   # keine Verwaltungsseiten im Browser-Cache
@@ -296,6 +336,8 @@ def home_for(user: User) -> str:
         return "/bookings"
     if user.can("laws") and "laws" in modules:
         return "/laws"
+    if user.can("maps") and "maps" in modules:
+        return "/karte"
     if user.can("users"):
         return "/admin/users"
     return "/forms/inbox" if "forms" in modules else "/profile"
@@ -1741,8 +1783,10 @@ async def admin_groups_update(request: Request, gid: int, action: str = Form("sa
 
 @app.get("/admin/modules")
 def admin_modules(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
-    from .db import BookingPage, Form as FormModel, LawText, Poll, ShortLink
+    from .db import BookingPage, Form as FormModel, FormResponse, LawText, Poll, ShortLink, UserMap
     stats = {"bookings": db.scalar(select(func.count(BookingPage.id))),
+             "maps": db.scalar(select(func.count(UserMap.id))),
+             "applications": db.scalar(select(func.count(FormResponse.id)).where(FormResponse.ref_no.is_not(None))),
              "laws": db.scalar(select(func.count(LawText.id))),
              "shortlinks": db.scalar(select(func.count(ShortLink.id))),
              "forms": db.scalar(select(func.count(FormModel.id))),
@@ -2164,8 +2208,10 @@ __all__ = ["app", "STATUS_RECORDED"]
 
 # Weitere Bereiche (registrieren ihre Routen an derselben App)
 from . import routes_shortlinks  # noqa: E402,F401
+from . import routes_applications  # noqa: E402,F401  (vor routes_forms: /forms/applications vor /forms/{id})
 from . import routes_forms  # noqa: E402,F401
 from . import routes_polls  # noqa: E402,F401
 from . import routes_bookings  # noqa: E402,F401
 from . import routes_sessions  # noqa: E402,F401
 from . import routes_laws  # noqa: E402,F401
+from . import routes_maps  # noqa: E402,F401

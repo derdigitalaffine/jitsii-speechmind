@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ resp.ref_no }} · {{ form.title }}{% endblock %}
+{% macro status_badge(key) -%}{% set st = statuses.get(key, (key, 'secondary', 'fa-circle')) %}<span class="badge text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>{%- endmacro %}
+{% block content %}
+{% set overdue = resp.due_at and not resp.closed_at and resp.due_at < now %}
+<nav aria-label="Pfad" class="small mb-2"><a href="/forms/applications">Antragseingang</a> › {{ form.title }}</nav>
+{% call m.page_head(resp.ref_no, form.title) %}
+<a class="btn btn-outline-secondary" href="/forms/{{ form.id }}/applications/{{ resp.id }}/pdf"><i class="fa-regular fa-file-pdf me-1"></i>PDF</a>
+<button class="btn btn-outline-secondary" type="button" data-copy-text="{{ track_link }}" title="Link der Statusseite kopieren (nur an die antragstellende Person geben)"><i class="fa-solid fa-link me-1"></i>Statuslink</button>
+{% if level >= 2 and resp.assignee_id != user.id %}
+<form method="post" action="/forms/{{ form.id }}/applications/{{ resp.id }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="take">
+  <button class="btn btn-primary" type="submit"><i class="fa-solid fa-hand me-1"></i>Selbst übernehmen</button></form>
+{% endif %}
+{% endcall %}
+
+<div class="d-flex flex-wrap align-items-center gap-2 mb-4">
+  {{ status_badge(resp.status) }}
+  {% if overdue %}<span class="badge text-bg-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i>Frist überschritten</span>{% endif %}
+  <span class="small text-secondary">Eingang {{ resp.created_at | local }} Uhr{% if resp.due_at %} · Frist {{ resp.due_at | local('%d.%m.%Y') }}{% endif %}</span>
+  <span class="small text-secondary">· Zuständig: {{ resp.assignee.name if resp.assignee else '' }}{% if resp.group %} Gruppe {{ resp.group.name }}{% endif %}{% if not resp.assignee and not resp.group %}{{ resp.route_email or 'niemand' }}{% endif %}</span>
+  {% if level < 2 %}<span class="badge text-bg-light border">nur Lesezugriff</span>{% endif %}
+</div>
+
+<div class="row g-4">
+  <div class="col-12 col-xxl-7">
+    <div class="card mb-4"><div class="card-header d-flex align-items-center"><i class="fa-regular fa-file-lines me-2"></i>Angaben
+      <span class="ms-auto small {{ 'text-success' if checksum_ok else 'text-danger' }}" title="SHA-256 {{ resp.checksum }}"><i class="fa-solid {{ 'fa-shield-halved' if checksum_ok else 'fa-triangle-exclamation' }} me-1"></i>{{ 'unverändert seit Eingang' if checksum_ok else 'Prüfsumme stimmt nicht!' }}</span></div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Antragsteller:in</dt><dd class="col-sm-8">{{ resp.name or '–' }}{% if applicant %} · <a href="mailto:{{ applicant }}?subject={{ (resp.ref_no ~ ' – ' ~ form.title) | urlencode }}">{{ applicant }}</a>{% endif %}</dd>
+          {% for q in questions %}{% set v = resp.answers.get(q.id) %}
+          <dt class="col-sm-4">{{ q.title or 'Frage' }}</dt>
+          <dd class="col-sm-8 text-break" style="white-space: pre-line">{% if q.type == 'file' and v %}{% for f in v %}<a href="/forms/{{ form.id }}/responses/{{ resp.id }}/files/{{ f.file }}"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a> <span class="small text-secondary">({{ f.size | filesize }})</span><br>{% endfor %}{% elif q.type == 'geo' and v is mapping %}<a href="https://www.openstreetmap.org/?mlat={{ v.lat }}&mlon={{ v.lon }}#map=17/{{ v.lat }}/{{ v.lon }}" target="_blank" rel="noopener"><i class="fa-solid fa-location-dot me-1"></i>{{ display(q, v) }}</a>{% if 'maps' in modules %} · <a href="/karte#17/{{ v.lat }}/{{ v.lon }}">Kartenbrowser</a>{% endif %}{% else %}{{ display(q, v) or '–' }}{% endif %}</dd>
+          {% endfor %}
+        </dl>
+      </div></div>
+
+    <div class="card" id="verlauf"><div class="card-header"><i class="fa-solid fa-clock-rotate-left me-2"></i>Verlauf</div>
+      <ul class="list-group list-group-flush">
+        {% for e in resp.events | reverse %}
+        <li class="list-group-item">
+          <div class="d-flex flex-wrap gap-2 align-items-center small">
+            <strong>{{ {'created': 'Eingang', 'status': 'Status', 'message': 'Nachricht an Antragsteller:in', 'reply': 'Antwort der antragstellenden Person', 'note': 'Interne Notiz', 'assign': 'Zuständigkeit', 'due': 'Frist'}.get(e.kind, e.kind) }}</strong>
+            {% if e.status %}{{ status_badge(e.status) }}{% endif %}
+            {% if not e.public %}<span class="badge text-bg-light border"><i class="fa-solid fa-lock me-1"></i>intern</span>{% endif %}
+            <span class="text-secondary ms-auto">{{ e.at | local }} · {{ e.actor_name or '–' }}</span>
+          </div>
+          {% if e.text %}<div class="mt-1 {{ 'bg-body-tertiary rounded p-2' if e.kind in ('reply', 'message') }}" style="white-space: pre-line">{{ e.text }}</div>{% endif %}
+        </li>
+        {% endfor %}
+      </ul></div>
+  </div>
+
+  <div class="col-12 col-xxl-5">
+    {% if level >= 2 %}
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-flag me-2"></i>Status ändern</div><div class="card-body">
+      <form method="post" action="/forms/{{ form.id }}/applications/{{ resp.id }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="status">
+        <select class="form-select mb-2" name="status" aria-label="Neuer Status">{% for k, st in statuses.items() %}<option value="{{ k }}" {% if resp.status == k %}selected{% endif %}>{{ st[0] }}</option>{% endfor %}</select>
+        <textarea class="form-control mb-2" name="text" rows="3" placeholder="Mitteilung an die antragstellende Person (optional, z. B. Begründung oder benötigte Unterlagen bei Rückfrage)"></textarea>
+        <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="inform" value="1" id="inf" {% if applicant and mail_ready %}checked{% else %}disabled{% endif %}><label class="form-check-label small" for="inf">Antragsteller:in per E-Mail informieren{% if not applicant %} (keine Adresse bekannt){% endif %}</label></div>
+        <button class="btn btn-primary btn-sm" type="submit">Status speichern</button>
+      </form>
+      <div class="form-text mt-2">„Rückfrage“: Die antragstellende Person kann auf der Statusseite antworten. Genehmigt, Abgelehnt, Erledigt und Zurückgezogen schließen den Vorgang.</div>
+    </div></div>
+
+    <div class="card mb-4"><div class="card-header"><i class="fa-regular fa-comments me-2"></i>Nachricht &amp; Notiz</div><div class="card-body">
+      <form method="post" action="/forms/{{ form.id }}/applications/{{ resp.id }}/action" class="mb-3"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="message">
+        <label class="form-label small" for="msg">Nachricht an die antragstellende Person</label>
+        <textarea class="form-control mb-2" id="msg" name="text" rows="3" required></textarea>
+        <button class="btn btn-outline-primary btn-sm" type="submit" {% if not applicant %}disabled title="keine E-Mail-Adresse bekannt"{% endif %}><i class="fa-regular fa-paper-plane me-1"></i>Senden (erscheint auch auf der Statusseite)</button></form>
+      <form method="post" action="/forms/{{ form.id }}/applications/{{ resp.id }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="note">
+        <label class="form-label small" for="note">Interne Notiz (nur für die Verwaltung)</label>
+        <textarea class="form-control mb-2" id="note" name="text" rows="2" required></textarea>
+        <button class="btn btn-outline-secondary btn-sm" type="submit"><i class="fa-solid fa-lock me-1"></i>Notiz speichern</button></form>
+    </div></div>
+
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-user-tie me-2"></i>Zuständigkeit &amp; Frist</div><div class="card-body">
+      <form method="post" action="/forms/{{ form.id }}/applications/{{ resp.id }}/action" class="row g-2 mb-3"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="assign">
+        <div class="col-6"><select class="form-select form-select-sm" name="user_id" aria-label="Person"><option value="">– Person –</option>{% for u in users %}<option value="{{ u.id }}" {% if resp.assignee_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}</select></div>
+        <div class="col-6"><select class="form-select form-select-sm" name="group_id" aria-label="Gruppe"><option value="">– Gruppe –</option>{% for g in groups %}<option value="{{ g.id }}" {% if resp.group_id == g.id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select></div>
+        <div class="col-12"><button class="btn btn-outline-primary btn-sm" type="submit">Zuweisen (mit Hinweis per Mail)</button></div>
+      </form>
+      <form method="post" action="/forms/{{ form.id }}/applications/{{ resp.id }}/action" class="d-flex gap-2"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="due">
+        <input class="form-control form-control-sm" type="date" name="due" value="{{ resp.due_at | local('%Y-%m-%d') if resp.due_at else '' }}" aria-label="Frist">
+        <button class="btn btn-outline-secondary btn-sm text-nowrap" type="submit">Frist setzen</button></form>
+    </div></div>
+    {% endif %}
+    <div class="card"><div class="card-body small text-secondary">
+      <div><i class="fa-solid fa-fingerprint me-1"></i>Prüfsumme (SHA-256): <code class="text-break">{{ resp.checksum }}</code></div>
+      <div class="mt-1"><i class="fa-solid fa-globe me-1"></i>Statusseite der antragstellenden Person: geheimer Link, nur an sie weitergeben.</div>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

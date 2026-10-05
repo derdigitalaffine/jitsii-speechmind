@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Antrag · {{ form.title }}{% endblock %}
+{% block content %}
+{% include "_form_head.html" %}
+<form method="post" action="/forms/{{ form.id }}/application">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="card mb-4 {{ 'border-primary' if form.kind == 'application' }}"><div class="card-body d-flex flex-wrap align-items-center gap-3">
+    <div class="form-check form-switch fs-5 mb-0"><input class="form-check-input" type="checkbox" role="switch" id="is-app" name="is_application" value="1" {% if form.kind == 'application' %}checked{% endif %}>
+      <label class="form-check-label fw-semibold" for="is-app">Als Online-Antrag verwenden</label></div>
+    <div class="small text-secondary flex-grow-1" style="min-width: 18rem">Jede Einsendung wird zum Vorgang mit <strong>Aktenzeichen</strong>, <strong>Status</strong>, <strong>Zuständigkeit</strong> und <strong>Frist</strong>. Antragsteller:innen bekommen eine Eingangsbestätigung (auf Wunsch mit PDF) und verfolgen den Stand über einen persönlichen Link.</div>
+  </div></div>
+  {% if not has_email %}<div class="alert alert-warning"><i class="fa-solid fa-triangle-exclamation me-1"></i>Das Formular enthält keine Frage vom Typ <strong>E-Mail-Adresse</strong>. Ohne Adresse gibt es keine Eingangsbestätigung und keine Benachrichtigungen – nur die Anzeige des Aktenzeichens nach dem Absenden. Ergänzen Sie unter „Fragen“ eine Pflichtfrage „E-Mail-Adresse“.</div>{% endif %}
+  {% if not mail_ready %}<div class="alert alert-warning small">Der Mailversand ist nicht eingerichtet (Verwaltung › Benachrichtigungen) – Bestätigungen und Hinweise werden derzeit nicht verschickt.</div>{% endif %}
+
+  <div class="row g-4">
+    <div class="col-12 col-xxl-6">
+      <div class="card h-100"><div class="card-header"><i class="fa-solid fa-hashtag me-2"></i>Aktenzeichen, Frist, PDF</div><div class="card-body"><div class="row g-3">
+        <div class="col-md-5"><label class="form-label" for="a-prefix">Kürzel für das Aktenzeichen</label>
+          <input class="form-control text-uppercase font-monospace" id="a-prefix" name="app_prefix" value="{{ form.app_prefix }}" maxlength="10" placeholder="z. B. GEW">
+          <div class="form-text">Ergibt z. B. <code>{{ form.app_prefix or ('A' ~ form.id) }}-2026-00001</code>; der Zähler beginnt jedes Jahr neu.</div></div>
+        <div class="col-md-4"><label class="form-label" for="a-days">Bearbeitungsfrist</label>
+          <div class="input-group"><input class="form-control" id="a-days" name="app_deadline_days" type="number" min="0" max="365" value="{{ form.app_deadline_days }}"><span class="input-group-text">Tage</span></div>
+          <div class="form-text">0 = keine Frist. Bei Überschreitung erinnert das Portal die Zuständigen.</div></div>
+        <div class="col-md-3 d-flex align-items-start pt-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="a-pdf" name="app_pdf" value="1" {% if form.app_pdf %}checked{% endif %}><label class="form-check-label" for="a-pdf">Antrag als PDF anhängen</label></div></div>
+      </div></div></div>
+    </div>
+    <div class="col-12 col-xxl-6">
+      <div class="card h-100"><div class="card-header"><i class="fa-solid fa-user-tie me-2"></i>Zuständig (Vorgabe)</div><div class="card-body"><div class="row g-3">
+        <div class="col-md-6"><label class="form-label" for="a-user">Person</label>
+          <select class="form-select" id="a-user" name="app_assignee_id"><option value="">–</option>{% for u in users %}<option value="{{ u.id }}" {% if form.app_assignee_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}</select></div>
+        <div class="col-md-6"><label class="form-label" for="a-group">Gruppe (alle Mitglieder)</label>
+          <select class="form-select" id="a-group" name="app_group_id"><option value="">–</option>{% for g in groups %}<option value="{{ g.id }}" {% if form.app_group_id == g.id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select></div>
+        <div class="col-12"><label class="form-label" for="a-mailbox">Funktionspostfach (optional)</label>
+          <input class="form-control" id="a-mailbox" name="app_mailbox" type="email" value="{{ form.app_mailbox }}" placeholder="z. B. ordnungsamt@vg-beispiel.de">
+          <div class="form-text">Bekommt jeden neuen Antrag samt PDF – z. B. für die Ablage in der E-Akte. Ohne Zuständige geht der Hinweis an Sie als Besitzer:in.</div></div>
+      </div></div></div>
+    </div>
+
+    <div class="col-12"><div class="card"><div class="card-header"><i class="fa-solid fa-route me-2"></i>Weiterleitung nach Antworten <span class="small text-secondary fw-normal">– die erste passende Regel bestimmt die Zuständigkeit</span></div>
+      <div class="card-body">
+        {% if questions %}
+        <div class="table-responsive"><table class="table table-sm align-middle mb-2">
+          <thead class="small"><tr><th>Wenn die Antwort auf …</th><th>… lautet (bzw. enthält)</th><th>dann zuständig: Person</th><th>Gruppe</th><th>Postfach</th></tr></thead>
+          <tbody>
+          {% for r in rules + [{}, {}, {}] %}
+          <tr>
+            <td><select class="form-select form-select-sm" name="rule_question"><option value="">–</option>{% for q in questions if q.type in ('radio', 'dropdown', 'checkbox', 'short') %}<option value="{{ q.id }}" {% if r.question == q.id %}selected{% endif %}>{{ q.title or types[q.type][0] }}</option>{% endfor %}</select></td>
+            <td><input class="form-control form-control-sm" name="rule_value" value="{{ r.value or '' }}" placeholder="z. B. Otterberg"></td>
+            <td><select class="form-select form-select-sm" name="rule_user"><option value="">–</option>{% for u in users %}<option value="{{ u.id }}" {% if r.user_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}</select></td>
+            <td><select class="form-select form-select-sm" name="rule_group"><option value="">–</option>{% for g in groups %}<option value="{{ g.id }}" {% if r.group_id == g.id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select></td>
+            <td><input class="form-control form-control-sm" name="rule_email" value="{{ r.email or '' }}" placeholder="optional"></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+        <div class="form-text">Beispiel: Antwort auf „Ortsgemeinde“ lautet „Otterberg“ → Sachbearbeitung Otterberg. Leere Zeilen werden ignoriert; nach dem Speichern erscheinen drei neue leere Zeilen.</div>
+        {% else %}<p class="text-secondary small mb-0">Das Formular hat noch keine Fragen.</p>{% endif %}
+      </div></div></div>
+
+    <div class="col-12"><div class="card"><div class="card-header"><i class="fa-solid fa-list me-2"></i>Antragskatalog (öffentlich)</div><div class="card-body"><div class="row g-3">
+      <div class="col-md-8 d-flex align-items-center"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="a-cat" name="app_catalog" value="1" {% if form.app_catalog %}checked{% endif %}>
+        <label class="form-check-label" for="a-cat">Im öffentlichen Antragskatalog zeigen (<a href="{{ catalog_url }}" target="_blank">{{ catalog_url }}</a>)</label></div></div>
+      <div class="col-md-4"><label class="form-label" for="a-catname">Kategorie</label><input class="form-control" id="a-catname" name="app_category" value="{{ form.app_category }}" placeholder="z. B. Gewerbe, Bauen, Ordnung"></div>
+      <div class="col-md-6"><label class="form-label" for="a-fee">Gebühr</label><input class="form-control" id="a-fee" name="app_fee" value="{{ form.app_fee }}" placeholder="z. B. 26 € (wird nach Bewilligung erhoben)"></div>
+      <div class="col-md-6"><label class="form-label" for="a-dur">Übliche Bearbeitungsdauer</label><input class="form-control" id="a-dur" name="app_duration" value="{{ form.app_duration }}" placeholder="z. B. 1–2 Wochen"></div>
+      <div class="col-12"><label class="form-label" for="a-info">Hinweise (benötigte Unterlagen, Rechtsgrundlage, Ansprechpartner)</label>
+        <textarea class="form-control" id="a-info" name="app_info" rows="4" placeholder="- Kopie des Personalausweises&#10;- Lageplan">{{ form.app_info }}</textarea>
+        <div class="form-text">Erscheint im Katalog und in der Eingangsbestätigung. **fett** und Links funktionieren.</div></div>
+    </div></div></div></div>
+  </div>
+  <button class="btn btn-primary mt-4" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
+</form>
+{% endblock %}

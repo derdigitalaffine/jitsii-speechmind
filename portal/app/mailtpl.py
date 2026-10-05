@@ -49,6 +49,17 @@ _FORM_VARS = {
     "frist": "Hinweis auf die Frist (leer, wenn keine gesetzt ist)",
 }
 
+_APP_VARS = {
+    "titel": "Bezeichnung des Antrags",
+    "aktenzeichen": "Aktenzeichen, z. B. GEW-2026-00042",
+    "status": "Aktueller Stand, z. B. In Bearbeitung",
+    "status_link": "Link, unter dem die antragstellende Person den Stand sieht und antwortet",
+    "link": "Link zum Antrag im Portal (für die Verwaltung)",
+    "zeitpunkt": "Eingang des Antrags",
+    "frist": "Bearbeitungsfrist",
+    "zustaendig": "Zuständige Person, Gruppe oder Postfach",
+}
+
 _POLL_VARS = {
     "name": "Name der eingeladenen Person",
     "titel": "Titel der Umfrage",
@@ -323,6 +334,53 @@ TEMPLATES: dict[str, dict] = {
         "body": ("Guten Tag {name},\n\nfür „{titel}“ haben Sie noch keinen Termin gewählt. Hier geht es direkt "
                  "zur Auswahl:\n{link}\n\n{fusszeile}"),
     },
+    "app_received": {
+        "group": "Online-Anträge", "label": "Eingangsbestätigung mit Aktenzeichen (an die antragstellende Person)",
+        "vars": _APP_VARS | {"name": "Name der antragstellenden Person", "antworten": "Kopie der Angaben",
+                             "hinweise": "Hinweise zum Antrag (Unterlagen, Gebühr, Bearbeitungsdauer)"},
+        "subject": "Eingangsbestätigung {aktenzeichen}: {titel}",
+        "body": ("Guten Tag {name},\n\nIhr Antrag „{titel}“ ist am {zeitpunkt} bei uns eingegangen.\n\n"
+                 "    Aktenzeichen: {aktenzeichen}\n\nBitte geben Sie das Aktenzeichen bei Rückfragen an. Den Stand der "
+                 "Bearbeitung sehen Sie jederzeit hier:\n{status_link}\n\n{hinweise}\n\nIhre Angaben:\n\n{antworten}\n\n"
+                 "{fusszeile}"),
+    },
+    "app_new": {
+        "group": "Online-Anträge", "label": "Neuer Antrag (an die Zuständigen)",
+        "vars": _APP_VARS | {"von": "Antragsteller:in", "antworten": "Angaben (abschaltbar in den Formular-Einstellungen)"},
+        "subject": "Neuer Antrag {aktenzeichen}: {titel}",
+        "body": ("Ein neuer Antrag ist eingegangen ({zeitpunkt}).\n\n    Aktenzeichen: {aktenzeichen}\n"
+                 "    Antragsteller:in: {von}\n    Zuständig: {zustaendig}\n    Frist: {frist}\n\n{antworten}\n\n"
+                 "Bearbeiten: {link}\n\n{fusszeile}"),
+    },
+    "app_status": {
+        "group": "Online-Anträge", "label": "Statusänderung oder Nachricht (an die antragstellende Person)",
+        "vars": _APP_VARS | {"name": "Name der antragstellenden Person", "nachricht": "Nachricht der Verwaltung"},
+        "subject": "{aktenzeichen}: {status} – {titel}",
+        "body": ("Guten Tag {name},\n\nzu Ihrem Antrag „{titel}“ (Aktenzeichen {aktenzeichen}) gibt es Neuigkeiten.\n\n"
+                 "    Stand: {status}\n\n{nachricht}\n\nAlle Einzelheiten und – bei Rückfragen – die Möglichkeit zu antworten:\n"
+                 "{status_link}\n\n{fusszeile}"),
+    },
+    "app_reply": {
+        "group": "Online-Anträge", "label": "Antwort oder Rückzug durch die antragstellende Person (an die Zuständigen)",
+        "vars": _APP_VARS | {"von": "Antragsteller:in", "nachricht": "Text der Antwort"},
+        "subject": "Antwort zu {aktenzeichen}: {titel}",
+        "body": ("{von} hat zum Antrag {aktenzeichen} („{titel}“) geschrieben:\n\n{nachricht}\n\nStand: {status}\n"
+                 "Bearbeiten: {link}\n\n{fusszeile}"),
+    },
+    "app_assigned": {
+        "group": "Online-Anträge", "label": "Antrag zugewiesen (an die neu Zuständigen)",
+        "vars": _APP_VARS | {"absender": "Wer zugewiesen hat"},
+        "subject": "Ihnen zugewiesen: {aktenzeichen} – {titel}",
+        "body": ("{absender} hat Ihnen den Antrag {aktenzeichen} („{titel}“) zugewiesen.\n\nStand: {status}\n"
+                 "Frist: {frist}\n\nBearbeiten: {link}\n\n{fusszeile}"),
+    },
+    "app_overdue": {
+        "group": "Online-Anträge", "label": "Frist überschritten (an die Zuständigen)",
+        "vars": _APP_VARS,
+        "subject": "Frist überschritten: {aktenzeichen} – {titel}",
+        "body": ("Die Bearbeitungsfrist für den Antrag {aktenzeichen} („{titel}“) ist am {frist} abgelaufen.\n\n"
+                 "Stand: {status}\nZuständig: {zustaendig}\n\nBearbeiten: {link}\n\n{fusszeile}"),
+    },
 }
 
 SAMPLE = {
@@ -344,6 +402,8 @@ SAMPLE = {
     "hinweis": "Bitte bringen Sie Ihre Zeugnisse mit.", "anbieter": "Max Muster", "wer": "Sie haben",
     "grund": "", "ereignis": "Neue Buchung", "gast": "Erika Mustermann <erika@example.org>", "nachricht": "",
     "frei": "11", "zeitraum": "13.10.2026 bis 15.10.2026",
+    "aktenzeichen": "GEW-2026-00042", "status": "In Bearbeitung", "status_link": "https://portal.example.org/a/beispiel",
+    "zustaendig": "Max Muster, Gruppe Ordnungsamt", "hinweise": "Bitte halten Sie Ihren Personalausweis bereit.\nGebühr: 26 €",
 }
 
 

@@ -68,6 +68,23 @@
     <input class="form-control {{ 'is-invalid' if err }}" type="file" id="{{ name }}" name="{{ name }}" {% if item.max_files > 1 %}multiple{% endif %}
       {% if item.file_types %}accept=".{{ item.file_types | join(',.') }}"{% endif %} data-max-mb="{{ item.max_size_mb }}" data-max-files="{{ item.max_files }}" {% if item.required %}required{% endif %}>
     <div class="form-text">{% if item.file_types %}Erlaubt: {{ item.file_types | join(', ') }} · {% endif %}max. {{ item.max_size_mb }} MB{% if item.max_files > 1 %} je Datei, bis zu {{ item.max_files }} Dateien{% endif %}</div>
+  {% elif item.type == 'geo' %}
+    {% set pt = val if val is mapping else none %}
+    <div class="js-geo" data-name="{{ name }}" data-gps="{{ '1' if item.allow_gps else '' }}">
+      <input type="hidden" name="{{ name }}" value="{{ (pt.lat ~ ',' ~ pt.lon) if pt else (val if val is string else '') }}" class="js-geo-value" {% if item.required %}data-required="1"{% endif %}>
+      <input type="hidden" name="{{ name }}__acc" value="{{ pt.acc if pt and pt.acc else '' }}" class="js-geo-acc">
+      <input type="hidden" name="{{ name }}__src" value="{{ pt.src if pt and pt.src else '' }}" class="js-geo-src">
+      <div class="map-mini js-geo-map mb-2" role="application" aria-label="Karte zur Auswahl des Ortes"></div>
+      <div class="d-flex flex-wrap align-items-end gap-2">
+        {% if item.allow_gps %}<button class="btn btn-sm btn-outline-primary js-geo-gps" type="button"><i class="fa-solid fa-location-crosshairs me-1"></i>Meinen Standort verwenden</button>{% endif %}
+        {% if item.show_inputs %}
+        <div><label class="form-label small mb-0" for="{{ name }}-lat">Breite</label><input class="form-control form-control-sm js-geo-lat" id="{{ name }}-lat" inputmode="decimal" style="width: 9rem" placeholder="49.493000" value="{{ pt.lat if pt else '' }}"></div>
+        <div><label class="form-label small mb-0" for="{{ name }}-lon">Länge</label><input class="form-control form-control-sm js-geo-lon" id="{{ name }}-lon" inputmode="decimal" style="width: 9rem" placeholder="7.768000" value="{{ pt.lon if pt else '' }}"></div>
+        {% endif %}
+        <button class="btn btn-sm btn-link text-secondary js-geo-clear" type="button">Auswahl löschen</button>
+      </div>
+      <div class="form-text js-geo-info">In die Karte klicken oder tippen, um den Ort zu setzen{% if item.allow_gps %}, oder den Standort Ihres Geräts verwenden{% endif %}. Der Punkt lässt sich verschieben.</div>
+    </div>
   {% endif %}
   {% if err %}<div class="text-danger small mt-2"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ err }}</div>{% endif %}
 </div></div>

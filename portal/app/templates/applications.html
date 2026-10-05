@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Antragseingang{% endblock %}
+{% macro status_badge(key) -%}{% set st = statuses.get(key, (key, 'secondary', 'fa-circle')) %}<span class="badge text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>{%- endmacro %}
+{% block content %}
+{% call m.page_head('Antragseingang', 'Online-Anträge, für die Sie zuständig sind – direkt, über eine Gruppe oder als Besitzer:in bzw. über eine Freigabe des Antragsformulars. Überfällige Vorgänge stehen oben.') %}
+<a class="btn btn-outline-secondary" href="/antraege" target="_blank"><i class="fa-solid fa-list me-1"></i>Öffentlicher Katalog</a>
+{% if user.can('forms') %}<a class="btn btn-primary" href="/forms"><i class="fa-solid fa-plus me-1"></i>Antragsformular anlegen</a>{% endif %}
+{% endcall %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3"><a class="text-decoration-none" href="?status=open">{{ m.stat('fa-inbox', counts.open, 'offen') }}</a></div>
+  <div class="col-6 col-xl-3"><a class="text-decoration-none" href="?status=open&scope=mine">{{ m.stat('fa-user-check', counts.mine, 'mir zugewiesen') }}</a></div>
+  <div class="col-6 col-xl-3"><a class="text-decoration-none" href="?status=overdue">{{ m.stat('fa-triangle-exclamation', counts.overdue, 'Frist überschritten') }}</a></div>
+  <div class="col-6 col-xl-3"><a class="text-decoration-none" href="?status=query">{{ m.stat('fa-circle-question', counts.query, 'Rückfrage offen') }}</a></div>
+</div>
+
+<div class="card"><div class="card-body">
+  <form method="get" class="row g-2 align-items-end mb-3">
+    <div class="col-6 col-md-3 col-xl-2"><label class="form-label small mb-1" for="f-st">Status</label>
+      <select class="form-select form-select-sm" id="f-st" name="status" onchange="this.form.submit()">
+        {% for k, label in [('open', 'Alle offenen'), ('overdue', 'Frist überschritten'), ('all', 'Alle')] %}<option value="{{ k }}" {% if filt.status == k %}selected{% endif %}>{{ label }} ({{ counts[k] }})</option>{% endfor %}
+        <optgroup label="Status">{% for k, st in statuses.items() %}<option value="{{ k }}" {% if filt.status == k %}selected{% endif %}>{{ st[0] }} ({{ counts[k] }})</option>{% endfor %}</optgroup>
+      </select></div>
+    <div class="col-6 col-md-3 col-xl-2"><label class="form-label small mb-1" for="f-sc">Zuständig</label>
+      <select class="form-select form-select-sm" id="f-sc" name="scope" onchange="this.form.submit()"><option value="all">alle sichtbaren</option><option value="mine" {% if filt.scope == 'mine' %}selected{% endif %}>ich / meine Gruppen</option></select></div>
+    <div class="col-12 col-md-6 col-xl-3"><label class="form-label small mb-1" for="f-fo">Antrag</label>
+      <select class="form-select form-select-sm" id="f-fo" name="form" onchange="this.form.submit()"><option value="">alle</option>{% for f in forms %}<option value="{{ f.id }}" {% if filt.form == f.id|string %}selected{% endif %}>{{ f.title }}</option>{% endfor %}</select></div>
+    <div class="col-12 col-md-8 col-xl-3"><label class="form-label small mb-1" for="f-q">Suche</label><input class="form-control form-control-sm" id="f-q" name="q" value="{{ filt.q }}" placeholder="Aktenzeichen, Name, E-Mail"></div>
+    <div class="col-12 col-md-4 col-xl-2 d-flex gap-1"><button class="btn btn-sm btn-primary flex-grow-1" type="submit">Filtern</button><a class="btn btn-sm btn-outline-secondary" href="/forms/applications" title="Zurücksetzen"><i class="fa-solid fa-xmark"></i></a></div>
+  </form>
+  {% if items %}
+  <table class="table table-hover align-middle js-table w-100" data-order='[]' data-page-length="25">
+    <thead><tr><th>Aktenzeichen</th><th>Antrag</th><th>Antragsteller:in</th><th>Eingang</th><th>Status</th><th>Zuständig</th><th>Frist</th></tr></thead>
+    <tbody>
+    {% for r in items %}{% set overdue = r.due_at and not r.closed_at and r.due_at < now %}
+    <tr class="{{ 'table-danger' if overdue }}">
+      <td data-order="{{ r.ref_no }}"><a class="fw-semibold font-monospace" href="/forms/{{ r.form_id }}/applications/{{ r.id }}">{{ r.ref_no }}</a></td>
+      <td class="small">{{ r.form.title }}</td>
+      <td class="small">{{ r.name or '–' }}{% if r.email %}<div class="text-secondary">{{ r.email }}</div>{% endif %}</td>
+      <td class="small" data-order="{{ r.created_at.isoformat() }}">{{ r.created_at | local('%d.%m.%Y %H:%M') }}</td>
+      <td data-order="{{ r.status }}">{{ status_badge(r.status) }}</td>
+      <td class="small">{{ r.assignee.name if r.assignee else '' }}{% if r.group %}<div class="text-secondary">Gruppe {{ r.group.name }}</div>{% endif %}{% if not r.assignee and not r.group %}<span class="text-secondary">{{ r.route_email or 'nicht zugeordnet' }}</span>{% endif %}</td>
+      <td class="small" data-order="{{ r.due_at.isoformat() if r.due_at else '9999' }}">{% if r.due_at %}{% if overdue %}<i class="fa-solid fa-triangle-exclamation text-danger me-1"></i>{% endif %}{{ r.due_at | local('%d.%m.%Y') }}{% else %}–{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-center text-secondary py-5"><i class="fa-solid fa-inbox fa-3x mb-3"></i><p class="mb-0">Keine Anträge für diese Auswahl.</p></div>
+  {% endif %}
+</div></div>
+
+{% if user.is_admin %}
+<form method="post" action="/forms/applications/settings" class="card mt-4" id="katalog" style="max-width: 46rem"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="card-header"><i class="fa-solid fa-code me-2"></i>Antragskatalog in die Homepage einbinden</div>
+  <div class="card-body">
+    <p class="small text-secondary">Öffentlicher Link: <a href="/antraege" target="_blank">{{ request.base_url }}antraege</a>. Zum Einbetten (z. B. im CMS als HTML-Baustein):</p>
+    <textarea class="form-control font-monospace small mb-3" rows="2" readonly>&lt;iframe src="{{ request.base_url }}antraege-embed" title="Online-Anträge" style="width:100%;height:800px;border:0" loading="lazy"&gt;&lt;/iframe&gt;</textarea>
+    <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="ae" name="apps_embed" value="1" {% if cfg.apps_embed == '1' %}checked{% endif %}><label class="form-check-label" for="ae">Einbetten erlauben</label></div>
+    <label class="form-label small" for="ao">Nur auf diesen Webseiten (leer = alle)</label>
+    <textarea class="form-control form-control-sm font-monospace" id="ao" name="apps_embed_origins" rows="2" placeholder="https://www.example.de">{{ cfg.apps_embed_origins | replace(' ', '\n') }}</textarea>
+    <div class="form-text">Anträge öffnen sich aus dem eingebetteten Katalog in einem neuen Fenster (Datenschutz und sichere Übermittlung).</div>
+  </div>
+  <div class="card-footer"><button class="btn btn-sm btn-primary" type="submit">Speichern</button></div>
+</form>
+{% endif %}
+{% endblock %}

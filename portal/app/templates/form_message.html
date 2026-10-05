@@ -5,7 +5,17 @@
   {% if kind == 'thanks' %}
     <i class="fa-solid fa-circle-check fa-3x text-success mb-3"></i>
     <h1 class="h4">{{ form.title }}</h1>
+    {% if application %}
+    <p>{{ (form.submit_message or 'Vielen Dank, Ihr Antrag ist eingegangen.') | richtext }}</p>
+    <div class="d-inline-block border rounded-3 px-4 py-3 my-2 bg-body-tertiary">
+      <div class="small text-secondary">Ihr Aktenzeichen</div>
+      <div class="fs-3 fw-semibold font-monospace">{{ application.ref_no }}</div>
+    </div>
+    <p class="small text-secondary mt-2 mb-3">Bitte notieren Sie das Aktenzeichen.{% if mail_sent %} Eine Eingangsbestätigung mit allen Angaben ist per E-Mail unterwegs.{% else %} Speichern Sie sich den folgenden Link – damit sehen Sie den Stand der Bearbeitung.{% endif %}</p>
+    <a class="btn btn-primary" href="{{ track_link }}"><i class="fa-solid fa-magnifying-glass-location me-1"></i>Stand der Bearbeitung ansehen</a>
+    {% else %}
     <div class="mb-0">{{ (form.submit_message or 'Vielen Dank, Ihre Antwort wurde gespeichert.') | richtext }}</div>
+    {% endif %}
   {% elif kind == 'done' %}
     <i class="fa-solid fa-clipboard-check fa-3x text-success mb-3"></i>
     <h1 class="h4">{{ form.title }}</h1><p class="mb-0 text-secondary">Sie haben dieses Formular bereits ausgefüllt. Vielen Dank!</p>

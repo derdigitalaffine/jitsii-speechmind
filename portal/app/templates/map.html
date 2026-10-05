@@ -1,0 +1,104 @@
+{% extends layout %}
+{% block title %}{{ saved.title if saved else 'Kartenbrowser' }}{% endblock %}
+{% block main_class %}p-0{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/vendor/maplibre/maplibre-gl.css">
+<link rel="stylesheet" href="/static/map.css">
+{% endblock %}
+{% block content %}
+<div class="map-shell {{ 'is-embed' if embed }}" id="map-shell">
+  <aside class="map-panel" id="map-panel" aria-label="Kartenebenen und Werkzeuge">
+    <div class="map-panel-head">
+      <div class="min-w-0">
+        <div class="fw-semibold text-truncate"><i class="fa-solid fa-map-location-dot me-1 text-primary"></i>{{ saved.title if saved else 'Kartenbrowser' }}</div>
+        {% if saved and saved.description %}<div class="small text-secondary">{{ saved.description }}</div>{% endif %}
+      </div>
+      <button class="btn btn-sm btn-link text-secondary ms-auto" type="button" id="panel-close" aria-label="Seitenleiste schließen"><i class="fa-solid fa-angles-left"></i></button>
+    </div>
+    <div class="map-panel-body">
+      <form class="input-group input-group-sm mb-3" id="coord-search" role="search">
+        <input class="form-control" id="coord-input" placeholder="Koordinate: 49.49, 7.77 oder UTM 32 412345 5483210" aria-label="Koordinate suchen">
+        <button class="btn btn-outline-secondary" type="submit" aria-label="Hinspringen"><i class="fa-solid fa-location-crosshairs"></i></button>
+      </form>
+
+      <div class="map-section-title">Grundkarte</div>
+      <div id="base-list" class="mb-3"></div>
+
+      <div class="d-flex align-items-center map-section-title"><span>Ebenen</span>
+        {% if can_edit %}<button class="btn btn-sm btn-outline-primary ms-auto py-0" type="button" data-bs-toggle="modal" data-bs-target="#add-layer"><i class="fa-solid fa-plus me-1"></i>Layer hinzufügen</button>{% endif %}
+      </div>
+      <input class="form-control form-control-sm mb-2" id="layer-filter" placeholder="Ebenen filtern …" aria-label="Ebenen filtern">
+      <div id="overlay-list"></div>
+      <p class="small text-secondary mt-2 mb-0" id="overlay-empty" hidden>Keine Ebenen verfügbar.</p>
+    </div>
+    <div class="map-panel-foot">
+      <div class="btn-group btn-group-sm flex-wrap w-100" role="group" aria-label="Werkzeuge">
+        <button class="btn btn-outline-secondary" type="button" data-tool="line" title="Strecke messen"><i class="fa-solid fa-ruler"></i></button>
+        <button class="btn btn-outline-secondary" type="button" data-tool="area" title="Fläche messen"><i class="fa-solid fa-draw-polygon"></i></button>
+        <button class="btn btn-outline-secondary" type="button" id="btn-export" title="Kartenbild speichern (PNG)"><i class="fa-solid fa-image"></i></button>
+        <button class="btn btn-outline-secondary" type="button" id="btn-link" title="Link zu diesem Ausschnitt kopieren"><i class="fa-solid fa-link"></i></button>
+        {% if can_edit %}<button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#save-map" title="Karte speichern"><i class="fa-solid fa-floppy-disk"></i></button>{% endif %}
+      </div>
+      {% if can_edit %}<a class="small d-block mt-2" href="/maps"><i class="fa-regular fa-folder-open me-1"></i>Meine Karten</a>{% endif %}
+    </div>
+  </aside>
+  <div class="map-main">
+    <button class="btn btn-light btn-sm shadow-sm map-panel-open" type="button" id="panel-open" aria-label="Seitenleiste öffnen"><i class="fa-solid fa-layer-group me-1"></i>Ebenen</button>
+    <div id="map" class="map-canvas" role="application" aria-label="Karte"></div>
+    <div class="map-coords small" id="map-coords" aria-live="off"></div>
+    <div class="map-measure small" id="map-measure" hidden></div>
+  </div>
+</div>
+
+{% if can_edit %}
+<div class="modal fade" id="add-layer" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+  <div class="modal-header"><h2 class="modal-title h5">Layer hinzufügen</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+  <div class="modal-body">
+    <div class="row g-2 mb-2">
+      <div class="col-md-3"><label class="form-label small" for="al-kind">Art</label>
+        <select class="form-select form-select-sm" id="al-kind"><option value="wms">WMS / WMS-T</option><option value="wfs">WFS</option><option value="xyz">WMTS / Kacheln</option></select></div>
+      <div class="col-md-9"><label class="form-label small" for="al-url">Adresse des Dienstes</label>
+        <div class="input-group input-group-sm"><input class="form-control" id="al-url" placeholder="https://… (GetCapabilities-Adresse oder Basisadresse)">
+          <button class="btn btn-primary" type="button" id="al-query"><i class="fa-solid fa-magnifying-glass me-1"></i>Dienst abfragen</button></div>
+        <div class="form-text">Kacheln direkt: Vorlage mit {z}/{x}/{y} eintragen und ohne Abfrage hinzufügen.</div></div>
+    </div>
+    <div id="al-result" class="small"></div>
+  </div>
+  <div class="modal-footer">
+    <span class="small text-secondary me-auto" id="al-status"></span>
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Schließen</button>
+    <button type="button" class="btn btn-primary" id="al-add"><i class="fa-solid fa-plus me-1"></i>Ausgewählte hinzufügen</button>
+  </div>
+</div></div></div>
+
+<div class="modal fade" id="save-map" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header"><h2 class="modal-title h5">Karte speichern</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+  <div class="modal-body">
+    <div class="mb-2"><label class="form-label" for="sm-title">Titel</label><input class="form-control" id="sm-title" maxlength="200" value="{{ saved.title if own else '' }}"></div>
+    <div class="mb-2"><label class="form-label" for="sm-desc">Beschreibung (optional)</label><textarea class="form-control" id="sm-desc" rows="2" maxlength="2000">{{ saved.description if own else '' }}</textarea></div>
+    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="sm-public" {% if own and saved.public_token %}checked{% endif %}>
+      <label class="form-check-label" for="sm-public">Öffentlicher Link (auch ohne Anmeldung, zum Einbetten)</label></div>
+    <div class="form-text">Gespeichert werden Ausschnitt, Grundkarte, sichtbare Ebenen mit Transparenz und Zeit sowie Ihre eigenen Layer.</div>
+    <div id="sm-result" class="mt-3"></div>
+  </div>
+  <div class="modal-footer">
+    {% if own %}<button type="button" class="btn btn-outline-primary" id="sm-copy">Als neue Karte speichern</button>{% endif %}
+    <button type="button" class="btn btn-primary" id="sm-save"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
+  </div>
+</div></div></div>
+{% endif %}
+
+<div class="modal fade" id="legend-modal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
+  <div class="modal-header"><h2 class="modal-title h6" id="legend-title">Legende</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+  <div class="modal-body text-center" id="legend-body"></div>
+</div></div></div>
+
+<script type="application/json" id="map-bundle">{{ bundle | tojson }}</script>
+<script type="application/json" id="map-meta">{{ {'canEdit': can_edit, 'mapId': (saved.id if own else None), 'embed': embed} | tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/maplibre/maplibre-gl.js"></script>
+<script src="/static/vendor/sortablejs/Sortable.min.js"></script>
+<script src="/static/map-core.js"></script>
+<script src="/static/map-browser.js"></script>
+{% endblock %}
