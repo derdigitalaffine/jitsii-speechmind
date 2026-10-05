@@ -21,6 +21,12 @@ from .security import new_link_token
 forms_user = require("forms")
 
 
+SAFE_MIME = {"application/pdf", "text/plain", "text/csv", "application/zip", "application/msword",
+             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+             "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+             "application/vnd.oasis.opendocument.text", "application/vnd.oasis.opendocument.spreadsheet"}
+
+
 def _form(db: Session, form_id: int, user: User, need: int) -> tuple[Form, int]:
     """Formular mit Zugriffsprüfung. need: fm.VIEW, fm.INVITE, fm.EDIT oder fm.OWNER."""
     form = db.get(Form, form_id)
@@ -370,8 +376,11 @@ def form_file(form_id: int, response_id: int, name: str, user: User = Depends(cu
     path = fm.files_dir(form.id, resp.id) / name
     if entry is None or not path.is_file():
         raise HTTPException(404, "Datei nicht gefunden.")
-    return FileResponse(path, filename=entry.get("name") or name,
-                        media_type=entry.get("type") or "application/octet-stream")
+    # Den vom Browser gemeldeten Typ nur für harmlose Formate übernehmen; immer als Download, nie als Seite
+    mime = entry.get("type") or ""
+    safe = mime in SAFE_MIME or (mime.startswith("image/") and mime != "image/svg+xml")
+    return FileResponse(path, filename=entry.get("name") or name, media_type=mime if safe else "application/octet-stream",
+                        headers={"Content-Security-Policy": "default-src 'none'; sandbox", "X-Content-Type-Options": "nosniff"})
 
 
 @app.post("/forms/{form_id}/copy", dependencies=[Depends(check_csrf)])

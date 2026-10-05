@@ -157,7 +157,14 @@ Kasten **Anmeldung & Zwei-Faktor** unter **Benutzer & Gruppen** (nur Admins).
 
 **Empfehlung:** Mindestens „Pflicht für Administrator:innen“ mit erlaubter App. Admin-Konten haben Zugriff auf alle Aufnahmen und Formulardaten.
 
-Weitere Schutzmechanismen, die immer aktiv sind: Passwörter als Argon2-Hash, Bremse gegen Passwort-Raten (nach mehreren Fehlversuchen „Zu viele Versuche“), höchstens fünf falsche Codes je Anmeldung, jeder App-Code ist nur einmal gültig.
+Weitere Schutzmechanismen, die immer aktiv sind:
+
+- Passwörter als Argon2-Hash; die Anmeldung antwortet für bekannte und unbekannte Adressen gleich schnell (verrät nicht, welche Konten existieren).
+- Bremse gegen Passwort-Raten: je IP-Adresse 10 Versuche in 10 Minuten **und je Konto 20 Versuche in 30 Minuten** (auch wenn die Versuche von vielen Adressen kommen), danach „Zu viele Versuche“.
+- Höchstens fünf falsche Codes je Anmeldung, jeder App-Code ist nur einmal gültig.
+- Alle Formulare mit CSRF-Schutz; Weiterleitungen nach der Anmeldung nur auf Seiten dieses Servers.
+- **Sicherheits-Header** auf allen Seiten: Content-Security-Policy (nur eigene Skripte, Bilder und Verbindungen; keine fremden Server, keine `<object>`/`<base>`-Tricks, Formulare nur an Portal und Konferenzserver), `X-Frame-Options: DENY` (Ausnahme: `/recht-embed`), `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy` (kein Zugriff auf Kamera, Mikrofon oder Standort für das Portal – die Konferenz läuft auf der eigenen Konferenz-Domain), `Cross-Origin-Opener-Policy`. Verwaltungs- und Anmeldeseiten werden nicht im Browser-Cache abgelegt.
+- Hochgeladene Dateien aus Formularen werden immer als Download ausgeliefert, nie als Webseite; unbekannte Dateitypen als `application/octet-stream`.
 
 ## Module ein- und ausschalten
 

@@ -61,7 +61,7 @@ def _apply_settings(poll: Poll, data) -> None:
 def _form_ctx(poll: Poll | None) -> dict:
     options = [pl.option_input(o) for o in poll.options] if poll else []
     expires = to_local(poll.expires_at).strftime("%Y-%m-%dT%H:%M") if poll and poll.expires_at else ""
-    return {"poll": poll, "options_json": json.dumps(options), "expires": expires, "durations": planning.DURATIONS}
+    return {"poll": poll, "options_data": options, "expires": expires, "durations": planning.DURATIONS}
 
 
 # --- Verwaltung ----------------------------------------------------------------------

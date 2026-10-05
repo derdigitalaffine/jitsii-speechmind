@@ -160,3 +160,34 @@ footer.app-footer { border-top: 1px solid var(--bs-border-color); color: var(--b
 .poll-option-row:has(input[value="maybe"]:checked) { background: rgba(var(--bs-warning-rgb), .12); border-left-color: var(--bs-warning); }
 .poll-option-row:has(input[value="no"]:checked) { border-left-color: rgba(var(--bs-danger-rgb), .45); }
 .poll-answer .btn { min-width: 3rem; padding-top: .45rem; padding-bottom: .45rem; }
+
+/* --- Optimierungslauf: Kopfzeile, Seitenleiste, Barrierefreiheit ------------------------- */
+/* Kopfzeile bleibt einzeilig: langer Name wird gekürzt statt umzubrechen */
+.app-navbar > .container-fluid { flex-wrap: nowrap; gap: .5rem; }
+.app-navbar > .container-fluid > div:first-child { min-width: 0; flex: 1 1 auto; }
+.app-navbar .navbar-brand { min-width: 0; max-width: 100%; }
+.app-navbar .navbar-brand > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.app-navbar .navbar-brand small { overflow: hidden; text-overflow: ellipsis; }
+.app-navbar > .container-fluid > div:last-child { flex: none; }
+@media (max-width: 575.98px) {
+  .app-navbar .navbar-brand { font-size: 1rem; }
+  .app-navbar .navbar-brand small { display: none; }
+  .app-navbar .brand-logo { max-width: 40vw; object-fit: contain; }
+}
+/* Seitenleiste mit fester Breite, damit Menüpunkte nicht umbrechen */
+@media (min-width: 992px) {
+  .app-aside { flex: 0 0 15.5rem; width: 15.5rem; max-width: 15.5rem; }
+  .app-main { flex: 1 1 0; min-width: 0; max-width: none; }
+}
+.app-sidebar .nav-link span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Tastaturbedienung: Sprunglink und gut sichtbarer Fokus */
+.skip-link { position: absolute; left: .5rem; top: -3rem; z-index: 2000; padding: .5rem .9rem; border-radius: var(--bs-border-radius); background: var(--bs-primary); color: #fff; text-decoration: none; transition: top .15s; }
+.skip-link:focus { top: .5rem; color: #fff; }
+:focus-visible { outline: 3px solid rgba(var(--bs-primary-rgb), .55); outline-offset: 2px; }
+.btn:focus-visible, .form-control:focus-visible, .form-select:focus-visible, .nav-link:focus-visible { outline: 3px solid rgba(var(--bs-primary-rgb), .55); outline-offset: 2px; }
+/* Weniger Bewegung, wenn im System so eingestellt */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+/* Lange Wörter (Adressen, Links) in schmalen Spalten umbrechen */
+.card-body, .list-group-item, td { overflow-wrap: break-word; }

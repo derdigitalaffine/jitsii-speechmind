@@ -77,6 +77,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 ### Verwaltung und Sicherheit
 
 - **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Terminumfragen, Terminbuchung, Rechtstexte, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
+- **Gehärtet:** Content-Security-Policy und weitere Sicherheits-Header, CSRF-Schutz für alle Formulare, Bremse gegen Passwort-Raten je IP und je Konto, keine Kontenermittlung über Antwortzeiten, Uploads nur als Download, aktuelle Bibliotheken ohne bekannte Sicherheitslücken.
 - **Zwei-Faktor-Anmeldung** per **Authenticator-App (TOTP)** oder **Code per E-Mail**, mit Notfallcodes; freiwillig oder Pflicht für Admins/alle. „Passwort vergessen“ per Mail-Link.
 - **Module** Kurzlinks, Formulare, Terminumfragen, Terminbuchung und Rechtstexte komplett abschaltbar.
 - **Sitzungen & Cookies:** technische Übersicht, wer angemeldet ist (Gerät, IP, letzte Aktivität), Inhalt und Eigenschaften der Session-Cookies; Sitzungen einzeln, je Person oder alle anderen beenden. Jede:r sieht unter Profil › Sicherheit die eigenen angemeldeten Geräte; ein neues Passwort meldet alle anderen Geräte ab.
