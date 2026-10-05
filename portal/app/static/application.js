@@ -29,6 +29,24 @@
       editor.set(t.items || []);
       setDue(t.due_days || 14);
     });
+    // Prozessschritt „Nachforderung – Sachbearbeitung wählt“: Vorschlag aus dem Prozess vorbelegen
+    var composeEl = document.getElementById('req-compose');
+    if (composeEl) {
+      var c = JSON.parse(composeEl.textContent);
+      document.querySelectorAll('.js-compose').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          document.getElementById('req-task').value = c.task_id;
+          document.getElementById('req-name').value = c.title || 'Bitte ergänzen Sie Ihren Antrag';
+          document.getElementById('req-msg').value = c.message || '';
+          editor.set(c.items || []);
+          document.querySelectorAll('#req-form input[name="reopen"]').forEach(function (x) { x.checked = (c.reopen || []).indexOf(x.value) >= 0; });
+          setDue(c.due_days || 14);
+        });
+      });
+      document.querySelectorAll('[data-bs-target="#req-modal"]:not(.js-compose)').forEach(function (btn) {
+        btn.addEventListener('click', function () { document.getElementById('req-task').value = ''; });
+      });
+    }
     document.getElementById('req-form').addEventListener('submit', function (ev) {
       var reopen = this.querySelectorAll('input[name="reopen"]:checked').length;
       var fields = editor.get().filter(function (x) { return x.type !== 'text'; });

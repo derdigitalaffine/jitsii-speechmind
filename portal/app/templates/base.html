@@ -93,9 +93,10 @@
         </div>
         <div class="offcanvas-body d-block p-2">
           <ul class="nav flex-column gap-1">
+            {{ m.nav_item('/', 'fa-house', 'Übersicht', path == '/') }}
             {% if user.can('video') %}
             <li class="nav-section">Videokonferenzen</li>
-            {{ m.nav_item('/', 'fa-video', 'Meetings', path == '/' or (path.startswith('/meetings') and path != '/meetings/plan')) }}
+            {{ m.nav_item('/meetings', 'fa-video', 'Meetings', path.startswith('/meetings') and path != '/meetings/plan') }}
             {{ m.nav_item('/meetings/plan', 'fa-calendar-plus', 'Besprechung planen', path == '/meetings/plan') }}
             {% endif %}
             {% if user.can('shortlinks') and 'shortlinks' in modules %}
@@ -111,13 +112,19 @@
             {% endif %}
             {% if 'forms' in modules %}
             <li class="nav-section">Formulare</li>
-            {{ m.nav_item('/forms', 'fa-clipboard-list', 'Formulare' if user.can('forms') else 'Geteilte Formulare', path == '/forms' or (path.startswith('/forms/') and not path.startswith('/forms/inbox') and '/applications' not in path)) }}
+            {{ m.nav_item('/forms', 'fa-clipboard-list', 'Formulare' if user.can('forms') else 'Geteilte Formulare', path == '/forms' or (path.startswith('/forms/') and not path.startswith('/forms/inbox') and not path.startswith('/forms/blocks') and '/applications' not in path)) }}
             {{ m.nav_item('/forms/inbox', 'fa-inbox', 'Zum Ausfüllen', path.startswith('/forms/inbox')) }}
+            {% if user.can('formblocks') %}{{ m.nav_item('/forms/blocks', 'fa-cubes', 'Datenblöcke', path.startswith('/forms/blocks')) }}{% endif %}
             {% if 'applications' in modules %}
             <li class="nav-item"><a class="nav-link {{ 'active' if path.startswith('/tasks') }}" href="/tasks" {% if path.startswith('/tasks') %}aria-current="page"{% endif %}><i class="fa-solid fa-list-check"></i><span>Meine Aufgaben</span>{% if task_badge %}<span class="badge rounded-pill text-bg-danger ms-auto" title="{{ task_badge }} offene Arbeitsschritte">{{ task_badge }}</span>{% endif %}</a></li>
             {{ m.nav_item('/forms/applications', 'fa-file-signature', 'Antragseingang', '/applications' in path) }}
             {% if user.can('processes') %}{{ m.nav_item('/processes', 'fa-diagram-project', 'Prozesse', path.startswith('/processes')) }}{% endif %}
             {% endif %}
+            {% endif %}
+            {% if 'dms' in modules and (user.is_admin or user.can('dms_admin') or dms_nav) %}
+            <li class="nav-section">Ablage</li>
+            {{ m.nav_item('/dms', 'fa-box-archive', 'Recherche', path == '/dms' or path.startswith('/dms/r/') or path.startswith('/dms/new')) }}
+            {% if user.is_admin or user.can('dms_admin') %}{{ m.nav_item('/dms/areas', 'fa-sitemap', 'Aktenplan', path.startswith('/dms/areas') or path.startswith('/dms/retention')) }}{% endif %}
             {% endif %}
             {% if 'maps' in modules %}
             <li class="nav-section">Karten</li>
@@ -129,13 +136,13 @@
             {{ m.nav_item('/recht', 'fa-scale-balanced', 'Ortsrecht ansehen', path.startswith('/recht')) }}
             {% if user.can('laws') %}{{ m.nav_item('/laws', 'fa-pen-to-square', 'Rechtstexte pflegen', path.startswith('/laws')) }}{% endif %}
             {% endif %}
-            {% if user.is_admin or user.can('users') %}
+            {% if user.is_admin or user.can('users') or user.can('maps_admin') %}
             <li class="nav-section">Verwaltung</li>
             {% if user.is_admin %}{{ m.nav_item('/admin/recordings', 'fa-file-audio', 'Aufnahmen', path == '/admin/recordings' or path.startswith('/recordings')) }}{% endif %}
-            {{ m.nav_item('/admin/users', 'fa-users', 'Benutzer &amp; Gruppen'|safe, path == '/admin/users') }}
+            {% if user.can('users') %}{{ m.nav_item('/admin/users', 'fa-users', 'Benutzer &amp; Gruppen'|safe, path == '/admin/users') }}{% endif %}
+            {% if user.can('maps_admin') %}{{ m.nav_item('/admin/maps', 'fa-layer-group', 'Kartenlayer', path.startswith('/admin/maps')) }}{% endif %}
             {% if user.is_admin %}
             {{ m.nav_item('/admin/modules', 'fa-puzzle-piece', 'Module', path == '/admin/modules') }}
-            {{ m.nav_item('/admin/maps', 'fa-layer-group', 'Kartenlayer', path.startswith('/admin/maps')) }}
             {{ m.nav_item('/admin/sessions', 'fa-user-clock', 'Sitzungen &amp; Cookies'|safe, path == '/admin/sessions') }}
             {{ m.nav_item('/admin/notifications', 'fa-envelope', 'Benachrichtigungen', path.startswith('/admin/notifications')) }}
             {{ m.nav_item('/admin/templates', 'fa-envelope-open-text', 'E-Mail-Vorlagen', path == '/admin/templates') }}

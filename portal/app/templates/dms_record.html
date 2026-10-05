@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ record.ref_no or record.title }} · Ablage{% endblock %}
+{% block content %}
+{% set base = '/dms/r/' ~ record.id %}
+<nav aria-label="Pfad" class="small mb-2"><a href="/dms">Ablage</a> › {% for a in label(record.area, by_id).split(' › ') %}{{ a }}{{ ' › ' if not loop.last }}{% endfor %}</nav>
+{% call m.page_head((record.ref_no ~ ' · ' if record.ref_no else '') ~ record.title, (record.applicant or record.applicant_email or '') ) %}
+{% if resp %}<a class="btn btn-outline-secondary" href="{{ base }}/pdf"><i class="fa-regular fa-file-pdf me-1"></i>Antrags-PDF mit Anlagen</a>
+{% if case_access %}<a class="btn btn-outline-primary" href="/forms/{{ resp.form_id }}/applications/{{ resp.id }}"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Zum Vorgang</a>{% endif %}{% endif %}
+{% endcall %}
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-4 small">
+  {% if record.kind == 'manuell' %}<span class="badge text-bg-light border"><i class="fa-solid fa-box-archive me-1"></i>manuell abgelegt von {{ record.created_by }}</span>
+  {% else %}{% set st = statuses.get(record.status, (record.status, 'secondary', 'fa-circle')) %}<span class="badge text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>{% endif %}
+  <span class="text-secondary">Eingang {{ record.received_at | local('%d.%m.%Y') }}{% if record.closed_at and record.kind == 'antrag' %} · abgeschlossen {{ record.closed_at | local('%d.%m.%Y') }}{% endif %}</span>
+  {% if record.retention_until %}<span class="text-secondary">· aufbewahren bis {{ record.retention_until | local('%d.%m.%Y') }}</span>{% endif %}
+  {% if level < 2 %}<span class="badge text-bg-light border">nur Lesezugriff</span>{% endif %}
+</div>
+
+<div class="row g-4">
+  <div class="col-12 col-xxl-7">
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-circle-info me-2"></i>Angaben zum Eintrag</div><div class="card-body">
+      <dl class="row mb-0">
+        <dt class="col-sm-4">Antragsteller:in</dt><dd class="col-sm-8">{{ record.applicant or '–' }}{% if record.applicant_email %} · <a href="mailto:{{ record.applicant_email }}">{{ record.applicant_email }}</a>{% endif %}</dd>
+        <dt class="col-sm-4">Ort</dt><dd class="col-sm-8">{% if record.city or record.street %}{{ record.street }}{{ ', ' if record.street and record.city }}{{ record.zip }} {{ record.city }}{% if record.district %} (Ortsteil {{ record.district }}){% endif %}{% else %}–{% endif %}
+          {% if record.lat %} · <a href="/karte#17/{{ record.lat }}/{{ record.lon }}" target="_blank">Karte</a>{% endif %}</dd>
+        {% if record.kind == 'antrag' %}<dt class="col-sm-4">Antragsart</dt><dd class="col-sm-8">{{ record.form_title }}</dd><dt class="col-sm-4">Zuständig</dt><dd class="col-sm-8">{{ record.assignee or '–' }}</dd>{% endif %}
+        {% if record.note %}<dt class="col-sm-4">Vermerk</dt><dd class="col-sm-8" style="white-space: pre-line">{{ record.note }}</dd>{% endif %}
+      </dl>
+    </div></div>
+
+    {% if resp %}
+    <div class="card mb-4"><div class="card-header"><i class="fa-regular fa-file-lines me-2"></i>Angaben im Antrag</div><div class="card-body">
+      <dl class="row mb-0">
+        {% for q in questions %}{% set v = current.get(q.id) %}
+        <dt class="col-sm-4">{{ q.title or 'Frage' }}</dt>
+        <dd class="col-sm-8 text-break" style="white-space: pre-line">{% if q.type == 'file' and v %}{% for f in v %}<a href="{{ base }}/case/a/{{ f.file }}"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a><br>{% endfor %}{% else %}{{ display(q, v) or '–' }}{% endif %}</dd>
+        {% endfor %}
+        {% for k, v in resp.fields.items() %}<dt class="col-sm-4 text-secondary">{{ field_labels.get(k, k) }} <span class="badge text-bg-light border">intern</span></dt><dd class="col-sm-8">{{ v }}</dd>{% endfor %}
+      </dl>
+    </div></div>
+    {% for r in resp.requests if r.state == 'answered' %}
+    <div class="card mb-4"><div class="card-header small"><i class="fa-solid fa-file-circle-question me-2"></i>Nachgereicht am {{ r.answered_at | local }} – {{ r.title }}</div><div class="card-body"><dl class="row mb-0 small">
+      {% for q in r.items if q.type != 'text' %}{% set v = r.answers.get(q.id) %}<dt class="col-sm-4">{{ q.title }}</dt><dd class="col-sm-8">{% if q.type == 'file' and v %}{% for f in v %}<a href="{{ base }}/case/req{{ r.id }}/{{ f.file }}"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a><br>{% endfor %}{% else %}{{ display(q, v) or '–' }}{% endif %}</dd>{% endfor %}
+    </dl></div></div>
+    {% endfor %}
+    <details class="card mb-4"><summary class="card-header"><i class="fa-solid fa-clock-rotate-left me-2"></i>Verlauf ({{ resp.events | length }})</summary>
+      <ul class="list-group list-group-flush small">{% for e in resp.events | reverse %}<li class="list-group-item"><span class="text-secondary">{{ e.at | local }} · {{ e.actor_name or '–' }}</span>{% if not e.public %} <span class="badge text-bg-light border">intern</span>{% endif %}<div style="white-space: pre-line">{{ e.text }}</div></li>{% endfor %}</ul>
+    </details>
+    {% endif %}
+  </div>
+
+  <div class="col-12 col-xxl-5">
+    <div class="card mb-4" id="dateien"><div class="card-header"><i class="fa-solid fa-folder-open me-2"></i>Abgelegte Dateien</div>
+      <ul class="list-group list-group-flush">
+        {% if resp %}{% for d in resp.documents %}<li class="list-group-item small d-flex gap-2 align-items-center"><i class="fa-regular fa-file-pdf text-danger"></i><a class="flex-grow-1" href="{{ base }}/document/{{ d.id }}">{{ d.name }}</a><span class="text-secondary">im Vorgang erzeugt</span></li>{% endfor %}{% endif %}
+        {% for f in record.files %}
+        <li class="list-group-item small">
+          <div class="d-flex gap-2 align-items-center"><i class="fa-regular {{ 'fa-file-pdf text-danger' if f.mime == 'application/pdf' else ('fa-file-image' if f.mime.startswith('image/') else 'fa-file') }}"></i>
+            <a class="flex-grow-1 text-break" href="{{ base }}/files/{{ f.id }}">{{ f.name }}</a>
+            <span class="text-secondary text-nowrap">{{ f.size | filesize }}</span>
+            {% if level >= 2 and f.kind == 'upload' %}<form method="post" action="{{ base }}/files/{{ f.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger p-0" type="submit" title="Löschen" aria-label="Datei löschen" data-confirm-title="Datei löschen?" data-confirm="Die Löschung wird protokolliert." data-confirm-button="Löschen"><i class="fa-regular fa-trash-can"></i></button></form>{% endif %}</div>
+          <div class="text-secondary">{{ {'abschluss': 'Abschlussstand', 'dokument': 'Dokument aus dem Vorgang', 'upload': 'abgelegt'}.get(f.kind, f.kind) }} · {{ f.created_at | local }} · {{ f.uploaded_by }}{% if f.note %} · {{ f.note }}{% endif %}</div>
+          <div class="text-secondary font-monospace text-truncate" title="SHA-256">SHA-256 {{ f.sha256 }}</div>
+        </li>
+        {% else %}{% if not resp or not resp.documents %}<li class="list-group-item small text-secondary">{% if record.kind == 'antrag' and not record.closed_at %}Beim Abschluss legt das Portal hier den Endstand ab.{% else %}Keine Dateien.{% endif %}</li>{% endif %}{% endfor %}
+      </ul>
+      {% if level >= 2 %}
+      <form method="post" action="{{ base }}/upload" enctype="multipart/form-data" class="card-footer"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <input class="form-control form-control-sm mb-2" type="file" name="files" multiple required aria-label="Dateien">
+        <div class="d-flex gap-2"><input class="form-control form-control-sm" name="note" placeholder="Vermerk (optional), z. B. Scan Posteingang" maxlength="500"><button class="btn btn-sm btn-primary text-nowrap" type="submit"><i class="fa-solid fa-upload me-1"></i>Ablegen</button></div>
+      </form>
+      {% endif %}
+    </div>
+
+    {% if level >= 2 %}
+    <form method="post" action="{{ base }}/edit" class="card"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="card-header"><i class="fa-solid fa-pen me-2"></i>Eintrag bearbeiten</div><div class="card-body"><div class="row g-2">
+        {% if record.kind == 'manuell' %}
+        <div class="col-12"><label class="form-label small mb-1" for="e-title">Titel</label><input class="form-control form-control-sm" id="e-title" name="title" value="{{ record.title }}" maxlength="300"></div>
+        <div class="col-md-6"><label class="form-label small mb-1" for="e-app">Antragsteller:in / Absender:in</label><input class="form-control form-control-sm" id="e-app" name="applicant" value="{{ record.applicant }}"></div>
+        <div class="col-md-6"><label class="form-label small mb-1" for="e-mail">E-Mail</label><input class="form-control form-control-sm" id="e-mail" name="applicant_email" value="{{ record.applicant_email }}"></div>
+        <div class="col-md-8"><label class="form-label small mb-1" for="e-str">Straße</label><input class="form-control form-control-sm" id="e-str" name="street" value="{{ record.street }}"></div>
+        <div class="col-md-4"><label class="form-label small mb-1" for="e-zip">PLZ</label><input class="form-control form-control-sm" id="e-zip" name="zip" value="{{ record.zip }}"></div>
+        <div class="col-md-6"><label class="form-label small mb-1" for="e-city">Ort</label><input class="form-control form-control-sm" id="e-city" name="city" value="{{ record.city }}"></div>
+        <div class="col-md-6"><label class="form-label small mb-1" for="e-dist">Ortsteil</label><input class="form-control form-control-sm" id="e-dist" name="district" value="{{ record.district }}"></div>
+        <div class="col-md-6"><label class="form-label small mb-1" for="e-rec">Eingang</label><input class="form-control form-control-sm" type="date" id="e-rec" name="received" value="{{ record.received_at | local('%Y-%m-%d') }}"></div>
+        {% endif %}
+        <div class="col-12"><label class="form-label small mb-1" for="e-area">Bereich</label>
+          <select class="form-select form-select-sm" id="e-area" name="area_id">{% for a, d in write_areas %}<option value="{{ a.id }}" {% if a.id == record.area_id %}selected{% endif %}>{{ '  ' * d }}{{ a.code ~ ' ' if a.code }}{{ a.name }}</option>{% endfor %}</select></div>
+        <div class="col-12"><label class="form-label small mb-1" for="e-note">Vermerk</label><textarea class="form-control form-control-sm" id="e-note" name="note" rows="3">{{ record.note }}</textarea></div>
+        {% if record.kind == 'manuell' or record.closed_at %}<div class="col-md-6"><label class="form-label small mb-1" for="e-ret">Aufbewahren bis</label><input class="form-control form-control-sm" type="date" id="e-ret" name="retention_until" value="{{ record.retention_until | local('%Y-%m-%d') if record.retention_until else '' }}"><div class="form-text">leer = unbegrenzt</div></div>{% endif %}
+      </div></div>
+      <div class="card-footer"><button class="btn btn-sm btn-primary" type="submit">Speichern</button></div>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

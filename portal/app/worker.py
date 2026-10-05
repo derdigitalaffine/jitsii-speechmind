@@ -416,6 +416,8 @@ async def run_forever() -> None:
                 from . import workflow
                 if await asyncio.to_thread(workflow.send_reminders):
                     await asyncio.to_thread(notify.process_queue)
+                from . import dms
+                await asyncio.to_thread(dms.reconcile)
             if time.monotonic() - _last_chat_prune[0] >= 3600:
                 _last_chat_prune[0] = time.monotonic()
                 await asyncio.to_thread(chat.prune)

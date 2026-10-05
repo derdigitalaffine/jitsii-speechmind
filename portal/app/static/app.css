@@ -223,3 +223,34 @@ footer.app-footer { border-top: 1px solid var(--bs-border-color); color: var(--b
 .pe-panel { position: sticky; top: 5rem; max-height: calc(100vh - 6rem); overflow-y: auto; }
 .pe-savebar { position: sticky; bottom: 0; z-index: 5; background: var(--bs-body-bg); border-top: 1px solid var(--bs-border-color); padding: .6rem 0; margin-top: 1rem; }
 .pe-savebar.dirty { box-shadow: 0 -.25rem .75rem rgba(var(--bs-warning-rgb), .25); }
+
+/* Baukasten: kompakte Elemente, Bedingungen */
+.builder-compact { cursor: pointer; }
+.builder-item:not(.is-selected) .card-body { padding-top: .6rem; padding-bottom: .6rem; }
+.cond-box { background: var(--bs-tertiary-bg); border-radius: var(--bs-border-radius); padding: .5rem .6rem; }
+
+/* Ausfüllen: Schrittleiste, Feldbreiten, Übersicht */
+.fill-item > .card { height: 100%; }
+.fill-steps { list-style: none; display: flex; flex-wrap: wrap; gap: .35rem; padding: 0; margin: 0; counter-reset: none; }
+.fill-step-btn { display: flex; align-items: center; gap: .45rem; border: 1px solid var(--bs-border-color); background: var(--bs-body-bg); color: var(--bs-secondary-color);
+  border-radius: 2rem; padding: .25rem .8rem .25rem .3rem; font-size: .875rem; }
+.fill-step-btn:not(:disabled):hover { border-color: var(--bs-primary); color: var(--bs-primary); }
+.fill-step-no { width: 1.6rem; height: 1.6rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--bs-tertiary-bg); font-weight: 600; font-size: .8rem; }
+.fill-step.is-done .fill-step-btn { color: var(--bs-body-color); }
+.fill-step.is-done .fill-step-no { background: var(--bs-success); color: #fff; }
+.fill-step.is-current .fill-step-btn { border-color: var(--bs-primary); color: var(--bs-primary); font-weight: 600; box-shadow: 0 0 0 .2rem rgba(var(--bs-primary-rgb), .15); }
+.fill-step.is-current .fill-step-no { background: var(--bs-primary); color: #fff; }
+.fill-step-btn:disabled { opacity: 1; cursor: default; }
+@media (max-width: 575.98px) { .fill-step:not(.is-current) .fill-step-label { display: none; } }
+.review-page dt { font-weight: 500; color: var(--bs-secondary-color); }
+.addr-results { position: absolute; z-index: 20; left: 0; right: 0; top: 100%; max-height: 18rem; overflow-y: auto; box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .12); }
+.block-head { border-left: 4px solid var(--bs-primary); padding: .2rem 0 .2rem .7rem; }
+.builder-palette .card-body { max-height: calc(100vh - 10rem); overflow-y: auto; }
+
+/* Startseite */
+.dash-num { display: flex; flex-direction: column; text-decoration: none; color: inherit; font-size: .8rem; line-height: 1.2; }
+.dash-num > span { font-size: 1.6rem; font-weight: 600; }
+a.dash-num:hover > span { text-decoration: underline; }
+.dash-tile.is-hidden .card { opacity: .5; }
+#dash-tiles:not(.dash-editing) .dash-tile.is-hidden { display: none; }
+.dash-handle { cursor: grab; }

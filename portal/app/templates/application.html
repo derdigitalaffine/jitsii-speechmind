@@ -62,7 +62,20 @@
     </div>
     {% if step.description %}<div class="alert alert-light border small py-2 mb-3"><i class="fa-solid fa-circle-info me-1 text-primary"></i>{{ step.description | richtext }}</div>{% endif %}
 
-    {% if task.kind == 'request' %}
+    {% if task.kind == 'request' and task.state == 'open' %}
+      <p class="mb-2"><i class="fa-solid fa-file-circle-question me-1 text-warning"></i>Stellen Sie zusammen, was nachgefordert werden soll. Der Prozess schlägt Felder vor; Sie können eine Vorlage wählen, Felder ergänzen oder Angaben aus dem Antrag zur Korrektur öffnen.</p>
+      {% if can_work or level >= 2 %}<button class="btn btn-primary js-compose" type="button" data-bs-toggle="modal" data-bs-target="#req-modal"><i class="fa-solid fa-file-circle-question me-1"></i>Nachforderung zusammenstellen</button>{% endif %}
+    {% elif task.kind == 'confirm' %}
+      <p class="mb-2"><i class="fa-solid fa-envelope-circle-check me-1 text-warning"></i>Wartet darauf, dass die antragstellende Person ihre E-Mail-Adresse bestätigt{% if task.due_at %} (bis {{ task.due_at | local('%d.%m.%Y') }}){% endif %}{% if task.reminded_at %} · erinnert am {{ task.reminded_at | local('%d.%m.%Y') }}{% endif %}. Danach geht es automatisch weiter.</p>
+      {% if level >= 2 %}
+      <div class="d-flex flex-wrap gap-2">
+        <form method="post" action="{{ act }}/task/{{ task.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="remind">
+          <button class="btn btn-sm btn-outline-primary" type="submit" {% if not applicant %}disabled{% endif %}><i class="fa-regular fa-envelope me-1"></i>Bestätigungsmail erneut senden</button></form>
+        <form method="post" action="{{ act }}/task/{{ task.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="skip"><input type="hidden" name="comment" value="Bestätigung von der Sachbearbeitung übersprungen">
+          <button class="btn btn-sm btn-outline-secondary" type="submit" data-confirm-title="Bestätigung überspringen?" data-confirm="Der Antrag wird ohne bestätigte E-Mail-Adresse weiterbearbeitet." data-confirm-button="Überspringen"><i class="fa-solid fa-forward me-1"></i>Ohne Bestätigung weiter</button></form>
+      </div>
+      {% endif %}
+    {% elif task.kind == 'request' %}
       {% set oreq = resp.requests | selectattr('task_id', 'equalto', task.id) | selectattr('state', 'equalto', 'open') | first %}
       <p class="mb-2"><i class="fa-solid fa-hourglass-half me-1 text-warning"></i>Wartet auf die antragstellende Person{% if oreq %} seit {{ oreq.created_at | local }}{% if oreq.reminded_at %} · erinnert am {{ oreq.reminded_at | local('%d.%m.%Y') }}{% endif %}{% endif %}. Sobald die Angaben eingehen, geht es automatisch weiter.</p>
       {% if level >= 2 %}
@@ -121,7 +134,7 @@
           <button class="btn btn-sm btn-outline-primary" type="submit">Zuweisen</button></form>
         <form method="post" action="{{ act }}/task/{{ task.id }}" class="col-lg-3 d-flex gap-2"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="due">
           <input class="form-control form-control-sm" type="date" name="due" value="{{ task.due_at | local('%Y-%m-%d') if task.due_at else '' }}" aria-label="Frist des Schritts"><button class="btn btn-sm btn-outline-secondary" type="submit">Frist</button></form>
-        {% if task.kind != 'request' %}
+        {% if task.kind not in ('request', 'confirm') or task.state == 'open' %}
         <form method="post" action="{{ act }}/task/{{ task.id }}" class="col-lg-3"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="skip"><input type="hidden" name="comment" value="manuell übersprungen">
           <button class="btn btn-sm btn-outline-secondary w-100" type="submit" data-confirm-title="Schritt überspringen?" data-confirm="Der Schritt wird ohne Bearbeitung übersprungen; das steht im Verlauf." data-confirm-button="Überspringen"><i class="fa-solid fa-forward me-1"></i>Überspringen</button></form>
         {% endif %}
@@ -266,7 +279,7 @@
 
 {% if level >= 2 and not resp.closed_at %}
 <div class="modal fade" id="req-modal" tabindex="-1" aria-labelledby="req-title" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-scrollable"><form class="modal-content" method="post" action="{{ act }}/request" id="req-form">
-  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="items_json" id="req-items">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="items_json" id="req-items"><input type="hidden" name="task_id" id="req-task">
   <div class="modal-header"><h2 class="modal-title h5" id="req-title"><i class="fa-solid fa-file-circle-question me-2"></i>Angaben oder Unterlagen nachfordern</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
   <div class="modal-body">
     <div class="row g-2 mb-3">
@@ -286,7 +299,7 @@
       <div class="col-sm-4"><label class="form-label small mb-1" for="req-due">Nachreichen bis</label><input class="form-control form-control-sm" type="date" id="req-due" name="due"></div>
       <div class="col-sm-8 d-flex flex-column gap-1">
         <div class="form-check"><input class="form-check-input" type="checkbox" name="set_query" value="1" id="req-q" checked><label class="form-check-label small" for="req-q">Status auf „Rückfrage“ setzen</label></div>
-        {% if user.can('processes') %}<div class="form-check"><input class="form-check-input" type="checkbox" name="save_template" value="1" id="req-save"><label class="form-check-label small" for="req-save">Zusätzlich als Vorlage speichern</label></div>{% endif %}
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="save_template" value="1" id="req-save"><label class="form-check-label small" for="req-save">Zusätzlich als Vorlage speichern (unter dem Betreff)</label></div>
       </div>
     </div>
     {% if not applicant %}<div class="alert alert-warning small mt-3 mb-0">Keine E-Mail-Adresse bekannt – die antragstellende Person erfährt nur über den Statuslink von der Nachforderung.</div>{% endif %}
@@ -294,6 +307,7 @@
   <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button><button class="btn btn-primary" type="submit"><i class="fa-regular fa-paper-plane me-1"></i>Nachforderung senden</button></div>
 </form></div></div>
 <script type="application/json" id="req-bundle">{{ request_bundle | tojson }}</script>
+{% if compose %}<script type="application/json" id="req-compose">{{ compose | tojson }}</script>{% endif %}
 {% endif %}
 {% endblock %}
 {% block head %}{% if geo_bundle %}<link rel="stylesheet" href="/static/vendor/maplibre/maplibre-gl.css"><link rel="stylesheet" href="/static/map.css">{% endif %}{% endblock %}

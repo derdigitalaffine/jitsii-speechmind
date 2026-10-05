@@ -34,6 +34,7 @@ COMPONENTS = {
         ("Pillow", "12.3", "MIT-CMU (HPND)", "Bilder verkleinern, JPG-Ausgabe, Favicon", "https://python-pillow.org"),
         ("markdown-it-py", "3.0", "MIT", "Rechtstexte aus Markdown setzen", "https://github.com/executablebooks/markdown-it-py"),
         ("ReportLab", "4.4", "BSD-3-Clause", "PDF der Online-Anträge und Bescheide", "https://www.reportlab.com/opensource/"),
+        ("pypdf", "6.19", "BSD-3-Clause", "Anlagen (PDF und Bilder) in das Antrags-PDF einbinden", "https://github.com/py-pdf/pypdf"),
         ("mdurl", "0.1", "MIT", "Links in Markdown prüfen (von markdown-it-py)", "https://github.com/executablebooks/mdurl"),
     ],
     "Portal (Oberfläche)": [
@@ -56,6 +57,8 @@ SERVICES = [
      "https://basemap.de"),
     ("OpenStreetMap", "ODbL (Daten), Tile Usage Policy (Kacheln)", "Freie Weltkarte – nur wenn als Kartenlayer eingeschaltet; Kacheln über das Portal zwischengespeichert",
      "https://www.openstreetmap.org/copyright"),
+    ("Nominatim (OpenStreetMap)", "ODbL (Daten), Nominatim Usage Policy", "Adress- und Ortssuche in Formularen und im Kartenbrowser – über das Portal, zwischengespeichert, höchstens eine Anfrage je Sekunde; eigener Server einstellbar",
+     "https://nominatim.org"),
     ("SpeechMind", "Externer Dienst (eigene Nutzungsbedingungen)", "Transkription und Protokoll – nur wenn angebunden und gestartet",
      "https://speechmind.com"),
     ("Let's Encrypt", "Externer Dienst (Subscriber Agreement)", "Kostenlose TLS-Zertifikate – nur wenn eingeschaltet",

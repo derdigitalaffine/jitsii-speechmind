@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Übersicht{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <div class="flex-grow-1"><h1 class="h3 mb-0">Guten {{ 'Morgen' if (now | local('%H') | int) < 11 else ('Tag' if (now | local('%H') | int) < 18 else 'Abend') }}, {{ user.name.split(' ')[0] }}</h1>
+    <div class="text-secondary small">{{ now | local('%A, %d.%m.%Y') | replace('Monday', 'Montag') | replace('Tuesday', 'Dienstag') | replace('Wednesday', 'Mittwoch') | replace('Thursday', 'Donnerstag') | replace('Friday', 'Freitag') | replace('Saturday', 'Samstag') | replace('Sunday', 'Sonntag') }}</div></div>
+  <button class="btn btn-sm btn-outline-secondary" type="button" id="dash-edit" aria-pressed="false"><i class="fa-solid fa-sliders me-1"></i>Anpassen</button>
+</div>
+<div class="alert alert-light border small d-none" id="dash-help"><i class="fa-solid fa-arrows-up-down-left-right me-1"></i>Kacheln am <i class="fa-solid fa-grip-vertical"></i> ziehen, um die Reihenfolge zu ändern; mit <i class="fa-regular fa-eye-slash"></i> aus- und einblenden. Wird automatisch gespeichert.</div>
+
+<div class="row g-3" id="dash-tiles">
+{% for t in tiles %}{% set d = t.data %}
+<div class="col-12 col-lg-6 col-xxl-4 dash-tile {{ 'is-hidden' if t.hidden }}" data-key="{{ t.key }}">
+  <div class="card h-100">
+    <div class="card-header d-flex align-items-center gap-2">
+      <span class="dash-handle d-none text-secondary" title="Ziehen"><i class="fa-solid fa-grip-vertical"></i></span>
+      <i class="fa-solid {{ t.icon }} text-primary"></i><strong class="flex-grow-1">{{ t.title }}</strong>
+      <button class="btn btn-sm btn-link p-0 text-secondary dash-toggle d-none" type="button" title="Aus-/einblenden" aria-label="Kachel aus- oder einblenden"><i class="fa-regular {{ 'fa-eye' if t.hidden else 'fa-eye-slash' }}"></i></button>
+    </div>
+    {% if t.hidden %}<div class="card-body small text-secondary">Ausgeblendet.</div>
+    {% elif t.key == 'tasks' %}
+      <div class="card-body pb-2"><div class="d-flex gap-3 mb-2">
+        <a class="dash-num" href="/tasks"><span>{{ d.count }}</span>offen</a>
+        <a class="dash-num {{ 'text-danger' if d.overdue }}" href="/tasks"><span>{{ d.overdue }}</span>überfällig</a>
+        <a class="dash-num" href="/tasks"><span>{{ d.waiting }}</span>warten auf Antwort</a></div></div>
+      <ul class="list-group list-group-flush small">{% for task in d['items'] %}{% set r = task.response %}<li class="list-group-item d-flex gap-2"><a class="flex-grow-1 text-truncate" href="/forms/{{ r.form_id }}/applications/{{ r.id }}#schritt">{{ task.name }} <span class="text-secondary">· {{ r.ref_no }}</span></a>{% if task.due_at %}<span class="{{ 'text-danger fw-semibold' if task.due_at < d.now else 'text-secondary' }} text-nowrap">{{ task.due_at | local('%d.%m.') }}</span>{% endif %}</li>{% else %}<li class="list-group-item text-secondary"><i class="fa-regular fa-face-smile me-1"></i>Keine offenen Aufgaben.</li>{% endfor %}</ul>
+      <div class="card-footer small"><a href="/tasks">Alle Aufgaben <i class="fa-solid fa-arrow-right"></i></a></div>
+    {% elif t.key == 'applications' %}
+      <div class="card-body pb-2"><div class="d-flex gap-3 mb-2">
+        <a class="dash-num" href="/forms/applications?status=open"><span>{{ d.open }}</span>offen</a>
+        <a class="dash-num" href="/forms/applications?status=received"><span>{{ d.new }}</span>neu</a>
+        <a class="dash-num {{ 'text-danger' if d.overdue }}" href="/forms/applications?status=overdue"><span>{{ d.overdue }}</span>Frist über</a>
+        <a class="dash-num" href="/forms/applications?status=query"><span>{{ d.query }}</span>Rückfrage</a></div></div>
+      <ul class="list-group list-group-flush small">{% for r in d['items'] %}{% set st = d.statuses.get(r.status, (r.status, 'secondary', 'fa-circle')) %}<li class="list-group-item d-flex gap-2 align-items-center"><a class="flex-grow-1 text-truncate" href="/forms/{{ r.form_id }}/applications/{{ r.id }}"><span class="font-monospace">{{ r.ref_no }}</span> {{ r.form.title }}</a><span class="badge text-bg-{{ st[1] }}">{{ st[0] }}</span></li>{% else %}<li class="list-group-item text-secondary">Keine offenen Anträge.</li>{% endfor %}</ul>
+      <div class="card-footer small"><a href="/forms/applications">Zum Antragseingang <i class="fa-solid fa-arrow-right"></i></a></div>
+    {% elif t.key == 'meetings' %}
+      <ul class="list-group list-group-flush small">{% for mt in d['items'] %}<li class="list-group-item d-flex gap-2 align-items-center">
+        <span class="text-nowrap fw-semibold" style="min-width: 6.5rem">{{ mt.starts_at | local('%d.%m. %H:%M') }}</span>
+        <a class="flex-grow-1 text-truncate" href="{{ '/meetings/' ~ mt.id if mt.id in d.own else '/join/' ~ mt.room }}">{{ mt.title }}</a>
+        {% if mt.id not in d.own %}<span class="badge text-bg-light border">eingeladen</span>{% endif %}</li>{% else %}<li class="list-group-item text-secondary">Keine anstehenden Termine.</li>{% endfor %}</ul>
+      <div class="card-footer small d-flex gap-3"><a href="/meetings/plan"><i class="fa-solid fa-calendar-plus me-1"></i>Planen</a><a href="/meetings">Alle Meetings <i class="fa-solid fa-arrow-right"></i></a></div>
+    {% elif t.key == 'polls' %}
+      <ul class="list-group list-group-flush small">
+        {% for pp in d.todo %}<li class="list-group-item d-flex gap-2"><i class="fa-solid fa-hand-point-right text-warning mt-1"></i><a class="flex-grow-1" href="/t/p/{{ pp.edit_token }}">{{ pp.poll.title }}</a><span class="badge text-bg-warning">abstimmen</span></li>{% endfor %}
+        {% for p in d['items'] %}<li class="list-group-item d-flex gap-2"><a class="flex-grow-1 text-truncate" href="/polls/{{ p.id }}">{{ p.title }}</a><span class="text-secondary text-nowrap">{{ p.participants | selectattr('answered_at') | list | length }} Antworten</span></li>{% endfor %}
+        {% if not d.todo and not d['items'] %}<li class="list-group-item text-secondary">Keine offenen Terminumfragen.</li>{% endif %}
+      </ul>
+      {% if user.can('polls') %}<div class="card-footer small"><a href="/polls">Terminumfragen <i class="fa-solid fa-arrow-right"></i></a></div>{% endif %}
+    {% elif t.key == 'bookings' %}
+      <div class="card-body pb-2"><a class="dash-num" href="/bookings"><span>{{ d.week }}</span>in den nächsten 7 Tagen</a></div>
+      <ul class="list-group list-group-flush small">{% for b in d['items'] %}<li class="list-group-item d-flex gap-2"><span class="text-nowrap fw-semibold" style="min-width: 6.5rem">{{ b.starts_at | local('%d.%m. %H:%M') }}</span><a class="flex-grow-1 text-truncate" href="/bookings/{{ b.page_id }}">{{ b.name }} <span class="text-secondary">· {{ b.page.title }}</span></a></li>{% else %}<li class="list-group-item text-secondary">Keine anstehenden Buchungen.</li>{% endfor %}</ul>
+      <div class="card-footer small"><a href="/bookings">Terminbuchung <i class="fa-solid fa-arrow-right"></i></a></div>
+    {% elif t.key == 'inbox' %}
+      <ul class="list-group list-group-flush small">{% for inv in d['items'] %}<li class="list-group-item d-flex gap-2"><a class="flex-grow-1 text-truncate" href="/f/i/{{ inv.token }}">{{ inv.form.title }}</a>{% if inv.form.expires_at %}<span class="text-secondary text-nowrap">bis {{ inv.form.expires_at | local('%d.%m.') }}</span>{% endif %}</li>{% else %}<li class="list-group-item text-secondary">Nichts auszufüllen.</li>{% endfor %}</ul>
+      <div class="card-footer small"><a href="/forms/inbox">Zum Ausfüllen <i class="fa-solid fa-arrow-right"></i></a></div>
+    {% elif t.key == 'responses' %}
+      <div class="card-body pb-2"><span class="dash-num"><span>{{ d.total }}</span>neue Antworten in 7 Tagen</span></div>
+      <ul class="list-group list-group-flush small">{% for f, n, last in d['items'] %}<li class="list-group-item d-flex gap-2"><a class="flex-grow-1 text-truncate" href="/forms/{{ f.id }}/results">{{ f.title }}</a><span class="badge text-bg-primary">{{ n }}</span><span class="text-secondary text-nowrap">{{ last | local('%d.%m.') }}</span></li>{% else %}<li class="list-group-item text-secondary">Keine neuen Antworten.</li>{% endfor %}</ul>
+      <div class="card-footer small"><a href="/forms">Formulare <i class="fa-solid fa-arrow-right"></i></a></div>
+    {% elif t.key == 'dms' %}
+      <form class="card-body pb-2" method="get" action="/dms"><div class="input-group input-group-sm"><input class="form-control" name="q" type="search" placeholder="Ablage durchsuchen …" aria-label="Ablage durchsuchen"><button class="btn btn-outline-secondary" type="submit" aria-label="Suchen"><i class="fa-solid fa-magnifying-glass"></i></button></div></form>
+      <ul class="list-group list-group-flush small">{% for r in d['items'] %}<li class="list-group-item d-flex gap-2"><a class="flex-grow-1 text-truncate" href="/dms/r/{{ r.id }}">{% if r.ref_no %}<span class="font-monospace">{{ r.ref_no }}</span> {% endif %}{{ r.title }}</a><span class="text-secondary text-nowrap">{{ r.updated_at | local('%d.%m.') }}</span></li>{% else %}<li class="list-group-item text-secondary">Noch nichts abgelegt.</li>{% endfor %}</ul>
+      <div class="card-footer small d-flex gap-3">{% if d.can_write %}<a href="/dms/new"><i class="fa-solid fa-plus me-1"></i>Ablegen</a>{% endif %}<a href="/dms">Recherche <i class="fa-solid fa-arrow-right"></i></a></div>
+    {% elif t.key == 'quick' %}
+      <div class="card-body"><div class="row row-cols-2 g-2">{% for href, icon, label in d['items'] %}<div class="col"><a class="btn btn-outline-secondary w-100 text-start btn-sm" href="{{ href }}"><i class="fa-solid {{ icon }} fa-fw me-1"></i>{{ label }}</a></div>{% endfor %}</div></div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/sortablejs/Sortable.min.js"></script>
+<script src="/static/home.js"></script>
+{% endblock %}

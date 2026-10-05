@@ -6,8 +6,9 @@
 <form method="post" action="/forms/{{ form.id }}/application">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <div class="card mb-4 {{ 'border-primary' if form.kind == 'application' }}"><div class="card-body d-flex flex-wrap align-items-center gap-3">
-    <div class="form-check form-switch fs-5 mb-0"><input class="form-check-input" type="checkbox" role="switch" id="is-app" name="is_application" value="1" {% if form.kind == 'application' %}checked{% endif %}>
-      <label class="form-check-label fw-semibold" for="is-app">Als Online-Antrag verwenden</label></div>
+    <div class="form-check form-switch fs-5 mb-0"><input class="form-check-input" type="checkbox" role="switch" id="is-app" name="is_application" value="1" {% if form.kind == 'application' %}checked{% endif %}{% if not user.can('app_create') %} disabled{% endif %}>
+      <label class="form-check-label fw-semibold" for="is-app">Als Online-Antrag verwenden</label>
+      {% if not user.can('app_create') %}<div class="small text-secondary fs-6"><i class="fa-solid fa-lock me-1"></i>Umschalten erfordert das Recht „Online-Anträge einrichten“.</div>{% endif %}</div>
     <div class="small text-secondary flex-grow-1" style="min-width: 18rem">Jede Einsendung wird zum Vorgang mit <strong>Aktenzeichen</strong>, <strong>Status</strong>, <strong>Zuständigkeit</strong> und <strong>Frist</strong>. Antragsteller:innen bekommen eine Eingangsbestätigung (auf Wunsch mit PDF) und verfolgen den Stand über einen persönlichen Link.</div>
   </div></div>
   {% if not has_email %}<div class="alert alert-warning"><i class="fa-solid fa-triangle-exclamation me-1"></i>Das Formular enthält keine Frage vom Typ <strong>E-Mail-Adresse</strong>. Ohne Adresse gibt es keine Eingangsbestätigung und keine Benachrichtigungen – nur die Anzeige des Aktenzeichens nach dem Absenden. Ergänzen Sie unter „Fragen“ eine Pflichtfrage „E-Mail-Adresse“.</div>{% endif %}
@@ -45,6 +46,16 @@
           {% if can_processes %}<a href="/processes" class="ms-1">Prozesse verwalten <i class="fa-solid fa-arrow-right"></i></a>{% endif %}</div>
       </div>
     </div></div></div>
+
+    {% if dms_areas %}
+    <div class="col-12"><div class="card" id="ablage"><div class="card-header"><i class="fa-solid fa-box-archive me-2"></i>Ablage (DMS)</div><div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-6"><label class="form-label" for="a-dms">Ablagebereich</label>
+          <select class="form-select" id="a-dms" name="dms_area_id"><option value="">– nicht ablegen –</option>{% for a, lbl in dms_areas %}<option value="{{ a.id }}" {% if form.dms_area_id == a.id %}selected{% endif %}>{{ lbl }}</option>{% endfor %}</select></div>
+        <div class="col-md-6 small text-secondary">Anträge erscheinen ab Eingang in der Ablage – recherchierbar für alle mit Leserecht auf den Bereich. Beim Abschluss wird ein unveränderlicher Stand (PDF mit Anlagen und Bescheiden) abgelegt; die Löschfrist richtet sich nach dem Bereich.</div>
+      </div>
+    </div></div></div>
+    {% endif %}
 
     <div class="col-12"><div class="card"><div class="card-header"><i class="fa-solid fa-route me-2"></i>Weiterleitung nach Antworten <span class="small text-secondary fw-normal">– die erste passende Regel bestimmt die Zuständigkeit</span></div>
       <div class="card-body">

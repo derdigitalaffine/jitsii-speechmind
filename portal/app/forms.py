@@ -42,6 +42,8 @@ TYPES = {
     "color": ("Farbe", "fa-palette", True),
     "file": ("Datei-Upload", "fa-paperclip", True),
     "geo": ("Ort in der Karte (Punkt, Linie, Fläche)", "fa-location-dot", True),
+    "address": ("Adresse / PLZ und Ort", "fa-house", True),
+    "block": ("Datenblock", "fa-cubes", False),
     "heading": ("Überschrift", "fa-heading", False),
     "subheading": ("Zwischenüberschrift", "fa-text-height", False),
     "text": ("Hinweistext", "fa-paragraph", False),
@@ -52,6 +54,7 @@ SUBTYPES = {"text": "Text", "email": "E-Mail-Adresse", "phone": "Telefonnummer",
             "regex": "Eigenes Muster (regulärer Ausdruck)"}
 CHOICE_TYPES = {"radio", "checkbox", "dropdown"}
 GEOMETRIES = {"point": "Punkt", "line": "Linie", "polygon": "Fläche"}
+HIDDEN_TYPES = {"datetime", "block"}   # „block“ kommt über die eigene Palette „Datenblöcke“   # nur noch für ältere Formulare; neu: „Datum“ mit Option „mit Uhrzeit“
 OTHER = "__other__"
 MAX_FILE_MB = 20
 PHONE_RE = re.compile(r"^\+?[0-9 ()/\-.]{3,30}$")
@@ -102,6 +105,12 @@ def clean_schema(raw) -> list[dict]:
         seen.add(qid)
         item = {"id": qid, "type": kind, "title": _str(src.get("title"), 500),
                 "description": _str(src.get("description"), 5000)}
+        if src.get("width") in WIDTHS and src.get("width") != "full" and kind not in ("pagebreak", "divider", "heading"):
+            item["width"] = src["width"]
+        for key in ("show_if", "required_if"):
+            cond = _clean_cond(src.get(key))
+            if cond and (key == "show_if" or TYPES[kind][2]):
+                item[key] = cond
         if TYPES[kind][2]:
             item["required"] = bool(src.get("required"))
         if kind == "short":
@@ -138,6 +147,8 @@ def clean_schema(raw) -> list[dict]:
         elif kind in ("date", "datetime"):
             item["min"] = _str(src.get("min"), 16)
             item["max"] = _str(src.get("max"), 16)
+            if kind == "date" and src.get("with_time"):
+                item["with_time"] = True
         elif kind == "scale":
             item["min"] = _int(src.get("min"), 0, 1, 1)
             item["max"] = _int(src.get("max"), 2, 10, 5)
@@ -158,18 +169,168 @@ def clean_schema(raw) -> list[dict]:
             item["show_inputs"] = src.get("show_inputs") is not False
             item["allow_gps"] = src.get("allow_gps") is not False
             item["show_inputs"] = src.get("show_inputs") is not False
+        elif kind == "block":
+            if not str(src.get("block_id") or "").isdigit():
+                continue
+            item["block_id"] = int(src["block_id"])
+        elif kind == "address":
+            item["mode"] = "zip_city" if src.get("mode") == "zip_city" else "full"
+            for flag, default in (("search", True), ("locate", True), ("district", False), ("coords", True)):
+                item[flag] = bool(src.get(flag, default))
         elif kind == "heading" or kind == "subheading" or kind == "pagebreak":
             pass
         items.append(item)
+    known = {i["id"] for i in items if TYPES[i["type"]][2]}
+    known |= {f"{i['id']}_{c['id']}" for i in items if i["type"] == "block" for c in block_items(i["block_id"])}
+    for item in items:
+        for key in ("show_if", "required_if"):
+            if key in item:
+                item[key]["rules"] = [r for r in item[key]["rules"] if r["q"] in known and r["q"] != item["id"]]
+                if not item[key]["rules"]:
+                    del item[key]
     return items[:500]
 
 
-def schema(form: Form) -> list[dict]:
+WIDTHS = {"full": "ganze Zeile", "half": "halbe Breite", "third": "ein Drittel", "two_thirds": "zwei Drittel"}
+COND_OPS = {"eq": "ist gleich", "ne": "ist nicht", "contains": "enthält", "filled": "ist ausgefüllt", "empty": "ist leer",
+            "gt": "größer als", "lt": "kleiner als"}
+
+
+def _clean_cond(raw) -> dict | None:
+    """Bedingung {mode: all|any, rules: [{q, op, value}]} – für „anzeigen, wenn“ und „Pflicht, wenn“."""
+    if not isinstance(raw, dict) or not isinstance(raw.get("rules"), list):
+        return None
+    rules = []
+    for r in raw["rules"][:20]:
+        if isinstance(r, dict) and ID_RE.match(str(r.get("q") or "")) and r.get("op") in COND_OPS:
+            rules.append({"q": str(r["q"]), "op": r["op"], "value": _str(r.get("value"), 500)})
+    return {"mode": "any" if raw.get("mode") == "any" else "all", "rules": rules} if rules else None
+
+
+def _cond_value_texts(value) -> list[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, list):
+        return [str(v).strip().lower() for v in value if v not in (None, "")]
+    if isinstance(value, dict):   # Adresse, Karte: auf Text abbilden
+        return [" ".join(str(v) for v in value.values() if isinstance(v, (str, int, float))).strip().lower()] if value else []
+    return [str(value).strip().lower()]
+
+
+def condition_met(cond: dict | None, answers: dict) -> bool:
+    if not cond:
+        return True
+    results = []
+    for r in cond["rules"]:
+        texts = _cond_value_texts(answers.get(r["q"]))
+        target = r["value"].strip().lower()
+        op = r["op"]
+        if op == "filled":
+            ok = bool(texts)
+        elif op == "empty":
+            ok = not texts
+        elif op == "eq":
+            ok = target in texts
+        elif op == "ne":
+            ok = target not in texts
+        elif op == "contains":
+            ok = any(target in t for t in texts)
+        else:
+            a, b = (_num(texts[0]) if texts else None), _num(target)
+            ok = a is not None and b is not None and (a > b if op == "gt" else a < b)
+        results.append(ok)
+    return all(results) if cond["mode"] == "all" else any(results)
+
+
+def visibility(items: list[dict], answers: dict) -> dict[str, bool]:
+    """Sichtbarkeit je Element: eigene Bedingung und die Bedingung der Seite (Seitenumbruch)."""
+    out, page_visible = {}, True
+    for item in items:
+        if item["type"] == "pagebreak":
+            page_visible = condition_met(item.get("show_if"), answers)
+            out[item["id"]] = page_visible
+            continue
+        out[item["id"]] = page_visible and condition_met(item.get("show_if"), answers) and condition_met(item.get("show_if2"), answers)
+    return out
+
+
+def raw_schema(form: Form) -> list[dict]:
+    """Aufbau wie gespeichert (Datenblöcke als Verweis) – für den Baukasten."""
     try:
         data = json.loads(form.schema_json or "[]")
     except ValueError:
         data = []
     return data if isinstance(data, list) else []
+
+
+def schema(form: Form) -> list[dict]:
+    """Aufbau zum Ausfüllen, Prüfen und Auswerten: Datenblöcke werden durch ihre aktuellen Felder ersetzt."""
+    return expand(raw_schema(form))
+
+
+def block_items(block_id: int) -> list[dict]:
+    from .db import FormBlock, SessionLocal
+    with SessionLocal() as db:
+        block = db.get(FormBlock, block_id)
+        if block is None:
+            return []
+        try:
+            data = json.loads(block.schema_json or "[]")
+        except ValueError:
+            return []
+    return [i for i in data if isinstance(i, dict) and i.get("type") != "block"] if isinstance(data, list) else []
+
+
+def _remap(cond: dict | None, mapping: dict) -> dict | None:
+    if not cond:
+        return None
+    return {"mode": cond["mode"], "rules": [{**r, "q": mapping.get(r["q"], r["q"])} for r in cond["rules"]]}
+
+
+def expand(items: list[dict]) -> list[dict]:
+    """Ersetzt Datenblöcke durch Überschrift + Felder. Feld-IDs: <block-element>_<feld>, damit derselbe Block
+    mehrfach in einem Formular stehen kann. Bedingungen des Blocks gelten für alle seine Felder."""
+    if not any(i.get("type") == "block" for i in items):
+        return items
+    from .db import FormBlock, SessionLocal
+    ids = {i["block_id"] for i in items if i.get("type") == "block" and isinstance(i.get("block_id"), int)}
+    with SessionLocal() as db:
+        blocks = {b.id: b for b in db.query(FormBlock).filter(FormBlock.id.in_(ids)).all()} if ids else {}
+        defs = {}
+        for bid, b in blocks.items():
+            try:
+                data = json.loads(b.schema_json or "[]")
+            except ValueError:
+                data = []
+            defs[bid] = (b.name, b.description, [i for i in data if isinstance(i, dict) and i.get("type") != "block"])
+    out = []
+    for item in items:
+        if item.get("type") != "block":
+            out.append(item)
+            continue
+        name, description, children = defs.get(item.get("block_id"), ("", "", []))
+        if not children:
+            continue
+        prefix = item["id"]
+        mapping = {c["id"]: f"{prefix}_{c['id']}" for c in children}
+        out.append({"id": prefix, "type": "subheading", "title": item.get("title") or name,
+                    "description": item.get("description") or description,
+                    "block": True, **({"show_if": item["show_if"]} if item.get("show_if") else {})})
+        for child in children:
+            c = json.loads(json.dumps(child))
+            c["id"] = mapping[child["id"]]
+            own = _remap(c.get("show_if"), mapping)
+            if item.get("show_if"):
+                c["show_if"] = item["show_if"]
+                if own:
+                    c["show_if2"] = own
+            elif own:
+                c["show_if"] = own
+            if c.get("required_if"):
+                c["required_if"] = _remap(c["required_if"], mapping)
+            c["block_id"] = item["block_id"]
+            out.append(c)
+    return out
 
 
 def questions(items: list[dict]) -> list[dict]:
@@ -181,7 +342,8 @@ def pages(items: list[dict]) -> list[dict]:
     result = [{"title": "", "description": "", "items": []}]
     for item in items:
         if item["type"] == "pagebreak":
-            result.append({"title": item.get("title", ""), "description": item.get("description", ""), "items": []})
+            result.append({"title": item.get("title", ""), "description": item.get("description", ""), "items": [],
+                           "show_if": item.get("show_if")})
         else:
             result[-1]["items"].append(item)
     # leere erste Seite (Formular beginnt mit Seitenumbruch) weglassen
@@ -210,8 +372,26 @@ def _parse_date(value: str) -> date | None:
 def validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
     """Prüft die Eingaben. Gibt (Antworten, Fehler je Frage-ID, Uploads je Frage-ID) zurück.
 
+    Bedingungen: Zuerst werden alle Eingaben ohne Pflichtprüfung gelesen, daraus ergibt sich, welche Felder
+    sichtbar und welche Pflicht sind. Ausgeblendete Felder werden weder geprüft noch gespeichert.
     data: Formularwerte (getlist/get), files: {feldname: [UploadFile]}
     """
+    if not any(i.get("show_if") or i.get("show_if2") or i.get("required_if") for i in items):
+        return _validate(items, data, files)
+    loose = [{**i, "required": False, "location_required": False} for i in items]
+    first, _e, _u = _validate(loose, data, files)
+    shown = visibility(items, first)
+    effective = []
+    for item in items:
+        if not shown.get(item["id"], True):
+            continue
+        if item.get("required_if") and TYPES[item["type"]][2]:
+            item = {**item, "required": condition_met(item["required_if"], first)}
+        effective.append(item)
+    return _validate(effective, data, files)
+
+
+def _validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
     answers, errors, uploads = {}, {}, {}
     for item in questions(items):
         qid, kind, name = item["id"], item["type"], f"q_{item['id']}"
@@ -285,6 +465,16 @@ def validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
             elif kind == "long":
                 if item.get("max_length") and len(raw) > item["max_length"]:
                     errors[qid] = f"Bitte höchstens {item['max_length']} Zeichen."
+            elif kind == "date" and raw and item.get("with_time"):
+                try:
+                    dt = datetime.fromisoformat(raw)
+                    if item.get("min") and _parse_date(item["min"][:10]) and dt.date() < _parse_date(item["min"][:10]):
+                        errors[qid] = f"Frühestens {_parse_date(item['min'][:10]).strftime('%d.%m.%Y')}."
+                    elif item.get("max") and _parse_date(item["max"][:10]) and dt.date() > _parse_date(item["max"][:10]):
+                        errors[qid] = f"Spätestens {_parse_date(item['max'][:10]).strftime('%d.%m.%Y')}."
+                    raw = dt.strftime("%Y-%m-%dT%H:%M")
+                except ValueError:
+                    errors[qid] = "Bitte Datum und Uhrzeit angeben."
             elif kind == "date" and raw:
                 d = _parse_date(raw)
                 if d is None:
@@ -313,6 +503,13 @@ def validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
                     errors[qid] = "Bitte einen Wert auf der Skala wählen."
             elif kind == "color" and raw and not COLOR_RE.match(raw):
                 errors[qid] = "Bitte eine Farbe wählen."
+            elif kind == "address":
+                value, error = parse_address(item, data, name, required)
+                if error:
+                    errors[qid] = error
+                elif value:
+                    answers[qid] = value
+                continue
             elif kind == "geo":
                 value, error = parse_geo(item, raw, data.get(name + "__pos"), data.get(name + "__acc"), data.get(name + "__src"))
                 if error:
@@ -385,6 +582,42 @@ def parse_shape(raw: str, kind: str) -> dict | None:
     lons, lats = [p[0] for p in pts], [p[1] for p in pts]
     return {"type": kind, "coordinates": geom["coordinates"], "length": round(length, 1), "area": round(area, 1),
             "center": [round((min(lons) + max(lons)) / 2, 6), round((min(lats) + max(lats)) / 2, 6)]}
+
+
+ADDRESS_PARTS = ("street", "house_no", "zip", "city", "district")
+ZIP_DE = re.compile(r"^\d{5}$")
+
+
+def parse_address(item: dict, data, name: str, required: bool) -> tuple[dict | None, str]:
+    """Adresse aus den Teilfeldern q_<id>__street, __house_no, __zip, __city, __district, __lat, __lon."""
+    full = item.get("mode", "full") == "full"
+    parts = {k: _str(data.get(f"{name}__{k}"), 200).replace("\n", " ") for k in ADDRESS_PARTS}
+    if not full:
+        parts["street"] = parts["house_no"] = ""
+    if not item.get("district"):
+        parts["district"] = ""
+    value = {k: v for k, v in parts.items() if v}
+    if not value:
+        return None, ("Bitte die Adresse angeben." if full else "Bitte Postleitzahl und Ort angeben.") if required else ""
+    missing = [label for key, label in (("street", "Straße"), ("zip", "PLZ"), ("city", "Ort")) if (full or key != "street") and not parts[key]]
+    if missing:
+        return None, "Bitte ergänzen: " + ", ".join(missing) + "."
+    if not ZIP_DE.match(parts["zip"]):
+        return None, "Bitte eine fünfstellige Postleitzahl angeben."
+    if item.get("coords", True):
+        lat, lon = _num(data.get(f"{name}__lat")), _num(data.get(f"{name}__lon"))
+        if lat is not None and lon is not None and -90 <= lat <= 90 and -180 <= lon <= 180:
+            value["lat"], value["lon"] = round(lat, 6), round(lon, 6)
+    return value, ""
+
+
+def address_text(value) -> str:
+    if not isinstance(value, dict):
+        return ""
+    street = " ".join(x for x in (value.get("street"), value.get("house_no")) if x)
+    town = " ".join(x for x in (value.get("zip"), value.get("city")) if x)
+    text = ", ".join(x for x in (street, town) if x)
+    return text + (f" (Ortsteil {value['district']})" if value.get("district") else "")
 
 
 GEO_LABELS = {"point": ("einen Punkt", "Punkte"), "line": ("eine Linie", "Linien"), "polygon": ("eine Fläche", "Flächen")}
@@ -605,6 +838,8 @@ def display(item: dict, value) -> str:
     kind = item.get("type")
     if kind == "file":
         return ", ".join(f.get("name", "") for f in value if isinstance(f, dict))
+    if kind == "address":
+        return address_text(value)
     if kind == "geo" and isinstance(value, dict):
         feats, pos = geo_parts(value)
         parts = [_describe(f) for f in feats]
@@ -613,6 +848,11 @@ def display(item: dict, value) -> str:
         return "; ".join(p for p in parts if p)
     if isinstance(value, list):
         return ", ".join(str(v) for v in value)
+    if kind == "date" and "T" in str(value):
+        try:
+            return datetime.fromisoformat(str(value)).strftime("%d.%m.%Y, %H:%M Uhr")
+        except ValueError:
+            return str(value)
     if kind == "date":
         d = _parse_date(str(value))
         return d.strftime("%d.%m.%Y") if d else str(value)
@@ -860,9 +1100,15 @@ def respondent_email(form: Form, answers: dict) -> str:
 
 
 def copy_form(db, form: Form, owner: User) -> Form:
-    items = schema(form)
+    items = raw_schema(form)
+    mapping = {}
     for item in items:  # neue IDs, damit nichts mit dem Original verwechselt wird
-        item["id"] = new_id()
+        mapping[item["id"]] = item["id"] = new_id()
+    for item in items:   # Bedingungen auf die neuen IDs umstellen (auch Felder in Datenblöcken)
+        for key in ("show_if", "required_if"):
+            if item.get(key):
+                item[key]["rules"] = [{**r, "q": mapping.get(r["q"]) or "_".join([mapping.get(r["q"].split("_", 1)[0], ""), *r["q"].split("_", 1)[1:]])}
+                                      for r in item[key]["rules"]]
     clone = Form(owner_id=owner.id, title=(form.title + " (Kopie)")[:255], description=form.description,
                  schema_json=json.dumps(items, ensure_ascii=False), anonymous=form.anonymous,
                  multiple=form.multiple, submit_message=form.submit_message, confirm_mail=form.confirm_mail,

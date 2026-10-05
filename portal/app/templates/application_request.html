@@ -13,11 +13,11 @@
 
   <form method="post" enctype="multipart/form-data" class="js-fill" id="fill-form" novalidate>
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <section class="fill-page d-flex flex-column gap-3" data-page="0">
+    <section class="fill-page row g-3" data-page="0">
       {% for item in extra %}{% include "_form_field.html" %}{% endfor %}
       {% if reopen %}
-      <h2 class="h5 mt-2 mb-0"><i class="fa-solid fa-pen me-1"></i>Bitte prüfen und ggf. korrigieren</h2>
-      <p class="text-secondary small mb-0">Diese Angaben aus Ihrem Antrag sind mit dem bisherigen Stand vorausgefüllt.{% if reopen | selectattr('type', 'equalto', 'file') | list %} Dateien bitte erneut hochladen.{% endif %}</p>
+      <div class="col-12"><h2 class="h5 mt-2 mb-0"><i class="fa-solid fa-pen me-1"></i>Bitte prüfen und ggf. korrigieren</h2>
+      <p class="text-secondary small mb-0">Diese Angaben aus Ihrem Antrag sind mit dem bisherigen Stand vorausgefüllt.{% if reopen | selectattr('type', 'equalto', 'file') | list %} Dateien bitte erneut hochladen.{% endif %}</p></div>
       {% for item in reopen %}{% include "_form_field.html" %}{% endfor %}
       {% endif %}
     </section>
@@ -39,5 +39,6 @@
 <script src="/static/map-draw.js"></script>
 <script src="/static/form-geo.js"></script>
 {% endif %}
+<script src="/static/form-address.js"></script>
 <script src="/static/form-fill.js"></script>
 {% endblock %}

@@ -118,7 +118,8 @@ def _forms_mod():
 templates.env.filters["geocenter"] = lambda v: _forms_mod().geo_center(v)
 templates.env.filters["geoinput"] = lambda v: _forms_mod().geo_input(v)
 templates.env.globals["geo_position"] = lambda v, raw="": _forms_mod().geo_position(v, raw)
-templates.env.globals["perm_modules"] = {"processes": "applications"}
+templates.env.globals["perm_modules"] = {"processes": "applications", "app_create": "applications", "formblocks": "forms",
+                                         "dms_admin": "dms"}
 templates.env.globals.update(planning_when=planning.when, cancel_recipients=planning.cancel_recipients, local_input=planning.local_input,
                              is_upcoming=planning.is_upcoming, rsvp_labels=planning.RSVP_LABELS,
                              rsvp_summary=planning.rsvp_summary)
@@ -151,6 +152,7 @@ MODULES = {
     "laws": ("Rechtstexte", "module_laws", ("/laws", "/recht")),
     "maps": ("Kartenbrowser", "module_maps", ("/karte", "/maps")),
     "applications": ("Online-Anträge", "module_applications", ("/antraege", "/a/", "/tasks", "/processes")),
+    "dms": ("Ablage (DMS)", "module_dms", ("/dms",)),
 }
 _module_cache: dict = {"at": 0.0, "enabled": set(MODULES)}
 
@@ -337,25 +339,8 @@ users_manager = require("users")
 
 
 def home_for(user: User) -> str:
-    """Startseite nach dem Login: der erste freigeschaltete Bereich."""
-    if user.can("video"):
-        return "/"
-    modules = enabled_modules()
-    if user.can("forms") and "forms" in modules:
-        return "/forms"
-    if user.can("shortlinks") and "shortlinks" in modules:
-        return "/shortlinks"
-    if user.can("polls") and "polls" in modules:
-        return "/polls"
-    if user.can("bookings") and "bookings" in modules:
-        return "/bookings"
-    if user.can("laws") and "laws" in modules:
-        return "/laws"
-    if user.can("maps") and "maps" in modules:
-        return "/karte"
-    if user.can("users"):
-        return "/admin/users"
-    return "/forms/inbox" if "forms" in modules else "/profile"
+    """Startseite nach dem Login: das Dashboard (zeigt nur, was die Person nutzen darf)."""
+    return "/"
 
 
 _attempts: dict[str, list[float]] = {}
@@ -406,6 +391,16 @@ def _task_badge(user: User | None) -> int:
         return workflow.task_count(db, user)
 
 
+def _dms_nav(user: User | None) -> bool:
+    """Ablage in der Navigation zeigen: nur mit Zugriff auf mindestens einen Bereich."""
+    if user is None or "dms" not in enabled_modules():
+        return False
+    from .db import DmsAccess, GroupMember
+    with SessionLocal() as db:
+        groups = select(GroupMember.group_id).where(GroupMember.user_id == user.id)
+        return db.scalar(select(DmsAccess.id).where((DmsAccess.user_id == user.id) | DmsAccess.group_id.in_(groups)).limit(1)) is not None
+
+
 def render(request: Request, name: str, user: User | None = None, **ctx) -> HTMLResponse:
     messages = request.session.pop("flash", [])
     ui = branding.load()
@@ -421,6 +416,7 @@ def render(request: Request, name: str, user: User | None = None, **ctx) -> HTML
         "modules": enabled_modules(),
         "shared_nav": _shared_nav(user),
         "task_badge": _task_badge(user),
+        "dms_nav": _dms_nav(user),
         **ctx,
     })
 
@@ -515,7 +511,7 @@ def start_session(request: Request, db: Session, user: User, target: str) -> Red
     cfg = get_settings(db)
     request.session.clear()
     if target == "/":
-        target = "/admin/recordings" if user.is_admin else home_for(user)
+        target = home_for(user)
     found = twofa.methods(user, cfg)
     if found:
         request.session.update({"mfa_uid": user.id, "mfa_next": target, "mfa_at": time.time(), "mfa_tries": 0})
@@ -830,8 +826,25 @@ def join_guest(request: Request, token: str, name: str = Form(""), db: Session =
 
 @app.get("/")
 def dashboard(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    if not user.can("video"):
-        return redirect(home_for(user))
+    """Startseite: Kacheln mit Aufgaben, Anträgen, Terminen, Formularen und Ablage – je nach Rechten."""
+    from . import home
+    return render(request, "home.html", user, tiles=home.tiles(db, user, enabled_modules()), now=utcnow())
+
+
+@app.post("/dashboard/layout", dependencies=[Depends(check_csrf)])
+async def dashboard_layout(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    from . import home
+    data = await request.form()
+    order = [k for k in str(data.get("order", "")).split(",") if k in home.TILES]
+    hidden = [k for k in str(data.get("hidden", "")).split(",") if k in home.TILES]
+    target = db.get(User, user.id)
+    target.dashboard_json = json.dumps({"order": order, "hidden": hidden})
+    db.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.get("/meetings")
+def meetings_page(request: Request, user: User = Depends(video_user), db: Session = Depends(get_db)):
     meetings = db.scalars(
         select(Meeting).where(Meeting.owner_id == user.id).order_by(Meeting.created_at.desc())
     ).all()
@@ -840,7 +853,7 @@ def dashboard(request: Request, user: User = Depends(current_user), db: Session 
         .order_by(Recording.created_at.desc()).limit(8)
     ).all()
     upcoming = sorted((mt for mt in meetings if planning.is_upcoming(mt)), key=lambda mt: mt.starts_at)
-    return render(request, "dashboard.html", user, meetings=meetings, recent=recent, upcoming=upcoming,
+    return render(request, "meetings.html", user, meetings=meetings, recent=recent, upcoming=upcoming,
                   sm_ready=speechmind_ready(db, user), anonymous=anonymous_allowed(db))
 
 
@@ -965,7 +978,7 @@ def meeting_delete(request: Request, meeting_id: int, send_cancel: str = Form(""
     flash(request, "Meeting gelöscht. Vorhandene Aufnahmen bleiben für Admins sichtbar.")
     if recipients and send_cancel == "1":
         _flash_sent(request, count, mail_ready, meeting, "Die Absage")
-    return redirect("/")
+    return redirect("/meetings")
 
 
 @app.post("/meetings/{meeting_id}/guest-link", dependencies=[Depends(check_csrf)])
@@ -1808,8 +1821,9 @@ async def admin_groups_update(request: Request, gid: int, action: str = Form("sa
 
 @app.get("/admin/modules")
 def admin_modules(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
-    from .db import BookingPage, Form as FormModel, FormResponse, LawText, Poll, ShortLink, UserMap
+    from .db import BookingPage, DmsRecord, Form as FormModel, FormResponse, LawText, Poll, ShortLink, UserMap
     stats = {"bookings": db.scalar(select(func.count(BookingPage.id))),
+             "dms": db.scalar(select(func.count(DmsRecord.id))),
              "maps": db.scalar(select(func.count(UserMap.id))),
              "applications": db.scalar(select(func.count(FormResponse.id)).where(FormResponse.ref_no.is_not(None))),
              "laws": db.scalar(select(func.count(LawText.id))),
@@ -2233,9 +2247,12 @@ __all__ = ["app", "STATUS_RECORDED"]
 
 # Weitere Bereiche (registrieren ihre Routen an derselben App)
 from . import routes_shortlinks  # noqa: E402,F401
+from . import routes_blocks  # noqa: E402,F401  (vor routes_forms: /forms/blocks vor /forms/{id})
 from . import routes_applications  # noqa: E402,F401  (vor routes_forms: /forms/applications vor /forms/{id})
 from . import routes_forms  # noqa: E402,F401
 from . import routes_workflow  # noqa: E402,F401
+from . import routes_geo  # noqa: E402,F401
+from . import routes_dms  # noqa: E402,F401
 from . import routes_polls  # noqa: E402,F401
 from . import routes_bookings  # noqa: E402,F401
 from . import routes_sessions  # noqa: E402,F401

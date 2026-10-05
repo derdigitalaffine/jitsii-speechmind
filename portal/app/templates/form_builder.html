@@ -18,11 +18,15 @@
         <div class="card-body p-2">
           <div class="small text-secondary px-1 mb-1">Fragen</div>
           <div class="d-grid gap-1 mb-3" id="palette-questions">
-            {% for key, t in types.items() if t[2] %}<button type="button" class="btn btn-sm btn-outline-secondary text-start" data-add="{{ key }}"><i class="fa-solid {{ t[1] }} fa-fw me-2"></i>{{ t[0] }}</button>{% endfor %}
+            {% for key, t in types.items() if t[2] and key not in hidden_types %}<button type="button" class="btn btn-sm btn-outline-secondary text-start" data-add="{{ key }}"><i class="fa-solid {{ t[1] }} fa-fw me-2"></i>{{ t[0] }}</button>{% endfor %}
+          </div>
+          <div class="small text-secondary px-1 mb-1 d-flex align-items-center">Datenblöcke <a class="ms-auto small" href="/forms/blocks" title="Bibliothek der Datenblöcke">Bibliothek</a></div>
+          <div class="d-grid gap-1 mb-3" id="palette-blocks">
+            {% for bid in block_order %}{% set b = blocks[bid | string] %}<button type="button" class="btn btn-sm btn-outline-primary text-start" data-add-block="{{ b.id }}" title="{{ b.description }}"><i class="fa-solid {{ b.icon }} fa-fw me-2"></i>{{ b.name }}</button>{% else %}<div class="small text-secondary px-1">Noch keine Datenblöcke.</div>{% endfor %}
           </div>
           <div class="small text-secondary px-1 mb-1">Gliederung</div>
           <div class="d-grid gap-1" id="palette-layout">
-            {% for key, t in types.items() if not t[2] %}<button type="button" class="btn btn-sm btn-outline-secondary text-start" data-add="{{ key }}"><i class="fa-solid {{ t[1] }} fa-fw me-2"></i>{{ t[0] }}</button>{% endfor %}
+            {% for key, t in types.items() if not t[2] and key not in hidden_types %}<button type="button" class="btn btn-sm btn-outline-secondary text-start" data-add="{{ key }}"><i class="fa-solid {{ t[1] }} fa-fw me-2"></i>{{ t[0] }}</button>{% endfor %}
           </div>
           <div class="form-text px-1 mt-2">Klick fügt den Baustein unter dem ausgewählten Element ein. Reihenfolge per Ziehen am <i class="fa-solid fa-grip-vertical"></i> ändern.</div>
         </div>
@@ -43,7 +47,7 @@
     <span class="small text-secondary ms-auto d-none d-md-inline" id="builder-count"></span>
   </div>
 </form>
-<script type="application/json" id="builder-data">{{ {'items': schema, 'types': types, 'subtypes': subtypes, 'maxFileMb': max_file_mb} | tojson }}</script>
+<script type="application/json" id="builder-data">{{ {'items': schema, 'types': types, 'subtypes': subtypes, 'maxFileMb': max_file_mb, 'ops': cond_ops, 'widths': widths, 'blocks': blocks, 'canBlocks': can_blocks} | tojson }}</script>
 {% endblock %}
 {% block scripts %}
 <script src="/static/vendor/sortablejs/Sortable.min.js"></script>

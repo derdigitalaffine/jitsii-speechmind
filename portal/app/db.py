@@ -71,6 +71,7 @@ class User(Base):
     token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     # Freigeschaltete Bereiche, kommagetrennt (siehe PERMISSIONS). Admins dürfen immer alles.
+    dashboard_json: Mapped[str] = mapped_column(Text, default="")   # Startseite: Reihenfolge/ausgeblendete Kacheln
     permissions: Mapped[str] = mapped_column(String(255), default="video")
     # Zwei-Faktor-Anmeldung (siehe twofa.py)
     totp_secret_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -101,7 +102,11 @@ PERMISSIONS = {
     "polls": ("Terminumfragen", "fa-calendar-check", "Terminumfragen (wie Doodle) erstellen und auswerten"),
     "bookings": ("Terminbuchung", "fa-calendar-plus", "Buchungsseiten mit freien Zeitfenstern anbieten (z. B. Vorstellungsgespräche)"),
     "laws": ("Rechtstexte", "fa-scale-balanced", "Gesetze, Satzungen und Verordnungen einstellen, gliedern und veröffentlichen"),
+    "formblocks": ("Formularbausteine", "fa-cubes", "Datenblöcke (z. B. Antragsteller:in, Hund) in der zentralen Bibliothek anlegen und ändern"),
+    "dms_admin": ("Aktenplan verwalten", "fa-sitemap", "Ablagebereiche (DMS) anlegen, Lese-/Schreibrechte und Löschfristen festlegen, abgelaufene Vorgänge löschen"),
     "processes": ("Prozesse", "fa-diagram-project", "Bearbeitungsprozesse für Online-Anträge im Prozesseditor gestalten und veröffentlichen"),
+    "app_create": ("Online-Anträge einrichten", "fa-file-signature", "Formulare zu Online-Anträgen machen (Aktenzeichen, Frist, Zuständigkeit) und wieder zurückstellen"),
+    "maps_admin": ("Kartenlayer & Geocoding", "fa-layer-group", "Kartenlayer, Kartenstandard und die Adresssuche (Nominatim) einrichten"),
     "maps": ("Karten", "fa-map-location-dot", "Im Kartenbrowser eigene WMS/WFS-Layer hinzufügen, Karten speichern und teilen"),
     "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
 }
@@ -383,6 +388,7 @@ class Form(Base):
     notify_json: Mapped[bool] = mapped_column(Boolean, default=False)
     notify_csv: Mapped[bool] = mapped_column(Boolean, default=False)
     notify_scope: Mapped[str] = mapped_column(String(10), default="single")  # single | all
+    review: Mapped[bool] = mapped_column(Boolean, default=True)    # Übersicht vor dem Absenden
     # Online-Antrag (siehe applications.py): Aktenzeichen, Status, Zuständigkeit, PDF, Antragskatalog
     kind: Mapped[str] = mapped_column(String(12), default="survey")          # survey | application
     app_prefix: Mapped[str] = mapped_column(String(12), default="")          # z. B. GEW → GEW-2026-00042
@@ -400,6 +406,7 @@ class Form(Base):
     app_seq_year: Mapped[int] = mapped_column(Integer, default=0)
     app_seq: Mapped[int] = mapped_column(Integer, default=0)
     process_id: Mapped[int | None] = mapped_column(ForeignKey("processes.id", ondelete="SET NULL"), nullable=True)
+    dms_area_id: Mapped[int | None] = mapped_column(ForeignKey("dms_areas.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -672,6 +679,200 @@ class ApplicationDocument(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     response: Mapped[FormResponse] = relationship(back_populates="documents")
+
+
+class GeoCache(Base):
+    """Zwischenspeicher für Antworten des Geocoders (Nominatim), siehe geocode.py."""
+    __tablename__ = "geo_cache"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class FormBlock(Base):
+    """Datenblock (z. B. „Antragsteller:in“, „Hund“): gruppierte Felder, zentral gepflegt und in Formularen
+    verknüpft eingesetzt – Änderungen wirken in allen Formularen, die den Block nutzen."""
+    __tablename__ = "form_blocks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    icon: Mapped[str] = mapped_column(String(40), default="fa-cubes")
+    schema_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+_O = lambda *labels: [{"id": f"o{n}", "label": label} for n, label in enumerate(labels)]  # noqa: E731
+DEFAULT_BLOCKS = [
+    ("Antragsteller:in (Person)", "fa-user", "Name, Geburtsdatum, Anschrift und Kontakt einer Person.", [
+        {"id": "anrede", "type": "dropdown", "title": "Anrede", "width": "third", "options": _O("Frau", "Herr", "divers", "keine Angabe")},
+        {"id": "vorname", "type": "short", "title": "Vorname", "required": True, "width": "third", "subtype": "text"},
+        {"id": "nachname", "type": "short", "title": "Nachname", "required": True, "width": "third", "subtype": "text"},
+        {"id": "geburt", "type": "date", "title": "Geburtsdatum", "width": "third"},
+        {"id": "telefon", "type": "short", "title": "Telefon", "width": "third", "subtype": "phone"},
+        {"id": "email", "type": "short", "title": "E-Mail-Adresse", "required": True, "width": "third", "subtype": "email"},
+        {"id": "anschrift", "type": "address", "title": "Anschrift", "required": True, "mode": "full", "search": True,
+         "locate": False, "district": False, "coords": True}]),
+    ("Firma / Organisation", "fa-building", "Firmenname, Rechtsform, Register, Ansprechperson und Anschrift.", [
+        {"id": "firma", "type": "short", "title": "Firmenname", "required": True, "width": "two_thirds", "subtype": "text"},
+        {"id": "rechtsform", "type": "dropdown", "title": "Rechtsform", "width": "third",
+         "options": _O("Einzelunternehmen", "GbR", "GmbH", "UG (haftungsbeschränkt)", "AG", "e. K.", "KG", "OHG", "e. V.", "Sonstige")},
+        {"id": "register", "type": "short", "title": "Registergericht und -nummer", "width": "half", "subtype": "text",
+         "placeholder": "z. B. Amtsgericht Kaiserslautern HRB 1234"},
+        {"id": "ansprech", "type": "short", "title": "Ansprechperson", "width": "half", "subtype": "text"},
+        {"id": "anschrift", "type": "address", "title": "Geschäftsanschrift", "required": True, "mode": "full", "search": True,
+         "locate": False, "district": False, "coords": True},
+        {"id": "telefon", "type": "short", "title": "Telefon", "width": "half", "subtype": "phone"},
+        {"id": "email", "type": "short", "title": "E-Mail-Adresse", "width": "half", "subtype": "email"}]),
+    ("Adresse", "fa-house", "Straße, Hausnummer, PLZ und Ort mit Adresssuche.", [
+        {"id": "anschrift", "type": "address", "title": "Anschrift", "required": True, "mode": "full", "search": True,
+         "locate": True, "district": True, "coords": True}]),
+    ("Bankverbindung", "fa-building-columns", "Kontoinhaber:in, IBAN, BIC und Kreditinstitut.", [
+        {"id": "inhaber", "type": "short", "title": "Kontoinhaber:in", "required": True, "subtype": "text"},
+        {"id": "iban", "type": "short", "title": "IBAN", "required": True, "width": "two_thirds", "subtype": "regex",
+         "pattern": "[A-Za-z]{2}[0-9]{2}[A-Za-z0-9 ]{11,32}", "pattern_hint": "Bitte eine gültige IBAN angeben, z. B. DE12 3456 7890 1234 5678 90",
+         "placeholder": "DE00 0000 0000 0000 0000 00"},
+        {"id": "bic", "type": "short", "title": "BIC (optional)", "width": "third", "subtype": "text"},
+        {"id": "bank", "type": "short", "title": "Kreditinstitut", "subtype": "text"}]),
+    ("Hund", "fa-dog", "Angaben zum Hund für Hundesteuer und Anmeldung.", [
+        {"id": "name", "type": "short", "title": "Name des Hundes", "width": "half", "subtype": "text"},
+        {"id": "rasse", "type": "short", "title": "Rasse", "required": True, "width": "half", "subtype": "text",
+         "placeholder": "bei Mischlingen die erkennbaren Rassen"},
+        {"id": "geschlecht", "type": "radio", "title": "Geschlecht", "required": True, "width": "third", "options": _O("Rüde", "Hündin")},
+        {"id": "wurftag", "type": "date", "title": "Wurftag", "required": True, "width": "third"},
+        {"id": "seit", "type": "date", "title": "Gehalten seit", "required": True, "width": "third"},
+        {"id": "farbe", "type": "short", "title": "Farbe / Kennzeichen", "width": "half", "subtype": "text"},
+        {"id": "chip", "type": "short", "title": "Chipnummer (Transponder)", "width": "half", "subtype": "regex",
+         "pattern": "[0-9]{15}", "pattern_hint": "Die Chipnummer hat 15 Ziffern."},
+        {"id": "herkunft", "type": "dropdown", "title": "Herkunft", "width": "half",
+         "options": _O("Züchter:in", "Tierheim / Tierschutz", "Privatperson", "aus eigener Zucht", "Sonstiges")},
+        {"id": "nachweis", "type": "file", "title": "Nachweis (z. B. Kaufvertrag, Heimtierausweis)", "width": "half",
+         "file_types": ["pdf", "jpg", "jpeg", "png"], "max_files": 3, "max_size_mb": 10}]),
+    ("Fahrzeug", "fa-car", "Kennzeichen, Hersteller, Modell und Farbe.", [
+        {"id": "kennzeichen", "type": "short", "title": "Amtliches Kennzeichen", "required": True, "width": "third", "subtype": "text",
+         "placeholder": "KL-AB 123"},
+        {"id": "hersteller", "type": "short", "title": "Hersteller", "width": "third", "subtype": "text"},
+        {"id": "modell", "type": "short", "title": "Typ / Modell", "width": "third", "subtype": "text"},
+        {"id": "farbe", "type": "short", "title": "Farbe", "width": "third", "subtype": "text"}]),
+]
+
+
+def seed_form_blocks(db) -> None:
+    """Startbibliothek der Datenblöcke (nur bei leerer Bibliothek)."""
+    import json as _json
+    if db.scalar(select(FormBlock.id).limit(1)) is not None:
+        return
+    for name, icon, description, items in DEFAULT_BLOCKS:
+        db.add(FormBlock(name=name, icon=icon, description=description, schema_json=_json.dumps(items, ensure_ascii=False)))
+
+
+class DmsArea(Base):
+    """Ablagebereich im Aktenplan (verschachtelbar). Rechte gelten auch für alle Unterbereiche."""
+    __tablename__ = "dms_areas"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("dms_areas.id", ondelete="RESTRICT"), nullable=True, index=True)
+    code: Mapped[str] = mapped_column(String(40), default="")          # Aktenplan-Nummer, z. B. 1.2.3
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    retention_years: Mapped[int] = mapped_column(Integer, default=0)   # 0 = unbegrenzt / vom übergeordneten Bereich
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    access: Mapped[list["DmsAccess"]] = relationship(back_populates="area", cascade="all, delete-orphan",
+                                                     passive_deletes=True)
+
+
+class DmsAccess(Base):
+    __tablename__ = "dms_access"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    area_id: Mapped[int] = mapped_column(ForeignKey("dms_areas.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=True)
+    level: Mapped[int] = mapped_column(Integer, default=1)             # 1 lesen, 2 lesen und schreiben
+
+    area: Mapped[DmsArea] = relationship(back_populates="access")
+    user: Mapped[User | None] = relationship()
+    group: Mapped[Group | None] = relationship()
+
+
+class DmsRecord(Base):
+    """Eintrag in der Ablage: ein Online-Antrag (laufend oder abgeschlossen) oder ein manuell abgelegter Vorgang."""
+    __tablename__ = "dms_records"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    area_id: Mapped[int] = mapped_column(ForeignKey("dms_areas.id", ondelete="RESTRICT"), index=True)
+    response_id: Mapped[int | None] = mapped_column(ForeignKey("form_responses.id", ondelete="SET NULL"), nullable=True,
+                                                    unique=True)
+    kind: Mapped[str] = mapped_column(String(12), default="antrag")     # antrag | manuell
+    title: Mapped[str] = mapped_column(String(300), default="")
+    ref_no: Mapped[str] = mapped_column(String(60), default="", index=True)
+    form_title: Mapped[str] = mapped_column(String(255), default="")
+    applicant: Mapped[str] = mapped_column(String(255), default="")
+    applicant_email: Mapped[str] = mapped_column(String(255), default="")
+    status: Mapped[str] = mapped_column(String(16), default="")
+    street: Mapped[str] = mapped_column(String(255), default="")
+    zip: Mapped[str] = mapped_column(String(10), default="")
+    city: Mapped[str] = mapped_column(String(200), default="")
+    district: Mapped[str] = mapped_column(String(200), default="")
+    lat: Mapped[float | None] = mapped_column(nullable=True)
+    lon: Mapped[float | None] = mapped_column(nullable=True)
+    assignee: Mapped[str] = mapped_column(String(255), default="")
+    note: Mapped[str] = mapped_column(Text, default="")
+    received_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    retention_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    text: Mapped[str] = mapped_column(Text, default="")               # Volltext (klein geschrieben)
+    created_by: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    area: Mapped[DmsArea] = relationship()
+    response: Mapped["FormResponse | None"] = relationship()
+    files: Mapped[list["DmsFile"]] = relationship(back_populates="record", cascade="all, delete-orphan",
+                                                  order_by="DmsFile.id", passive_deletes=True)
+
+
+class DmsFile(Base):
+    __tablename__ = "dms_files"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    record_id: Mapped[int] = mapped_column(ForeignKey("dms_records.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    file: Mapped[str] = mapped_column(String(80))
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    mime: Mapped[str] = mapped_column(String(100), default="")
+    kind: Mapped[str] = mapped_column(String(16), default="upload")    # upload | abschluss | dokument
+    sha256: Mapped[str] = mapped_column(String(64), default="")
+    note: Mapped[str] = mapped_column(String(500), default="")
+    uploaded_by: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    record: Mapped[DmsRecord] = relationship(back_populates="files")
+
+
+class DmsSearch(Base):
+    """Gespeicherte Suche einer Person."""
+    __tablename__ = "dms_searches"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    query: Mapped[str] = mapped_column(Text, default="")
+
+
+class DmsLog(Base):
+    """Protokoll für Löschungen und Verschiebungen (Nachweis bei Löschfristen)."""
+    __tablename__ = "dms_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    user_name: Mapped[str] = mapped_column(String(255), default="")
+    action: Mapped[str] = mapped_column(String(40))
+    text: Mapped[str] = mapped_column(Text, default="")
 
 
 class Poll(Base):
@@ -1158,8 +1359,12 @@ DEFAULT_SETTINGS = {
     "map_cache_mb": "500",           # Größe des Kachel-Zwischenspeichers
     "maps_embed": "1",
     "maps_embed_origins": "",
+    "geocoder_url": "https://nominatim.openstreetmap.org",   # Adress-/Ortssuche (eigener Nominatim-Server möglich)
+    "geocoder_countries": "de",
+    "geocoder_contact": "",
     # Online-Anträge (Teil des Formularservers) und öffentlicher Antragskatalog
     "module_applications": "1",
+    "module_dms": "1",
     "apps_embed": "1",
     "apps_embed_origins": "",
     # Kurzlinks
@@ -1178,7 +1383,7 @@ _NEW_COLUMNS = {
         "permissions": "VARCHAR(255) NOT NULL DEFAULT 'video'",
         "totp_secret_enc": "TEXT", "totp_enabled": "BOOLEAN NOT NULL DEFAULT 0", "totp_last_step": "INTEGER",
         "mfa_email": "BOOLEAN NOT NULL DEFAULT 0", "recovery_json": "TEXT", "email_code_hash": "VARCHAR(64)",
-        "email_code_expires": "DATETIME",
+        "email_code_expires": "DATETIME", "dashboard_json": "TEXT NOT NULL DEFAULT ''",
     },
     "recordings": {"audio_path": "VARCHAR(1024)", "audio_max_db": "FLOAT", "media_deleted_at": "DATETIME",
                    "chat_json": "TEXT", "polls_json": "TEXT"},
@@ -1195,7 +1400,9 @@ _NEW_COLUMNS = {
               "app_deadline_days": "INTEGER NOT NULL DEFAULT 14", "app_catalog": "BOOLEAN NOT NULL DEFAULT 1",
               "app_pdf": "BOOLEAN NOT NULL DEFAULT 1", "app_seq_year": "INTEGER NOT NULL DEFAULT 0",
               "app_seq": "INTEGER NOT NULL DEFAULT 0",
-              "process_id": "INTEGER REFERENCES processes(id) ON DELETE SET NULL"},
+              "process_id": "INTEGER REFERENCES processes(id) ON DELETE SET NULL",
+              "review": "BOOLEAN NOT NULL DEFAULT 1",
+              "dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL"},
     "form_responses": {"ref_no": "VARCHAR(40)", "status": "VARCHAR(16) NOT NULL DEFAULT ''", "status_at": "DATETIME",
                        "assignee_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
                        "group_id": "INTEGER REFERENCES groups(id) ON DELETE SET NULL",
@@ -1236,6 +1443,13 @@ def init_db() -> None:
                 db.add(Setting(key=key, value=value))
         seed_law_levels(db)
         seed_map_layers(db)
+        seed_form_blocks(db)
+        if db.get(Setting, "migrated_app_create") is None:
+            # Neues Recht „Online-Anträge einrichten“: wer bisher Formulare bearbeiten durfte, behält die Möglichkeit.
+            for u in db.scalars(select(User)):
+                if "forms" in u.perms and "app_create" not in u.perms:
+                    u.permissions = ",".join([*u.perms, "app_create"])
+            db.add(Setting(key="migrated_app_create", value="1"))
         db.commit()
 
 

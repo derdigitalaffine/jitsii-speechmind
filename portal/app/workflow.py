@@ -34,7 +34,10 @@ STEP_TYPES = {
     "approval": ("Freigabe", "fa-stamp", "Eine Person oder Gruppe genehmigt oder lehnt ab."),
     "request": ("Nachforderung", "fa-file-circle-question", "Die antragstellende Person reicht Angaben oder Dateien nach."),
     "auto": ("Automatik", "fa-robot", "Mail senden, Status setzen, Bescheid-PDF erzeugen – ohne Zutun."),
+    "confirm": ("E-Mail bestätigen", "fa-envelope-circle-check",
+                "Double-Opt-in: Der Prozess wartet, bis die antragstellende Person den Link in der Mail angeklickt hat."),
 }
+EXPIRE_ACTIONS = {"notify": "Zuständige informieren (Vorgang bleibt offen)", "withdraw": "Vorgang beenden (Status „Zurückgezogen“)"}
 ASSIGN_MODES = {"case": "Zuständigkeit des Vorgangs", "user": "Bestimmte Person", "group": "Gruppe",
                 "previous": "Wer den vorigen Schritt erledigt hat"}
 OPS = {"eq": "ist gleich", "ne": "ist nicht", "contains": "enthält", "filled": "ist ausgefüllt",
@@ -44,10 +47,10 @@ FIELD_TYPES = {"text": "Text", "textarea": "Langer Text", "number": "Zahl", "mon
 ACTION_TYPES = {"mail": "E-Mail senden", "status": "Status setzen", "pdf": "Dokument (PDF) erzeugen",
                 "assign": "Zuständigkeit des Vorgangs ändern"}
 MAIL_TARGETS = {"applicant": "Antragsteller:in", "case": "Zuständige des Vorgangs", "email": "Feste Adresse"}
-KEY_RE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
+KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_]{0,39}$")
 STEP_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 TOKEN_RE = re.compile(r"\{(feld|frage):([^{}]{1,200})\}|\{([a-z_]{1,30})\}")
-REQUEST_TYPES = ("short", "long", "radio", "checkbox", "dropdown", "date", "file", "geo", "text")
+REQUEST_TYPES = ("short", "long", "radio", "checkbox", "dropdown", "date", "file", "address", "geo", "text")
 CLOSED = apps.CLOSED
 
 
@@ -77,23 +80,37 @@ def _clean_condition(raw) -> dict | None:
     return {"source": raw["source"], "key": key, "op": raw["op"], "value": _s(raw.get("value"), 500)}
 
 
-def _clean_fields(raw) -> list[dict]:
-    out, seen = [], set()
+def _clean_fields(raw, seen: set | None = None) -> list[dict]:
+    """Interne Felder einer Aufgabe. Der Schlüssel ist frei wählbar (Platzhalter {feld:schlüssel});
+    ohne Angabe bekommt das Feld die nächste freie Nummer – eindeutig im ganzen Prozess."""
+    out = []
+    seen = seen if seen is not None else set()
+    pending = []
     for f in raw if isinstance(raw, list) else []:
         if not isinstance(f, dict):
             continue
         label = _s(f.get("label"), 200)
-        key = _s(f.get("key"), 40).lower() or re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")[:40]
-        if not key or not key[0].isalpha():
-            key = "feld_" + key
-        key = re.sub(r"[^a-z0-9_]", "_", key)[:40]
-        if not label or key in seen or not KEY_RE.match(key):
+        if not label:
+            continue
+        key = re.sub(r"[^a-z0-9_]", "_", _s(f.get("key"), 40).lower().replace("ä", "ae").replace("ö", "oe")
+                     .replace("ü", "ue").replace("ß", "ss")).strip("_")[:40]
+        if not key or key in seen or not KEY_RE.match(key):
+            pending.append((len(out), f, label))
+            out.append(None)
             continue
         seen.add(key)
         kind = f.get("type") if f.get("type") in FIELD_TYPES else "text"
         options = [o for o in (_s(x, 200) for x in (f.get("options") or [])) if o][:50] if kind == "select" else []
         out.append({"key": key, "label": label, "type": kind, "options": options, "required": bool(f.get("required"))})
-    return out[:30]
+    for pos, f, label in pending:
+        n = 1
+        while str(n) in seen:
+            n += 1
+        seen.add(str(n))
+        kind = f.get("type") if f.get("type") in FIELD_TYPES else "text"
+        options = [o for o in (_s(x, 200) for x in (f.get("options") or [])) if o][:50] if kind == "select" else []
+        out[pos] = {"key": str(n), "label": label, "type": kind, "options": options, "required": bool(f.get("required"))}
+    return [f for f in out if f][:30]
 
 
 def _clean_actions(raw) -> list[dict]:
@@ -134,7 +151,7 @@ def clean_definition(raw) -> dict:
         except ValueError:
             raw = {}
     raw = raw if isinstance(raw, dict) else {}
-    steps, seen = [], set()
+    steps, seen, field_keys = [], set(), set()
     for src in raw.get("steps") if isinstance(raw.get("steps"), list) else []:
         if not isinstance(src, dict) or src.get("type") not in STEP_TYPES:
             continue
@@ -151,7 +168,7 @@ def clean_definition(raw) -> dict:
             "condition": _clean_condition(src.get("condition")),
             "status": src.get("status") if src.get("status") in apps.STATUSES else "",
         }
-        if kind in ("task", "approval"):
+        if kind in ("task", "approval") or (kind == "request" and src.get("compose") == "clerk"):
             mode = assign.get("mode") if assign.get("mode") in ASSIGN_MODES else "case"
             step["assign"] = {"mode": mode, "user_id": _id(assign.get("user_id")) if mode == "user" else None,
                               "group_id": _id(assign.get("group_id")) if mode == "group" else None}
@@ -162,19 +179,26 @@ def clean_definition(raw) -> dict:
             step["goto"] = _s(src.get("goto"), 40)
         if kind == "task":
             step["checklist"] = [c for c in (_s(x, 300) for x in (src.get("checklist") or [])) if c][:30]
-            step["fields"] = _clean_fields(src.get("fields"))
+            step["fields"] = _clean_fields(src.get("fields"), field_keys)
         elif kind == "approval":
             step["four_eyes"] = bool(src.get("four_eyes"))
             step["on_reject"] = _s(src.get("on_reject"), 40) or "end"
             step["reject_status"] = src.get("reject_status") if src.get("reject_status") in apps.STATUSES else "rejected"
         elif kind == "request":
+            step["compose"] = "clerk" if src.get("compose") == "clerk" else "auto"
+            step["compose_days"] = _days(src.get("compose_days")) if step["compose"] == "clerk" else 0
             step["message"] = _s(src.get("message"), 10000)
             step["items"] = clean_request_items(src.get("items"))
             step["reopen"] = [t for t in (_s(x, 500) for x in (src.get("reopen") or [])) if t][:40]
-            step["due_days"] = _days(src.get("due_days")) or 14
+            step["due_days"] = _days(src.get("due_days")) or 14   # Frist für die antragstellende Person
             step["status"] = step["status"] or "query"
         elif kind == "auto":
             step["actions"] = _clean_actions(src.get("actions"))
+        elif kind == "confirm":
+            step["message"] = _s(src.get("message"), 5000)
+            step["due_days"] = _days(src.get("due_days"), 60) or 7
+            step["remind"] = src.get("remind") is not False
+            step["on_expire"] = src.get("on_expire") if src.get("on_expire") in EXPIRE_ACTIONS else "notify"
         steps.append(step)
     ids = {s["id"] for s in steps}
     for step in steps:   # Sprünge auf gelöschte Schritte entfernen
@@ -204,7 +228,7 @@ def check(definition: dict, db=None) -> list[str]:
             hints.append(f"{label}: Es ist keine Person ausgewählt.")
         if assign.get("mode") == "group" and not assign.get("group_id"):
             hints.append(f"{label}: Es ist keine Gruppe ausgewählt.")
-        if s["type"] == "request" and not s.get("items") and not s.get("reopen"):
+        if s["type"] == "request" and s.get("compose") != "clerk" and not s.get("items") and not s.get("reopen"):
             hints.append(f"{label}: Die Nachforderung fragt nichts ab.")
         if s["type"] == "auto" and not s.get("actions"):
             hints.append(f"{label}: Die Automatik hat keine Aktionen.")
@@ -496,6 +520,8 @@ def _set_status(db, resp: FormResponse, status: str, text: str = "", inform: boo
     resp.status, resp.status_at = status, utcnow()
     resp.closed_at = utcnow() if status in CLOSED else None
     _event(resp, "status", text, status=status, public=True, actor_name=actor_name)
+    from . import dms
+    dms.sync(db, resp)
     if inform:
         apps.notify_applicant(db, resp.form, resp, "app_status", {"nachricht": text})
 
@@ -542,6 +568,26 @@ def _finish(db, resp: FormResponse) -> None:
 def _create_task(db, resp: FormResponse, step: dict) -> ApplicationTask:
     now = utcnow()
     task = ApplicationTask(step_id=step["id"], name=step["name"], kind=step["type"], state="open")
+    if step["type"] == "confirm":
+        task.state = "waiting"
+        task.assignee_id, task.group_id = resp.assignee_id, resp.group_id
+        task.due_at = now + timedelta(days=step.get("due_days") or 7)
+        task.data_json = json.dumps({"code": secrets.token_urlsafe(18)})
+        resp.tasks.append(task)
+        db.flush()
+        sent = send_confirm(db, resp, task, step)
+        _event(resp, "task", f"{step['name']}: Bestätigungslink " + ("per E-Mail verschickt" if sent else "konnte nicht verschickt werden (keine Adresse)"))
+        return task
+    if step["type"] == "request" and step.get("compose") == "clerk":
+        # Die Sachbearbeitung stellt die Nachforderung zusammen (Vorschlag aus dem Prozess), erst dann wartet der Prozess
+        task.assignee_id, task.group_id = _resolve(db, resp, step)
+        task.due_at = now + timedelta(days=step["compose_days"]) if step.get("compose_days") else None
+        task.data_json = json.dumps({"compose": True})
+        resp.tasks.append(task)
+        db.flush()
+        _event(resp, "task", f"{step['name']}: Nachforderung zusammenstellen – zuständig: {who(task)}")
+        _notify_task(db, resp, task, step, "app_task")
+        return task
     if step["type"] == "request":
         task.state = "waiting"
         task.assignee_id, task.group_id = resp.assignee_id, resp.group_id
@@ -819,6 +865,45 @@ def document_pdf(resp: FormResponse, title: str, body: str) -> bytes:
     return buf.getvalue()
 
 
+# --- Double-Opt-in ------------------------------------------------------------------------
+
+def confirm_link(resp: FormResponse, task: ApplicationTask) -> str:
+    return f"{apps.track_link(resp)}/confirm/{task.data.get('code', '')}"
+
+
+def send_confirm(db, resp: FormResponse, task: ApplicationTask, step: dict | None = None) -> bool:
+    to = apps.applicant_email(resp.form, resp)
+    if not to:
+        return False
+    step = step or step_of(task) or {}
+    values = {**apps._common(resp.form, resp), "name": resp.name or to, "bestaetigen_link": confirm_link(resp, task),
+              "nachricht": fill(step.get("message", ""), resp),
+              "bestaetigen_bis": to_local(task.due_at).strftime("%d.%m.%Y") if task.due_at else ""}
+    subject, body = mailtpl.render(db, "app_confirm", values)
+    return notify.enqueue(db, to, subject, body, "app_confirm")
+
+
+def open_confirm(resp: FormResponse) -> ApplicationTask | None:
+    return next((t for t in resp.tasks if t.kind == "confirm" and t.state == "waiting"), None)
+
+
+def confirm(db, resp: FormResponse, code: str) -> str:
+    """Link aus der Mail angeklickt: „ok“, „done“ (schon bestätigt) oder „invalid“."""
+    for task in resp.tasks:
+        if task.kind != "confirm" or not code or not secrets.compare_digest(str(task.data.get("code", "")), code):
+            continue
+        if task.state != "waiting":
+            return "done" if task.state == "done" else "invalid"
+        task.state, task.outcome, task.completed_at = "done", "done", utcnow()
+        task.completed_by = resp.name or resp.email or "Antragsteller:in"
+        _event(resp, "task", "E-Mail-Adresse bestätigt", public=True, actor_name=task.completed_by)
+        steps = steps_of(resp)
+        index = next((n for n, s in enumerate(steps) if s["id"] == task.step_id), len(steps) - 1)
+        _advance(db, resp, index + 1, "")
+        return "ok"
+    return "invalid"
+
+
 # --- Nachforderungen -----------------------------------------------------------------------
 
 def requested_text(resp: FormResponse, req: ApplicationRequest) -> str:
@@ -841,6 +926,8 @@ def _request_values(resp, req) -> dict:
 
 def create_request(db, resp: FormResponse, title: str, message: str, items: list, reopen: list[str], due_at,
                    actor_name: str, task: ApplicationTask | None = None, set_query: bool = True) -> ApplicationRequest:
+    if task is not None and task.state == "open":   # zusammengestellte Nachforderung: jetzt auf die Antwort warten
+        task.state = "waiting"
     req = ApplicationRequest(title=title[:200] or "Nachforderung", message=message[:10000],
                              schema_json=json.dumps(clean_request_items(items), ensure_ascii=False),
                              reopen_json=json.dumps(reopen[:40]), due_at=due_at, created_by=actor_name,
@@ -1050,6 +1137,29 @@ def send_reminders() -> int:
                                       {"bearbeiter": before, "eskalation": note}, targets=targets)
                 task.escalated_at = now
                 _event(resp, "task", f"{task.name}: Frist überschritten – eskaliert" + (" und neu zugewiesen" if esc.get("reassign") else ""))
+        for task in db.scalars(select(ApplicationTask).where(ApplicationTask.kind == "confirm",
+                                                             ApplicationTask.state == "waiting")).all():
+            resp, step = task.response, step_of(task) or {}
+            if resp.closed_at:
+                continue
+            half = task.created_at + (task.due_at - task.created_at) / 2 if task.due_at else None
+            if step.get("remind", True) and task.reminded_at is None and half and now >= half and task.due_at > now:
+                if send_confirm(db, resp, task, step):
+                    _event(resp, "task", "Erinnerung: Bestätigungslink erneut verschickt")
+                    count += 1
+                task.reminded_at = now
+            if task.due_at and now >= task.due_at and task.escalated_at is None:
+                task.escalated_at = now
+                if step.get("on_expire") == "withdraw":
+                    task.state, task.completed_at, task.comment = "cancelled", now, "nicht bestätigt"
+                    _set_status(db, resp, "withdrawn", "Die E-Mail-Adresse wurde nicht rechtzeitig bestätigt; der Antrag wird nicht bearbeitet.",
+                                inform=False)
+                    cancel_open(resp, "nicht bestätigt")
+                else:
+                    count += _notify_task(db, resp, task, step, "app_task_overdue",
+                                          {"eskalation": "Die antragstellende Person hat ihre E-Mail-Adresse nicht bestätigt."},
+                                          targets=apps._staff_addresses(db, resp.form, resp))
+                    _event(resp, "task", "E-Mail-Adresse nicht innerhalb der Frist bestätigt – Zuständige informiert")
         reqs = db.scalars(select(ApplicationRequest).where(ApplicationRequest.state == "open", ApplicationRequest.due_at.is_not(None),
                                                            ApplicationRequest.due_at < now, ApplicationRequest.reminded_at.is_(None))).all()
         for req in reqs:

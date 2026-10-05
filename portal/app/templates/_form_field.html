@@ -1,7 +1,11 @@
 {# Ein Element im Ausfüllformular. Erwartet: item, values, errors, other #}
 {% set qid = item.id %}{% set name = 'q_' ~ qid %}{% set err = errors.get(qid) %}{% set val = values.get(qid) %}
+{% set wcls = {'half': 'col-md-6', 'third': 'col-md-4', 'two_thirds': 'col-md-8'}.get(item.width, '') %}
+<div class="fill-item col-12 {{ wcls }}" data-qid="{{ qid }}"{% if item.show_if %} data-show-if="{{ item.show_if | tojson | forceescape }}"{% endif %}{% if item.show_if2 %} data-show-if2="{{ item.show_if2 | tojson | forceescape }}"{% endif %}{% if item.required_if %} data-required-if="{{ item.required_if | tojson | forceescape }}"{% endif %}{% if item.required %} data-required-base="1"{% endif %}>
 {% if item.type == 'heading' %}
   <h2 class="h4 mt-3 mb-1">{{ item.title }}</h2>{% if item.description %}<p class="text-secondary">{{ item.description | richtext }}</p>{% endif %}
+{% elif item.type == 'subheading' and item.block %}
+  <div class="block-head mt-2"><h3 class="h5 mb-0">{{ item.title }}</h3>{% if item.description %}<div class="text-secondary small">{{ item.description | richtext }}</div>{% endif %}</div>
 {% elif item.type == 'subheading' %}
   <h3 class="h5 mt-2 mb-1">{{ item.title }}</h3>{% if item.description %}<p class="text-secondary small">{{ item.description | richtext }}</p>{% endif %}
 {% elif item.type == 'text' %}
@@ -45,6 +49,8 @@
       <option value="">Bitte wählen …</option>
       {% for o in item.options %}<option {% if o.label == val %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
     </select>
+  {% elif item.type == 'date' and item.with_time %}
+    <input class="form-control {{ 'is-invalid' if err }}" style="max-width: 18rem" type="datetime-local" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" {% if item.min %}min="{{ item.min[:10] }}T00:00"{% endif %} {% if item.max %}max="{{ item.max[:10] }}T23:59"{% endif %} {% if item.required %}required{% endif %}>
   {% elif item.type == 'date' %}
     <input class="form-control {{ 'is-invalid' if err }}" style="max-width: 14rem" type="date" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" {% if item.min %}min="{{ item.min }}"{% endif %} {% if item.max %}max="{{ item.max }}"{% endif %} {% if item.required %}required{% endif %}>
   {% elif item.type == 'time' %}
@@ -68,6 +74,30 @@
     <input class="form-control {{ 'is-invalid' if err }}" type="file" id="{{ name }}" name="{{ name }}" {% if item.max_files > 1 %}multiple{% endif %}
       {% if item.file_types %}accept=".{{ item.file_types | join(',.') }}"{% endif %} data-max-mb="{{ item.max_size_mb }}" data-max-files="{{ item.max_files }}" {% if item.required %}required{% endif %}>
     <div class="form-text">{% if item.file_types %}Erlaubt: {{ item.file_types | join(', ') }} · {% endif %}max. {{ item.max_size_mb }} MB{% if item.max_files > 1 %} je Datei, bis zu {{ item.max_files }} Dateien{% endif %}</div>
+  {% elif item.type == 'address' %}
+    {% set a = val if val is mapping else {} %}{% set full = item.mode != 'zip_city' %}
+    <div class="js-address" data-name="{{ name }}" data-full="{{ '1' if full else '' }}" data-district="{{ '1' if item.district else '' }}">
+      {% if item.search or item.locate %}
+      <div class="d-flex flex-wrap gap-2 mb-2 position-relative">
+        {% if item.search %}<div class="flex-grow-1 position-relative" style="min-width: 14rem">
+          <div class="input-group input-group-sm"><span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+            <input class="form-control js-addr-search" type="search" autocomplete="off" placeholder="{{ 'Adresse suchen, z. B. Hauptstraße 1 Otterberg' if full else 'Ort oder PLZ suchen' }}" aria-label="Adresse suchen"></div>
+          <div class="list-group addr-results js-addr-results d-none" role="listbox"></div></div>{% endif %}
+        {% if item.locate %}<button class="btn btn-sm btn-outline-primary js-addr-locate" type="button"><i class="fa-solid fa-location-crosshairs me-1"></i>Meinen Standort übernehmen</button>{% endif %}
+      </div>
+      {% endif %}
+      <div class="row g-2">
+        {% if full %}
+        <div class="col-9 col-md-8"><label class="form-label small mb-0" for="{{ name }}__street">Straße</label><input class="form-control" id="{{ name }}__street" name="{{ name }}__street" value="{{ a.street or '' }}" autocomplete="address-line1" maxlength="200" data-part-required="1" {% if item.required %}required{% endif %}></div>
+        <div class="col-3 col-md-4"><label class="form-label small mb-0" for="{{ name }}__house_no">Nr.</label><input class="form-control" id="{{ name }}__house_no" name="{{ name }}__house_no" value="{{ a.house_no or '' }}" maxlength="20"></div>
+        {% endif %}
+        <div class="col-4 col-md-3"><label class="form-label small mb-0" for="{{ name }}__zip">PLZ</label><input class="form-control js-addr-zip" id="{{ name }}__zip" name="{{ name }}__zip" value="{{ a.zip or '' }}" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" autocomplete="postal-code" title="Fünfstellige Postleitzahl" data-part-required="1" {% if item.required %}required{% endif %}></div>
+        <div class="col-8 col-md-{{ '5' if item.district else '9' }}"><label class="form-label small mb-0" for="{{ name }}__city">Ort</label><input class="form-control js-addr-city" id="{{ name }}__city" name="{{ name }}__city" value="{{ a.city or '' }}" autocomplete="address-level2" maxlength="200" list="{{ name }}__cities" data-part-required="1" {% if item.required %}required{% endif %}><datalist id="{{ name }}__cities"></datalist></div>
+        {% if item.district %}<div class="col-12 col-md-4"><label class="form-label small mb-0" for="{{ name }}__district">Ortsteil</label><input class="form-control" id="{{ name }}__district" name="{{ name }}__district" value="{{ a.district or '' }}" maxlength="200"></div>{% endif %}
+      </div>
+      {% if item.coords %}<input type="hidden" name="{{ name }}__lat" class="js-addr-lat" value="{{ a.lat or '' }}"><input type="hidden" name="{{ name }}__lon" class="js-addr-lon" value="{{ a.lon or '' }}">{% endif %}
+      <div class="form-text js-addr-info">{% if full %}Tipp: Adresse oben suchen und übernehmen – oder Felder selbst ausfüllen; {% endif %}die PLZ ergänzt den Ort automatisch.</div>
+    </div>
   {% elif item.type == 'geo' %}
     {% set kinds = item.geometries or [item.geometry or 'point'] %}{% set maxf = item.max_features or 1 %}
     {% set single_point = kinds == ['point'] and maxf == 1 %}
@@ -105,3 +135,4 @@
   {% if err %}<div class="text-danger small mt-2"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ err }}</div>{% endif %}
 </div></div>
 {% endif %}
+</div>

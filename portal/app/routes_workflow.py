@@ -113,6 +113,12 @@ async def task_action(request: Request, form_id: int, resp_id: int, task_id: int
         elif action == "skip":
             wf.skip(db, task, user, comment)
             flash(request, f"„{task.name}“ übersprungen." + _next_hint(resp))
+        elif action == "remind" and task.kind == "confirm":
+            if wf.send_confirm(db, resp, task):
+                apps._event(resp, "task", "Bestätigungslink erneut verschickt", user)
+                flash(request, "Bestätigungsmail wird erneut verschickt.")
+            else:
+                flash(request, "Keine E-Mail-Adresse bekannt.", "error")
         elif action == "remind":
             req = next((r for r in resp.requests if r.task_id == task.id and r.state == "open"), None)
             if req and wf.remind_request(db, resp, req):
@@ -173,8 +179,18 @@ async def request_create(request: Request, form_id: int, resp_id: int, user: Use
         return redirect(_back(form_id, resp_id, "nachfordern"))
     due = _local_date(str(data.get("due", ""))) if data.get("due") else None
     title = " ".join(str(data.get("title", "")).split())[:200] or "Bitte ergänzen Sie Ihren Antrag"
-    wf.create_request(db, resp, title, message, items, reopen, due, user.name, set_query=data.get("set_query") == "1")
-    if data.get("save_template") == "1" and user.can("processes") and items:
+    task = None
+    if str(data.get("task_id", "")).isdigit():   # Prozessschritt „Nachforderung – Sachbearbeitung wählt“
+        task = db.get(ApplicationTask, int(data["task_id"]))
+        if task is None or task.response_id != resp.id or task.kind != "request" or task.state != "open":
+            task = None
+        elif due:
+            task.due_at = due
+    wf.create_request(db, resp, title, message, items, reopen, due, user.name, task=task,
+                      set_query=data.get("set_query") == "1" or task is not None)
+    if task is not None:
+        apps._event(resp, "task", f"{task.name}: Nachforderung gestellt von {user.name}", user)
+    if data.get("save_template") == "1" and items:
         db.add(RequestTemplate(name=title, message=message, schema_json=json.dumps(items, ensure_ascii=False),
                                due_days=max(1, (due - utcnow()).days + 1) if due else 14))
     db.commit()
@@ -339,6 +355,34 @@ async def applicant_request_submit(request: Request, token: str, req_id: int, db
     return redirect(f"/a/{token}")
 
 
+@app.get("/a/{token}/confirm/{code}")
+def applicant_confirm(request: Request, token: str, code: str, db: Session = Depends(get_db)):
+    rate_limit(request, "app-confirm", limit=30)
+    resp = _tracked(db, token)
+    result = wf.confirm(db, resp, code)
+    if result == "ok":
+        db.commit()
+        worker.wake()
+        flash(request, "Vielen Dank – Ihre E-Mail-Adresse ist bestätigt. Ihr Antrag wird jetzt bearbeitet.")
+    elif result == "done":
+        flash(request, "Ihre E-Mail-Adresse wurde bereits bestätigt.")
+    else:
+        flash(request, "Dieser Bestätigungslink ist ungültig oder abgelaufen.", "error")
+    return redirect(f"/a/{token}")
+
+
+@app.post("/a/{token}/confirm-resend", dependencies=[Depends(check_csrf)])
+def applicant_confirm_resend(request: Request, token: str, db: Session = Depends(get_db)):
+    rate_limit(request, "app-confirm-resend", limit=3, window=3600)
+    resp = _tracked(db, token)
+    task = wf.open_confirm(resp)
+    if task and wf.send_confirm(db, resp, task):
+        db.commit()
+        worker.wake()
+        flash(request, "Wir haben Ihnen den Bestätigungslink erneut geschickt.")
+    return redirect(f"/a/{token}")
+
+
 @app.get("/a/{token}/documents/{doc_id:int}")
 def applicant_document(token: str, doc_id: int, db: Session = Depends(get_db)):
     resp = _tracked(db, token)
@@ -422,6 +466,7 @@ def process_editor(request: Request, process_id: int, user: User = Depends(proce
     editor = {
         "definition": definition, "types": wf.STEP_TYPES, "assignModes": wf.ASSIGN_MODES, "ops": wf.OPS,
         "fieldTypes": wf.FIELD_TYPES, "actionTypes": wf.ACTION_TYPES, "mailTargets": wf.MAIL_TARGETS,
+        "expireActions": wf.EXPIRE_ACTIONS,
         "statuses": {k: v[0] for k, v in apps.STATUSES.items()}, "closed": sorted(apps.CLOSED - {"withdrawn"}),
         "users": [{"id": u.id, "name": u.name} for u in _users(db)],
         "groups": [{"id": g.id, "name": g.name} for g in _groups(db)],
@@ -433,7 +478,7 @@ def process_editor(request: Request, process_id: int, user: User = Depends(proce
         # tojson sortiert Schlüssel – die gewünschte Reihenfolge der Auswahllisten separat mitgeben
         "order": {"types": list(wf.STEP_TYPES), "assignModes": list(wf.ASSIGN_MODES), "ops": list(wf.OPS),
                   "fieldTypes": list(wf.FIELD_TYPES), "actionTypes": list(wf.ACTION_TYPES),
-                  "mailTargets": list(wf.MAIL_TARGETS), "statuses": list(apps.STATUSES),
+                  "mailTargets": list(wf.MAIL_TARGETS), "statuses": list(apps.STATUSES), "expireActions": list(wf.EXPIRE_ACTIONS),
                   "requestTypes": list(wf.REQUEST_TYPES), "subtypes": list(fm.SUBTYPES)},
     }
     return render(request, "process_editor.html", user, process=process, editor=editor, usage=use,

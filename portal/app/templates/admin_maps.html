@@ -73,6 +73,11 @@
           <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="c-embed" name="maps_embed" value="1" {% if cfg.maps_embed == '1' %}checked{% endif %}><label class="form-check-label small" for="c-embed">erlaubt</label></div></div>
         <div class="col-12"><label class="form-label small" for="c-origins">Nur auf diesen Webseiten einbettbar (leer = alle)</label>
           <textarea class="form-control form-control-sm font-monospace" id="c-origins" name="maps_embed_origins" rows="2" placeholder="https://www.example.de">{{ cfg.maps_embed_origins | replace(' ', '\n') }}</textarea></div>
+        <div class="col-12 border-top pt-2 mt-3"><div class="fw-semibold small mb-1"><i class="fa-solid fa-magnifying-glass-location me-1"></i>Adress- und Ortssuche (Geocoder)</div>
+          <div class="form-text mt-0 mb-2">Für die Ortssuche im Kartenbrowser und Adressfelder in Formularen. Anfragen laufen über das Portal (30 Tage zwischengespeichert, höchstens eine je Sekunde). Standard ist der öffentliche Nominatim-Dienst der OpenStreetMap Foundation; für viele Anfragen besser einen eigenen Nominatim-Server eintragen.</div></div>
+        <div class="col-md-8"><label class="form-label small" for="g-url">Adresse des Nominatim-Servers</label><input class="form-control form-control-sm" id="g-url" name="geocoder_url" value="{{ cfg.geocoder_url }}" placeholder="https://nominatim.openstreetmap.org"></div>
+        <div class="col-md-4"><label class="form-label small" for="g-cc">Länder (ISO-Codes)</label><input class="form-control form-control-sm" id="g-cc" name="geocoder_countries" value="{{ cfg.geocoder_countries }}" placeholder="de"></div>
+        <div class="col-12"><label class="form-label small" for="g-mail">Kontakt-E-Mail für den Dienstbetreiber (empfohlen)</label><input class="form-control form-control-sm" id="g-mail" name="geocoder_contact" type="email" value="{{ cfg.geocoder_contact }}" placeholder="it@vg-beispiel.de"></div>
       </div>
     </div>
     <div class="card-footer"><button class="btn btn-primary btn-sm" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div>

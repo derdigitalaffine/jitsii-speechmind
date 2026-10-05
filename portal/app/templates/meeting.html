@@ -3,7 +3,7 @@
 {% block title %}{{ meeting.title }}{% endblock %}
 {% block content %}
 <div {% if meeting.recordings | selectattr('status', 'in', active_statuses) | list %}data-autorefresh="30"{% endif %}>
-<nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="/">Meetings</a></li><li class="breadcrumb-item active">{{ meeting.title }}</li></ol></nav>
+<nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="/meetings">Meetings</a></li><li class="breadcrumb-item active">{{ meeting.title }}</li></ol></nav>
 {% call m.page_head(meeting.title, 'Raum ' ~ meeting.room ~ ((' · gehört ' ~ meeting.owner.name) if meeting.owner_id != user.id else '')) %}
   <a class="btn btn-primary btn-lg" href="/meetings/{{ meeting.id }}/join"><i class="fa-solid fa-video me-2"></i>Konferenz betreten</a>
 {% endcall %}

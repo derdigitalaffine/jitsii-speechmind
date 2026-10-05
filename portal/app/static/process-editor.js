@@ -39,6 +39,10 @@
       s.items = [{ id: uid(), type: 'file', title: 'Unterlagen', description: '', required: true, file_types: [], max_files: 3, max_size_mb: 10 }];
       s.reopen = []; s.status = 'query';
     }
+    if (type === 'confirm') {
+      s.name = 'E-Mail-Adresse bestätigen'; s.public_name = 'Bestätigung Ihrer E-Mail-Adresse'; s.message = '';
+      s.due_days = 7; s.remind = true; s.on_expire = 'notify';
+    }
     if (type === 'auto') {
       s.name = 'Antragsteller:in informieren';
       s.actions = [{ type: 'mail', to: 'applicant', subject: 'Ihr Antrag {aktenzeichen}', body: 'Guten Tag {name},\n\n…', attach: '' }];
@@ -49,7 +53,8 @@
   /* --- Zusammenfassung je Schritt (linke Liste) ----------------------------- */
   function assignText(s) {
     var a = s.assign || {};
-    if (s.type === 'request') { return 'Antragsteller:in'; }
+    if (s.type === 'confirm') { return 'Antragsteller:in (Link in der Mail)'; }
+    if (s.type === 'request' && s.compose !== 'clerk') { return 'Antragsteller:in'; }
     if (s.type === 'auto') { return 'automatisch'; }
     if (a.mode === 'user') { var u = byId(D.users, a.user_id); return u ? u.name : 'Person fehlt!'; }
     if (a.mode === 'group') { var g = byId(D.groups, a.group_id); return g ? 'Gruppe ' + g.name : 'Gruppe fehlt!'; }
@@ -161,12 +166,13 @@
     return h;
   }
 
-  function assignHtml(s) {
+  function assignHtml(s, dueKey) {
+    dueKey = dueKey || 'due_days';
     var a = s.assign || {}, e = s.escalate || {};
     var h = '<div class="row g-2">' + lbl('Zuständig', sel('assign.mode', keys('assignModes').map(function (k) { return [k, D.assignModes[k]]; }), a.mode || 'case'), 'col-sm-6');
     if (a.mode === 'user') { h += lbl('Person', sel('assign.user_id', users(), a.user_id || ''), 'col-sm-6'); }
     if (a.mode === 'group') { h += lbl('Gruppe', sel('assign.group_id', groups(), a.group_id || ''), 'col-sm-6', 'Alle Mitglieder sehen die Aufgabe und können sie übernehmen.'); }
-    h += lbl('Bearbeitungsfrist', '<div class="input-group input-group-sm"><input class="form-control" type="number" min="0" max="365" data-p="due_days" data-num="1" value="' + esc(s.due_days || 0) + '"><span class="input-group-text">Tage</span></div>', 'col-sm-6', '0 = keine Frist. Bei Überschreitung wird erinnert.');
+    h += lbl('Bearbeitungsfrist', '<div class="input-group input-group-sm"><input class="form-control" type="number" min="0" max="365" data-p="' + dueKey + '" data-num="1" value="' + esc(s[dueKey] || 0) + '"><span class="input-group-text">Tage</span></div>', 'col-sm-6', '0 = keine Frist. Bei Überschreitung wird erinnert.');
     h += '</div><div class="row g-2 mt-1"><div class="col-12 small fw-semibold">Eskalation bei Fristüberschreitung (optional)</div>' +
       lbl('', sel('escalate.user_id', [['', '– Person –']].concat(D.users.map(function (u) { return [u.id, u.name]; })), e.user_id || ''), 'col-sm-4') +
       lbl('', sel('escalate.group_id', [['', '– Gruppe –']].concat(D.groups.map(function (g) { return [g.id, g.name]; })), e.group_id || ''), 'col-sm-4') +
@@ -180,14 +186,16 @@
       return '<div class="row g-1 align-items-center mb-1" data-field="' + i + '">' +
         '<div class="col-sm-4">' + inp('fields.' + i + '.label', f.label, 'placeholder="Bezeichnung, z. B. Gebühr"') + '</div>' +
         '<div class="col-sm-3">' + sel('fields.' + i + '.type', keys('fieldTypes').map(function (k) { return [k, D.fieldTypes[k]]; }), f.type) + '</div>' +
-        '<div class="col-sm-3">' + (f.type === 'select' ? inp('fields.' + i + '.options', (f.options || []).join('; '), 'placeholder="Optionen; getrennt"') : '<span class="small text-secondary font-monospace" title="Platzhalter">{feld:' + esc(f.key || '…') + '}</span>') + '</div>' +
+        '<div class="col-sm-3"><div class="input-group input-group-sm" title="Platzhalter in Mails und Bescheiden: {feld:' + esc(f.key) + '}"><span class="input-group-text font-monospace px-1">{feld:</span>' +
+          '<input class="form-control font-monospace px-1" data-p="fields.' + i + '.key" value="' + esc(f.key) + '" maxlength="40" aria-label="Schlüssel des Feldes"><span class="input-group-text font-monospace px-1">}</span></div>' +
+          (f.type === 'select' ? inp('fields.' + i + '.options', (f.options || []).join('; '), 'placeholder="Optionen; getrennt" class="mt-1"') : '') + '</div>' +
         '<div class="col-sm-1">' + sw('fields.' + i + '.required', '<span class="visually-hidden">Pflicht</span>', f.required) + '</div>' +
         '<div class="col-sm-1 text-end"><button type="button" class="btn btn-sm btn-link text-danger" data-del-field="' + i + '" title="Feld entfernen" aria-label="Feld entfernen"><i class="fa-solid fa-xmark"></i></button></div></div>';
     }).join('');
-    var head = rows ? '<div class="row g-1 small text-secondary"><div class="col-sm-4">Bezeichnung</div><div class="col-sm-3">Art</div><div class="col-sm-3">Optionen / Platzhalter</div><div class="col-sm-2">Pflicht</div></div>' : '';
+    var head = rows ? '<div class="row g-1 small text-secondary"><div class="col-sm-4">Bezeichnung</div><div class="col-sm-3">Art</div><div class="col-sm-3">Platzhalter / Optionen</div><div class="col-sm-2">Pflicht</div></div>' : '';
     return head + (rows || '<div class="small text-secondary mb-1">Keine internen Felder.</div>') +
       '<button type="button" class="btn btn-sm btn-outline-secondary" data-add-field><i class="fa-solid fa-plus me-1"></i>Feld</button>' +
-      '<div class="form-text">Werte stehen im Vorgang, in Bedingungen späterer Schritte und als {feld:…} in Mails und Bescheiden zur Verfügung. Schalter = Pflichtfeld.</div>';
+      '<div class="form-text">Werte stehen im Vorgang, in Bedingungen späterer Schritte und als {feld:…} in Mails und Bescheiden zur Verfügung. Der Platzhalter ist frei wählbar (Kleinbuchstaben, Ziffern, _); vorgeschlagen wird die nächste freie Nummer. Schalter = Pflichtfeld.</div>';
   }
 
   function actionsHtml(s) {
@@ -251,16 +259,28 @@
       h += section('Danach', 'fa-arrow-right', sel('goto', otherSteps(s, 'weiter mit dem nächsten Schritt'), s.goto || '') + '<div class="form-text">Für Schleifen oder um Schritte zu überspringen' + (s.type === 'approval' ? ' (nach der Genehmigung)' : '') + '.</div>');
     }
     if (s.type === 'request') {
+      h += section('Wer legt fest, was nachgefordert wird?', 'fa-user-pen', sel('compose', [['auto', 'Fest im Prozess – wird automatisch verschickt'], ['clerk', 'Sachbearbeitung wählt beim Erreichen des Schritts']], s.compose || 'auto') +
+        '<div class="form-text">Bei „Sachbearbeitung wählt“ bekommt die zuständige Person eine Aufgabe mit dem Nachforderungs-Dialog: die Felder unten sind vorgeschlagen, Vorlagen und eigene Felder lassen sich ergänzen.</div>' +
+        (s.compose === 'clerk' ? '<div class="mt-2">' + assignHtml(s, 'compose_days').replace('Bearbeitungsfrist', 'Frist zum Zusammenstellen') + '</div>' : ''));
       h += section('Nachforderung', 'fa-file-circle-question', '<div class="row g-2">' +
         lbl('Nachricht an die antragstellende Person', area('message', s.message, 3, 'data-ph="1" placeholder="z. B. Bitte reichen Sie einen aktuellen Lageplan ein."'), 'col-12') +
         lbl('Frist zum Nachreichen', '<div class="input-group input-group-sm"><input class="form-control" type="number" min="1" max="365" data-p="due_days" data-num="1" value="' + esc(s.due_days || 14) + '"><span class="input-group-text">Tage</span></div>', 'col-sm-5', 'Nach Ablauf wird einmal erinnert.') + '</div>' +
         (D.templates.length ? '<div class="mt-2"><select class="form-select form-select-sm w-auto d-inline-block" data-load-template aria-label="Vorlage übernehmen"><option value="">Felder aus Vorlage übernehmen …</option>' + D.templates.map(function (x) { return '<option value="' + x.id + '">' + esc(x.name) + '</option>'; }).join('') + '</select></div>' : '') +
-        '<div class="fw-semibold small mt-3 mb-1">Abgefragte Felder</div><div id="pe-req-fields"></div>' +
+        '<div class="d-flex align-items-center mt-3 mb-1"><span class="fw-semibold small">' + (s.compose === 'clerk' ? 'Vorgeschlagene Felder' : 'Abgefragte Felder') + '</span>' +
+        '<button type="button" class="btn btn-sm btn-link ms-auto" data-save-template title="Felder und Nachricht als Vorlage für Nachforderungen speichern"><i class="fa-regular fa-bookmark me-1"></i>Als Vorlage speichern</button></div><div id="pe-req-fields"></div>' +
         '<div class="fw-semibold small mt-3 mb-1">Antragsfragen zur Korrektur öffnen</div>' +
         (D.questions.length ? '<div class="row row-cols-1 row-cols-sm-2 g-1">' + D.questions.map(function (q, i) {
           return '<div class="col"><div class="form-check"><input class="form-check-input" type="checkbox" id="ro' + i + '" data-reopen value="' + esc(q) + '"' + ((s.reopen || []).indexOf(q) >= 0 ? ' checked' : '') + '><label class="form-check-label small" for="ro' + i + '">' + esc(q) + '</label></div></div>';
         }).join('') + '</div>' : '<div class="small text-secondary">Sobald ein Antragsformular den Prozess nutzt, erscheinen hier seine Fragen.</div>') +
         '<div class="form-text">Der Prozess wartet, bis die Angaben eingehen; der Status steht währenddessen auf „Rückfrage“.</div>' + placeholderHelp);
+    }
+    if (s.type === 'confirm') {
+      h += section('Double-Opt-in', 'fa-envelope-circle-check', '<div class="row g-2">' +
+        lbl('Zusätzlicher Hinweis in der Mail (optional)', area('message', s.message, 2, 'data-ph="1"'), 'col-12', 'Die Mail enthält immer den Bestätigungslink, Aktenzeichen und Frist.') +
+        lbl('Frist zum Bestätigen', '<div class="input-group input-group-sm"><input class="form-control" type="number" min="1" max="60" data-p="due_days" data-num="1" value="' + esc(s.due_days || 7) + '"><span class="input-group-text">Tage</span></div>', 'col-sm-5') +
+        '<div class="col-sm-7 d-flex align-items-end">' + sw('remind', 'Nach der Hälfte der Frist einmal erinnern', s.remind !== false) + '</div>' +
+        lbl('Wenn nicht bestätigt wird', sel('on_expire', keys('expireActions').map(function (k) { return [k, D.expireActions[k]]; }), s.on_expire || 'notify'), 'col-12') + '</div>' +
+        '<div class="form-text">Der Prozess hält an, bis der Link angeklickt wurde. Die Sachbearbeitung kann im Vorgang den Link erneut senden oder ohne Bestätigung fortfahren.</div>');
     }
     if (s.type === 'auto') {
       h += section('Aktionen', 'fa-bolt', actionsHtml(s));
@@ -293,7 +313,7 @@
     return el.value;
   }
   // Änderungen, die den Aufbau des Panels verändern → neu zeichnen
-  var STRUCTURAL = /^(assign\.mode|condition\.source|condition\.op|on_reject|cond_on|actions\.\d+\.to|fields\.\d+\.type)$/;
+  var STRUCTURAL = /^(compose|assign\.mode|condition\.source|condition\.op|on_reject|cond_on|actions\.\d+\.to|fields\.\d+\.type)$/;
 
   function onInput(ev) {
     var el = ev.target, p = el.dataset.p;
@@ -311,10 +331,12 @@
       target.checklist = el.value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
     } else if (/^fields\.\d+\.options$/.test(p)) {
       setPath(target, p, el.value.split(';').map(function (x) { return x.trim(); }).filter(Boolean));
+    } else if (/^fields\.\d+\.key$/.test(p)) {
+      setPath(target, p, value.toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9_]/g, '').slice(0, 40));
     } else if (/^fields\.\d+\.label$/.test(p)) {
       setPath(target, p, value);
       var f = target.fields[+p.split('.')[1]];
-      if (!f._fixed) { f.key = value.toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40); }
+      if (!f.key) { var u2 = {}; def.steps.forEach(function (x) { (x.fields || []).forEach(function (g) { u2[g.key] = 1; }); }); var m = 1; while (u2[String(m)]) { m++; } f.key = String(m); }
     } else if (/(user_id|group_id)$/.test(p)) {
       setPath(target, p, value ? parseInt(value, 10) : null);
     } else {
@@ -355,8 +377,20 @@
         t.focus(); t.selectionStart = t.selectionEnd = pos + b.dataset.insert.length;
         t.dispatchEvent(new Event('input', { bubbles: true }));
       }
+    } else if (b.hasAttribute('data-save-template')) {
+      var nm = window.prompt('Name der Vorlage:', s.public_name || s.name);
+      if (!nm) { return; }
+      var body = new URLSearchParams();
+      body.append('csrf', csrf); body.append('action', 'save'); body.append('name', nm); body.append('message', s.message || '');
+      body.append('due_days', s.due_days || 14); body.append('items_json', JSON.stringify(s.items || []));
+      fetch('/processes/templates', { method: 'POST', body: body, credentials: 'same-origin' }).then(function (r) {
+        if (r.ok) { D.templates.push({ id: 'neu', name: nm, message: s.message, items: s.items, due_days: s.due_days }); stateEl.textContent = 'Vorlage „' + nm + '“ gespeichert'; renderPanel(); }
+      });
     } else if (b.hasAttribute('data-add-field')) {
-      s.fields = s.fields || []; s.fields.push({ key: '', label: '', type: 'text', options: [], required: false });
+      var used = {};
+      def.steps.forEach(function (x) { (x.fields || []).forEach(function (f) { used[f.key] = 1; }); });
+      var n = 1; while (used[String(n)]) { n++; }
+      s.fields = s.fields || []; s.fields.push({ key: String(n), label: '', type: 'text', options: [], required: false, _fixed: true });
       markDirty(); renderPanel();
       var inputs = panel.querySelectorAll('[data-p$=".label"]'); if (inputs.length) { inputs[inputs.length - 1].focus(); }
     } else if (b.dataset.delField) {

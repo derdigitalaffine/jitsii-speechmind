@@ -64,6 +64,10 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - **Auswerten:** Zusammenfassung mit Diagrammen, Einzelansicht, Export **CSV** (Excel) und **JSON**.
 - **Benachrichtigung** bei neuen Antworten, wahlweise mit CSV- und/oder JSON-Anhang – nur die neue Antwort oder jeweils alle.
 - **Im Portal teilen** mit Personen oder Gruppen in drei Stufen: Ergebnisse einsehen · zusätzlich einladen · zusätzlich bearbeiten und löschen.
+- **Bedingte Felder:** Anzeige und Pflicht eines Feldes hängen auf Wunsch von Antworten anderer Felder ab – mehrere Regeln mit UND/ODER (ist gleich, ist nicht, enthält, ausgefüllt, leer, größer, kleiner); live beim Ausfüllen und auf dem Server geprüft.
+- **Datenblöcke:** zentrale Bibliothek wiederkehrender Feldgruppen (Antragsteller:in, Firma, Adresse, Bankverbindung, Hund, Fahrzeug als Startvorlagen, eigene frei anlegbar). In Formularen **verknüpft** eingefügt – Änderungen am Block wirken in allen Formularen. Eigenes Recht „Formularbausteine“.
+- **Adressfeld mit Komfort:** Straße, Hausnummer, PLZ, Ort (optional Ortsteil und Koordinaten); **Adresssuche** und **eigener Standort als Adresse** über Nominatim; alternativ nur **PLZ → Ort** automatisch. Alles je Feld einstellbar.
+- **Ausfüllen:** Feldbreiten (ganz, halb, Drittel), **Schrittanzeige** mit Seitennamen, **Zusammenfassung vor dem Absenden**, **Entwurf** wird im Browser gesichert, Datum wahlweise mit Uhrzeit.
 - **Fragetyp „Ort in der Karte“:** je Frage wählbar, ob **Punkte, Linien und/oder Flächen** eingezeichnet werden dürfen (auch mehrere Objekte); Punkte per Klick, GPS oder Eingabe, Linien und Flächen mit verschiebbaren Eckpunkten. Optional zusätzlich der **eigene Standort** der ausfüllenden Person (GPS mit Genauigkeit). Länge und Fläche werden berechnet; Auswertung als Karte, Export als GeoJSON-Geometrie.
 
 ### Online-Anträge (abschaltbares Modul, Teil des Formularservers)
@@ -72,16 +76,29 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - **Zuständigkeit und Weiterleitung:** Person, Gruppe oder Funktionspostfach als Vorgabe, dazu Regeln nach Antworten (z. B. Ortsgemeinde „Otterberg“ → Sachbearbeitung Otterberg). Zuweisen, übernehmen, Frist ändern, **Erinnerung bei Fristüberschreitung**.
 - **Antragseingang** mit Filtern (offen, mir zugewiesen, überfällig, Rückfrage) und Vorgangsansicht mit Verlauf, internen Notizen und Nachrichten an die antragstellende Person.
 - **Statusseite für Antragsteller:innen** über einen geheimen Link: Stand und Verlauf ansehen, auf Rückfragen antworten, Antrag zurückziehen, PDF herunterladen.
-- **PDF des Antrags** (mit Prüfsumme gegen nachträgliche Änderungen) als Anhang der Eingangsbestätigung und der Mail an Zuständige bzw. Funktionspostfach – für die E-Akte.
+- **PDF des Antrags** (mit Prüfsumme gegen nachträgliche Änderungen) **samt hochgeladener PDFs und Bilder** mit Anlagenverzeichnis und Seitenzahlen, als Anhang der Eingangsbestätigung und der Mail an Zuständige bzw. Funktionspostfach – für die E-Akte.
 - **Workflow-Engine mit Prozesseditor:** wiederverwendbare Bearbeitungsprozesse aus Arbeitsschritten – **Aufgabe** (Checkliste, interne Felder wie Gebühr), **Freigabe** (genehmigen/ablehnen, Vier-Augen-Prinzip, Rücksprung), **Nachforderung** an die antragstellende Person und **Automatik** (Mail, Status, Zuständigkeit, **Bescheid als PDF** aus Textvorlage mit Platzhaltern). Je Schritt Zuständigkeit (Person, Gruppe, Vorgang, Vorbearbeiter), Frist mit Erinnerung und **Eskalation**, Bedingungen (nach Antworten, internen Feldern oder Ergebnis früherer Schritte). **Versionen:** laufende Vorgänge bleiben auf ihrer Version. Vorlagen, Export/Import. Eigenes Recht „Prozesse“.
+- **Double-Opt-in** als Prozessschritt: Der Prozess wartet, bis die antragstellende Person den Link in der Mail bestätigt hat (Frist, Erinnerung, danach Hinweis oder Vorgang beenden).
+- **Nachforderung durch die Sachbearbeitung zusammenstellen:** Der Prozess hält an, die Sachbearbeitung wählt aus, was nachgefordert wird – frei, aus gespeicherten **Vorlagen** oder aus den im Prozess vorgeschlagenen Feldern – und speichert Neues auf Wunsch als Vorlage.
 - **Meine Aufgaben:** offene Schritte für mich und meine Gruppen nach Frist, Übernehmen mit einem Klick, Zähler in der Navigation.
 - **Nachforderungen:** Sachbearbeitung fordert zusätzliche Angaben und **Dateien** (Felder wie im Baukasten, auch Kartenfragen) oder die **Korrektur von Antragsfeldern** an – ad hoc oder aus Vorlagen; die antragstellende Person reicht über ihre Statusseite nach, Erinnerung bei Fristablauf. Ursprüngliche Angaben bleiben unverändert (Prüfsumme), Korrekturen werden daneben angezeigt.
 - **Fortschritt für Antragsteller:innen:** öffentliche Schrittnamen als Fortschrittsleiste auf der Statusseite, Bescheide zum Herunterladen.
 - **Öffentlicher Antragskatalog** unter `/antraege` mit Kategorien, Suche, Gebühren, Unterlagen und Bearbeitungsdauer – auch per iframe in die Homepage einbettbar.
 
+### Ablage (DMS, abschaltbares Modul)
+
+- **Aktenplan** als Baum (z. B. `1 Ordnung › 1.2 Hundesteuer`) mit **Lese- und Schreibrechten** für Personen und Gruppen, die nach unten vererbt werden. Jede:r sieht nur die eigenen Bereiche, Admins alles.
+- **Online-Anträge** landen automatisch im Bereich ihres Formulars – laufend und abgeschlossen; beim Abschluss wird das **Antrags-PDF mit Anlagen** samt erzeugten Bescheiden als Abschlussstand abgelegt. Dazu **manuelle Ablage** von Vorgängen mit Dateien.
+- **Recherche** nach Volltext, Antragsteller:in, Aktenzeichen, Ort/PLZ/Straße, Antragsart, Status, Art und Eingangsdatum; **gespeicherte Suchen**, CSV-Export.
+- **Löschfristen** je Bereich (vererbbar): Ablauf am Jahresende nach Abschluss + N Jahre; Löschen mit Begründung und Protokoll. Eigenes Recht „Aktenplan verwalten“.
+
+### Startseite
+
+- Nach der Anmeldung eine **Übersicht** mit allem, was gerade wichtig ist: meine Aufgaben und Fristen, Antragseingang, Termine & Meetings, Terminumfragen, Buchungen, Formulare zum Ausfüllen, neue Antworten, Ablage und Schnellzugriff – jeweils direkt verlinkt, nur was die Person darf. **Kacheln per Ziehen sortieren und ausblenden.**
+
 ### Kartenbrowser und Kartenlayer (abschaltbares Modul)
 
-- **Kartenbrowser** mit MapLibre GL unter `/karte` für alle, auch ohne Anmeldung (einbettbar): Grundkarten (basemap.de farbig/grau/Vektor, OpenStreetMap), Fachdaten als **WMS, WMS-T (Zeitregler), WFS, WMTS/XYZ** und GeoJSON, Transparenz, Reihenfolge per Ziehen, Legende, Sachinformation per Klick, **Zeichnen und Messen** von Punkten, Linien und Flächen (benennen, einfärben, Eckpunkte verschieben, GeoJSON laden und herunterladen), Koordinaten in WGS84 und UTM 32, Koordinatensuche, Kartenbild als PNG, Link auf den Ausschnitt.
+- **Kartenbrowser** mit MapLibre GL unter `/karte` für alle, auch ohne Anmeldung (einbettbar): Grundkarten (basemap.de farbig/grau/Vektor, OpenStreetMap), Fachdaten als **WMS, WMS-T (Zeitregler), WFS, WMTS/XYZ** und GeoJSON, Transparenz, Reihenfolge per Ziehen, Legende, Sachinformation per Klick, **Zeichnen und Messen** von Punkten, Linien und Flächen (benennen, einfärben, Eckpunkte verschieben, GeoJSON laden und herunterladen), Koordinaten in WGS84 und UTM 32, **Orts- und Adresssuche** (Nominatim, über den Server) und Koordinatensuche, Kartenbild als PNG, Link auf den Ausschnitt.
 - Angemeldete mit Recht „Karten“ fügen **eigene Dienste** komfortabel hinzu („Dienst abfragen“ liest die Layer aus GetCapabilities), **speichern Karten** samt Zeichnungen und **teilen** sie per Link oder iframe.
 - **Systemweite Layerverwaltung** für Admins: Layer anlegen (mit Dienstabfrage), Grundkarte oder Überlagerung, Gruppen, Reihenfolge per Ziehen, öffentlich/intern, Startsichtbarkeit, Verwendung in Formularen, WMS-T-Zeitwerte, Legende, Erreichbarkeit prüfen, Duplizieren, Export/Import als JSON, Übernahme von Benutzer-Layern, Startausschnitt, Zwischenspeicher.
 - Je Layer wählbar: **über das Portal laden** (Proxy mit Kachel-Zwischenspeicher, keine IP-Adressen an Dritte, keine CORS-Probleme) oder direkt beim Anbieter. Eigene Layer von Benutzer:innen laufen immer über den Proxy – mit Schutz vor Zugriffen ins interne Netz.
@@ -97,15 +114,15 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 
 ### Verwaltung und Sicherheit
 
-- **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Terminumfragen, Terminbuchung, Prozesse, Karten, Rechtstexte, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
+- **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Formularbausteine, Online-Anträge einrichten, Prozesse, Aktenplan verwalten, Terminumfragen, Terminbuchung, Karten, Kartenlayer & Geocoding, Rechtstexte, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
 - **Gehärtet:** Content-Security-Policy und weitere Sicherheits-Header, CSRF-Schutz für alle Formulare, Bremse gegen Passwort-Raten je IP und je Konto, keine Kontenermittlung über Antwortzeiten, Uploads nur als Download, aktuelle Bibliotheken ohne bekannte Sicherheitslücken.
 - **Zwei-Faktor-Anmeldung** per **Authenticator-App (TOTP)** oder **Code per E-Mail**, mit Notfallcodes; freiwillig oder Pflicht für Admins/alle. „Passwort vergessen“ per Mail-Link.
-- **Module** Kurzlinks, Formulare, Online-Anträge, Terminumfragen, Terminbuchung, Kartenbrowser und Rechtstexte komplett abschaltbar.
+- **Module** Kurzlinks, Formulare, Online-Anträge, Ablage (DMS), Terminumfragen, Terminbuchung, Kartenbrowser und Rechtstexte komplett abschaltbar.
 - **Sitzungen & Cookies:** technische Übersicht, wer angemeldet ist (Gerät, IP, letzte Aktivität), Inhalt und Eigenschaften der Session-Cookies; Sitzungen einzeln, je Person oder alle anderen beenden. Jede:r sieht unter Profil › Sicherheit die eigenen angemeldeten Geräte; ein neues Passwort meldet alle anderen Geräte ab.
 - **E-Mail** über SMTP mit Warteschlange, Wiederholungen und Protokoll; optional Ablage in „Gesendet“ per IMAP. **Alle Mails als Vorlagen bearbeitbar**, mit Platzhaltern und Live-Vorschau.
 - **HTTPS** mit Caddy: Start mit selbst signiertem Zertifikat, **Let's Encrypt** per Klick in der Oberfläche.
 - **Design & Branding:** Name, Farben, Logo (auch große Dateien – der Server verkleinert), Favicon (sonst automatisch aus dem Logo), Fußzeile, Impressum/Datenschutz; auf Wunsch auch in der Konferenzoberfläche und damit in den Aufnahmen.
-- **Moderne Oberfläche** mit Bootstrap 5 und Font Awesome 7, hell/dunkel, durchsuchbare Tabellen, Diagramme – alle Bibliotheken liegen lokal, **keine Verbindung zu Drittanbietern**.
+- **Moderne Oberfläche** mit Bootstrap 5 und Font Awesome 7, hell/dunkel, durchsuchbare Tabellen, Diagramme – alle Bibliotheken liegen lokal, **keine Verbindung zu Drittanbietern** aus dem Browser (die Adresssuche fragt Nominatim über den Server, mit Zwischenspeicher).
 - Seite **„Über dieses Portal“** mit allen verwendeten Komponenten und ihren Lizenzen.
 
 ## Dokumentation

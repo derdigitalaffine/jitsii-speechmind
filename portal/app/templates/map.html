@@ -16,10 +16,11 @@
       <button class="btn btn-sm btn-link text-secondary ms-auto" type="button" id="panel-close" aria-label="Seitenleiste schließen"><i class="fa-solid fa-angles-left"></i></button>
     </div>
     <div class="map-panel-body">
-      <form class="input-group input-group-sm mb-3" id="coord-search" role="search">
-        <input class="form-control" id="coord-input" placeholder="Koordinate: 49.49, 7.77 oder UTM 32 412345 5483210" aria-label="Koordinate suchen">
-        <button class="btn btn-outline-secondary" type="submit" aria-label="Hinspringen"><i class="fa-solid fa-location-crosshairs"></i></button>
+      <form class="input-group input-group-sm mb-1" id="coord-search" role="search">
+        <input class="form-control" id="coord-input" type="search" placeholder="Ort, Adresse oder Koordinate" aria-label="Ort, Adresse oder Koordinate suchen" title="z. B. „Rathaus Otterberg“, „Hauptstraße 1, Otterbach“, „49.49, 7.77“ oder „UTM 32 412345 5483210“">
+        <button class="btn btn-outline-secondary" type="submit" aria-label="Suchen"><i class="fa-solid fa-magnifying-glass"></i></button>
       </form>
+      <div id="place-results" class="mb-2" aria-live="polite"></div>
 
       <div class="map-section-title">Grundkarte</div>
       <div id="base-list" class="mb-3"></div>

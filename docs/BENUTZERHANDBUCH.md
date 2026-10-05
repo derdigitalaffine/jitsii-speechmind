@@ -24,6 +24,7 @@ Für alle, die im Portal der Verbandsgemeinde Otterbach-Otterberg arbeiten: Vide
 11. [Formulare mit Kolleg:innen teilen](#11-formulare-mit-kolleginnen-teilen)
 12. [Formulare ausfüllen („Zum Ausfüllen“)](#12-formulare-ausfüllen-zum-ausfüllen)
 12a. [Online-Anträge erstellen und bearbeiten](#12a-online-anträge-erstellen-und-bearbeiten)
+12b. [Ablage (DMS)](#12b-ablage-dms)
 13. [Profil und Sicherheit (Zwei-Faktor)](#13-profil-und-sicherheit-zwei-faktor)
 14. [Datenschutz in der Praxis](#14-datenschutz-in-der-praxis)
 15. [Hilfe bei Problemen](#15-hilfe-bei-problemen)
@@ -59,6 +60,8 @@ Nach mehreren falschen Versuchen sperrt das Portal kurz („Zu viele Versuche“
 ---
 
 ## 2. Die Oberfläche
+
+**Die Übersicht** (Startseite nach der Anmeldung, im Menü ganz oben) zeigt in Kacheln, was für Sie gerade wichtig ist – jeweils mit Zahlen und direkten Links: **Meine Aufgaben** (offen, überfällig, wartet auf Antwort), **Antragseingang**, **Termine & Meetings**, **Terminumfragen** (auch solche, bei denen Sie noch abstimmen sollen), **Buchungen** der nächsten Tage, **Zum Ausfüllen**, **neue Antworten** auf Ihre Formulare, **Ablage** mit Suchfeld und **Schnellzugriff**. Sie sehen nur Kacheln, die Sie nutzen dürfen. **Anpassen** (oben rechts): Kacheln am ⠿ in eine andere Reihenfolge ziehen und mit dem Auge aus- oder einblenden; gespeichert wird sofort, **Fertig** beendet. Ihre Meetings finden Sie unter **Meetings** im Menü.
 
 - **Links das Menü** (auf dem Handy über die drei Striche oben links): gegliedert nach Videokonferenzen, Kurzlinks, Termine, Formulare, Rechtstexte und – falls Sie die Rechte haben – Verwaltung. Sie sehen nur die Bereiche, für die Sie freigeschaltet sind oder in denen etwas mit Ihnen geteilt wurde.
 - **Oben rechts Ihr Name:** Profil, Sicherheit (Zwei-Faktor), „Über dieses Portal“ und Abmelden.
@@ -363,7 +366,7 @@ Viele Texte auf einmal: **Dateien hochladen**, Ebene und Art wählen, mehrere Da
 
 Menü **Kartenbrowser** (oder `/karte`, auch ohne Anmeldung).
 
-- **Links die Seitenleiste:** oben Koordinatensuche (z. B. `49.49, 7.77` oder `UTM 32 412345 5483210`), darunter die **Grundkarte** (basemap.de, OpenStreetMap …) und die **Ebenen** nach Gruppen. Häkchen schaltet eine Ebene ein; dann erscheinen ein Regler für die **Deckkraft** und – bei Zeitreihen (WMS-T) – ein **Zeitregler**. Mit ⠿ ändern Sie die Reihenfolge, ☰ zeigt die **Legende**.
+- **Links die Seitenleiste:** oben die **Suche** nach Orten und Adressen (z. B. „Rathaus Otterberg“ oder „Hauptstraße 5, Katzweiler“ – Vorschläge anklicken oder mit ↓ und Enter wählen) und nach Koordinaten (z. B. `49.49, 7.77` oder `UTM 32 412345 5483210`), darunter die **Grundkarte** (basemap.de, OpenStreetMap …) und die **Ebenen** nach Gruppen. Häkchen schaltet eine Ebene ein; dann erscheinen ein Regler für die **Deckkraft** und – bei Zeitreihen (WMS-T) – ein **Zeitregler**. Mit ⠿ ändern Sie die Reihenfolge, ☰ zeigt die **Legende**.
 - **Klick in die Karte** zeigt Sachinformationen der eingeschalteten Fachdaten und die Koordinate.
 - **Zeichnen & messen** (Seitenleiste): **Punkt**, **Linie** oder **Fläche** wählen und in die Karte klicken. Während des Zeichnens stehen Länge bzw. Fläche oben in der Karte; **Doppelklick** oder **Fertig** beendet, bei Flächen auch ein Klick auf den ersten Punkt. Rücktaste (oder ↶) nimmt den letzten Punkt zurück, Esc bricht ab. Jede Zeichnung erscheint in der Liste: Namen eintippen, Farbe wählen, 🔍 springt hin, 🗑 löscht. Ein Klick auf eine Zeichnung wählt sie aus – ihre Eckpunkte lassen sich dann mit der Maus verschieben. **GeoJSON** lädt die Zeichnungen herunter (z. B. für QGIS), **GeoJSON laden** holt welche in die Karte.
 - **Werkzeuge unten:** Kartenbild als PNG speichern, Link zu diesem Ausschnitt kopieren.
@@ -440,15 +443,31 @@ Menü **Formulare** (Recht „Formulare“). Damit bauen Sie Umfragen, Anmeldung
 | **Einfachauswahl** | genau eine Antwort (Kreise) | Optionen, „Sonstiges“ mit Freitext, zufällige Reihenfolge |
 | **Mehrfachauswahl** | mehrere Antworten (Kästchen) | Optionen, „Sonstiges“, zufällige Reihenfolge, mindestens/höchstens wählen |
 | **Auswahlliste** | eine Antwort aus einer langen Liste | Optionen, zufällige Reihenfolge |
-| **Datum** | Geburtsdatum, Wunschtermin | frühestes/spätestes Datum |
+| **Datum** | Geburtsdatum, Wunschtermin, Zeitpunkt | frühestes/spätestes Datum, **mit Uhrzeit** (aus = nur Datum, die Vorgabe) |
 | **Uhrzeit** | Ankunftszeit | – |
-| **Datum und Uhrzeit** | Zeitpunkt | frühester/spätester Tag |
+| **Adresse** | Anschrift von Antragsteller:in, Ort eines Vorhabens | **Vollständige Anschrift** (Straße, Hausnummer, PLZ, Ort) oder **nur PLZ und Ort**; **Adresssuche** (beim Tippen erscheinen Vorschläge, ein Klick füllt alle Felder), **Meinen Standort übernehmen** (die Adresse am aktuellen Standort des Geräts), **Ortsteil** anzeigen, **Koordinaten speichern**. Der Ort wird nach Eingabe der PLZ automatisch ermittelt (bei mehreren Orten zur Auswahl). Alle Felder bleiben von Hand änderbar |
 | **Lineare Skala** | Zufriedenheit, Bewertung | von 0 oder 1 bis 2–10, Beschriftung links/rechts |
 | **Farbe** | Farbwahl | – |
 | **Datei-Upload** | Nachweise, Fotos, Anträge | erlaubte Dateiendungen (z. B. `pdf, jpg, png`), größte Datei (bis 20 MB), Anzahl Dateien (bis 10) |
 | **Ort in der Karte** | **Punkt:** Ort eines Schadens · **Linie:** Leitungstrasse, Umleitung · **Fläche:** Baufläche, Sondernutzungsfläche – auch kombiniert | **Was darf eingezeichnet werden** (Punkt, Linie, Fläche – beliebig ankreuzen), **wie viele Objekte höchstens**, GPS-Knöpfe beim Einzeichnen (Punkt am Standort, Standort als Eckpunkt), bei einem einzelnen Punkt Felder für Breite/Länge, **Eigenen Standort zusätzlich erfassen** (unabhängig vom Eingezeichneten, wahlweise Pflicht). Länge und Fläche werden automatisch berechnet |
 
-Jede Frage hat einen **Titel**, eine optionale **Beschreibung** (Hilfetext) und den Schalter **Pflichtfeld**.
+Jede Frage hat einen **Titel**, eine optionale **Beschreibung** (Hilfetext), **Pflichtfeld** (Nein, Ja oder *Nur unter Bedingung …*), die **Breite** (ganze Zeile, zwei Drittel, halb, Drittel – so stehen z. B. PLZ und Ort nebeneinander; auf dem Handy immer ganze Breite) und den Schalter **Nur unter Bedingung anzeigen**.
+
+### Bedingungen: Felder ein- und ausblenden
+
+Beispiel: Die Frage „Rasse“ soll nur erscheinen, wenn bei „Haben Sie einen Hund?“ *Ja* gewählt wurde.
+
+1. Frage „Rasse“ anklicken, **Nur unter Bedingung anzeigen** einschalten.
+2. Regel wählen: *Haben Sie einen Hund?* · *ist gleich* · *Ja*. Weitere Vergleiche: ist nicht, enthält, ist ausgefüllt, ist leer, größer als, kleiner als.
+3. Mit **+ Regel** weitere Regeln hinzufügen und oben festlegen, ob **alle** (UND) oder **eine** (ODER) zutreffen müssen.
+
+Genauso funktioniert **Pflichtfeld › Nur unter Bedingung** (z. B. „Kennzeichen“ Pflicht, wenn „Fahrzeug vorhanden“ = Ja). Auch eine **Neue Seite** kann bedingt sein – dann wird die ganze Seite übersprungen. Im Baukasten zeigen Abzeichen wie „bedingt sichtbar“, welche Fragen Bedingungen haben. Ausgeblendete Felder werden nicht gespeichert und nicht geprüft.
+
+### Datenblöcke: wiederkehrende Feldgruppen
+
+Unter **Bausteine › Datenblöcke** stehen fertige Gruppen von Feldern, z. B. **Antragsteller:in** (Anrede, Vorname, Nachname, Geburtsdatum, Anschrift, Telefon, E-Mail), **Firma**, **Adresse**, **Bankverbindung**, **Hund** (Name, Rasse, Geschlecht, Wurftag, Chipnummer …) und **Fahrzeug**. Ein Klick fügt den Block ein. Er ist **verknüpft**: Ändert jemand den Block in der Bibliothek, ändert er sich in allen Formularen. Im Formular stellen Sie nur Titel, Breite und Bedingung des ganzen Blocks ein; seine Felder können Sie in Bedingungen anderer Fragen verwenden.
+
+Die **Bibliothek** (Menü **Datenblöcke**) sehen alle mit dem Recht „Formulare“; neue Blöcke anlegen und ändern geht mit dem Recht „Formularbausteine“: **Neuer Datenblock**, Name, Symbol und Beschreibung, dann Felder wie im Baukasten zusammenstellen (auch mit Bedingungen innerhalb des Blocks). **Kopieren** erzeugt einen unabhängigen Block, etwa für eine Variante. Die Liste zeigt, in welchen Formularen ein Block steckt; löschen lässt er sich erst, wenn ihn kein Formular mehr verwendet.
 
 **Optionen eingeben:** In das Feld „Neue Option …“ tippen und Enter drücken. Sie können auch eine **ganze Liste einfügen** (z. B. aus Excel kopiert) – jede Zeile wird eine Option. Optionen lassen sich am Griff ⠿ verschieben und mit ✕ entfernen.
 
@@ -464,6 +483,7 @@ Jede Frage hat einen **Titel**, eine optionale **Beschreibung** (Hilfetext) und 
 
 ### Anordnen
 
+- **Übersicht behalten:** Nicht ausgewählte Fragen erscheinen kompakt mit Titel, Typ und Abzeichen (Pflicht, Breite, bedingt); ein Klick klappt die Einstellungen auf.
 - **Verschieben:** am Griff ⠿ links oben ziehen, oder mit den Pfeilen ↑ ↓.
 - **Duplizieren:** Doppel-Symbol – praktisch für ähnliche Fragen.
 - **Löschen:** Papierkorb.
@@ -485,6 +505,7 @@ Jede Frage hat einen **Titel**, eine optionale **Beschreibung** (Hilfetext) und 
 | Mehrfach ausfüllen | Eingeladene dürfen mehrere Antworten abgeben (sonst nur eine). Über den öffentlichen Link geht mehrfaches Ausfüllen immer |
 | Eingangsbestätigung | Die ausfüllende Person bekommt eine Kopie ihrer Antworten per Mail (bei öffentlichen Links an die Adresse aus der ersten E-Mail-Frage) |
 | Text nach dem Absenden | z. B. „Danke! Wir melden uns bis Freitag.“ |
+| Zusammenfassung vor dem Absenden | Vor dem Absenden sehen Ausfüllende alle Angaben noch einmal und können einzelne Abschnitte ändern (ab drei Fragen) |
 
 **Benachrichtigung bei neuen Antworten**
 
@@ -564,7 +585,11 @@ Unter **Formulare › Zum Ausfüllen** stehen alle Formulare, zu denen Sie einge
 Beim Ausfüllen (auch für Gäste über einen Link):
 
 - Pflichtfelder sind mit <span style="color:#dc3545">*</span> markiert.
-- Bei mehrseitigen Formularen **Weiter** und **Zurück**; ein Balken zeigt den Fortschritt.
+- Bei mehrseitigen Formularen **Weiter** und **Zurück**; oben zeigt die **Schrittanzeige** die Seitennamen – erledigte Seiten lassen sich direkt anklicken.
+- Manche Fragen erscheinen erst, wenn eine vorherige Antwort passt (z. B. „Rasse“ nach „Hund: Ja“).
+- **Adressen:** Straße eintippen und einen Vorschlag anklicken, oder **Meinen Standort übernehmen** klicken; nach der PLZ wird der Ort ergänzt.
+- Ihre Eingaben werden **als Entwurf in Ihrem Browser** gesichert. Schließen Sie das Fenster versehentlich, bietet das Formular beim nächsten Öffnen an, den Entwurf wiederherzustellen (Dateien müssen neu gewählt werden). Auf gemeinsam genutzten Geräten: **Verwerfen** klicken.
+- Vor dem Absenden zeigt das Formular auf Wunsch eine **Zusammenfassung** aller Angaben.
 - Stimmt eine Angabe nicht (z. B. E-Mail-Adresse), markiert das Formular das Feld und erklärt den Fehler.
 - **Absenden** speichert die Antwort; danach erscheint der Dank-Text.
 
@@ -578,7 +603,7 @@ Ein **Online-Antrag** ist ein Formular, bei dem jede Einsendung zum Vorgang wird
 
 1. **Formulare**, Titel eintippen, daneben **Online-Antrag** wählen, **Anlegen**. Name und E-Mail-Adresse (Pflicht) sind schon enthalten – die Adresse braucht es für Bestätigung und Rückfragen.
 2. Fragen ergänzen wie bei jedem Formular (z. B. Datei-Upload für Nachweise, „Ort in der Karte“ für Standort, Trasse oder Fläche).
-3. Reiter **Antrag**: Kürzel für das Aktenzeichen (z. B. `SN` für Sondernutzung), Bearbeitungsfrist in Tagen, zuständige Person/Gruppe/Funktionspostfach, bei Bedarf **Weiterleitungsregeln** (z. B. „Ortsgemeinde = Katzweiler → Kolleg:in X“) und den Eintrag im **Antragskatalog** mit Kategorie, Gebühr, Bearbeitungsdauer und benötigten Unterlagen.
+3. Reiter **Antrag** (den Schalter „Als Online-Antrag verwenden“ bedient, wer das Recht „Online-Anträge einrichten“ hat): Kürzel für das Aktenzeichen (z. B. `SN` für Sondernutzung), Bearbeitungsfrist in Tagen, zuständige Person/Gruppe/Funktionspostfach, bei Bedarf **Weiterleitungsregeln** (z. B. „Ortsgemeinde = Katzweiler → Kolleg:in X“) und den Eintrag im **Antragskatalog** mit Kategorie, Gebühr, Bearbeitungsdauer und benötigten Unterlagen. Unter **Ablagebereich** wählen Sie, wo die Anträge in der [Ablage](#12b-ablage-dms) landen.
 4. Fertig: Der Antrag steht im öffentlichen Katalog (`/antraege`) und hat einen öffentlichen Link (Reiter „Teilen“, mit QR-Code).
 
 ### Was Antragsteller:innen erleben
@@ -595,7 +620,7 @@ Im Vorgang:
 - **Status ändern** – mit Mitteilung (z. B. Begründung) und auf Wunsch Mail an die antragstellende Person. **Rückfrage** stellt eine Frage; die Antwort kommt per Mail zu Ihnen, der Antrag springt zurück auf „In Bearbeitung“.
 - **Nachricht** an die antragstellende Person oder **interne Notiz** (sieht nur die Verwaltung).
 - **Zuweisen** an Person oder Gruppe (mit Mail an die neu Zuständigen) und **Frist** ändern.
-- **PDF** für die E-Akte, Anhänge herunterladen, Ort in der Karte ansehen.
+- **PDF** für die E-Akte – mit allen hochgeladenen **PDFs und Bildern** als Anlagen (Anlagenverzeichnis mit Seitenzahlen vorne, jede Anlagenseite trägt „Anlage n zu <Aktenzeichen>“). Anhänge einzeln herunterladen, Ort in der Karte ansehen.
 - Der Hinweis „unverändert seit Eingang“ bestätigt über eine Prüfsumme, dass die Angaben nicht nachträglich verändert wurden.
 
 Läuft eine Frist ab, erinnert das Portal die Zuständigen einmal per Mail.
@@ -620,10 +645,26 @@ Ist dem Antragsformular ein **Prozess** zugeordnet (Reiter „Antrag“ › Bear
 - **Aufgabe:** Prüfpunkte abhaken, interne Angaben (z. B. Gebühr) eintragen, optional Vermerk, **Erledigt**. Der Knopf wird erst aktiv, wenn alle Prüfpunkte abgehakt sind.
 - **Freigabe:** **Genehmigen** oder **Ablehnen/Zurückgeben** (mit Begründung). Beim Vier-Augen-Prinzip darf nicht freigeben, wer den Schritt davor erledigt hat.
 - **Nachforderung:** Der Antrag wartet auf die antragstellende Person und geht weiter, sobald die Angaben eingehen. Mit **Nicht mehr nötig – weiter** geht es ohne Antwort weiter.
+- **Nachforderung zusammenstellen:** Ist im Prozess eingestellt, dass die Sachbearbeitung wählt, hält der Antrag an und Sie bekommen eine Aufgabe. **Nachforderung zusammenstellen** öffnet das Nachfordern-Fenster mit den vorgeschlagenen Feldern; ändern Sie, was nötig ist, oder wählen Sie eine **Vorlage**. Mit „Als Vorlage speichern“ steht Ihre Zusammenstellung beim nächsten Mal zur Auswahl.
+- **E-Mail bestätigen (Double-Opt-in):** Der Antrag wartet, bis die antragstellende Person den Link in ihrer Mail angeklickt hat. Kam die Mail nicht an: **Bestätigungsmail erneut senden** – oder ohne Bestätigung fortfahren.
 - **Automatik-Schritte** (z. B. Bescheid als PDF erzeugen und verschicken) laufen von selbst; erzeugte Dokumente stehen im Vorgang unter **Dokumente** und können für die Statusseite freigegeben werden.
 - Unter „Schritt umverteilen, Frist ändern oder überspringen“ helfen Sie bei Urlaub oder Krankheit aus.
 
 Antragsteller:innen sehen auf ihrer Statusseite eine Fortschrittsleiste mit den Schritten, die für sie gedacht sind.
+
+---
+
+## 12b. Ablage (DMS)
+
+Menü **Ablage › Recherche**. Hier finden Sie Online-Anträge und manuell abgelegte Vorgänge – aber nur aus den Bereichen des Aktenplans, für die Sie Lese- oder Schreibrechte haben (die Rechte vergibt, wer das Recht „Aktenplan verwalten“ hat).
+
+**Suchen:** Links die Filter – **Volltext** (findet Begriffe in allen Angaben, Notizen und Dateinamen), Bereich (mit Unterbereichen), **Antragsteller:in**, **Aktenzeichen**, **Ort / PLZ / Straße**, Antragsart, Status (laufend, abgeschlossen oder ein bestimmter Status), Art (Online-Antrag oder manuell) und **Eingang von–bis**. Rechts die Treffer, sortierbar (neueste, älteste, Aktenzeichen, Antragsteller:in), als **CSV** exportierbar. Eine Suche, die Sie öfter brauchen (z. B. „Hundesteuer 2026, Otterberg“), unter **Gespeicherte Suchen** mit Namen speichern – ein Klick ruft sie wieder auf.
+
+**Ein Vorgang** zeigt Aktenzeichen, Antragsteller:in, Anschrift, Status, Bereich und Löschfrist, alle Dateien (Antrags-PDF mit Anlagen, Uploads, Bescheide, beim Abschluss der **Abschlussstand**) und den Verlauf. Bei Online-Anträgen führt ein Link zum Vorgang im Antragseingang (wenn Sie dort berechtigt sind).
+
+**Ablegen** (mit Schreibrecht): **Vorgang ablegen**, Bereich wählen, Titel, Aktenzeichen, Antragsteller:in, Anschrift (mit Adresssuche), Datum, Notiz und Dateien. Nachträglich lassen sich Angaben ändern, Dateien hinzufügen und löschen.
+
+**Löschfristen:** Jeder Bereich kann eine Aufbewahrungsfrist haben. Sie läuft am Ende des Jahres ab, in dem der Vorgang abgeschlossen wurde, plus die eingestellten Jahre. Abgelaufene Vorgänge löscht die Aktenplan-Verwaltung bewusst unter **Löschfristen** (mit Begründung und Protokoll) – automatisch wird nichts gelöscht.
 
 ---
 

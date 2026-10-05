@@ -45,7 +45,14 @@ def form_application(request: Request, form_id: int, user: User = Depends(curren
                   groups=db.scalars(select(Group).order_by(Group.name)).all(),
                   has_email=any(q["type"] == "short" and q.get("subtype") == "email" for q in fm.questions(items)),
                   catalog_url=f"{request.base_url}antraege", mail_ready=apps.mail_ready(db),
-                  processes=workflow.processes_for_select(db), can_processes=user.can("processes"))
+                  processes=workflow.processes_for_select(db), can_processes=user.can("processes"),
+                  dms_areas=_dms_areas(db) if "dms" in enabled_modules() else [])
+
+
+def _dms_areas(db) -> list:
+    from . import dms
+    by_id = {a.id: a for a in dms.areas(db)}
+    return [(a, dms.label(a, by_id)) for a, _d in dms.tree(db)]
 
 
 @app.post("/forms/{form_id:int}/application", dependencies=[Depends(check_csrf)])
@@ -54,7 +61,12 @@ async def form_application_save(request: Request, form_id: int, user: User = Dep
     _module_on()
     form, _ = _form(db, form_id, user, fm.EDIT)
     data = await request.form()
-    form.kind = "application" if data.get("is_application") == "1" else "survey"
+    kind = "application" if data.get("is_application") == "1" else "survey"
+    if kind != form.kind and not user.can("app_create"):
+        flash(request, "Ob ein Formular als Online-Antrag läuft, darf nur ändern, wer das Recht "
+                       "„Online-Anträge einrichten“ hat. Die übrigen Einstellungen wurden gespeichert.", "error")
+    else:
+        form.kind = kind
     prefix = re.sub(r"[^A-Z0-9]", "", str(data.get("app_prefix", "")).upper())[:10]
     form.app_prefix = prefix
     form.app_category = " ".join(str(data.get("app_category", "")).split())[:100]
@@ -69,6 +81,10 @@ async def form_application_save(request: Request, form_id: int, user: User = Dep
         form.app_deadline_days = max(0, min(365, int(data.get("app_deadline_days", 14) or 0)))
     except ValueError:
         form.app_deadline_days = 14
+    if "dms_area_id" in data:
+        aid = str(data.get("dms_area_id", ""))
+        from .db import DmsArea
+        form.dms_area_id = int(aid) if aid.isdigit() and db.get(DmsArea, int(aid)) else None
     if "process_id" in data:
         pid = str(data.get("process_id", ""))
         form.process_id = int(pid) if pid.isdigit() and db.get(Process, int(pid)) else None
@@ -153,6 +169,13 @@ def application_detail(request: Request, form_id: int, resp_id: int, user: User 
     task = workflow.open_task(resp)
     step = workflow.step_of(task) if task else None
     answers = workflow.current_answers(resp)
+    compose = None
+    if task and task.kind == "request" and task.state == "open" and step:
+        titles = {(q.get("title") or "").strip().lower(): q["id"] for q in fm.questions(items)}
+        compose = {"task_id": task.id, "title": step.get("public_name") or step["name"],
+                   "message": workflow.fill(step.get("message", ""), resp), "items": step.get("items", []),
+                   "reopen": [titles[t.strip().lower()] for t in step.get("reopen", []) if t.strip().lower() in titles],
+                   "due_days": step.get("due_days") or 14}
     geo_features = [f for q in fm.questions(items) if q["type"] == "geo"
                     for f in fm.geo_features(answers.get(q["id"]), q.get("title") or "Ort")]
     from .routes_maps import map_bundle
@@ -163,7 +186,7 @@ def application_detail(request: Request, form_id: int, resp_id: int, user: User 
                   groups=db.scalars(select(Group).order_by(Group.name)).all(), now=utcnow(),
                   track_link=apps.track_link(resp), applicant=apps.applicant_email(resp.form, resp),
                   checksum_ok=apps.checksum(resp) == resp.checksum, mail_ready=apps.mail_ready(db),
-                  task=task, step=step, geo_features=geo_features,
+                  task=task, step=step, geo_features=geo_features, compose=compose,
                   geo_bundle=map_bundle(db, request, user, None, "forms") if geo_features else None,
                   can_work=bool(task and workflow.can_work(db, user, task)),
                   four_eyes=workflow.four_eyes_block(task, user) if task and task.kind == "approval" else "",
@@ -250,6 +273,7 @@ def application_status(request: Request, token: str, db: Session = Depends(get_d
                       questions=fm.questions(items), display=fm.display, statuses=apps.STATUSES, closed=apps.CLOSED,
                       events=[e for e in resp.events if e.public], progress=workflow.progress(resp),
                       open_requests=workflow.open_requests(resp), current=workflow.current_answers(resp),
+                      confirm_task=workflow.open_confirm(resp), applicant=apps.applicant_email(resp.form, resp),
                       corrections=workflow.corrections(resp), documents=[d for d in resp.documents if d.public])
     response.headers["Cache-Control"] = "no-store"
     response.headers["Referrer-Policy"] = "no-referrer"   # geheimer Link soll nicht weitergegeben werden
