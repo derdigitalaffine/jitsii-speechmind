@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from pathlib import Path
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlparse
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import (
@@ -161,6 +161,43 @@ def module_for_path(path: str) -> str | None:
     return None
 
 
+_MEET_ORIGIN = "{0.scheme}://{0.netloc}".format(urlparse(settings.meet_base_url)) if settings.meet_base_url else ""
+
+
+def build_csp(frame_ancestors: str = "'none'") -> str:
+    """Content-Security-Policy für Portalseiten. Alle Bibliotheken liegen lokal, daher nur 'self'.
+    Inline-Skripte sind (noch) nötig; die Richtlinie verhindert trotzdem fremde Skripte, Datenabfluss
+    zu fremden Servern, <base>/<object>-Tricks und Formulare an fremde Ziele."""
+    form_targets = " ".join(x for x in ("'self'", _MEET_ORIGIN) if x)
+    return ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; "
+            "frame-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; "
+            f"form-action {form_targets}; frame-ancestors {frame_ancestors}")
+
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "same-origin",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+}
+
+
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    """Schutz-Header für alle Antworten (zusätzlich zu denen des Reverse Proxys)."""
+    response = await call_next(request)
+    for key, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(key, value)
+    if "content-security-policy" not in response.headers and \
+            response.headers.get("content-type", "").startswith("text/html"):
+        response.headers["Content-Security-Policy"] = build_csp()
+    if request.url.path.startswith(("/admin", "/profile", "/login", "/invite", "/laws")) and \
+            response.headers.get("content-type", "").startswith("text/html"):
+        response.headers.setdefault("Cache-Control", "no-store")   # keine Verwaltungsseiten im Browser-Cache
+    return response
+
+
 @app.middleware("http")
 async def _module_gate(request: Request, call_next):
     """Abgeschaltete Module sind vollständig unerreichbar (auch öffentliche Links)."""
@@ -267,10 +304,13 @@ def home_for(user: User) -> str:
 _attempts: dict[str, list[float]] = {}
 
 
-def rate_limit(request: Request, bucket: str, limit: int = 10, window: int = 600) -> None:
-    """Einfache Bremse gegen Passwort-Raten und Mail-Fluten (pro Adresse, im Speicher)."""
+_DUMMY_HASH = hash_password(secrets.token_urlsafe(16))
+
+
+def rate_limit(request: Request, bucket: str, limit: int = 10, window: int = 600, key: str | None = None) -> None:
+    """Einfache Bremse gegen Passwort-Raten und Mail-Fluten (pro IP-Adresse oder eigenem Schlüssel, im Speicher)."""
     ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0].strip()
-    key, now = f"{bucket}:{ip}", time.monotonic()
+    key, now = f"{bucket}:{key if key is not None else ip}", time.monotonic()
     hits = [t for t in _attempts.get(key, []) if now - t < window]
     if len(hits) >= limit:
         raise HTTPException(429, "Zu viele Versuche. Bitte in einigen Minuten erneut versuchen.")
@@ -323,7 +363,12 @@ def redirect(url: str) -> RedirectResponse:
 
 
 def safe_next(url: str | None) -> str:
-    return url if url and url.startswith("/") and not url.startswith("//") else "/"
+    """Nur Pfade dieses Servers – kein „//host“, kein „/\\host“ (Browser machen daraus „//host“), keine Steuerzeichen."""
+    if not url or not url.startswith("/") or url.startswith("//") or "\\" in url:
+        return "/"
+    if any(ord(c) < 32 or ord(c) == 127 for c in url):
+        return "/"
+    return url
 
 
 def own_meeting(db: Session, meeting_id: int, user: User) -> Meeting:
@@ -388,8 +433,11 @@ def login_form(request: Request, next: str = "/", db: Session = Depends(get_db))
 def login(request: Request, email: str = Form(...), password: str = Form(...),
           next: str = Form("/"), db: Session = Depends(get_db)):
     rate_limit(request, "login")
+    rate_limit(request, "login-account", limit=20, window=1800, key=email.strip().lower()[:255])
     user = db.scalar(select(User).where(User.email == email.strip().lower()))
-    if user is None or not user.active or not verify_password(user.password_hash, password):
+    # Auch für unbekannte Adressen einen Hash prüfen – sonst verrät die Antwortzeit, welche Konten existieren
+    valid = verify_password(user.password_hash if user else _DUMMY_HASH, password)
+    if user is None or not user.active or not valid:
         flash(request, "E-Mail oder Passwort ist falsch.", "error")
         return redirect(f"/login?next={quote(safe_next(next))}")
     return start_session(request, db, user, safe_next(next))

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from . import laws as lx, sessions
 from .config import settings
 from .db import LawLevel, LawSection, LawText, LawVersion, SessionLocal, User, get_settings, set_setting
-from .main import app, check_csrf, flash, get_db, redirect, render, require, session_user
+from .main import app, build_csp, check_csrf, flash, get_db, redirect, render, require, session_user
 
 law_user = require("laws")
 MAX_VERSIONS = 50
@@ -67,8 +67,7 @@ async def _frame_headers(request: Request, call_next):
     if path == EMBED or path.startswith(EMBED + "/"):
         with SessionLocal() as db:
             origins = embed_origins(db)
-        response.headers["Content-Security-Policy"] = "frame-ancestors " + (" ".join(["'self'", *origins])
-                                                                            if origins else "*")
+        response.headers["Content-Security-Policy"] = build_csp(" ".join(["'self'", *origins]) if origins else "*")
         if "x-frame-options" in response.headers:
             del response.headers["x-frame-options"]
     elif "x-frame-options" not in response.headers:

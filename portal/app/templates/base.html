@@ -30,13 +30,14 @@
 {% import "_macros.html" as m with context %}
 {% block body %}
 {% set path = request.url.path %}
-<nav class="navbar app-navbar sticky-top" {% if ui.navbar_dark %}data-bs-theme="dark"{% endif %}>
+<a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
+<nav class="navbar app-navbar sticky-top" aria-label="Kopfzeile" {% if ui.navbar_dark %}data-bs-theme="dark"{% endif %}>
   <div class="container-fluid">
     <div class="d-flex align-items-center gap-2">
       {% if user %}
       <button class="btn btn-link d-lg-none px-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-label="Menü öffnen"><i class="fa-solid fa-bars fa-lg"></i></button>
       {% endif %}
-      <a class="navbar-brand m-0" href="/">
+      <a class="navbar-brand m-0" href="/" title="{{ brand }} – {{ product }}">
         {% if ui.logo %}<img class="brand-logo" src="{{ ui.logo }}" alt="" style="height:{{ ui.logo_height }}px">{% else %}<span class="brand-dot" aria-hidden="true"></span>{% endif %}
         {% if ui.show_name or not ui.logo %}<span>{{ brand }}<small>{{ product }}</small></span>{% endif %}
       </a>
@@ -82,7 +83,7 @@
 <div class="container-fluid app-body">
   <div class="row">
     {% if user %}
-    <aside class="col-lg-2 p-0">
+    <aside class="col-lg-2 p-0 app-aside" aria-label="Hauptmenü">
       <div class="offcanvas-lg offcanvas-start app-sidebar" tabindex="-1" id="sidebar">
         <div class="offcanvas-header">
           <strong>Menü</strong>
@@ -135,7 +136,7 @@
       </div>
     </aside>
     {% endif %}
-    <main class="{{ 'col-lg-10' if user else 'col-12' }} px-3 px-lg-4 py-4">
+    <main id="inhalt" tabindex="-1" class="{{ 'col-lg-10 app-main' if user else 'col-12' }} px-3 px-lg-4 py-4">
       {{ m.flashes(messages) }}
       {% block content %}{% endblock %}
     </main>
