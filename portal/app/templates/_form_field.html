@@ -68,36 +68,38 @@
     <input class="form-control {{ 'is-invalid' if err }}" type="file" id="{{ name }}" name="{{ name }}" {% if item.max_files > 1 %}multiple{% endif %}
       {% if item.file_types %}accept=".{{ item.file_types | join(',.') }}"{% endif %} data-max-mb="{{ item.max_size_mb }}" data-max-files="{{ item.max_files }}" {% if item.required %}required{% endif %}>
     <div class="form-text">{% if item.file_types %}Erlaubt: {{ item.file_types | join(', ') }} · {% endif %}max. {{ item.max_size_mb }} MB{% if item.max_files > 1 %} je Datei, bis zu {{ item.max_files }} Dateien{% endif %}</div>
-  {% elif item.type == 'geo' and item.geometry in ('line', 'polygon') %}
-    {% set shape = val if val is mapping and val.coordinates else none %}
-    <div class="js-geo js-geo-shape" data-name="{{ name }}" data-geometry="{{ item.geometry }}" data-gps="{{ '1' if item.allow_gps else '' }}">
-      <input type="hidden" name="{{ name }}" class="js-geo-value" value="{{ ({'type': 'LineString' if item.geometry == 'line' else 'Polygon', 'coordinates': shape.coordinates} | tojson) if shape else (val if val is string else '') }}" {% if item.required %}data-required="1"{% endif %}>
-      <div class="map-mini js-geo-map mb-2" role="application" aria-label="Karte zum Zeichnen {{ 'der Linie' if item.geometry == 'line' else 'der Fläche' }}"></div>
-      <div class="geo-tools">
-        <button class="btn btn-sm btn-primary js-shape-start" type="button"><i class="fa-solid {{ 'fa-route' if item.geometry == 'line' else 'fa-draw-polygon' }} me-1"></i><span>{{ 'Linie zeichnen' if item.geometry == 'line' else 'Fläche zeichnen' }}</span></button>
-        <button class="btn btn-sm btn-success js-shape-finish d-none" type="button"><i class="fa-solid fa-check me-1"></i>Fertig</button>
-        <button class="btn btn-sm btn-outline-secondary js-shape-undo d-none" type="button" title="Letzten Punkt entfernen"><i class="fa-solid fa-rotate-left me-1"></i>Rückgängig</button>
-        {% if item.allow_gps %}<button class="btn btn-sm btn-outline-primary js-shape-gps d-none" type="button" title="Ihren aktuellen Standort als nächsten Punkt setzen – z. B. beim Abgehen einer Grenze"><i class="fa-solid fa-location-crosshairs me-1"></i>Standort als Punkt</button>{% endif %}
-        <button class="btn btn-sm btn-link text-secondary js-geo-clear" type="button">Löschen</button>
-      </div>
-      <div class="form-text js-geo-info">{{ 'Punkte der Linie nacheinander in die Karte klicken; Doppelklick oder „Fertig“ beendet.' if item.geometry == 'line' else 'Eckpunkte nacheinander in die Karte klicken; Klick auf den ersten Punkt, Doppelklick oder „Fertig“ schließt die Fläche.' }} Danach lassen sich die Punkte verschieben.</div>
-    </div>
   {% elif item.type == 'geo' %}
-    {% set pt = val if val is mapping else none %}
-    <div class="js-geo" data-name="{{ name }}" data-gps="{{ '1' if item.allow_gps else '' }}">
-      <input type="hidden" name="{{ name }}" value="{{ (pt.lat ~ ',' ~ pt.lon) if pt else (val if val is string else '') }}" class="js-geo-value" {% if item.required %}data-required="1"{% endif %}>
-      <input type="hidden" name="{{ name }}__acc" value="{{ pt.acc if pt and pt.acc else '' }}" class="js-geo-acc">
-      <input type="hidden" name="{{ name }}__src" value="{{ pt.src if pt and pt.src else '' }}" class="js-geo-src">
-      <div class="map-mini js-geo-map mb-2" role="application" aria-label="Karte zur Auswahl des Ortes"></div>
-      <div class="d-flex flex-wrap align-items-end gap-2">
-        {% if item.allow_gps %}<button class="btn btn-sm btn-outline-primary js-geo-gps" type="button"><i class="fa-solid fa-location-crosshairs me-1"></i>Meinen Standort verwenden</button>{% endif %}
-        {% if item.show_inputs %}
-        <div><label class="form-label small mb-0" for="{{ name }}-lat">Breite</label><input class="form-control form-control-sm js-geo-lat" id="{{ name }}-lat" inputmode="decimal" style="width: 9rem" placeholder="49.493000" value="{{ pt.lat if pt else '' }}"></div>
-        <div><label class="form-label small mb-0" for="{{ name }}-lon">Länge</label><input class="form-control form-control-sm js-geo-lon" id="{{ name }}-lon" inputmode="decimal" style="width: 9rem" placeholder="7.768000" value="{{ pt.lon if pt else '' }}"></div>
-        {% endif %}
-        <button class="btn btn-sm btn-link text-secondary js-geo-clear" type="button">Auswahl löschen</button>
+    {% set kinds = item.geometries or [item.geometry or 'point'] %}{% set maxf = item.max_features or 1 %}
+    {% set single_point = kinds == ['point'] and maxf == 1 %}
+    <div class="js-geo" data-kinds="{{ kinds | join(',') }}" data-max="{{ maxf }}" data-gps="{{ '1' if item.allow_gps else '' }}">
+      <input type="hidden" name="{{ name }}" class="js-geo-value" value="{{ val | geoinput if val else '' }}" {% if item.required %}data-required="1"{% endif %}>
+      {% if item.capture_location %}<input type="hidden" name="{{ name }}__pos" class="js-geo-pos" value="{{ geo_position(val, values.get(qid ~ '__pos', '')) }}" {% if item.location_required %}data-required="1"{% endif %}>{% endif %}
+      <div class="map-mini js-geo-map mb-2" role="application" aria-label="Karte: {{ kinds | map('replace', 'point', 'Punkt') | map('replace', 'polygon', 'Fläche') | map('replace', 'line', 'Linie') | join(', ') }} einzeichnen"></div>
+      <div class="geo-tools mb-1">
+        {% for k in kinds %}<button class="btn btn-sm btn-outline-primary js-geo-draw" type="button" data-kind="{{ k }}"><i class="fa-solid {{ {'point': 'fa-location-dot', 'line': 'fa-route', 'polygon': 'fa-draw-polygon'}[k] }} me-1"></i>{{ {'point': 'Punkt setzen', 'line': 'Linie zeichnen', 'polygon': 'Fläche zeichnen'}[k] }}</button>{% endfor %}
+        {% if 'point' in kinds and item.allow_gps %}<button class="btn btn-sm btn-outline-primary js-geo-gps-point" type="button" title="Punkt an Ihrem aktuellen Standort setzen"><i class="fa-solid fa-location-crosshairs me-1"></i>Punkt an meinem Standort</button>{% endif %}
+        <button class="btn btn-sm btn-success js-geo-finish d-none" type="button"><i class="fa-solid fa-check me-1"></i>Fertig</button>
+        <button class="btn btn-sm btn-outline-secondary js-geo-undo d-none" type="button" title="Letzten Punkt entfernen"><i class="fa-solid fa-rotate-left me-1"></i>Rückgängig</button>
+        {% if item.allow_gps and ('line' in kinds or 'polygon' in kinds) %}<button class="btn btn-sm btn-outline-primary js-geo-gps-vertex d-none" type="button" title="Ihren aktuellen Standort als nächsten Punkt setzen – z. B. beim Abgehen einer Grenze"><i class="fa-solid fa-location-crosshairs me-1"></i>Standort als Eckpunkt</button>{% endif %}
+        <button class="btn btn-sm btn-link text-secondary js-geo-clear" type="button">Alles löschen</button>
       </div>
-      <div class="form-text js-geo-info">In die Karte klicken oder tippen, um den Ort zu setzen{% if item.allow_gps %}, oder den Standort Ihres Geräts verwenden{% endif %}. Der Punkt lässt sich verschieben.</div>
+      {% if single_point and item.show_inputs %}
+      <div class="d-flex flex-wrap align-items-end gap-2 mb-1">
+        <div><label class="form-label small mb-0" for="{{ name }}-lat">Breite</label><input class="form-control form-control-sm js-geo-lat" id="{{ name }}-lat" inputmode="decimal" style="width: 9rem" placeholder="49.493000"></div>
+        <div><label class="form-label small mb-0" for="{{ name }}-lon">Länge</label><input class="form-control form-control-sm js-geo-lon" id="{{ name }}-lon" inputmode="decimal" style="width: 9rem" placeholder="7.768000"></div>
+      </div>
+      {% endif %}
+      <div class="js-geo-list d-flex flex-column gap-1 mb-1"></div>
+      <div class="form-text js-geo-info">{% if maxf > 1 %}Bis zu {{ maxf }} Objekte. {% endif %}Werkzeug wählen und in die Karte klicken{% if 'line' in kinds or 'polygon' in kinds %}; Linien und Flächen mit Doppelklick oder „Fertig“ abschließen{% endif %}. Eingezeichnetes lässt sich anklicken und an den Punkten verschieben.</div>
+      {% if item.capture_location %}
+      <div class="geo-position border rounded p-2 mt-2 d-flex flex-wrap align-items-center gap-2">
+        <i class="fa-solid fa-person-walking-location text-primary"></i>
+        <div class="flex-grow-1 small"><strong>Ihr Standort</strong>{% if item.location_required %} <span class="req">*</span>{% endif %} <span class="text-secondary">– wo Sie sich gerade befinden, unabhängig von dem, was Sie einzeichnen</span>
+          <div class="js-geo-pos-text text-secondary">noch nicht erfasst</div></div>
+        <button class="btn btn-sm btn-primary js-geo-locate" type="button"><i class="fa-solid fa-location-crosshairs me-1"></i>Meinen Standort erfassen</button>
+        <button class="btn btn-sm btn-link text-secondary js-geo-pos-clear d-none" type="button">entfernen</button>
+      </div>
+      {% endif %}
     </div>
   {% endif %}
   {% if err %}<div class="text-danger small mt-2"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ err }}</div>{% endif %}

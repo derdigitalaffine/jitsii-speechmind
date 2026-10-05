@@ -15,7 +15,7 @@
     if (type === 'short') { it.subtype = 'text'; }
     if (CHOICE[type]) { it.options = [{ id: uid(), label: 'Ja' }, { id: uid(), label: 'Nein' }]; }
     if (type === 'file') { it.title = 'Unterlagen'; it.file_types = ['pdf', 'jpg', 'png']; it.max_files = 3; it.max_size_mb = 10; }
-    if (type === 'geo') { it.title = 'Ort'; it.allow_gps = true; it.show_inputs = true; it.geometry = 'point'; }
+    if (type === 'geo') { it.title = 'Ort'; it.allow_gps = true; it.show_inputs = true; it.geometries = ['point']; }
     if (type === 'text') { it.required = false; }
     return it;
   }
@@ -50,9 +50,12 @@
           '<div class="col-sm-4"><div class="input-group input-group-sm"><span class="input-group-text">max.</span><input class="form-control" type="number" min="1" max="10" data-k="max_files" value="' + esc(it.max_files || 1) + '" aria-label="Höchstzahl Dateien"><span class="input-group-text">Dateien</span></div></div>';
       }
       if (it.type === 'geo') {
-        h += '<div class="col-sm-6"><select class="form-select form-select-sm" data-k="geometry" aria-label="Art der Geometrie">' +
-          [['point', 'Punkt'], ['line', 'Linie'], ['polygon', 'Fläche']].map(function (g) {
-            return '<option value="' + g[0] + '"' + ((it.geometry || 'point') === g[0] ? ' selected' : '') + '>' + g[1] + '</option>'; }).join('') + '</select></div>';
+        var gsel = (it.geometries || [it.geometry || 'point']).length > 1 ? 'any' : (it.geometries || [it.geometry || 'point'])[0];
+        h += '<div class="col-sm-6"><select class="form-select form-select-sm" data-k="geometries" aria-label="Was darf eingezeichnet werden">' +
+          [['point', 'Punkt'], ['line', 'Linie'], ['polygon', 'Fläche'], ['any', 'Punkt, Linie oder Fläche']].map(function (g) {
+            return '<option value="' + g[0] + '"' + (gsel === g[0] ? ' selected' : '') + '>' + g[1] + '</option>'; }).join('') + '</select></div>' +
+          '<div class="col-sm-6 d-flex align-items-center"><div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="fl-loc-' + it.id + '" data-k="capture_location"' + (it.capture_location ? ' checked' : '') + '>' +
+          '<label class="form-check-label" for="fl-loc-' + it.id + '">eigenen Standort erfassen</label></div></div>';
       }
       if (it.type !== 'text') {
         h += '<div class="col-sm-3 d-flex align-items-center"><div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" id="fl-req-' + it.id + '" data-k="required"' + (it.required ? ' checked' : '') + '>' +
@@ -73,6 +76,7 @@
       var r = ev.target.closest('.fl-row'), k = ev.target.dataset.k;
       if (!r || !k) { return; }
       var it = items[+r.dataset.i];
+      if (k === 'geometries' || k === 'capture_location' || k === 'subtype') { return; }   // über „change“
       if (k === 'required') { it.required = ev.target.checked; }
       else if (k === 'options') {
         it.options = ev.target.value.split('\n').map(function (l) { return l.trim(); }).filter(Boolean).map(function (l) { return { id: uid(), label: l }; });
@@ -82,7 +86,14 @@
       else { it[k] = ev.target.value; }
       changed();
     });
-    root.addEventListener('change', function (ev) { if (ev.target.dataset.k === 'subtype' || ev.target.dataset.k === 'geometry') { items[+ev.target.closest('.fl-row').dataset.i][ev.target.dataset.k] = ev.target.value; changed(); } });
+    root.addEventListener('change', function (ev) {
+      var k = ev.target.dataset.k, row = ev.target.closest('.fl-row');
+      if (!row) { return; }
+      var it = items[+row.dataset.i];
+      if (k === 'subtype') { it.subtype = ev.target.value; changed(); }
+      if (k === 'geometries') { it.geometries = ev.target.value === 'any' ? ['point', 'line', 'polygon'] : [ev.target.value]; delete it.geometry; changed(); }
+      if (k === 'capture_location') { it.capture_location = ev.target.checked; changed(); }
+    });
     root.addEventListener('click', function (ev) {
       var b = ev.target.closest('button');
       if (!b || !root.contains(b)) { return; }

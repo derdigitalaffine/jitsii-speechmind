@@ -4,7 +4,7 @@
 {% macro status_badge(key) -%}{% set st = statuses.get(key, (key, 'secondary', 'fa-circle')) %}<span class="badge text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>{%- endmacro %}
 {% macro file_links(files, base) -%}{% for f in files %}<a href="{{ base }}{{ f.file }}"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a> <span class="small text-secondary">({{ f.size | filesize }})</span><br>{% endfor %}{%- endmacro %}
 {% macro value(q, v, base) -%}
-{% if q.type == 'file' and v %}{{ file_links(v, base) }}{% elif q.type == 'geo' and v is mapping %}{% set c = v.center if v.center else [v.lon, v.lat] %}<a href="https://www.openstreetmap.org/?mlat={{ c[1] }}&mlon={{ c[0] }}#map=17/{{ c[1] }}/{{ c[0] }}" target="_blank" rel="noopener"><i class="fa-solid {{ 'fa-draw-polygon' if v.type == 'polygon' else ('fa-route' if v.type == 'line' else 'fa-location-dot') }} me-1"></i>{{ display(q, v) }}</a>{% if 'maps' in modules %} · <a href="/karte#17/{{ c[1] }}/{{ c[0] }}">Kartenbrowser</a>{% endif %}{% else %}{{ display(q, v) or '–' }}{% endif %}
+{% if q.type == 'file' and v %}{{ file_links(v, base) }}{% elif q.type == 'geo' and v is mapping %}{% set c = v | geocenter %}{% if c %}<a href="https://www.openstreetmap.org/?mlat={{ c[1] }}&mlon={{ c[0] }}#map=17/{{ c[1] }}/{{ c[0] }}" target="_blank" rel="noopener"><i class="fa-solid fa-map-location-dot me-1"></i>{{ display(q, v) }}</a>{% if 'maps' in modules %} · <a href="/karte#17/{{ c[1] }}/{{ c[0] }}">Kartenbrowser</a>{% endif %}{% else %}{{ display(q, v) }}{% endif %}{% else %}{{ display(q, v) or '–' }}{% endif %}
 {%- endmacro %}
 {% block content %}
 {% set overdue = resp.due_at and not resp.closed_at and resp.due_at < now %}

@@ -64,7 +64,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - **Auswerten:** Zusammenfassung mit Diagrammen, Einzelansicht, Export **CSV** (Excel) und **JSON**.
 - **Benachrichtigung** bei neuen Antworten, wahlweise mit CSV- und/oder JSON-Anhang – nur die neue Antwort oder jeweils alle.
 - **Im Portal teilen** mit Personen oder Gruppen in drei Stufen: Ergebnisse einsehen · zusätzlich einladen · zusätzlich bearbeiten und löschen.
-- **Fragetyp „Ort in der Karte“:** **Punkt** per Klick in die Karte (basemap.de, OpenStreetMap), per GPS des Geräts oder per Eingabe – oder **Linie** bzw. **Fläche** zeichnen (Eckpunkte verschiebbar, GPS-Standort als Stützpunkt). Länge und Fläche werden berechnet; Auswertung als Karte mit allen Antworten, Export als GeoJSON-Geometrie.
+- **Fragetyp „Ort in der Karte“:** je Frage wählbar, ob **Punkte, Linien und/oder Flächen** eingezeichnet werden dürfen (auch mehrere Objekte); Punkte per Klick, GPS oder Eingabe, Linien und Flächen mit verschiebbaren Eckpunkten. Optional zusätzlich der **eigene Standort** der ausfüllenden Person (GPS mit Genauigkeit). Länge und Fläche werden berechnet; Auswertung als Karte, Export als GeoJSON-Geometrie.
 
 ### Online-Anträge (abschaltbares Modul, Teil des Formularservers)
 

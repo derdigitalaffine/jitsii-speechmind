@@ -452,7 +452,8 @@ def _values_for_redisplay(items: list[dict], data) -> dict:
         if q["type"] == "checkbox":
             values[q["id"]] = data.getlist(name)
         elif q["type"] == "geo":
-            values[q["id"]] = fm.parse_point(data.get(name, ""), data.get(name + "__acc"), data.get(name + "__src")) or data.get(name, "")
+            values[q["id"]] = data.get(name, "")
+            values[q["id"] + "__pos"] = data.get(name + "__pos", "")
         else:
             values[q["id"]] = data.get(name, "")
         values[q["id"] + "__other"] = data.get(name + "__other", "")

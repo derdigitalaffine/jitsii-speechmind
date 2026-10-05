@@ -149,7 +149,13 @@ def clean_schema(raw) -> list[dict]:
             item["max_size_mb"] = _int(src.get("max_size_mb"), 1, MAX_FILE_MB, 10)
             item["max_files"] = _int(src.get("max_files"), 1, 10, 1)
         elif kind == "geo":
-            item["geometry"] = src.get("geometry") if src.get("geometry") in GEOMETRIES else "point"
+            wanted = src.get("geometries") if isinstance(src.get("geometries"), list) else [src.get("geometry") or "point"]
+            item["geometries"] = [g for g in GEOMETRIES if g in wanted] or ["point"]
+            item["max_features"] = _int(src.get("max_features"), 1, 50, 1)
+            item["capture_location"] = bool(src.get("capture_location"))
+            item["location_required"] = bool(src.get("location_required")) and item["capture_location"]
+            item["allow_gps"] = src.get("allow_gps") is not False
+            item["show_inputs"] = src.get("show_inputs") is not False
             item["allow_gps"] = src.get("allow_gps") is not False
             item["show_inputs"] = src.get("show_inputs") is not False
         elif kind == "heading" or kind == "subheading" or kind == "pagebreak":
@@ -307,21 +313,13 @@ def validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
                     errors[qid] = "Bitte einen Wert auf der Skala wählen."
             elif kind == "color" and raw and not COLOR_RE.match(raw):
                 errors[qid] = "Bitte eine Farbe wählen."
-            elif kind == "geo" and raw and item.get("geometry", "point") != "point":
-                shape = parse_shape(raw, item["geometry"])
-                if shape is None:
-                    errors[qid] = ("Bitte eine Linie mit mindestens zwei Punkten zeichnen." if item["geometry"] == "line"
-                                   else "Bitte eine Fläche mit mindestens drei Eckpunkten zeichnen.")
-                else:
-                    answers[qid] = shape
-                    continue
-            elif kind == "geo" and raw:
-                point = parse_point(raw, data.get(name + "__acc"), data.get(name + "__src"))
-                if point is None:
-                    errors[qid] = "Bitte einen Punkt in der Karte wählen oder Breite und Länge angeben (z. B. 49.4930, 7.7680)."
-                else:
-                    answers[qid] = point
-                    continue
+            elif kind == "geo":
+                value, error = parse_geo(item, raw, data.get(name + "__pos"), data.get(name + "__acc"), data.get(name + "__src"))
+                if error:
+                    errors[qid] = error
+                elif value is not None:
+                    answers[qid] = value
+                continue
             if required and not raw:
                 errors.setdefault(qid, "Bitte ausfüllen.")
             value = raw or None
@@ -389,6 +387,154 @@ def parse_shape(raw: str, kind: str) -> dict | None:
             "center": [round((min(lons) + max(lons)) / 2, 6), round((min(lats) + max(lats)) / 2, 6)]}
 
 
+GEO_LABELS = {"point": ("einen Punkt", "Punkte"), "line": ("eine Linie", "Linien"), "polygon": ("eine Fläche", "Flächen")}
+
+
+def _parse_position(raw) -> dict | None:
+    """Eigener Standort (GPS des Geräts), unabhängig von den gezeichneten Objekten."""
+    try:
+        data = json.loads(raw) if raw else None
+        lat, lon = float(data["lat"]), float(data["lon"])
+    except (ValueError, TypeError, KeyError):
+        return None
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
+    pos = {"lat": round(lat, 6), "lon": round(lon, 6)}
+    acc = _num(data.get("acc"))
+    if acc is not None and 0 < acc < 100000:
+        pos["acc"] = round(acc)
+    at = str(data.get("at") or "")[:25]
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?Z?", at):
+        pos["at"] = at
+    return pos
+
+
+def parse_geo(item: dict, raw: str, pos_raw=None, accuracy=None, source=None) -> tuple[dict | None, str]:
+    """Antwort einer Kartenfrage → ({features: [...], position: {...}}, Fehlertext).
+
+    raw: „Breite, Länge“ (Eingabefelder/ohne JavaScript), eine GeoJSON-Geometrie oder
+    {"features": [GeoJSON-Features]} aus der Karte."""
+    from .maps import clean_geometry
+    allowed = item.get("geometries") or [item.get("geometry") or "point"]
+    features, error = [], ""
+    raw = (raw or "").strip()
+    if raw and raw[0] not in "[{":
+        point = parse_point(raw, accuracy, source) if "point" in allowed else None
+        if point is None and "point" not in allowed:
+            return None, "Die Angabe in der Karte ist ungültig. Bitte neu zeichnen."
+        if point is None:
+            return None, "Bitte einen Punkt in der Karte wählen oder Breite und Länge angeben (z. B. 49.4930, 7.7680)."
+        features.append({"type": "point", **point})
+    elif raw:
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            data = None
+        if isinstance(data, dict) and data.get("type") in ("LineString", "Polygon", "Point"):
+            data = {"features": [{"geometry": data}]}
+        if isinstance(data, dict) and data.get("type") == "FeatureCollection":
+            data = {"features": data.get("features")}
+        if not isinstance(data, dict) or not isinstance(data.get("features"), list):
+            return None, "Die Angabe in der Karte ist ungültig. Bitte neu zeichnen."
+        for f in data["features"][:51]:
+            geom = clean_geometry((f or {}).get("geometry") if isinstance(f, dict) else None, max_points=1000)
+            kind = {"Point": "point", "LineString": "line", "Polygon": "polygon"}.get((geom or {}).get("type"))
+            if kind is None:
+                if isinstance(f, dict) and (f.get("geometry") or {}).get("type") == "LineString":
+                    return None, "Eine Linie braucht mindestens zwei Punkte."
+                if isinstance(f, dict) and (f.get("geometry") or {}).get("type") == "Polygon":
+                    return None, "Eine Fläche braucht mindestens drei Eckpunkte."
+                return None, "Die Angabe in der Karte ist ungültig. Bitte neu zeichnen."
+            if kind not in allowed:
+                return None, "Erlaubt sind hier nur: " + ", ".join(GEOMETRIES[g] for g in allowed) + "."
+            if kind == "point":
+                lon, lat = geom["coordinates"]
+                point = {"type": "point", "lat": round(lat, 6), "lon": round(lon, 6)}
+                props = f.get("properties") if isinstance(f.get("properties"), dict) else {}
+                acc = _num(props.get("acc"))
+                if acc is not None and 0 < acc < 100000:
+                    point["acc"] = round(acc)
+                if props.get("src") in ("gps", "map", "manual"):
+                    point["src"] = props["src"]
+                features.append(point)
+            else:
+                features.append(parse_shape(json.dumps(geom), kind))
+    limit = item.get("max_features", 1)
+    if len(features) > limit:
+        error = f"Bitte höchstens {limit} Objekt(e) einzeichnen."
+    position = _parse_position(pos_raw) if item.get("capture_location") else None
+    if not error and item.get("required") and not features:
+        names = [GEO_LABELS[g][0] for g in allowed]
+        error = "Bitte " + (" oder ".join(names)) + " in der Karte einzeichnen."
+    if not error and item.get("location_required") and position is None:
+        error = "Bitte erfassen Sie Ihren Standort („Meinen Standort erfassen“)."
+    if error:
+        return None, error
+    if not features and position is None:
+        return None, ""
+    value: dict = {"features": features}
+    if position:
+        value["position"] = position
+    return value, ""
+
+
+def geo_parts(value) -> tuple[list[dict], dict | None]:
+    """Gespeicherte Antwort → (Objekte, eigener Standort); liest auch ältere Formate (nur Punkt bzw. eine Form)."""
+    if not isinstance(value, dict):
+        return [], None
+    if isinstance(value.get("features"), list):
+        return [f for f in value["features"] if isinstance(f, dict)], value.get("position") if isinstance(value.get("position"), dict) else None
+    if "lat" in value:
+        return [{"type": "point", **value}], None
+    if value.get("type") in ("line", "polygon"):
+        return [value], None
+    return [], None
+
+
+def geo_input(value) -> str:
+    """Gespeicherte Antwort als Startwert für das Karten-Widget (JSON mit GeoJSON-Features)."""
+    if isinstance(value, str):
+        return value
+    feats, _pos = geo_parts(value)
+    out = []
+    for f in feats:
+        geom = _geometry(f)
+        if geom:
+            out.append({"type": "Feature", "geometry": geom, "properties": {k: f[k] for k in ("acc", "src") if k in f}})
+    return json.dumps({"features": out}) if out else ""
+
+
+def geo_position(value, raw="") -> str:
+    if isinstance(value, dict) and isinstance(value.get("position"), dict):
+        return json.dumps(value["position"])
+    return raw if isinstance(raw, str) else ""
+
+
+def geo_center(value) -> list[float] | None:
+    """Mittelpunkt für Links (OpenStreetMap, Kartenbrowser): erstes Objekt, sonst der Standort."""
+    feats, pos = geo_parts(value)
+    for f in feats:
+        if f.get("type") == "point":
+            return [f["lon"], f["lat"]]
+        if f.get("center"):
+            return f["center"]
+    return [pos["lon"], pos["lat"]] if pos else None
+
+
+def _describe(f: dict) -> str:
+    if f.get("type") == "line":
+        return f"Linie, {len(f.get('coordinates') or [])} Punkte, Länge {_fmt_len(f.get('length') or 0)}"
+    if f.get("type") == "polygon":
+        n = max(len((f.get("coordinates") or [[]])[0]) - 1, 0)
+        return f"Fläche, {n} Eckpunkte, {_fmt_area(f.get('area') or 0)} (Umfang {_fmt_len(f.get('length') or 0)})"
+    if "lat" in f:
+        extra = [f"±{f['acc']} m"] if f.get("acc") else []
+        if f.get("src") == "gps":
+            extra.append("GPS des Geräts")
+        return f"{f['lat']:.6f}, {f['lon']:.6f}" + (f" ({', '.join(extra)})" if extra else "")
+    return ""
+
+
 def _fmt_len(m: float) -> str:
     return f"{m / 1000:.2f} km".replace(".", ",") if m >= 1000 else f"{round(m)} m"
 
@@ -401,19 +547,24 @@ def _fmt_area(m2: float) -> str:
     return f"{round(m2)} m²"
 
 
-def geo_feature(value, label: str = "") -> dict | None:
-    """Antwort einer Kartenfrage als GeoJSON-Feature (für Karten in Auswertung und Vorgang)."""
-    if not isinstance(value, dict):
-        return None
-    if value.get("type") == "line":
-        geom = {"type": "LineString", "coordinates": value.get("coordinates")}
-    elif value.get("type") == "polygon":
-        geom = {"type": "Polygon", "coordinates": value.get("coordinates")}
-    elif "lat" in value:
-        geom = {"type": "Point", "coordinates": [value["lon"], value["lat"]]}
-    else:
-        return None
-    return {"type": "Feature", "geometry": geom, "properties": {"label": label}}
+def _geometry(f: dict) -> dict | None:
+    if f.get("type") == "line":
+        return {"type": "LineString", "coordinates": f.get("coordinates")}
+    if f.get("type") == "polygon":
+        return {"type": "Polygon", "coordinates": f.get("coordinates")}
+    if "lat" in f:
+        return {"type": "Point", "coordinates": [f["lon"], f["lat"]]}
+    return None
+
+
+def geo_features(value, label: str = "") -> list[dict]:
+    """Antwort einer Kartenfrage als GeoJSON-Features (für Karten in Auswertung und Vorgang)."""
+    feats, pos = geo_parts(value)
+    out = [{"type": "Feature", "geometry": g, "properties": {"label": label}} for g in (_geometry(f) for f in feats) if g]
+    if pos:
+        out.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": [pos["lon"], pos["lat"]]},
+                    "properties": {"label": (label + " – " if label else "") + "Standort", "position": 1}})
+    return out
 
 
 def files_dir(form_id: int, response_id: int | None = None) -> Path:
@@ -454,13 +605,12 @@ def display(item: dict, value) -> str:
     kind = item.get("type")
     if kind == "file":
         return ", ".join(f.get("name", "") for f in value if isinstance(f, dict))
-    if kind == "geo" and isinstance(value, dict) and value.get("type") == "line":
-        return f"Linie, {len(value.get('coordinates') or [])} Punkte, Länge {_fmt_len(value.get('length') or 0)}"
-    if kind == "geo" and isinstance(value, dict) and value.get("type") == "polygon":
-        n = max(len((value.get("coordinates") or [[]])[0]) - 1, 0)
-        return f"Fläche, {n} Eckpunkte, {_fmt_area(value.get('area') or 0)} (Umfang {_fmt_len(value.get('length') or 0)})"
-    if kind == "geo" and isinstance(value, dict) and "lat" in value:
-        return f"{value.get('lat'):.6f}, {value.get('lon'):.6f}" + (f" (±{value['acc']} m)" if value.get("acc") else "")
+    if kind == "geo" and isinstance(value, dict):
+        feats, pos = geo_parts(value)
+        parts = [_describe(f) for f in feats]
+        if pos:
+            parts.append(f"Standort {pos['lat']:.6f}, {pos['lon']:.6f}" + (f" (±{pos['acc']} m)" if pos.get("acc") else ""))
+        return "; ".join(p for p in parts if p)
     if isinstance(value, list):
         return ", ".join(str(v) for v in value)
     if kind == "date":
@@ -523,10 +673,12 @@ def _json_value(item: dict, value):
     if item["type"] == "file" and isinstance(value, list):
         return [f.get("name") for f in value if isinstance(f, dict)]
     if item["type"] == "geo" and isinstance(value, dict):
-        feature = geo_feature(value)   # GeoJSON-Geometrie, dazu Länge/Fläche in Metern
-        if feature and value.get("type") in ("line", "polygon"):
-            return {"geometrie": feature["geometry"], "laenge_m": value.get("length"), "flaeche_m2": value.get("area")}
-        return value
+        feats, pos = geo_parts(value)   # GeoJSON-Geometrien, dazu Länge/Fläche in Metern
+        out = {"objekte": [{"geometrie": _geometry(f), "laenge_m": f.get("length"), "flaeche_m2": f.get("area"),
+                            "genauigkeit_m": f.get("acc")} for f in feats]}
+        if pos:
+            out["standort"] = pos
+        return out
     if item["type"] == "scale" and value not in (None, ""):
         return _int(value, -1, 99, None)
     if item["type"] == "short" and item.get("subtype") == "number" and value not in (None, ""):
@@ -579,8 +731,7 @@ def summary(form: Form, responses: list[FormResponse]) -> list[dict]:
             entry["minmax"] = (min(nums), max(nums)) if nums else None
             entry["latest"] = [display(q, v) for v in given[-8:]][::-1]
         elif q["type"] == "geo":
-            feats = [geo_feature(v, f"Antwort {n}") for n, v in enumerate(values, start=1)]
-            entry["points"] = [f for f in feats if f][:5000]
+            entry["points"] = [f for n, v in enumerate(values, start=1) for f in geo_features(v, f"Antwort {n}")][:5000]
             entry["latest"] = [display(q, v) for v in given[-8:]][::-1]
         else:
             entry["latest"] = [display(q, v) for v in given[-8:]][::-1]

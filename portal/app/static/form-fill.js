@@ -45,14 +45,17 @@
       Array.prototype.forEach.call(input.files, function (f) { if (f.size > maxBytes) { msg = '„' + f.name + '“ ist größer als ' + input.dataset.maxMb + ' MB.'; } });
       input.setCustomValidity(msg);
     });
-    // GPS-Fragen: Pflicht = ein Punkt muss gesetzt sein
-    scope.querySelectorAll('.js-geo-value[data-required]').forEach(function (v) {
-      var box = v.closest('.js-geo'), lat = box.querySelector('.js-geo-lat');
-      var missing = !v.value;
-      if (lat) { lat.setCustomValidity(missing ? 'Bitte einen Ort in der Karte wählen oder Koordinaten eingeben.' : ''); }
+    // Kartenfragen: Pflicht = etwas eingezeichnet bzw. Standort erfasst
+    scope.querySelectorAll('.js-geo').forEach(function (box) {
+      var v = box.querySelector('.js-geo-value'), pos = box.querySelector('.js-geo-pos'), lat = box.querySelector('.js-geo-lat');
+      var missing = (v && v.dataset.required && !v.value) || (pos && pos.dataset.required && !pos.value);
+      if (lat) { lat.setCustomValidity(v && v.dataset.required && !v.value ? 'Bitte einen Ort in der Karte wählen oder Koordinaten eingeben.' : ''); }
       if (missing) {
         ok = false;
-        if (!lat) { box.closest('.question').classList.add('has-error'); box.scrollIntoView({ block: 'center' }); }
+        box.closest('.question').classList.add('has-error');
+        var t = box.querySelector('.js-geo-pos-text');
+        if (t && pos && pos.dataset.required && !pos.value) { t.textContent = 'Bitte „Meinen Standort erfassen“ antippen.'; t.classList.add('text-danger'); }
+        if (!lat) { box.scrollIntoView({ block: 'center' }); }
       }
     });
     return ok;
