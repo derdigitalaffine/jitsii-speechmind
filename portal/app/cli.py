@@ -4,6 +4,7 @@
   docker compose exec portal python -m app.cli set-password admin@example.org
   docker compose exec portal python -m app.cli make-admin kollege@example.org
   docker compose exec portal python -m app.cli reset-2fa admin@example.org
+  docker compose exec portal python -m app.cli krank-import /data/krankmelder.zip
 """
 
 import getpass
@@ -19,6 +20,23 @@ def main(argv: list[str]) -> int:
     init_db()
     cmd = argv[0] if argv else ""
     with SessionLocal() as db:
+        if cmd == "krank-import" and len(argv) == 2:
+            # Altbestand aus dem eigenständigen BlueOtter Krankmelder (ZIP mit krankmeldungen.db und uploads/)
+            from pathlib import Path
+            from . import krank
+            path = Path(argv[1])
+            if not path.is_file():
+                print(f"Datei {path} nicht gefunden (Pfad im Container, z. B. unter /data).")
+                return 1
+            try:
+                counts = krank.import_archive(db, path, None)
+            except Exception as exc:  # noqa: BLE001
+                db.rollback()
+                print(f"Import nicht möglich: {exc}")
+                return 1
+            db.commit()
+            print("Import abgeschlossen: " + ", ".join(f"{k}={v}" for k, v in counts.items()))
+            return 0
         if cmd == "users":
             for u in db.scalars(select(User).order_by(User.email)):
                 print(f"{u.email:40} {'Admin' if u.is_admin else 'Benutzer':9} "

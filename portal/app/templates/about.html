@@ -23,6 +23,17 @@
 </div>
 
 
+<div class="card mb-3" id="version"><div class="card-body d-flex flex-wrap gap-3 align-items-center">
+  <div class="flex-grow-1"><div class="fw-semibold"><i class="fa-solid fa-code-branch me-1 text-primary"></i>Version {{ version }}</div>
+    {% if update_new %}<div class="text-info-emphasis small mt-1"><i class="fa-solid fa-circle-arrow-up me-1"></i>Neue Version <strong>{{ update_new }}</strong> verfügbar. Aktualisieren (vorher sichern): <code>git pull &amp;&amp; docker compose up -d --build</code> – die Datenbank wird beim Start automatisch angepasst.</div>
+    {% elif cfg.update_check == '1' and latest %}<div class="small text-secondary mt-1">Aktuell (zuletzt geprüft {{ cfg.update_checked_at[:10] }}).</div>{% endif %}</div>
+  {% if user and user.is_admin %}
+  <form method="post" action="/about/updates" class="d-flex gap-2 align-items-center"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="toggle">
+    <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" id="upd-on" name="on" value="1" {% if cfg.update_check == '1' %}checked{% endif %} onchange="this.form.submit()"><label class="form-check-label small" for="upd-on">Täglich nach Updates sehen</label></div></form>
+  <form method="post" action="/about/updates"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-secondary" type="submit" name="action" value="check" {% if cfg.update_check != '1' %}disabled{% endif %}>Jetzt prüfen</button></form>
+  {% endif %}
+</div></div>
+
 {% for group, rows in components.items() %}
 <div class="card mb-3"><div class="card-header fw-semibold">{{ group }}</div>
   <div class="table-responsive"><table class="table table-sm align-middle mb-0">

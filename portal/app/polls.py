@@ -14,7 +14,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
 
-from . import ics, mailtpl, notify
+from . import ics, links, mailtpl, notify
 from .config import settings
 from .db import LOCAL_TZ, Group, Poll, PollOption, PollParticipant, User, get_settings, to_local, utcnow
 from .planning import EMAIL_RE
@@ -191,11 +191,11 @@ def to_csv(poll: Poll) -> str:
 # --- Links, Einladungen, Mails ---------------------------------------------------------
 
 def public_link(poll: Poll) -> str:
-    return f"{settings.portal_base_url}/t/{poll.public_token}"
+    return f"{links.base('polls')}/t/{poll.public_token}"
 
 
 def personal_link(p: PollParticipant) -> str:
-    return f"{settings.portal_base_url}/t/p/{p.edit_token}"
+    return f"{links.base('polls')}/t/p/{p.edit_token}"
 
 
 def deadline_text(poll: Poll) -> str:

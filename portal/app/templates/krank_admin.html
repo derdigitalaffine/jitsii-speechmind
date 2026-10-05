@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Krankmelder verwalten{% endblock %}
+{% block content %}
+{{ m.page_head('Krankmelder verwalten', 'Meldewege, Zugang, Arbeitgeber mit Empfängern und Zuständigen, Texte, Datenschutz und Import aus dem eigenständigen Krankmelder.') }}
+{% include "_krank_tabs.html" %}
+<div class="row g-3">
+<div class="col-xl-6">
+  <form method="post" action="/krankmelder/verwaltung/allgemein" class="card mb-3"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="card-header fw-semibold"><i class="fa-solid fa-sliders me-1"></i>Allgemein, Meldewege, Datenschutz</div>
+    <div class="card-body"><div class="row g-3">
+      <div class="col-12"><label class="form-label" for="ka-title">Titel der öffentlichen Seite</label><input class="form-control" id="ka-title" name="title" value="{{ cfg.krank_title }}" maxlength="120"></div>
+      <div class="col-12"><label class="form-label" for="ka-intro">Einleitung (Markdown, optional)</label><textarea class="form-control" id="ka-intro" name="intro" rows="3">{{ cfg.krank_intro }}</textarea></div>
+      <div class="col-12"><div class="form-label">Angebotene Meldewege</div>
+        {% for key, v in krank.KINDS.items() %}<div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="ka-k-{{ key }}" name="kind_{{ key }}" value="1" {% if key in enabled %}checked{% endif %}><label class="form-check-label" for="ka-k-{{ key }}"><i class="fa-solid {{ v[1] }} fa-fw me-1"></i>{{ v[0] }}</label></div>{% endfor %}</div>
+      <div class="col-sm-6"><label class="form-label" for="ka-mail">E-Mail der Personalverwaltung</label><input class="form-control" type="email" id="ka-mail" name="global_email" value="{{ cfg.krank_global_email }}">
+        <div class="form-text">Empfänger, wenn beim Arbeitgeber niemand hinterlegt ist, und für die „globale Kopie“.</div></div>
+      <div class="col-sm-6"><label class="form-label" for="ka-prefix">Betreff-Präfix</label><input class="form-control" id="ka-prefix" name="subject_prefix" value="{{ cfg.krank_subject_prefix }}" maxlength="100">
+        <div class="form-text">Standard für alle Arbeitgeber ohne eigenes Präfix.</div></div>
+      <div class="col-sm-6"><label class="form-label" for="ka-ret">Bearbeitete Meldungen löschen nach</label><div class="input-group"><input class="form-control" type="number" min="0" max="3650" id="ka-ret" name="retention_days" value="{{ cfg.krank_retention_days }}"><span class="input-group-text">Tagen</span></div>
+        <div class="form-text">Ab „Bearbeitet“ gerechnet, samt Nachweisen, mit Protokoll. 0 = nicht automatisch löschen. Einträge in der Ablage (DMS) folgen deren Fristen.</div></div>
+      <div class="col-sm-6"><label class="form-label" for="ka-rem">Erinnerung bei fehlendem Nachweis nach</label><div class="input-group"><input class="form-control" type="number" min="0" max="60" id="ka-rem" name="reminder_days" value="{{ cfg.krank_proof_reminder_days }}"><span class="input-group-text">Tagen</span></div>
+        <div class="form-text">Einmalige Mail an die meldende Person (nur mit E-Mail-Adresse; nicht bei eAU). 0 = aus.</div></div>
+      <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="ka-fb" name="feedback" value="1" {% if cfg.krank_feedback == '1' %}checked{% endif %}><label class="form-check-label" for="ka-fb">Anonyme Bewertung nach dem Absenden anbieten</label></div></div>
+      <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="ka-pub" name="public" value="1" {% if cfg.krank_public == '1' %}checked{% endif %}><label class="form-check-label" for="ka-pub">Melden ohne Portal-Konto erlauben (mit Passwort oder Zugangslink, siehe „Zugang“)</label></div></div>
+      <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="ka-emb" name="embed" value="1" {% if cfg.krank_embed == '1' %}checked{% endif %}><label class="form-check-label" for="ka-emb">Einbetten per iframe erlauben (<code>{{ embed_url }}</code>)</label></div>
+        <input class="form-control form-control-sm mt-1" name="embed_origins" value="{{ cfg.krank_embed_origins }}" placeholder="Erlaubte Webseiten, z. B. https://intranet.example.de (leer = alle)"></div>
+    </div></div>
+    <div class="card-footer"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div>
+  </form>
+
+  <div class="card mb-3" id="arbeitgeber"><div class="card-header fw-semibold"><i class="fa-solid fa-building me-1"></i>Arbeitgeber</div>
+    <ul class="list-group list-group-flush">{% for e in employers %}
+      <li class="list-group-item d-flex align-items-center gap-2">
+        <span class="d-inline-block rounded-circle" style="width:.8rem;height:.8rem;background:{{ e.color }}"></span>
+        <a class="flex-grow-1" href="/krankmelder/arbeitgeber/{{ e.id }}">{{ e.name }}</a>
+        {% if not e.active %}<span class="badge text-bg-secondary">inaktiv</span>{% endif %}
+        {% if e.attach_files %}<span class="badge text-bg-warning" title="Mails mit Angaben und PDF">Anhänge</span>{% endif %}
+        {% if e.dms_enabled %}<span class="badge text-bg-info" title="Ablage im DMS">DMS</span>{% endif %}
+        {% if not e.responsible %}<span class="badge text-bg-light border" title="Nur Admins und „Krankmelder verwalten“ sehen die Meldungen">keine Zuständigen</span>{% endif %}
+        <span class="small text-secondary">{{ counts.get(e.id, 0) }}</span>
+        <form method="post" action="/krankmelder/arbeitgeber/{{ e.id }}/verschieben" class="d-flex"><input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-sm btn-link px-1" name="dir" value="up" title="nach oben" {% if loop.first %}disabled{% endif %}><i class="fa-solid fa-arrow-up"></i></button>
+          <button class="btn btn-sm btn-link px-1" name="dir" value="down" title="nach unten" {% if loop.last %}disabled{% endif %}><i class="fa-solid fa-arrow-down"></i></button></form>
+      </li>{% else %}<li class="list-group-item text-secondary">Noch keine Arbeitgeber – bitte anlegen (oder aus dem Krankmelder importieren).</li>{% endfor %}</ul>
+    <div class="card-footer"><form method="post" action="/krankmelder/arbeitgeber/neu" class="d-flex gap-2"><input type="hidden" name="csrf" value="{{ csrf }}"><input class="form-control form-control-sm" name="name" placeholder="Neuer Arbeitgeber, z. B. Verbandsgemeindewerke" required maxlength="200"><button class="btn btn-sm btn-primary text-nowrap" type="submit"><i class="fa-solid fa-plus me-1"></i>Anlegen</button></form>
+      <a class="small" href="/krankmelder/verwaltung/vorschau.txt" target="_blank">Empfänger aller Arbeitgeber anzeigen</a></div></div>
+</div>
+
+<div class="col-xl-6">
+  <div class="card mb-3" id="zugang"><div class="card-header fw-semibold"><i class="fa-solid fa-key me-1"></i>Zugang ohne Konto</div><div class="card-body">
+    <p class="small text-secondary">Öffentliche Adresse: <a href="{{ public_url }}" target="_blank">{{ public_url }}</a>. Angemeldete Portal-Nutzer kommen immer hinein; ohne Konto braucht es das Passwort oder den Zugangslink.{% if cfg.krank_public != '1' %} <strong>Derzeit abgeschaltet.</strong>{% endif %}</p>
+    <form method="post" action="/krankmelder/verwaltung/zugang" class="mb-3"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="form-label" for="ka-pw">Passwort {% if cfg.krank_password_hash %}<span class="badge text-bg-success">gesetzt</span>{% else %}<span class="badge text-bg-secondary">keins</span>{% endif %}</label>
+      <div class="d-flex gap-2"><input class="form-control" type="text" id="ka-pw" name="password" minlength="6" autocomplete="off" placeholder="Neues Passwort (wird nur verschlüsselt gespeichert)">
+        <button class="btn btn-primary text-nowrap" name="action" value="password" type="submit">Setzen</button>
+        {% if cfg.krank_password_hash %}<button class="btn btn-outline-danger text-nowrap" name="action" value="clear_password" type="submit" formnovalidate>Entfernen</button>{% endif %}</div>
+    </form>
+    <form method="post" action="/krankmelder/verwaltung/zugang"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="form-label">Zugangslink (ersetzt das Passwort, z. B. als QR-Code am Aushang)</div>
+      {% if access_link %}
+      <div class="input-group mb-2"><input class="form-control font-monospace small" id="ka-link" readonly value="{{ access_link }}"><button class="btn btn-outline-secondary js-copy" type="button" data-copy="#ka-link" title="Kopieren"><i class="fa-regular fa-copy"></i></button></div>
+      <div class="d-flex flex-wrap gap-2"><button class="btn btn-sm btn-outline-warning" name="action" value="new_token" type="submit" data-confirm-title="Neuen Link erzeugen?" data-confirm="Der bisherige Link und gedruckte QR-Codes funktionieren danach nicht mehr.">Neu erzeugen</button>
+        <button class="btn btn-sm btn-outline-danger" name="action" value="clear_token" type="submit">Entfernen</button>
+        {% if 'shortlinks' in modules and user.can('shortlinks') %}<a class="btn btn-sm btn-outline-secondary" href="{{ shortlink_new }}"><i class="fa-solid fa-link me-1"></i>Kurzlink erzeugen</a>{% endif %}</div>
+      {% else %}<button class="btn btn-sm btn-primary" name="action" value="new_token" type="submit"><i class="fa-solid fa-plus me-1"></i>Zugangslink erzeugen</button>{% endif %}
+    </form>
+  </div></div>
+  <div class="card mb-3"><div class="card-header fw-semibold"><i class="fa-solid fa-qrcode me-1"></i>QR-Code für den Aushang</div><div class="card-body">
+    <p class="small text-secondary">Führt {% if access_link %}über den Zugangslink direkt zu den Meldewegen{% else %}zur öffentlichen Seite (Passwort nötig){% endif %}.</p>
+    {% set qr_url = '/krankmelder/qr.{fmt}' %}{% include "_qr_panel.html" %}
+  </div></div>
+  <div class="card mb-3"><div class="card-header fw-semibold"><i class="fa-solid fa-code me-1"></i>Einbetten (Intranet, Homepage)</div><div class="card-body small">
+    <textarea class="form-control font-monospace small" rows="2" readonly>&lt;iframe src="{{ embed_url }}{{ ('/z/' ~ access_link.rsplit('/', 1)[-1]) if access_link }}" style="width:100%;height:900px;border:0" title="{{ cfg.krank_title }}"&gt;&lt;/iframe&gt;</textarea>
+    <div class="form-text">Mit Zugangslink im iframe entfällt das Passwort – nur in geschützten Seiten (Intranet) verwenden.</div></div></div>
+
+  <form method="post" action="/krankmelder/verwaltung/texte" class="card mb-3" id="texte"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="card-header fw-semibold"><i class="fa-solid fa-book me-1"></i>Anleitungen (Markdown)</div><div class="card-body">
+      <label class="form-label" for="ka-ins">Für Beschäftigte (<a href="/krank/anleitung" target="_blank">/krank/anleitung</a>)</label>
+      <textarea class="form-control font-monospace small mb-3" id="ka-ins" name="instructions" rows="8">{{ cfg.krank_text_instructions or default_instructions }}</textarea>
+      <label class="form-label" for="ka-staff">Für die Personalverwaltung (<a href="/krankmelder/hilfe">Anleitung</a>)</label>
+      <textarea class="form-control font-monospace small" id="ka-staff" name="staff" rows="8">{{ cfg.krank_text_staff or default_staff }}</textarea>
+      <div class="form-text">Mail-Texte bearbeiten Admins unter <a href="/admin/templates">E-Mail-Vorlagen</a> (Gruppe „Krankmelder“).</div>
+    </div><div class="card-footer"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div></form>
+
+  <form method="post" action="/krankmelder/import" enctype="multipart/form-data" class="card mb-3" id="import"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="card-header fw-semibold"><i class="fa-solid fa-file-import me-1"></i>Import aus dem BlueOtter Krankmelder</div><div class="card-body small">
+      <p>ZIP-Datei mit <code>krankmeldungen.db</code> (Ordner <code>data/</code>) und dem Ordner <code>uploads/</code> des bisherigen Krankmelders. Übernommen werden Arbeitgeber mit Empfängern, Einstellungen (Personal-Mail, Betreff, Passwort, Zugangstoken), Anleitung, alle Meldungen mit Dateien (verschlüsselt) und Bewertungen. Mehrfaches Importieren legt nichts doppelt an.</p>
+      <p class="text-secondary">Über die Oberfläche bis 60 MB. Größere Bestände per Kommandozeile: <code>docker compose exec portal python -m app.cli krank-import /data/krankmelder.zip</code></p>
+      <input class="form-control" type="file" name="archive" accept=".zip,application/zip" required></div>
+    <div class="card-footer"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-file-import me-1"></i>Importieren</button></div></form>
+
+  <form method="post" action="/krankmelder/archivieren" class="card mb-3 border-danger-subtle" id="loeschen"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="card-header fw-semibold text-danger"><i class="fa-regular fa-trash-can me-1"></i>Sammellöschung je Arbeitgeber</div><div class="card-body small"><div class="row g-2">
+      <div class="col-12"><select class="form-select js-select" name="employer" multiple aria-label="Arbeitgeber">{% for e in employers %}<option value="{{ e.id }}">{{ e.name }} ({{ counts.get(e.id, 0) }})</option>{% endfor %}</select></div>
+      <div class="col-sm-6"><label class="form-label" for="ka-until">Eingegangen bis einschließlich (optional)</label><input class="form-control form-control-sm" type="date" id="ka-until" name="until"></div>
+      <div class="col-sm-6 d-flex align-items-end"><div class="form-check"><input class="form-check-input" type="checkbox" id="ka-od" name="only_done" value="1" checked><label class="form-check-label" for="ka-od">nur „Bearbeitet“</label></div></div>
+      <div class="col-12"><input class="form-control form-control-sm" name="reason" maxlength="300" placeholder="Grund (für das Protokoll)"></div>
+    </div></div>
+    <div class="card-footer"><button class="btn btn-outline-danger" type="submit" data-confirm-title="Meldungen endgültig löschen?" data-confirm="Alle passenden Meldungen der gewählten Arbeitgeber werden mit Nachweisen gelöscht. Das lässt sich nicht rückgängig machen."><i class="fa-regular fa-trash-can me-1"></i>Löschen</button></div></form>
+</div>
+</div>
+{% endblock %}

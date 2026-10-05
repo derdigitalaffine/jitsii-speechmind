@@ -1,0 +1,33 @@
+{% extends layout %}
+{% block title %}Meldung {{ report.ref_no }}{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width: 820px">
+  <h1 class="h4 mb-1">{{ kind_label }} <span class="font-monospace text-secondary fs-6">{{ report.ref_no }}</span></h1>
+  {% set st = statuses[report.status] %}
+  <p class="mb-3"><span class="badge text-bg-{{ st[1] }} fs-6"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>
+    <span class="text-secondary small ms-2">eingegangen {{ report.created_at | local }}</span></p>
+  {% if embed and request.query_params.get('ok') %}<div class="alert alert-success">Danke – Ihre Angaben sind eingegangen.</div>{% endif %}
+  {% if report.status == 'proof_missing' %}<div class="alert alert-warning"><i class="fa-solid fa-file-circle-exclamation me-1"></i>Der Nachweis fehlt noch. Bitte laden Sie ihn unten hoch.</div>{% endif %}
+  {% if report.status == 'eau_failed' %}<div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i>Die eAU konnte nicht abgerufen werden. Bitte prüfen Sie die Nachricht der Personalverwaltung und antworten Sie unten – oder laden Sie Ihren Ausdruck hoch.</div>{% endif %}
+  <div class="row g-3">
+    <div class="col-lg-6"><div class="card h-100"><div class="card-header fw-semibold">Ihre Angaben</div>
+      <div class="card-body small"><dl class="row mb-0">{% for a, b in rows %}<dt class="col-sm-5 fw-normal text-secondary">{{ a }}</dt><dd class="col-sm-7">{{ b }}</dd>{% endfor %}
+        <dt class="col-sm-5 fw-normal text-secondary">Nachweise</dt><dd class="col-sm-7">{% for f, name in files %}<div><i class="fa-regular fa-file me-1"></i>{{ name }}</div>{% else %}–{% endfor %}</dd></dl></div>
+      <div class="card-footer"><a class="btn btn-sm btn-outline-primary" href="{{ R }}/s/{{ token }}/pdf"><i class="fa-solid fa-file-pdf me-1"></i>PDF</a></div></div></div>
+    <div class="col-lg-6"><div class="card h-100"><div class="card-header fw-semibold">Verlauf</div>
+      <ul class="list-group list-group-flush small">{% for e, text in events | reverse %}
+        <li class="list-group-item {{ 'bg-warning-subtle' if e.kind == 'message' }}"><div class="text-secondary">{{ e.at | local }} · {{ {'message': 'Nachricht der Personalverwaltung', 'reply': 'Ihre Antwort', 'file': 'Datei', 'status': 'Stand'}.get(e.kind, '') }}</div><div style="white-space: pre-line">{{ text }}</div></li>
+      {% endfor %}</ul></div></div>
+  </div>
+  {% if report.status != 'done' %}
+  <form method="post" action="{{ R }}/s/{{ token }}" enctype="multipart/form-data" class="card mt-3"><div class="card-body">
+    <h2 class="h6">Nachweis nachreichen oder antworten</h2>
+    <div class="row g-2">
+      <div class="col-12"><label class="form-label small" for="ks-file">Datei (PDF, JPG oder PNG, höchstens 5 MB)</label><input class="form-control" type="file" id="ks-file" name="file" accept=".pdf,.jpg,.jpeg,.png"></div>
+      <div class="col-12"><label class="form-label small" for="ks-text">Nachricht an die Personalverwaltung</label><textarea class="form-control" id="ks-text" name="text" rows="3" maxlength="4000" placeholder="z. B. Antwort auf eine Rückfrage – bitte keine Diagnosen"></textarea></div>
+    </div>
+  </div><div class="card-footer"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-paper-plane me-1"></i>Senden</button></div></form>
+  {% endif %}
+  <p class="small text-secondary mt-3"><i class="fa-solid fa-lock me-1"></i>Dieser Link ist persönlich. Bitte geben Sie ihn nicht weiter. Bearbeitete Meldungen werden nach Ablauf der Aufbewahrungsfrist gelöscht.</p>
+</div>
+{% endblock %}

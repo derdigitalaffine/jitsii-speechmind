@@ -18,11 +18,12 @@ Für alle, die das Portal der Verbandsgemeinde Otterbach-Otterberg betreuen: Vid
 8a. [Terminumfragen](#terminumfragen) und [Abstimmungen](#abstimmungen-und-wahlen)
 8b. [Terminbuchung](#terminbuchung)
 8h. [Ressourcenbuchung](#ressourcenbuchung)
+8j. [BlueOtter Krankmelder](#blueotter-krankmelder)
 8i. [Zahlungen (PayPal, Überweisung, bar)](#zahlungen-paypal-überweisung-bar)
 8c. [Rechtstexte (Ortsrecht online)](#rechtstexte-ortsrecht-online)
 8d. [Sitzungen & Cookies](#sitzungen--cookies)
 9. [E-Mail-Vorlagen](#e-mail-vorlagen)
-10. [HTTPS und Zertifikat](#https-und-zertifikat)
+10. [HTTPS und Zertifikat](#https-und-zertifikat) (mit [Eigene Domains je Modul](#eigene-domains-je-modul))
 11. [Design & Branding](#design--branding)
 12. [Räume und Zugang](#räume-und-zugang)
 13. [E-Mail einrichten](#e-mail-einrichten)
@@ -89,6 +90,8 @@ Jede Person bekommt einzeln die Bereiche freigeschaltet, die sie braucht:
 | **Kartenlayer & Geocoding** | Verwaltung › Kartenlayer: Layer, Startausschnitt, Zwischenspeicher, Einbetten und die Adresssuche (Nominatim) einrichten – ohne Admin zu sein |
 | **Karten** | Im Kartenbrowser eigene WMS/WFS/WMTS-Dienste hinzufügen, Karten speichern und per Link oder iframe teilen. Ansehen kann den Kartenbrowser jede:r, auch ohne Anmeldung |
 | **Rechtstexte** | Gesetze, Satzungen und Verordnungen einstellen, ändern, veröffentlichen und den Rechtsbaum (Ebenen) pflegen. Lesen kann jede:r ohne Anmeldung unter `/recht` |
+| **Krankmeldungen** | Krankmeldungen der Arbeitgeber bearbeiten, für die die Person oder ihre Gruppe zuständig ist (siehe [Krankmelder](#blueotter-krankmelder)) |
+| **Krankmelder verwalten** | Alle Krankmeldungen; Arbeitgeber, Zuständige, Zugang, Texte, Löschfrist, Import, Zugriffsprotokoll |
 | **Benutzerverwaltung** | Benutzer und Gruppen anlegen, bearbeiten, sperren, löschen – aber keine Admin-Konten ändern und niemanden zum Admin machen |
 | **Administrator:in** | Alles, auch Systemeinstellungen (Mail, HTTPS, Design, SpeechMind, Module, Zwei-Faktor) und alle Aufnahmen, Kurzlinks und Formulare |
 
@@ -444,6 +447,43 @@ Außerdem landen **Ressourcenbuchungen** (bestätigt, mit Buchungsbestätigung a
 **Löschfristen:** je Bereich in Jahren (vererbbar). Die Frist läuft am Ende des Jahres ab, in dem der Vorgang abgeschlossen wurde, plus N Jahre (laufende Vorgänge haben keine Frist). Unter **Löschfristen** stehen abgelaufene Vorgänge; Löschen geht nur mit Begründung, löscht bei Online-Anträgen auch den Antrag mit allen Uploads und wird protokolliert (Protokoll auf derselben Seite). Automatisch gelöscht wird nichts.
 
 **Speicherort:** Dateien der Ablage unter `data/portal/dms/<nr>/`, Angaben in der Datenbank. Beide gehören in die Sicherung.
+
+## BlueOtter Krankmelder
+
+Modul „BlueOtter Krankmelder“ (Verwaltung › Module). **Standardmäßig aus**, weil Gesundheitsdaten verarbeitet werden – vor dem Einschalten bitte Datenschutzbeauftragte und Personalrat einbinden.
+
+**Rechte** (Benutzer & Gruppen):
+
+| Recht | Darf |
+|---|---|
+| **Krankmeldungen** | Meldungen der Arbeitgeber sehen und bearbeiten, für die die Person oder eine ihrer Gruppen als *zuständig* eingetragen ist. Ohne Zuständigkeit: nichts |
+| **Krankmelder verwalten** | Alle Meldungen sehen; Arbeitgeber, Zuständige, Empfänger, Zugang, Texte, Löschfrist, Import, Protokoll |
+
+Krank melden darf jede angemeldete Person (Menü „Krankmelder › Krank melden“) – dafür ist kein Recht nötig.
+
+**Einrichten** (Krankmeldungen › Verwaltung):
+
+1. **Arbeitgeber** anlegen (Reihenfolge mit Pfeilen). Je Arbeitgeber: *Zuständige* (Personen, Gruppen), weitere Empfängeradressen (z. B. Funktionspostfach), Betreff-Präfix, globale Kopie an die Personalverwaltung, Bemerkungsfeld, **Angaben und PDF in die Mail** (aus = nur Hinweis mit Link, empfohlen), Ablage im DMS mit Bereich. Inaktive Arbeitgeber erscheinen ausgegraut („noch nicht freigeschaltet“).
+2. **Allgemein:** Titel, Einleitung, angebotene Meldewege, Adresse der Personalverwaltung (Standardempfänger), Löschfrist, Erinnerung bei fehlendem Nachweis, Bewertung, Einbetten.
+3. **Zugang ohne Konto:** Passwort setzen und/oder **Zugangslink** erzeugen – daraus QR-Code für den Aushang (SVG/PNG/JPG), Kurzlink, iframe-Code. Neu erzeugen macht alte Links und QR-Codes ungültig.
+4. **Anleitungen** für Beschäftigte und Personalverwaltung (Markdown). Mail-Texte: Verwaltung › E-Mail-Vorlagen, Gruppe „Krankmelder“.
+
+**Meldewege und Status:**
+
+| Meldeweg | Start-Status | Besonderheiten |
+|---|---|---|
+| Ohne AU | Neu | nur heute, Montag bis Freitag |
+| Mit AU | Neu bzw. *Nachweis fehlt* | Upload PDF/JPG/PNG bis 5 MB (Inhalt geprüft); Folgebescheinigung ohne Startdatum übernimmt den Beginn aus der Vorgängermeldung, Datenlücken werden als Hinweis markiert |
+| eAU | *Abruf offen* | keine Datei. Daten exakt wie auf dem Ausdruck: arbeitsunfähig seit, voraussichtlich bis, festgestellt am, Erst-/Folgebescheinigung, optional Personalnummer. Hinweise bei mehr als 3 Tagen Rückdatierung und wenn bei einer Folgebescheinigung „arbeitsunfähig seit“ vom Erstbeginn abweicht. Danach *eAU abgerufen* oder *Abruf erfolglos* (dann Nachricht an die Person) |
+| Kind krank | Neu bzw. *Nachweis fehlt* | Name und Geburtsdatum des Kindes, Hinweis ab dem 12. Geburtstag |
+
+Reicht die Person über ihre Statusseite einen Nachweis nach, springt die Meldung von *Nachweis fehlt* auf *Neu* und die Zuständigen erhalten eine Mail.
+
+**Datenschutz:** Alle Angaben, Notizen, Nachrichten und Dateien liegen **verschlüsselt** (Schlüssel aus `PORTAL_SECRET_KEY` – geht er verloren, sind die Meldungen unlesbar). Das **Protokoll** (Krankmeldungen › Protokoll) zeigt jedes Ansehen, PDF, Datei, Export, Statuswechsel und Löschen und bleibt nach dem Löschen erhalten (ohne Inhalte). Mail-Texte und -Anhänge werden nach dem Versand aus der Warteschlange gelöscht. **Löschfrist:** bearbeitete Meldungen werden nach N Tagen automatisch gelöscht (0 = aus). Einträge in der Ablage (DMS) folgen den Fristen des Aktenplans und sind dort nicht zusätzlich verschlüsselt – Bereich mit passenden Leserechten wählen.
+
+**Import aus dem eigenständigen Krankmelder:** Im alten System `data/krankmeldungen.db` und den Ordner `uploads/` in eine ZIP-Datei packen (`zip -r krankmelder.zip data/krankmeldungen.db uploads/`) und unter Verwaltung › Import hochladen (bis 60 MB). Größere Bestände: Datei nach `data/` des Portals kopieren und `docker compose exec portal python -m app.cli krank-import /data/krankmelder.zip`. Übernommen werden Arbeitgeber mit Empfängern, Bemerkungsfeld und Betreff, Personal-Mail, öffentliches Passwort und Zugangstoken (bestehende Werte im Portal bleiben), Anleitung, alle Meldungen (Bearbeitet → *Bearbeitet*, sonst *Neu* bzw. *Abruf offen*) mit Dateien und Bewertungen. Ein zweiter Import legt nichts doppelt an.
+
+**Eigene Domain:** z. B. `krank.example.de` unter Verwaltung › Domains (siehe [Eigene Domains je Modul](#eigene-domains-je-modul)).
 
 ## Kartenlayer und Kartenbrowser
 
@@ -839,6 +879,16 @@ docker compose exec portal python -m app.cli reset-2fa admin@example.org      # 
 
 Das Passwort wird nicht angezeigt, wenn Sie es eintippen. Das ist normal.
 
+## Eigene Domains je Modul
+
+Unter **Verwaltung › Domains** (nur Admins) bekommt jedes Modul mit öffentlichen Seiten auf Wunsch eine eigene Domain – Formulare, Online-Anträge, Terminumfragen & Abstimmungen, Terminbuchung, Ressourcenbuchung, Rechtstexte, Kartenbrowser, Krankmelder. Kurzlinks behalten ihre Einstellung unter Kurzlinks › Einstellungen.
+
+1. DNS-Eintrag (A/AAAA oder CNAME auf die Portal-Domain) für die neue Domain anlegen.
+2. Domain eintragen und speichern. Das Portal schreibt die Proxy-Konfiguration, Caddy lädt sie selbst neu.
+3. **Zertifikat:** Ist unter HTTPS & Zertifikat Let's Encrypt eingeschaltet, holt Caddy für die neue Domain automatisch ein Zertifikat und **erneuert es selbstständig** (Ports 80 und 443 müssen erreichbar sein). Im selbst signierten Modus gilt Caddys eigene CA. „Zertifikate prüfen“ zeigt den Stand je Domain.
+
+Unter der Modul-Domain liefert das Portal nur die öffentlichen Seiten des Moduls und gemeinsame Hilfspfade (Stile, Kartenkacheln, Adresssuche, Bezahlseite). „/“ führt zur Einstiegsseite (z. B. `/krank`), alles andere – Anmeldung, Verwaltung, andere Module – wird auf die gleiche Adresse unter der Portal-Domain umgeleitet. Das Modul bleibt zusätzlich unter der Portal-Domain erreichbar; schon verteilte Links funktionieren weiter. Neue Links in Mails, QR-Codes und Einbettungscodes verwenden die Modul-Domain. Leeres Feld = nur noch Portal-Domain.
+
 ## Alltag: Start, Stopp, Logs, Update
 
 ```bash
@@ -860,6 +910,8 @@ docker compose up -d --build
 ```
 
 Die Datenbank wird beim Start automatisch auf das neue Format gebracht. Vorher bitte [sichern](#sicherung-und-wiederherstellung).
+
+**Update-Hinweis:** Einmal täglich vergleicht das Portal seine Version (`portal/app/VERSION`) mit der im Repository (nur die Versionsnummer wird gelesen). Gibt es eine neuere, sehen Admins auf der Startseite und unter „Über dieses Portal“ einen Hinweis. Dort lässt sich die Prüfung abschalten oder sofort ausführen. Das Update selbst bleibt bewusst ein Handgriff (oben); Zertifikate erneuert Caddy dagegen automatisch.
 
 **Hat sich etwas an den Prosody-Modulen geändert** (Ordner `prosody/`, z. B. beim Update auf die Version mit Umfragen), zusätzlich `docker compose restart prosody`. Laufende Konferenzen werden dabei kurz getrennt – am besten außerhalb der Arbeitszeit. **Hat sich die Proxy-Vorlage geändert** (`caddy/Caddyfile`), übernimmt das Portal die Änderung beim Start automatisch in die verwaltete Konfiguration.
 

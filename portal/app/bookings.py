@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 
 from sqlalchemy import select
 
-from . import ics, mailtpl, notify, planning
+from . import ics, links, mailtpl, notify, planning
 from .config import settings
 from .db import (
     LOCAL_TZ, Booking, BookingInvite, BookingPage, BookingWindow, Group, Meeting, SessionLocal, User,
@@ -125,15 +125,15 @@ def can_cancel(booking: Booking) -> bool:
 # --- Links, Kalender, Mails ---------------------------------------------------------------
 
 def public_link(page: BookingPage) -> str:
-    return f"{settings.portal_base_url}/b/{page.public_token}"
+    return f"{links.base('bookings')}/b/{page.public_token}"
 
 
 def invite_link(inv: BookingInvite) -> str:
-    return f"{settings.portal_base_url}/b/{inv.page.public_token}?i={inv.token}"
+    return f"{links.base('bookings')}/b/{inv.page.public_token}?i={inv.token}"
 
 
 def manage_link(b: Booking) -> str:
-    return f"{settings.portal_base_url}/b/m/{b.token}"
+    return f"{links.base('bookings')}/b/m/{b.token}"
 
 
 def _uid(b: Booking) -> str:
@@ -489,7 +489,7 @@ def to_ics(page: BookingPage, items: list[Booking], name: str = "") -> str:
 
 
 def feed_link(page: BookingPage) -> str:
-    return f"{settings.portal_base_url}/b/feed/{page.feed_token}.ics" if page.feed_token else ""
+    return f"{links.base('bookings')}/b/feed/{page.feed_token}.ics" if page.feed_token else ""
 
 
 def calendar_events(page: BookingPage) -> list[dict]:

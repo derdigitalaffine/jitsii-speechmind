@@ -65,4 +65,6 @@ SERVICES = [
      "https://speechmind.com"),
     ("Let's Encrypt", "Externer Dienst (Subscriber Agreement)", "Kostenlose TLS-Zertifikate – nur wenn eingeschaltet",
      "https://letsencrypt.org"),
+    ("GitHub (raw.githubusercontent.com)", "Externer Dienst (GitHub-Nutzungsbedingungen)", "Update-Hinweis für Admins: einmal täglich wird nur die Versionsnummer der aktuellen Fassung gelesen – abschaltbar auf dieser Seite",
+     "https://github.com/derdigitalaffine/jitsii-speechmind"),
 ]

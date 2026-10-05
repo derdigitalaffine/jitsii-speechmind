@@ -21,6 +21,7 @@ TILES = {
     "responses": ("Neue Antworten", "fa-clipboard-list"),
     "dms": ("Ablage", "fa-box-archive"),
     "resources": ("Ressourcen", "fa-building"),
+    "krank": ("Krankmeldungen", "fa-notes-medical"),
     "quick": ("Schnellzugriff", "fa-bolt"),
 }
 
@@ -117,6 +118,15 @@ def _resources(db, user):
     return rs.booking_counts(db, managed) | {"when": rs.when_text}
 
 
+def _krank(db, user):
+    from . import krank
+    from .db import KrankReport
+    st = krank.stats(db, user)
+    items = db.scalars(krank.reports_query(db, user).where(KrankReport.status != "done")
+                       .order_by(KrankReport.created_at.desc()).limit(5)).all()
+    return {"items": items, "stats": st, "krank": krank}
+
+
 def _quick(user, modules):
     links = []
     add = lambda cond, href, icon, label: cond and links.append((href, icon, label))  # noqa: E731
@@ -128,6 +138,7 @@ def _quick(user, modules):
     add("maps" in modules, "/karte", "fa-map-location-dot", "Kartenbrowser")
     add("laws" in modules, "/recht", "fa-scale-balanced", "Ortsrecht")
     add(user.can("processes") and "applications" in modules, "/processes", "fa-diagram-project", "Prozesse")
+    add("krank" in modules, "/krank", "fa-notes-medical", "Krank melden")
     add(True, "/profile", "fa-user-gear", "Profil & Sicherheit")
     return {"items": links}
 
@@ -162,13 +173,17 @@ def tiles(db, user: User, modules: set) -> list[dict]:
         from . import resources as rs
         if any(lvl >= 3 for _, lvl in rs.visible(db, user)):
             available.append("resources")
+    if "krank" in modules:
+        from . import krank
+        if krank.uses_module(db, user):
+            available.append("krank")
     available.append("quick")
     p = prefs(user)
     order = [k for k in p.get("order", []) if k in available] + [k for k in available if k not in p.get("order", [])]
     hidden = set(p.get("hidden", []))
     loaders = {"tasks": _tasks, "applications": _applications, "meetings": _meetings, "polls": _polls,
                "bookings": _bookings, "inbox": _inbox, "responses": _responses, "dms": _dms,
-               "resources": _resources}
+               "resources": _resources, "krank": _krank}
     out = []
     for key in order:
         title, icon = TILES[key]

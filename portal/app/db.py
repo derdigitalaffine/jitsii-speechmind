@@ -81,6 +81,8 @@ class User(Base):
     recovery_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     email_code_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     email_code_expires: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Krankmelder: eigene Meldungen unter „Meine Krankmeldungen“ führen (freiwillig, siehe krank.py)
+    krank_history: Mapped[bool] = mapped_column(Boolean, default=False)
 
     meetings: Mapped[list["Meeting"]] = relationship(back_populates="owner")
     groups: Mapped[list["Group"]] = relationship(secondary="group_members", back_populates="members",
@@ -111,6 +113,8 @@ PERMISSIONS = {
     "maps": ("Karten", "fa-map-location-dot", "Im Kartenbrowser eigene WMS/WFS-Layer hinzufügen, Karten speichern und teilen"),
     "payments": ("Zahlungen", "fa-euro-sign", "Zahlungsübersicht und Export, Zahlungen als bezahlt markieren, erstatten und stornieren"),
     "resources": ("Ressourcen", "fa-building", "Bürgerhäuser, Räume, Grillplätze, Geräte anlegen, Buchungen bearbeiten, Belegungskalender teilen"),
+    "krank": ("Krankmeldungen", "fa-notes-medical", "Krankmeldungen der Arbeitgeber bearbeiten, für die man (oder die eigene Gruppe) zuständig ist"),
+    "krank_admin": ("Krankmelder verwalten", "fa-user-nurse", "Alle Krankmeldungen sehen; Arbeitgeber, Empfänger, Zuständige, Zugang, Texte, Löschfrist und Import verwalten"),
     "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
 }
 
@@ -1658,6 +1662,133 @@ class LawVersion(Base):
     law: Mapped[LawText] = relationship(back_populates="versions")
 
 
+# --- BlueOtter Krankmelder (Modul „krank“) -------------------------------------------------------
+# Personenbezogene Angaben und Gesundheitsdaten liegen verschlüsselt in data_enc (siehe krank.py);
+# unverschlüsselt sind nur Art, Status, Arbeitgeber und Zeitstempel für Listen, Zähler und Fristen.
+
+class KrankEmployer(Base):
+    """Arbeitgeber mit Empfängern, Zuständigen und Einstellungen (wie im Krankmelder)."""
+    __tablename__ = "krank_employers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), unique=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)        # inaktiv: ausgegraut, nicht wählbar
+    color: Mapped[str] = mapped_column(String(7), default="#3B82F6")
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    emails: Mapped[str] = mapped_column(Text, default="")              # Empfänger, eine Adresse je Zeile
+    send_global_copy: Mapped[bool] = mapped_column(Boolean, default=False)
+    allow_remarks: Mapped[bool] = mapped_column(Boolean, default=False)
+    subject_prefix: Mapped[str] = mapped_column(String(100), default="")
+    attach_files: Mapped[bool] = mapped_column(Boolean, default=False)  # Mail mit PDF/Nachweis statt nur Hinweis + Link
+    dms_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    dms_area_id: Mapped[int | None] = mapped_column(ForeignKey("dms_areas.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    responsible: Mapped[list["KrankResponsible"]] = relationship(back_populates="employer", cascade="all, delete-orphan",
+                                                                 passive_deletes=True)
+
+
+class KrankResponsible(Base):
+    """Zuständige Person oder Gruppe für die Meldungen eines Arbeitgebers."""
+    __tablename__ = "krank_responsible"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    employer_id: Mapped[int] = mapped_column(ForeignKey("krank_employers.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=True)
+
+    employer: Mapped[KrankEmployer] = relationship(back_populates="responsible")
+    user: Mapped[User | None] = relationship()
+    group: Mapped[Group | None] = relationship()
+
+
+class KrankReport(Base):
+    """Eine Krank- bzw. Kindkrankmeldung."""
+    __tablename__ = "krank_reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ref_no: Mapped[str] = mapped_column(String(30), unique=True, index=True)
+    kind: Mapped[str] = mapped_column(String(10), index=True)          # simple | au | eau | child
+    status: Mapped[str] = mapped_column(String(16), default="new", index=True)
+    status_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    employer_id: Mapped[int | None] = mapped_column(ForeignKey("krank_employers.id", ondelete="SET NULL"), nullable=True,
+                                                    index=True)
+    employer_name: Mapped[str] = mapped_column(String(200), default="")
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    data_enc: Mapped[str] = mapped_column(Text, default="")
+    has_email: Mapped[bool] = mapped_column(Boolean, default=False)
+    track_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+    proof_reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    processed_by: Mapped[str] = mapped_column(String(255), default="")
+    delete_after: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    dms_record_id: Mapped[int | None] = mapped_column(ForeignKey("dms_records.id", ondelete="SET NULL"), nullable=True)
+    import_key: Mapped[str | None] = mapped_column(String(80), nullable=True, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    employer: Mapped[KrankEmployer | None] = relationship()
+    files: Mapped[list["KrankFile"]] = relationship(back_populates="report", cascade="all, delete-orphan",
+                                                    order_by="KrankFile.id", passive_deletes=True)
+    events: Mapped[list["KrankEvent"]] = relationship(back_populates="report", cascade="all, delete-orphan",
+                                                      order_by="KrankEvent.id", passive_deletes=True)
+
+
+class KrankFile(Base):
+    """Nachweis (AU, Kinderkrankbescheinigung) – auf dem Datenträger verschlüsselt gespeichert."""
+    __tablename__ = "krank_files"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    report_id: Mapped[int] = mapped_column(ForeignKey("krank_reports.id", ondelete="CASCADE"), index=True)
+    name_enc: Mapped[str] = mapped_column(Text, default="")
+    file: Mapped[str] = mapped_column(String(40))
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    mime: Mapped[str] = mapped_column(String(40), default="")
+    source: Mapped[str] = mapped_column(String(12), default="meldung")   # meldung | nachgereicht | verwaltung | import
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    report: Mapped[KrankReport] = relationship(back_populates="files")
+
+
+class KrankEvent(Base):
+    """Verlauf einer Meldung: Statuswechsel, interne Notizen, Nachrichten, Nachgereichtes (Text verschlüsselt)."""
+    __tablename__ = "krank_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    report_id: Mapped[int] = mapped_column(ForeignKey("krank_reports.id", ondelete="CASCADE"), index=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    kind: Mapped[str] = mapped_column(String(12))      # status | note | message | reply | file | mail | system
+    by: Mapped[str] = mapped_column(String(255), default="")
+    public: Mapped[bool] = mapped_column(Boolean, default=False)   # auf der Statusseite sichtbar
+    text_enc: Mapped[str] = mapped_column(Text, default="")
+
+    report: Mapped[KrankReport] = relationship(back_populates="events")
+
+
+class KrankAccess(Base):
+    """Zugriffsprotokoll: wer hat wann welche Meldung angesehen, heruntergeladen, geändert oder gelöscht.
+    Bleibt nach dem Löschen der Meldung erhalten (nur Aktenzeichen, keine Inhalte)."""
+    __tablename__ = "krank_access"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    ref_no: Mapped[str] = mapped_column(String(30), default="", index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user_name: Mapped[str] = mapped_column(String(255), default="")
+    action: Mapped[str] = mapped_column(String(30))
+    detail: Mapped[str] = mapped_column(String(500), default="")
+
+
+class KrankFeedback(Base):
+    """Anonyme Bewertung nach dem Absenden."""
+    __tablename__ = "krank_feedback"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    rating: Mapped[int] = mapped_column(Integer)
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 # Ausgangsstruktur des Rechtsbaums (wird nur angelegt, solange noch keine Ebene existiert)
 DEFAULT_LAW_LEVELS = (
     "Europäische Union", "eu", [
@@ -1794,6 +1925,32 @@ DEFAULT_SETTINGS = {
     "short_domain": "",           # optional eigene Kurz-Domain, z. B. kurz.example.de
     "short_fallback_url": "",     # Ziel für unbekannte Kurzlinks und die Startseite der Kurz-Domain
     "short_code_length": "6",
+    # BlueOtter Krankmelder (siehe krank.py)
+    "module_krank": "0",                    # Gesundheitsdaten: bewusst einschalten (Verwaltung › Module)
+    "krank_title": "Krankmeldung",
+    "krank_intro": "",
+    "krank_kinds": "simple,au,eau,child",   # angebotene Meldewege
+    "krank_public": "1",                    # Zugang ohne Konto (Passwort oder Zugangslink)
+    "krank_password_hash": "",
+    "krank_access_token_enc": "",
+    "krank_global_email": "",               # Personalverwaltung (Standard und globale Kopie)
+    "krank_subject_prefix": "Krankmeldung",
+    "krank_retention_days": "0",            # 0 = keine automatische Löschung
+    "krank_proof_reminder_days": "3",       # 0 = keine Erinnerung
+    "krank_feedback": "1",
+    "krank_text_instructions": "",
+    "krank_text_staff": "",
+    "krank_embed": "1",
+    "krank_embed_origins": "",
+    "krank_seq_year": "0",
+    "krank_seq": "0",
+    # Eigene Domains je Modul (domain_<modul>); Kurzlinks nutzen weiterhin short_domain
+    "domain_forms": "", "domain_polls": "", "domain_bookings": "", "domain_laws": "", "domain_maps": "",
+    "domain_applications": "", "domain_resources": "", "domain_krank": "",
+    # Update-Hinweis für Admins
+    "update_check": "1",
+    "update_latest": "",
+    "update_checked_at": "",
 }
 
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)
@@ -1807,6 +1964,7 @@ _NEW_COLUMNS = {
         "totp_secret_enc": "TEXT", "totp_enabled": "BOOLEAN NOT NULL DEFAULT 0", "totp_last_step": "INTEGER",
         "mfa_email": "BOOLEAN NOT NULL DEFAULT 0", "recovery_json": "TEXT", "email_code_hash": "VARCHAR(64)",
         "email_code_expires": "DATETIME", "dashboard_json": "TEXT NOT NULL DEFAULT ''",
+        "krank_history": "BOOLEAN NOT NULL DEFAULT 0",
     },
     "recordings": {"audio_path": "VARCHAR(1024)", "audio_max_db": "FLOAT", "media_deleted_at": "DATETIME",
                    "chat_json": "TEXT", "polls_json": "TEXT"},

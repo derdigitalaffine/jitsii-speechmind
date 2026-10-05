@@ -19,7 +19,7 @@ from datetime import timedelta
 
 from sqlalchemy import or_, select
 
-from . import forms as fm, mailtpl, notify
+from . import forms as fm, links, mailtpl, notify
 from .config import settings
 from .db import (
     ApplicationEvent, ApplicationTask, Form, FormResponse, GroupMember, SessionLocal, User, get_settings, to_local, utcnow,
@@ -49,7 +49,7 @@ def status_label(key: str) -> str:
 
 
 def track_link(resp: FormResponse) -> str:
-    return f"{settings.portal_base_url}/a/{resp.track_token}"
+    return f"{links.base('applications')}/a/{resp.track_token}"
 
 
 def staff_link(resp: FormResponse) -> str:

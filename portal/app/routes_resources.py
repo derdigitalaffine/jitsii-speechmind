@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from . import forms as fm, holidays, payments as pay, resources as rs, shares as sh
+from . import forms as fm, holidays, links, payments as pay, resources as rs, shares as sh
 from .config import settings
 from .db import (
     CustomHoliday, Group, Resource, ResourceBooking, ResourceCalendar, ResourceClosure, ResourceExtra, ResourcePhoto,
@@ -101,7 +101,7 @@ def resource_detail(request: Request, rid: int, user: User = Depends(current_use
     return render(request, "resource.html", user, res=res, level=lvl, upcoming=upcoming, statuses=rs.STATUSES,
                   when=rs.when_text, unit_label=rs.unit_label, unit_ids=rs.unit_ids, money=pay.money,
                   share_levels=sh.LEVELS["resource"], users=_users(db) if lvl == 4 else [],
-                  groups=_groups(db) if lvl == 4 else [], public_link=f"{settings.portal_base_url}/r/{res.slug}")
+                  groups=_groups(db) if lvl == 4 else [], public_link=f"{links.base('resources')}/r/{res.slug}")
 
 
 @app.get("/resources/{rid:int}/events.json")
@@ -611,7 +611,7 @@ def calendars(request: Request, user: User = Depends(current_user), db: Session 
     own = [c for c in own if user.is_admin or c.created_by_id == user.id]
     names = {r.id: r.name for r, _ in items}
     return render(request, "resource_calendars.html", user, items=items, calendars=own, names=names,
-                  base=settings.portal_base_url)
+                  base=links.base("resources"))
 
 
 @app.post("/resources/calendars", dependencies=[Depends(check_csrf)])

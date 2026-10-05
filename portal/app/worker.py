@@ -425,9 +425,15 @@ async def run_forever() -> None:
                 from . import payments
                 if await asyncio.to_thread(payments.send_reminders):
                     await asyncio.to_thread(notify.process_queue)
+                from . import krank
+                if await asyncio.to_thread(krank.send_proof_reminders):
+                    await asyncio.to_thread(notify.process_queue)
+                await asyncio.to_thread(krank.purge_expired)
             if time.monotonic() - _last_chat_prune[0] >= 3600:
                 _last_chat_prune[0] = time.monotonic()
                 await asyncio.to_thread(chat.prune)
+                from . import updates
+                await asyncio.to_thread(updates.check)
         except Exception:  # noqa: BLE001
             log.exception("Fehler im Worker-Durchlauf")
         _wakeup.clear()

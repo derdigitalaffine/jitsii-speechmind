@@ -26,8 +26,8 @@
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "same-origin"
 	}
-	# Nur die Rechtstexte unter /recht-embed dürfen in fremden Seiten (iframe) erscheinen
-	@noembed not path /recht-embed /recht-embed/*
+	# Nur die einbettbaren Seiten (…-embed) dürfen in fremden Seiten (iframe) erscheinen
+	@noembed not path /recht-embed /recht-embed/* /karte-embed /karte-embed/* /antraege-embed /antraege-embed/* /r-embed /r-embed/* /krank-embed /krank-embed/*
 	header @noembed ?X-Frame-Options "DENY"
 	reverse_proxy portal:8000
 }

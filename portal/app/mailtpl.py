@@ -94,6 +94,21 @@ _BOOKING_INVITE_VARS = {
     "ort": "Ort bzw. Hinweis auf Videokonferenz",
 }
 
+_KRANK_VARS = {
+    "name": "Name der meldenden Person",
+    "art": "Meldeweg, z. B. „eAU (elektronische AU)“",
+    "arbeitgeber": "Arbeitgeber",
+    "aktenzeichen": "Aktenzeichen, z. B. KM-2026-00042",
+    "zeitraum": "Zeitraum bzw. Tag der Abwesenheit",
+    "eingang": "Zeitpunkt des Eingangs",
+    "angaben": "Alle Angaben der Meldung, eine je Zeile",
+    "hinweise": "Prüfhinweise (z. B. Datenlücke bei Folgebescheinigung) – leer, wenn keine",
+    "status": "Aktueller Stand, z. B. Abruf offen",
+    "status_link": "Persönlicher Link zur Statusseite (Stand, Nachreichen, Antworten)",
+    "link": "Link zur Meldung im Portal (für die Personalverwaltung)",
+    "praefix": "Betreff-Präfix des Arbeitgebers bzw. aus den Einstellungen",
+}
+
 TEMPLATES: dict[str, dict] = {
     "account_invite": {
         "group": "Konten", "label": "Einladung zum Konto",
@@ -541,6 +556,55 @@ TEMPLATES: dict[str, dict] = {
         "body": ("{ereignis}\n\n{ressource} {teilraeume}\n{zeitraum}\nAnlass: {anlass}\n{kontakt}\n\n{positionen}\nSumme: {betrag}\n\n"
                  "Bearbeiten: {verwalten_link}\n\n{fusszeile}"),
     },
+    # --- BlueOtter Krankmelder (krank.py) ---------------------------------------------------------
+    "krank_staff_notice": {
+        "group": "Krankmelder", "label": "Neue Krankmeldung – nur Hinweis mit Link (Standard, ohne Gesundheitsdaten in der Mail)",
+        "vars": _KRANK_VARS,
+        "subject": "{praefix}: neue Meldung {aktenzeichen} ({arbeitgeber})",
+        "body": ("Guten Tag,\n\nim Krankmelder ist eine neue Meldung eingegangen:\n\n"
+                 "Aktenzeichen: {aktenzeichen}\nArt: {art}\nArbeitgeber: {arbeitgeber}\nEingang: {eingang}\n\n"
+                 "Die Angaben stehen aus Datenschutzgründen nicht in dieser E-Mail. Bitte im Portal öffnen:\n{link}\n\n{fusszeile}"),
+    },
+    "krank_staff_full": {
+        "group": "Krankmelder", "label": "Neue Krankmeldung – mit Angaben und PDF (Arbeitgeber mit „Anhänge in Mails“)",
+        "vars": _KRANK_VARS,
+        "subject": "{praefix}: {name} – {arbeitgeber}",
+        "body": ("NEUE MELDUNG – {art}\n\nName: {name}\nArbeitgeber: {arbeitgeber}\nZeitraum: {zeitraum}\n"
+                 "Aktenzeichen: {aktenzeichen}\nEingang: {eingang}\n\n{angaben}\n\n{hinweise}\n\n"
+                 "Das PDF der Meldung (mit Nachweis, falls hochgeladen) ist angehängt.\nIm Portal: {link}\n\n{fusszeile}"),
+    },
+    "krank_staff_update": {
+        "group": "Krankmelder", "label": "Nachweis nachgereicht oder Antwort (an die Zuständigen)",
+        "vars": _KRANK_VARS | {"ereignis": "Was ist passiert, z. B. „Nachweis nachgereicht“"},
+        "subject": "{praefix}: {ereignis} – {aktenzeichen}",
+        "body": ("Guten Tag,\n\nzur Meldung {aktenzeichen} ({art}, {arbeitgeber}): {ereignis}.\n\n"
+                 "Bitte im Portal öffnen:\n{link}\n\n{fusszeile}"),
+    },
+    "krank_confirm": {
+        "group": "Krankmelder", "label": "Eingangsbestätigung (an die meldende Person)",
+        "vars": _KRANK_VARS,
+        "subject": "Bestätigung Ihrer Meldung {aktenzeichen}",
+        "body": ("Guten Tag {name},\n\nIhre Meldung ist eingegangen. Bitte bewahren Sie diese E-Mail auf.\n\n"
+                 "Aktenzeichen: {aktenzeichen}\nArt: {art}\nArbeitgeber: {arbeitgeber}\nZeitraum: {zeitraum}\n"
+                 "Eingang: {eingang}\n\n{angaben}\n\n{hinweise}\n\n"
+                 "Stand ansehen, Nachweis nachreichen oder auf Rückfragen antworten:\n{status_link}\n"
+                 "Der Link ist persönlich – bitte nicht weitergeben.\n\n{fusszeile}"),
+    },
+    "krank_proof_reminder": {
+        "group": "Krankmelder", "label": "Erinnerung: Nachweis fehlt (an die meldende Person)",
+        "vars": _KRANK_VARS,
+        "subject": "Erinnerung: Nachweis zu Ihrer Meldung {aktenzeichen} fehlt",
+        "body": ("Guten Tag {name},\n\nzu Ihrer Meldung {aktenzeichen} ({zeitraum}) liegt uns noch keine ärztliche "
+                 "Bescheinigung vor. Bitte reichen Sie sie über folgenden Link nach (PDF, JPG oder PNG):\n{status_link}\n\n"
+                 "Haben Sie den Nachweis bereits auf anderem Weg abgegeben, ist diese Erinnerung gegenstandslos.\n\n{fusszeile}"),
+    },
+    "krank_message": {
+        "group": "Krankmelder", "label": "Nachricht oder Rückfrage der Personalverwaltung (an die meldende Person)",
+        "vars": _KRANK_VARS | {"nachricht": "Text der Personalverwaltung"},
+        "subject": "Rückfrage zu Ihrer Meldung {aktenzeichen}",
+        "body": ("Guten Tag {name},\n\nzu Ihrer Meldung {aktenzeichen} ({art}) hat die Personalverwaltung eine Nachricht:\n\n"
+                 "{nachricht}\n\nAntworten oder Unterlagen nachreichen:\n{status_link}\n\nStand: {status}\n\n{fusszeile}"),
+    },
 }
 
 SAMPLE = {
@@ -577,6 +641,9 @@ SAMPLE = {
     "geheim": "Geheim: Wer abgestimmt hat, ist sichtbar – wie, nicht.",
     "ressource": "Grillplatz Am Weiher", "teilraeume": "", "anlass": "Geburtstagsfeier",
     "buchungsnummer": "RB-2026-00007", "storno": "Bis 14 Tage vor Beginn kostenlos.", "erstattung": "Erstattet werden 85,00 €.",
+    "art": "eAU (elektronische AU)", "arbeitgeber": "Verbandsgemeindeverwaltung", "eingang": "05.10.2026, 07:12 Uhr",
+    "angaben": "Arbeitsunfähig seit: 05.10.2026\nVoraussichtlich bis: 09.10.2026\nFestgestellt am: 05.10.2026\nErstbescheinigung",
+    "hinweise": "", "praefix": "Krankmeldung",
     "verwalten_link": "https://portal.example.org/resources/bookings/7", "kontakt": "Erika Mustermann <erika@example.org>",
 }
 

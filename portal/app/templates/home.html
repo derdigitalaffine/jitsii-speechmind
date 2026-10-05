@@ -70,6 +70,14 @@
         <a class="dash-num" href="/resources/bookings?status=confirmed"><span>{{ d.unpaid }}</span>unbezahlt</a></div></div>
       <ul class="list-group list-group-flush small">{% for b in d.requested[:5] %}<li class="list-group-item"><a href="/resources/bookings/{{ b.id }}">{{ b.resource.name }}: {{ d.when(b) }}</a> <span class="text-secondary">{{ b.title }}</span></li>{% else %}<li class="list-group-item text-secondary">Keine offenen Anfragen.</li>{% endfor %}</ul>
       <div class="card-footer small"><a href="/resources/bookings">Alle Buchungen <i class="fa-solid fa-arrow-right"></i></a></div>
+    {% elif t.key == 'krank' %}{% set ks = d.stats %}
+      <div class="card-body pb-2"><div class="d-flex gap-3 mb-2">
+        <a class="dash-num" href="/krankmelder/liste?status=new"><span>{{ ks.by_status.new }}</span>neu</a>
+        <a class="dash-num" href="/krankmelder/liste?status=eau_open"><span>{{ ks.by_status.eau_open }}</span>eAU-Abruf</a>
+        <a class="dash-num {{ 'text-warning' if ks.proof_missing }}" href="/krankmelder/liste?status=proof_missing"><span>{{ ks.proof_missing }}</span>Nachweis fehlt</a>
+        <span class="dash-num"><span>{{ ks.today }}</span>heute</span></div></div>
+      <ul class="list-group list-group-flush small">{% for r in d['items'] %}{% set st = d.krank.STATUSES[r.status] %}<li class="list-group-item d-flex gap-2 align-items-center"><a class="flex-grow-1 text-truncate" href="/krankmelder/{{ r.id }}">{{ d.krank.full_name(r) }} <span class="text-secondary">· {{ d.krank.KIND_SHORT[r.kind] }} · {{ r.employer_name }}</span></a><span class="badge text-bg-{{ st[1] }}">{{ st[0] }}</span></li>{% else %}<li class="list-group-item text-secondary">Keine offenen Meldungen.</li>{% endfor %}</ul>
+      <div class="card-footer small"><a href="/krankmelder">Zu den Krankmeldungen <i class="fa-solid fa-arrow-right"></i></a></div>
     {% elif t.key == 'quick' %}
       <div class="card-body"><div class="row row-cols-2 g-2">{% for href, icon, label in d['items'] %}<div class="col"><a class="btn btn-outline-secondary w-100 text-start btn-sm" href="{{ href }}"><i class="fa-solid {{ icon }} fa-fw me-1"></i>{{ label }}</a></div>{% endfor %}</div></div>
     {% endif %}

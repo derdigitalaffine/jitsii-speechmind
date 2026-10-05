@@ -1,0 +1,11 @@
+{% set p = request.url.path %}
+<ul class="nav nav-tabs mb-3 flex-nowrap overflow-auto">
+  <li class="nav-item"><a class="nav-link {{ 'active' if p == '/krankmelder' }}" href="/krankmelder"><i class="fa-solid fa-gauge me-1"></i>Übersicht</a></li>
+  <li class="nav-item"><a class="nav-link {{ 'active' if p.startswith('/krankmelder/liste') or (p[13:14].isdigit()) }}" href="/krankmelder/liste?status=open"><i class="fa-solid fa-list me-1"></i>Meldungen</a></li>
+  <li class="nav-item"><a class="nav-link {{ 'active' if p.startswith('/krankmelder/statistik') }}" href="/krankmelder/statistik"><i class="fa-solid fa-chart-column me-1"></i>Statistik</a></li>
+  <li class="nav-item"><a class="nav-link {{ 'active' if p.startswith('/krankmelder/hilfe') }}" href="/krankmelder/hilfe"><i class="fa-regular fa-circle-question me-1"></i>Anleitung</a></li>
+  {% if krank_nav.manager %}
+  <li class="nav-item"><a class="nav-link {{ 'active' if p.startswith('/krankmelder/verwaltung') or p.startswith('/krankmelder/arbeitgeber') }}" href="/krankmelder/verwaltung"><i class="fa-solid fa-gear me-1"></i>Verwaltung</a></li>
+  <li class="nav-item"><a class="nav-link {{ 'active' if p.startswith('/krankmelder/protokoll') }}" href="/krankmelder/protokoll"><i class="fa-solid fa-clipboard-list me-1"></i>Protokoll</a></li>
+  {% endif %}
+</ul>
