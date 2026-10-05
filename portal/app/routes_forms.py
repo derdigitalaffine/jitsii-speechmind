@@ -101,7 +101,13 @@ def forms_inbox(request: Request, user: User = Depends(current_user), db: Sessio
 def form_builder(request: Request, form_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     form, level = _form(db, form_id, user, fm.EDIT)
     return render(request, "form_builder.html", user, **_ctx(db, form, "build", level),
-                  schema=fm.schema(form), subtypes=fm.SUBTYPES, max_file_mb=fm.MAX_FILE_MB)
+                  schema=fm.schema(form), subtypes=fm.SUBTYPES, max_file_mb=fm.MAX_FILE_MB, **builder_extras())
+
+
+def builder_extras() -> dict:
+    """Zusätzliche Daten für den Baukasten (Reihenfolge als Listen, weil tojson Schlüssel sortiert)."""
+    return {"cond_ops": list(fm.COND_OPS.items()), "widths": list(fm.WIDTHS.items()),
+            "hidden_types": fm.HIDDEN_TYPES}
 
 
 @app.post("/forms/{form_id}/schema", dependencies=[Depends(check_csrf)])
@@ -145,6 +151,7 @@ async def form_settings_save(request: Request, form_id: int, user: User = Depend
     form.anonymous = flag("anonymous")
     form.multiple = flag("multiple")
     form.confirm_mail = flag("confirm_mail")
+    form.review = flag("review")
     form.submit_message = str(data.get("submit_message", "")).replace("\r\n", "\n").strip()[:5000]
     form.notify = flag("notify")
     emails, bad = parse_emails(str(data.get("notify_to", "")))
@@ -432,6 +439,7 @@ def _fill_page(request: Request, form: Form, *, preview: bool = False, action: s
         with SessionLocal() as db:
             geo_bundle = map_bundle(db, request, None, purpose="forms")
     response = render(request, "form_fill.html", None, form=form, pages=page_list, preview=preview, action=action,
+                      review=form.review and len(fm.questions(items)) >= 3,
                       invite=invite, values=values or {}, errors=errors or {}, page_index=page_index,
                       types=fm.TYPES, other=fm.OTHER, geo_bundle=geo_bundle)
     response.status_code = status

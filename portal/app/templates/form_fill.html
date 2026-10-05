@@ -14,23 +14,37 @@
     </div>
   </div></div>
 
-  <form method="post" {% if action %}action="{{ action }}"{% endif %} enctype="multipart/form-data" id="fill-form" class="js-fill" data-start="{{ page_index }}" novalidate>
+  <form method="post" {% if action %}action="{{ action }}"{% endif %} enctype="multipart/form-data" id="fill-form" class="js-fill" data-start="{{ page_index }}" {% if not preview and not errors %}data-draft-key="form-{{ form.id }}"{% endif %} {% if review %}data-review="1"{% endif %} novalidate>
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="d-none" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
     {% if pages | length > 1 %}
-    <div class="mb-3"><div class="d-flex justify-content-between small text-secondary mb-1"><span class="js-page-label">Seite 1 von {{ pages | length }}</span></div>
-      <div class="progress fill-progress" role="progressbar" aria-label="Fortschritt"><div class="progress-bar js-progress" style="width: 0%"></div></div></div>
+    <ol class="fill-steps mb-3" aria-label="Seiten des Formulars">
+      {% for page in pages %}<li class="fill-step" data-step="{{ loop.index0 }}"><button type="button" class="fill-step-btn" data-goto="{{ loop.index0 }}" disabled><span class="fill-step-no">{{ loop.index }}</span><span class="fill-step-label">{{ page.title or ('Seite ' ~ loop.index) }}</span></button></li>{% endfor %}
+      {% if review %}<li class="fill-step" data-step="review"><button type="button" class="fill-step-btn" disabled><span class="fill-step-no"><i class="fa-solid fa-check"></i></span><span class="fill-step-label">Übersicht</span></button></li>{% endif %}
+    </ol>
     {% endif %}
+    <div class="alert alert-info d-none js-draft-banner d-flex flex-wrap align-items-center gap-2" role="status"><i class="fa-solid fa-floppy-disk"></i><span class="flex-grow-1">Es gibt einen nicht abgeschickten Entwurf vom <strong class="js-draft-time"></strong>. Weiter ausfüllen?</span>
+      <button type="button" class="btn btn-sm btn-primary js-draft-restore">Entwurf übernehmen</button><button type="button" class="btn btn-sm btn-outline-secondary js-draft-discard">Verwerfen</button></div>
     {% for page in pages %}
-    <section class="fill-page d-flex flex-column gap-3" data-page="{{ loop.index0 }}" {% if pages | length > 1 %}aria-label="Seite {{ loop.index }}"{% endif %}>
-      {% if page.title %}<h2 class="h4 mb-0">{{ page.title }}</h2>{% endif %}
-      {% if page.description %}<p class="text-secondary mb-0">{{ page.description | richtext }}</p>{% endif %}
+    <section class="fill-page row g-3" data-page="{{ loop.index0 }}" {% if page.show_if %}data-show-if="{{ page.show_if | tojson | forceescape }}"{% endif %} {% if pages | length > 1 %}aria-label="{{ page.title or ('Seite ' ~ loop.index) }}"{% endif %}>
+      {% if page.title %}<div class="col-12"><h2 class="h4 mb-0">{{ page.title }}</h2></div>{% endif %}
+      {% if page.description %}<div class="col-12"><p class="text-secondary mb-0">{{ page.description | richtext }}</p></div>{% endif %}
       {% for item in page['items'] %}{% include "_form_field.html" %}{% endfor %}
     </section>
     {% endfor %}
+    {% if review %}
+    <section class="fill-review d-none" aria-label="Übersicht Ihrer Angaben">
+      <div class="card"><div class="card-body">
+        <h2 class="h4">Bitte prüfen Sie Ihre Angaben</h2>
+        <p class="text-secondary small">Mit „ändern“ springen Sie zur jeweiligen Stelle. Erst „Absenden“ übermittelt das Formular.</p>
+        <div class="js-review-body"></div>
+      </div></div>
+    </section>
+    {% endif %}
     <div class="d-flex flex-wrap gap-2 mt-4 mb-5">
       <button type="button" class="btn btn-outline-secondary js-prev d-none"><i class="fa-solid fa-arrow-left me-1"></i>Zurück</button>
       <button type="button" class="btn btn-primary js-next d-none">Weiter<i class="fa-solid fa-arrow-right ms-1"></i></button>
+      <span class="small text-secondary align-self-center ms-auto js-draft-state"></span>
       <button type="submit" class="btn btn-primary btn-lg js-submit" {% if preview %}disabled{% endif %}><i class="fa-solid fa-paper-plane me-1"></i>Absenden</button>
     </div>
   </form>

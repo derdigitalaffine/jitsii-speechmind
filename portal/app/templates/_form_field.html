@@ -1,5 +1,7 @@
 {# Ein Element im Ausfüllformular. Erwartet: item, values, errors, other #}
 {% set qid = item.id %}{% set name = 'q_' ~ qid %}{% set err = errors.get(qid) %}{% set val = values.get(qid) %}
+{% set wcls = {'half': 'col-md-6', 'third': 'col-md-4', 'two_thirds': 'col-md-8'}.get(item.width, '') %}
+<div class="fill-item col-12 {{ wcls }}" data-qid="{{ qid }}"{% if item.show_if %} data-show-if="{{ item.show_if | tojson | forceescape }}"{% endif %}{% if item.required_if %} data-required-if="{{ item.required_if | tojson | forceescape }}"{% endif %}{% if item.required %} data-required-base="1"{% endif %}>
 {% if item.type == 'heading' %}
   <h2 class="h4 mt-3 mb-1">{{ item.title }}</h2>{% if item.description %}<p class="text-secondary">{{ item.description | richtext }}</p>{% endif %}
 {% elif item.type == 'subheading' %}
@@ -45,6 +47,8 @@
       <option value="">Bitte wählen …</option>
       {% for o in item.options %}<option {% if o.label == val %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
     </select>
+  {% elif item.type == 'date' and item.with_time %}
+    <input class="form-control {{ 'is-invalid' if err }}" style="max-width: 18rem" type="datetime-local" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" {% if item.min %}min="{{ item.min[:10] }}T00:00"{% endif %} {% if item.max %}max="{{ item.max[:10] }}T23:59"{% endif %} {% if item.required %}required{% endif %}>
   {% elif item.type == 'date' %}
     <input class="form-control {{ 'is-invalid' if err }}" style="max-width: 14rem" type="date" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" {% if item.min %}min="{{ item.min }}"{% endif %} {% if item.max %}max="{{ item.max }}"{% endif %} {% if item.required %}required{% endif %}>
   {% elif item.type == 'time' %}
@@ -105,3 +109,4 @@
   {% if err %}<div class="text-danger small mt-2"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ err }}</div>{% endif %}
 </div></div>
 {% endif %}
+</div>

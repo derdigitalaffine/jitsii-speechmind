@@ -52,6 +52,7 @@ SUBTYPES = {"text": "Text", "email": "E-Mail-Adresse", "phone": "Telefonnummer",
             "regex": "Eigenes Muster (regulärer Ausdruck)"}
 CHOICE_TYPES = {"radio", "checkbox", "dropdown"}
 GEOMETRIES = {"point": "Punkt", "line": "Linie", "polygon": "Fläche"}
+HIDDEN_TYPES = {"datetime"}   # nur noch für ältere Formulare; neu: „Datum“ mit Option „mit Uhrzeit“
 OTHER = "__other__"
 MAX_FILE_MB = 20
 PHONE_RE = re.compile(r"^\+?[0-9 ()/\-.]{3,30}$")
@@ -102,6 +103,12 @@ def clean_schema(raw) -> list[dict]:
         seen.add(qid)
         item = {"id": qid, "type": kind, "title": _str(src.get("title"), 500),
                 "description": _str(src.get("description"), 5000)}
+        if src.get("width") in WIDTHS and src.get("width") != "full" and kind not in ("pagebreak", "divider", "heading"):
+            item["width"] = src["width"]
+        for key in ("show_if", "required_if"):
+            cond = _clean_cond(src.get(key))
+            if cond and (key == "show_if" or TYPES[kind][2]):
+                item[key] = cond
         if TYPES[kind][2]:
             item["required"] = bool(src.get("required"))
         if kind == "short":
@@ -138,6 +145,8 @@ def clean_schema(raw) -> list[dict]:
         elif kind in ("date", "datetime"):
             item["min"] = _str(src.get("min"), 16)
             item["max"] = _str(src.get("max"), 16)
+            if kind == "date" and src.get("with_time"):
+                item["with_time"] = True
         elif kind == "scale":
             item["min"] = _int(src.get("min"), 0, 1, 1)
             item["max"] = _int(src.get("max"), 2, 10, 5)
@@ -161,7 +170,77 @@ def clean_schema(raw) -> list[dict]:
         elif kind == "heading" or kind == "subheading" or kind == "pagebreak":
             pass
         items.append(item)
+    known = {i["id"] for i in items if TYPES[i["type"]][2]}
+    for item in items:
+        for key in ("show_if", "required_if"):
+            if key in item:
+                item[key]["rules"] = [r for r in item[key]["rules"] if r["q"] in known and r["q"] != item["id"]]
+                if not item[key]["rules"]:
+                    del item[key]
     return items[:500]
+
+
+WIDTHS = {"full": "ganze Zeile", "half": "halbe Breite", "third": "ein Drittel", "two_thirds": "zwei Drittel"}
+COND_OPS = {"eq": "ist gleich", "ne": "ist nicht", "contains": "enthält", "filled": "ist ausgefüllt", "empty": "ist leer",
+            "gt": "größer als", "lt": "kleiner als"}
+
+
+def _clean_cond(raw) -> dict | None:
+    """Bedingung {mode: all|any, rules: [{q, op, value}]} – für „anzeigen, wenn“ und „Pflicht, wenn“."""
+    if not isinstance(raw, dict) or not isinstance(raw.get("rules"), list):
+        return None
+    rules = []
+    for r in raw["rules"][:20]:
+        if isinstance(r, dict) and ID_RE.match(str(r.get("q") or "")) and r.get("op") in COND_OPS:
+            rules.append({"q": str(r["q"]), "op": r["op"], "value": _str(r.get("value"), 500)})
+    return {"mode": "any" if raw.get("mode") == "any" else "all", "rules": rules} if rules else None
+
+
+def _cond_value_texts(value) -> list[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, list):
+        return [str(v).strip().lower() for v in value if v not in (None, "")]
+    if isinstance(value, dict):   # Adresse, Karte: auf Text abbilden
+        return [" ".join(str(v) for v in value.values() if isinstance(v, (str, int, float))).strip().lower()] if value else []
+    return [str(value).strip().lower()]
+
+
+def condition_met(cond: dict | None, answers: dict) -> bool:
+    if not cond:
+        return True
+    results = []
+    for r in cond["rules"]:
+        texts = _cond_value_texts(answers.get(r["q"]))
+        target = r["value"].strip().lower()
+        op = r["op"]
+        if op == "filled":
+            ok = bool(texts)
+        elif op == "empty":
+            ok = not texts
+        elif op == "eq":
+            ok = target in texts
+        elif op == "ne":
+            ok = target not in texts
+        elif op == "contains":
+            ok = any(target in t for t in texts)
+        else:
+            a, b = (_num(texts[0]) if texts else None), _num(target)
+            ok = a is not None and b is not None and (a > b if op == "gt" else a < b)
+        results.append(ok)
+    return all(results) if cond["mode"] == "all" else any(results)
+
+
+def visibility(items: list[dict], answers: dict) -> dict[str, bool]:
+    """Sichtbarkeit je Element: eigene Bedingung und die Bedingung der Seite (Seitenumbruch)."""
+    out, page_visible = {}, True
+    for item in items:
+        if item["type"] == "pagebreak":
+            page_visible = condition_met(item.get("show_if"), answers)
+            out[item["id"]] = page_visible
+            continue
+        out[item["id"]] = page_visible and condition_met(item.get("show_if"), answers)
+    return out
 
 
 def schema(form: Form) -> list[dict]:
@@ -181,7 +260,8 @@ def pages(items: list[dict]) -> list[dict]:
     result = [{"title": "", "description": "", "items": []}]
     for item in items:
         if item["type"] == "pagebreak":
-            result.append({"title": item.get("title", ""), "description": item.get("description", ""), "items": []})
+            result.append({"title": item.get("title", ""), "description": item.get("description", ""), "items": [],
+                           "show_if": item.get("show_if")})
         else:
             result[-1]["items"].append(item)
     # leere erste Seite (Formular beginnt mit Seitenumbruch) weglassen
@@ -210,8 +290,26 @@ def _parse_date(value: str) -> date | None:
 def validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
     """Prüft die Eingaben. Gibt (Antworten, Fehler je Frage-ID, Uploads je Frage-ID) zurück.
 
+    Bedingungen: Zuerst werden alle Eingaben ohne Pflichtprüfung gelesen, daraus ergibt sich, welche Felder
+    sichtbar und welche Pflicht sind. Ausgeblendete Felder werden weder geprüft noch gespeichert.
     data: Formularwerte (getlist/get), files: {feldname: [UploadFile]}
     """
+    if not any(i.get("show_if") or i.get("required_if") for i in items):
+        return _validate(items, data, files)
+    loose = [{**i, "required": False, "location_required": False} for i in items]
+    first, _e, _u = _validate(loose, data, files)
+    shown = visibility(items, first)
+    effective = []
+    for item in items:
+        if not shown.get(item["id"], True):
+            continue
+        if item.get("required_if") and TYPES[item["type"]][2]:
+            item = {**item, "required": condition_met(item["required_if"], first)}
+        effective.append(item)
+    return _validate(effective, data, files)
+
+
+def _validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
     answers, errors, uploads = {}, {}, {}
     for item in questions(items):
         qid, kind, name = item["id"], item["type"], f"q_{item['id']}"
@@ -285,6 +383,16 @@ def validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
             elif kind == "long":
                 if item.get("max_length") and len(raw) > item["max_length"]:
                     errors[qid] = f"Bitte höchstens {item['max_length']} Zeichen."
+            elif kind == "date" and raw and item.get("with_time"):
+                try:
+                    dt = datetime.fromisoformat(raw)
+                    if item.get("min") and _parse_date(item["min"][:10]) and dt.date() < _parse_date(item["min"][:10]):
+                        errors[qid] = f"Frühestens {_parse_date(item['min'][:10]).strftime('%d.%m.%Y')}."
+                    elif item.get("max") and _parse_date(item["max"][:10]) and dt.date() > _parse_date(item["max"][:10]):
+                        errors[qid] = f"Spätestens {_parse_date(item['max'][:10]).strftime('%d.%m.%Y')}."
+                    raw = dt.strftime("%Y-%m-%dT%H:%M")
+                except ValueError:
+                    errors[qid] = "Bitte Datum und Uhrzeit angeben."
             elif kind == "date" and raw:
                 d = _parse_date(raw)
                 if d is None:
@@ -613,6 +721,11 @@ def display(item: dict, value) -> str:
         return "; ".join(p for p in parts if p)
     if isinstance(value, list):
         return ", ".join(str(v) for v in value)
+    if kind == "date" and "T" in str(value):
+        try:
+            return datetime.fromisoformat(str(value)).strftime("%d.%m.%Y, %H:%M Uhr")
+        except ValueError:
+            return str(value)
     if kind == "date":
         d = _parse_date(str(value))
         return d.strftime("%d.%m.%Y") if d else str(value)

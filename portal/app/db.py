@@ -383,6 +383,7 @@ class Form(Base):
     notify_json: Mapped[bool] = mapped_column(Boolean, default=False)
     notify_csv: Mapped[bool] = mapped_column(Boolean, default=False)
     notify_scope: Mapped[str] = mapped_column(String(10), default="single")  # single | all
+    review: Mapped[bool] = mapped_column(Boolean, default=True)    # Übersicht vor dem Absenden
     # Online-Antrag (siehe applications.py): Aktenzeichen, Status, Zuständigkeit, PDF, Antragskatalog
     kind: Mapped[str] = mapped_column(String(12), default="survey")          # survey | application
     app_prefix: Mapped[str] = mapped_column(String(12), default="")          # z. B. GEW → GEW-2026-00042
@@ -1195,7 +1196,8 @@ _NEW_COLUMNS = {
               "app_deadline_days": "INTEGER NOT NULL DEFAULT 14", "app_catalog": "BOOLEAN NOT NULL DEFAULT 1",
               "app_pdf": "BOOLEAN NOT NULL DEFAULT 1", "app_seq_year": "INTEGER NOT NULL DEFAULT 0",
               "app_seq": "INTEGER NOT NULL DEFAULT 0",
-              "process_id": "INTEGER REFERENCES processes(id) ON DELETE SET NULL"},
+              "process_id": "INTEGER REFERENCES processes(id) ON DELETE SET NULL",
+              "review": "BOOLEAN NOT NULL DEFAULT 1"},
     "form_responses": {"ref_no": "VARCHAR(40)", "status": "VARCHAR(16) NOT NULL DEFAULT ''", "status_at": "DATETIME",
                        "assignee_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
                        "group_id": "INTEGER REFERENCES groups(id) ON DELETE SET NULL",

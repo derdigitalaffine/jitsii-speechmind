@@ -94,6 +94,7 @@
       case 'date':
         h += field('Frühestes Datum', input('min', it.min, 'type="date"'), 'md-3');
         h += field('Spätestes Datum', input('max', it.max, 'type="date"'), 'md-3');
+        h += '<div class="col-md-6 d-flex align-items-end small">' + switchHtml('with_time', 'mit Uhrzeit', it.with_time) + '</div>';
         break;
       case 'datetime':
         h += field('Frühestens am', input('min', it.min, 'type="date"'), 'md-3');
@@ -138,6 +139,69 @@
       '" data-flag="' + key + '"' + (on ? ' checked' : '') + '><label class="form-check-label" for="' + id + '">' + label + '</label></div>';
   }
 
+  /* --- Darstellung und Bedingungen ------------------------------------- */
+  var OPS = {}, OPS_KEYS = [], WIDTHS = data.widths || [['full', 'ganze Zeile']];
+  (data.ops || []).forEach(function (o) { OPS[o[0]] = o[1]; OPS_KEYS.push(o[0]); });
+  function questionLabel(q) {
+    var n = items.filter(function (x) { return isQuestion(x.type); }).indexOf(q) + 1;
+    return 'Frage ' + n + ': ' + (q.title || TYPES[q.type][0]);
+  }
+  function condRules(it, key) {
+    var c = it[key];
+    var before = items.slice(0, items.indexOf(it)).filter(function (x) { return isQuestion(x.type); });
+    if (!before.length) { return '<div class="small text-secondary">Bedingungen beziehen sich auf Fragen <em>oberhalb</em> dieses Elements – davor gibt es noch keine.</div>'; }
+    var h = '<div class="d-flex flex-wrap align-items-center gap-2 small mb-1">' + (key === 'show_if' ? 'Anzeigen, wenn' : 'Pflicht, wenn') +
+      ' <select class="form-select form-select-sm w-auto" data-ckey="' + key + '" data-cmode>' +
+      '<option value="all"' + (c.mode !== 'any' ? ' selected' : '') + '>alle Regeln</option><option value="any"' + (c.mode === 'any' ? ' selected' : '') + '>eine der Regeln</option></select> zutreffen:</div>';
+    c.rules.forEach(function (r, i) {
+      var q = items.filter(function (x) { return x.id === r.q; })[0];
+      var valueHtml = '';
+      if (r.op !== 'filled' && r.op !== 'empty') {
+        if (q && q.options && q.options.length) {
+          valueHtml = '<select class="form-select form-select-sm" data-ckey="' + key + '" data-ri="' + i + '" data-cfield="value"><option value="">– wählen –</option>' +
+            q.options.map(function (o) { return '<option' + (o.label === r.value ? ' selected' : '') + '>' + esc(o.label) + '</option>'; }).join('') + '</select>';
+        } else {
+          valueHtml = '<input class="form-control form-control-sm" data-ckey="' + key + '" data-ri="' + i + '" data-cfield="value" value="' + esc(r.value) + '" placeholder="Wert">';
+        }
+      }
+      h += '<div class="row g-1 mb-1 align-items-center"><div class="col-md-5"><select class="form-select form-select-sm" data-ckey="' + key + '" data-ri="' + i + '" data-cfield="q">' +
+        before.map(function (b) { return '<option value="' + esc(b.id) + '"' + (b.id === r.q ? ' selected' : '') + '>' + esc(questionLabel(b)) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="col-md-3"><select class="form-select form-select-sm" data-ckey="' + key + '" data-ri="' + i + '" data-cfield="op">' +
+        OPS_KEYS.map(function (k) { return '<option value="' + k + '"' + (k === r.op ? ' selected' : '') + '>' + OPS[k] + '</option>'; }).join('') + '</select></div>' +
+        '<div class="col-md-3">' + valueHtml + '</div>' +
+        '<div class="col-md-1 text-end"><button type="button" class="btn btn-sm btn-link text-danger" data-ckey="' + key + '" data-cdel="' + i + '" title="Regel entfernen" aria-label="Regel entfernen"><i class="fa-solid fa-xmark"></i></button></div></div>';
+    });
+    return h + '<button type="button" class="btn btn-sm btn-outline-secondary" data-ckey="' + key + '" data-cadd><i class="fa-solid fa-plus me-1"></i>Regel</button>';
+  }
+  function logicHtml(it) {
+    var q = isQuestion(it.type);
+    var h = '<div class="border-top mt-3 pt-2"><div class="row g-2 align-items-end small">';
+    if (q) {
+      var mode = it.required_if ? 'if' : (it.required ? 'yes' : 'no');
+      h += '<div class="col-md-4"><label class="form-label small mb-1">Pflichtfeld</label><select class="form-select form-select-sm" data-reqmode>' +
+        [['no', 'Nein'], ['yes', 'Ja'], ['if', 'Nur unter Bedingung …']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === mode ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
+    }
+    if (['pagebreak', 'divider', 'heading'].indexOf(it.type) < 0) {
+      h += '<div class="col-md-4"><label class="form-label small mb-1">Breite (am Bildschirm)</label><select class="form-select form-select-sm" data-key="width">' +
+        WIDTHS.map(function (w) { return '<option value="' + w[0] + '"' + ((it.width || 'full') === w[0] ? ' selected' : '') + '>' + w[1] + '</option>'; }).join('') + '</select></div>';
+    }
+    h += '<div class="col-md-4">' + '<div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" role="switch" id="cs-' + it.id + '" data-ctoggle="show_if"' + (it.show_if ? ' checked' : '') + '>' +
+      '<label class="form-check-label" for="cs-' + it.id + '">' + (it.type === 'pagebreak' ? 'Seite nur unter Bedingung zeigen' : 'Nur unter Bedingung anzeigen') + '</label></div></div></div>';
+    if (it.show_if) { h += '<div class="cond-box mt-2">' + condRules(it, 'show_if') + '</div>'; }
+    if (it.required_if) { h += '<div class="cond-box mt-2">' + condRules(it, 'required_if') + '</div>'; }
+    return h + '</div>';
+  }
+  function badges(it) {
+    var b = [];
+    if (it.required && !it.required_if) { b.push('<span class="badge text-bg-danger-subtle text-danger-emphasis">Pflicht</span>'); }
+    if (it.required_if) { b.push('<span class="badge text-bg-danger-subtle text-danger-emphasis">Pflicht unter Bedingung</span>'); }
+    if (it.show_if) { b.push('<span class="badge text-bg-warning-subtle text-warning-emphasis"><i class="fa-solid fa-code-branch me-1"></i>bedingt sichtbar</span>'); }
+    if (it.width && it.width !== 'full') { b.push('<span class="badge text-bg-light border">' + esc((WIDTHS.filter(function (w) { return w[0] === it.width; })[0] || [0, ''])[1]) + '</span>'); }
+    if (it.with_time) { b.push('<span class="badge text-bg-light border">mit Uhrzeit</span>'); }
+    if (it.options && it.options.length) { b.push('<span class="badge text-bg-light border">' + it.options.length + ' Optionen</span>'); }
+    return b.join(' ');
+  }
+
   function cardHtml(it, index) {
     var t = TYPES[it.type];
     var q = isQuestion(it.type);
@@ -156,6 +220,12 @@
       '<button type="button" class="btn btn-outline-secondary" data-duplicate title="Duplizieren" aria-label="Duplizieren"><i class="fa-regular fa-clone"></i></button>' +
       '<button type="button" class="btn btn-outline-danger" data-delete title="Entfernen" aria-label="Entfernen"><i class="fa-regular fa-trash-can"></i></button>' +
       '</div></div>';
+    if (selected !== it.id) {   // kompakte Ansicht – Klick öffnet die Einstellungen
+      if (it.type === 'divider') { return h + '<hr class="my-2"></div>'; }
+      return h + '<div class="builder-compact" role="button" tabindex="0" title="Klicken zum Bearbeiten"><div class="fw-semibold">' + (esc(it.title) || '<span class="text-secondary fw-normal">' + esc(titlePh || 'ohne Titel') + '</span>') + '</div>' +
+        (it.description ? '<div class="small text-secondary text-truncate">' + esc(it.description) + '</div>' : '') +
+        '<div class="d-flex flex-wrap gap-1 mt-1">' + badges(it) + '</div></div></div>';
+    }
     if (it.type === 'divider') {
       h += '<hr class="my-2">';
     } else {
@@ -164,9 +234,7 @@
         (it.type === 'text' ? 'Text des Hinweises' : 'Beschreibung oder Hilfetext (optional)') + '">' + esc(it.description) + '</textarea>';
       h += settingsHtml(it);
     }
-    if (q) {
-      h += '<div class="border-top mt-3 pt-2 small">' + switchHtml('required', '<strong>Pflichtfeld</strong>', it.required) + '</div>';
-    }
+    h += logicHtml(it);
     return h + '</div>';
   }
 
@@ -210,9 +278,43 @@
     var c = list.querySelector('[data-id="' + it.id + '"] [data-new-option]');
     if (c) { c.focus(); }
   }
-  function select(id) {
+  function select(id, focus) {
+    if (selected === id) { return; }
     selected = id;
-    Array.prototype.forEach.call(list.children, function (c) { c.classList.toggle('is-selected', c.dataset.id === id); });
+    render();
+    if (focus) {
+      var t = list.querySelector('[data-id="' + id + '"] .title-input');
+      if (t) { t.focus(); }
+    }
+  }
+
+  function firstQuestionBefore(it) {
+    var before = items.slice(0, items.indexOf(it)).filter(function (x) { return isQuestion(x.type); });
+    return before.length ? before[before.length - 1] : null;
+  }
+  function newRule(it) {
+    var q = firstQuestionBefore(it);
+    return { q: q ? q.id : '', op: q && q.options && q.options.length ? 'eq' : 'filled', value: q && q.options && q.options.length ? q.options[0].label : '' };
+  }
+  function condClick(f, btn) {
+    var key = btn.dataset.ckey, c = f.item[key];
+    if (btn.hasAttribute('data-cadd')) { c.rules.push(newRule(f.item)); }
+    else if (btn.dataset.cdel) {
+      c.rules.splice(+btn.dataset.cdel, 1);
+      if (!c.rules.length) { delete f.item[key]; if (key === 'required_if') { f.item.required = false; } }
+    }
+    render(); markDirty();
+  }
+  function condChange(f, el) {
+    var key = el.dataset.ckey, c = f.item[key];
+    if (el.hasAttribute('data-cmode')) { c.mode = el.value; }
+    else {
+      var r = c.rules[+el.dataset.ri];
+      r[el.dataset.cfield] = el.value;
+      if (el.dataset.cfield === 'q') { r.value = ''; }
+    }
+    markDirty();
+    if (el.tagName === 'SELECT') { render(); }
   }
 
   /* --- Ereignisse --------------------------------------------------------- */
@@ -231,13 +333,15 @@
       if (t) { t.focus(); t.select(); }
     });
   });
-  list.addEventListener('focusin', function (ev) { var f = find(ev.target); if (f) { select(f.item.id); } });
+  list.addEventListener('keydown', function (ev) {
+    if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.classList.contains('builder-compact')) { ev.preventDefault(); var f = find(ev.target); if (f) { select(f.item.id, true); } }
+  });
   list.addEventListener('click', function (ev) {
     var f = find(ev.target);
     if (!f) { return; }
-    select(f.item.id);
     var btn = ev.target.closest('button');
-    if (!btn) { return; }
+    if (!btn) { select(f.item.id, !!ev.target.closest('.builder-compact')); return; }
+    if (btn.dataset.ckey) { condClick(f, btn); return; }
     if (btn.dataset.move) {
       var to = f.index + Number(btn.dataset.move);
       if (to < 0 || to >= items.length) { return; }
@@ -266,6 +370,8 @@
     var f = find(ev.target);
     if (!f) { return; }
     var el = ev.target;
+    if (el.dataset.ckey) { if (el.tagName === 'INPUT') { condChange(f, el); } return; }
+    if (el.dataset.ctoggle || el.hasAttribute('data-reqmode')) { return; }
     if (el.dataset.key) {
       var key = el.dataset.key, val = el.value;
       if (key === 'file_types') { val = val.split(/[\s,;]+/).filter(Boolean); }
@@ -281,6 +387,17 @@
   });
   list.addEventListener('change', function (ev) {
     var f = find(ev.target);
+    if (f && ev.target.dataset.ckey) { condChange(f, ev.target); return; }
+    if (f && ev.target.dataset.ctoggle) {
+      if (ev.target.checked) { f.item.show_if = { mode: 'all', rules: [newRule(f.item)] }; } else { delete f.item.show_if; }
+      markDirty(); render(); return;
+    }
+    if (f && ev.target.hasAttribute('data-reqmode')) {
+      var m = ev.target.value;
+      f.item.required = m === 'yes';
+      if (m === 'if') { f.item.required_if = f.item.required_if || { mode: 'all', rules: [newRule(f.item)] }; } else { delete f.item.required_if; }
+      markDirty(); render(); return;
+    }
     if (f && ev.target.dataset.geom) {
       var boxes = f.card.querySelectorAll('[data-geom]');
       var chosen = Array.prototype.filter.call(boxes, function (b) { return b.checked; }).map(function (b) { return b.dataset.geom; });
