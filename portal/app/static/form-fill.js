@@ -45,10 +45,20 @@
       Array.prototype.forEach.call(input.files, function (f) { if (f.size > maxBytes) { msg = '„' + f.name + '“ ist größer als ' + input.dataset.maxMb + ' MB.'; } });
       input.setCustomValidity(msg);
     });
+    // GPS-Fragen: Pflicht = ein Punkt muss gesetzt sein
+    scope.querySelectorAll('.js-geo-value[data-required]').forEach(function (v) {
+      var box = v.closest('.js-geo'), lat = box.querySelector('.js-geo-lat');
+      var missing = !v.value;
+      if (lat) { lat.setCustomValidity(missing ? 'Bitte einen Ort in der Karte wählen oder Koordinaten eingeben.' : ''); }
+      if (missing) {
+        ok = false;
+        if (!lat) { box.closest('.question').classList.add('has-error'); box.scrollIntoView({ block: 'center' }); }
+      }
+    });
     return ok;
   }
   function valid(scope) {
-    checkCustom(scope);
+    if (!checkCustom(scope) && !scope.querySelector('.js-geo-lat:invalid, input:invalid, select:invalid, textarea:invalid')) { return false; }
     var fields = scope.querySelectorAll('input, select, textarea');
     for (var i = 0; i < fields.length; i++) {
       if (!fields[i].checkValidity()) {

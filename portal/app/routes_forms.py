@@ -10,8 +10,8 @@ from fastapi.responses import FileResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
-from . import forms as fm, shortlinks as sl, worker
-from .db import LOCAL_TZ, Form, FormInvite, FormResponse, FormShare, Group, User, get_settings, to_local, utcnow
+from . import applications as apps, forms as fm, shortlinks as sl, worker
+from .db import LOCAL_TZ, SessionLocal, Form, FormInvite, FormResponse, FormShare, Group, User, get_settings, to_local, utcnow
 from .main import (
     app, check_csrf, current_user, flash, get_db, rate_limit, redirect, render, require, session_user,
 )
@@ -72,13 +72,20 @@ def forms_list(request: Request, all: str = "", user: User = Depends(current_use
 
 
 @app.post("/forms", dependencies=[Depends(check_csrf)])
-def forms_create(request: Request, title: str = FormField(...), user: User = Depends(forms_user),
-                 db: Session = Depends(get_db)):
+def forms_create(request: Request, title: str = FormField(...), kind: str = FormField("survey"),
+                 user: User = Depends(forms_user), db: Session = Depends(get_db)):
+    application = kind == "application"
+    items = fm.template_items()
+    if application:   # Anträge brauchen eine Adresse für Bestätigung und Rückfragen
+        items[1]["required"] = True
     form = Form(owner_id=user.id, title=" ".join(title.split())[:255] or "Neues Formular",
-                schema_json=json.dumps(fm.template_items(), ensure_ascii=False))
+                schema_json=json.dumps(items, ensure_ascii=False), kind="application" if application else "survey",
+                confirm_mail=application)
     db.add(form)
     db.commit()
-    flash(request, "Formular angelegt. Fügen Sie links Fragen und Überschriften hinzu.")
+    flash(request, "Online-Antrag angelegt. Legen Sie die Fragen fest und danach im Reiter „Antrag“ Aktenzeichen, "
+                   "Zuständigkeit und Katalogeintrag." if application else
+          "Formular angelegt. Fügen Sie links Fragen und Überschriften hinzu.")
     return redirect(f"/forms/{form.id}")
 
 
@@ -303,8 +310,12 @@ def form_results(request: Request, form_id: int, user: User = Depends(current_us
     form, level = _form(db, form_id, user, fm.VIEW)
     responses = list(form.responses)
     items = fm.questions(fm.schema(form))
+    geo_bundle = None
+    if any(q["type"] == "geo" for q in items):
+        from .routes_maps import map_bundle
+        geo_bundle = map_bundle(db, request, user, purpose="forms")
     return render(request, "form_results.html", user, **_ctx(db, form, "results", level), responses=responses,
-                  items=items, summary=fm.summary(form, responses), display=fm.display)
+                  items=items, summary=fm.summary(form, responses), display=fm.display, geo_bundle=geo_bundle)
 
 
 @app.get("/forms/{form_id}/responses/{response_id}")
@@ -367,10 +378,13 @@ def form_export(form_id: int, fmt: str, user: User = Depends(current_user), db: 
 @app.get("/forms/{form_id}/responses/{response_id}/files/{name}")
 def form_file(form_id: int, response_id: int, name: str, user: User = Depends(current_user),
               db: Session = Depends(get_db)):
-    form, level = _form(db, form_id, user, fm.VIEW)
     resp = db.get(FormResponse, response_id)
-    if resp is None or resp.form_id != form.id:
+    if resp is None or resp.form_id != form_id:
         raise HTTPException(404)
+    form = resp.form
+    # Zugriff über eine Freigabe des Formulars oder als Zuständige:r eines Online-Antrags
+    if fm.access_level(db, form, user) < fm.VIEW and not (resp.ref_no and apps.access(db, user, resp)):
+        raise HTTPException(404, "Formular nicht gefunden.")
     entry = next((f for v in resp.answers.values() if isinstance(v, list)
                   for f in v if isinstance(f, dict) and f.get("file") == name), None)
     path = fm.files_dir(form.id, resp.id) / name
@@ -412,15 +426,20 @@ def _fill_page(request: Request, form: Form, *, preview: bool = False, action: s
         for item in p["items"]:
             if item.get("shuffle") and item.get("options"):
                 item["options"] = fm.shuffled(item["options"])
+    geo_bundle = None
+    if any(i.get("type") == "geo" for i in items):
+        from .routes_maps import map_bundle   # Grundkarten für GPS-Fragen (Kartenlayer „für Formulare“)
+        with SessionLocal() as db:
+            geo_bundle = map_bundle(db, request, None, purpose="forms")
     response = render(request, "form_fill.html", None, form=form, pages=page_list, preview=preview, action=action,
                       invite=invite, values=values or {}, errors=errors or {}, page_index=page_index,
-                      types=fm.TYPES, other=fm.OTHER)
+                      types=fm.TYPES, other=fm.OTHER, geo_bundle=geo_bundle)
     response.status_code = status
     return response
 
 
-def _message(request: Request, form: Form | None, kind: str, status: int = 200):
-    response = render(request, "form_message.html", None, form=form, kind=kind)
+def _message(request: Request, form: Form | None, kind: str, status: int = 200, **ctx):
+    response = render(request, "form_message.html", None, form=form, kind=kind, **ctx)
     response.status_code = status
     return response
 
@@ -432,6 +451,8 @@ def _values_for_redisplay(items: list[dict], data) -> dict:
         name = f"q_{q['id']}"
         if q["type"] == "checkbox":
             values[q["id"]] = data.getlist(name)
+        elif q["type"] == "geo":
+            values[q["id"]] = fm.parse_point(data.get(name, ""), data.get(name + "__acc"), data.get(name + "__src")) or data.get(name, "")
         else:
             values[q["id"]] = data.get(name, "")
         values[q["id"] + "__other"] = data.get(name + "__other", "")
@@ -469,12 +490,31 @@ async def _submit(request: Request, db: Session, form: Form, invite: FormInvite 
         answers.update(await fm.store_uploads(resp, uploads))
     resp.answers_json = json.dumps(answers, ensure_ascii=False)
     db.flush()
+    if apps.is_application(form):
+        # Online-Antrag: Aktenzeichen, Zuständigkeit, Frist, Eingangsbestätigung mit PDF
+        if not resp.name:
+            resp.name = (invite.name if invite else member.name if member else "") or _guess_name(form, answers)
+        apps.on_submit(db, form, resp)
+        db.commit()
+        worker.wake()
+        return _message(request, form, "thanks", application=resp, track_link=apps.track_link(resp),
+                        mail_sent=bool(resp.email) and apps.mail_ready(db))
     fm.notify_new_response(db, form, resp)
     email = (invite.email if invite else member.email if member else "") or fm.respondent_email(form, answers)
     fm.confirm_to_respondent(db, form, resp, email, invite.name if invite else member.name if member else "")
     db.commit()
     worker.wake()
     return _message(request, form, "thanks")
+
+
+def _guess_name(form: Form, answers: dict) -> str:
+    """Name der antragstellenden Person: erste kurze Textfrage mit „Name“ im Titel."""
+    for q in fm.questions(fm.schema(form)):
+        if q["type"] == "short" and q.get("subtype", "text") == "text" and "name" in (q.get("title") or "").lower():
+            value = answers.get(q["id"])
+            if value:
+                return str(value)[:255]
+    return ""
 
 
 def _closed_or_none(request: Request, form: Form | None):

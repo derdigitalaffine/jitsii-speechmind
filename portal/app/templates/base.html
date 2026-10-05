@@ -73,6 +73,8 @@
         </ul>
       </div>
       {% else %}
+      {% if 'applications' in modules %}<a class="btn btn-link" href="/antraege"><i class="fa-solid fa-file-signature me-1"></i><span class="d-none d-sm-inline">Anträge</span></a>{% endif %}
+      {% if 'maps' in modules %}<a class="btn btn-link" href="/karte"><i class="fa-solid fa-map-location-dot me-1"></i><span class="d-none d-sm-inline">Karte</span></a>{% endif %}
       {% if 'laws' in modules %}<a class="btn btn-link" href="/recht"><i class="fa-solid fa-scale-balanced me-1"></i><span class="d-none d-sm-inline">Rechtstexte</span></a>{% endif %}
       <a class="btn btn-link" href="/login">Anmelden</a>
       {% endif %}
@@ -109,8 +111,14 @@
             {% endif %}
             {% if 'forms' in modules %}
             <li class="nav-section">Formulare</li>
-            {{ m.nav_item('/forms', 'fa-clipboard-list', 'Formulare' if user.can('forms') else 'Geteilte Formulare', path == '/forms' or (path.startswith('/forms/') and not path.startswith('/forms/inbox'))) }}
+            {{ m.nav_item('/forms', 'fa-clipboard-list', 'Formulare' if user.can('forms') else 'Geteilte Formulare', path == '/forms' or (path.startswith('/forms/') and not path.startswith('/forms/inbox') and '/applications' not in path)) }}
             {{ m.nav_item('/forms/inbox', 'fa-inbox', 'Zum Ausfüllen', path.startswith('/forms/inbox')) }}
+            {% if 'applications' in modules %}{{ m.nav_item('/forms/applications', 'fa-file-signature', 'Antragseingang', '/applications' in path) }}{% endif %}
+            {% endif %}
+            {% if 'maps' in modules %}
+            <li class="nav-section">Karten</li>
+            {{ m.nav_item('/karte', 'fa-map-location-dot', 'Kartenbrowser', path.startswith('/karte')) }}
+            {% if user.can('maps') %}{{ m.nav_item('/maps', 'fa-folder-open', 'Meine Karten', path.startswith('/maps')) }}{% endif %}
             {% endif %}
             {% if 'laws' in modules %}
             <li class="nav-section">Rechtstexte</li>
@@ -123,6 +131,7 @@
             {{ m.nav_item('/admin/users', 'fa-users', 'Benutzer &amp; Gruppen'|safe, path == '/admin/users') }}
             {% if user.is_admin %}
             {{ m.nav_item('/admin/modules', 'fa-puzzle-piece', 'Module', path == '/admin/modules') }}
+            {{ m.nav_item('/admin/maps', 'fa-layer-group', 'Kartenlayer', path.startswith('/admin/maps')) }}
             {{ m.nav_item('/admin/sessions', 'fa-user-clock', 'Sitzungen &amp; Cookies'|safe, path == '/admin/sessions') }}
             {{ m.nav_item('/admin/notifications', 'fa-envelope', 'Benachrichtigungen', path.startswith('/admin/notifications')) }}
             {{ m.nav_item('/admin/templates', 'fa-envelope-open-text', 'E-Mail-Vorlagen', path == '/admin/templates') }}
@@ -136,7 +145,7 @@
       </div>
     </aside>
     {% endif %}
-    <main id="inhalt" tabindex="-1" class="{{ 'col-lg-10 app-main' if user else 'col-12' }} px-3 px-lg-4 py-4">
+    <main id="inhalt" tabindex="-1" class="{{ 'col-lg-10 app-main' if user else 'col-12' }} {% block main_class %}px-3 px-lg-4 py-4{% endblock %}">
       {{ m.flashes(messages) }}
       {% block content %}{% endblock %}
     </main>

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% set src = layer if layer and not v else none %}
+{% macro val(key, default='') -%}{{ (src[key] if src else v.get(key, default)) if (src[key] if src else v.get(key, default)) is not none else default }}{%- endmacro %}
+{% macro flag(key) -%}{% if (src[key] if src else v.get(key)) in (true, '1') %}checked{% endif %}{%- endmacro %}
+{% block title %}{{ layer.name if layer else 'Neuer Kartenlayer' }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/vendor/maplibre/maplibre-gl.css"><link rel="stylesheet" href="/static/map.css">{% endblock %}
+{% block content %}
+{% call m.page_head(layer.name if layer else 'Neuer Kartenlayer', 'Adresse eintragen, mit „Dienst abfragen“ den Layer auswählen, Darstellung festlegen, speichern – die Vorschau zeigt das Ergebnis.') %}
+<a class="btn btn-outline-secondary" href="/admin/maps"><i class="fa-solid fa-arrow-left me-1"></i>Alle Layer</a>
+{% endcall %}
+<form method="post" action="/admin/maps/save" id="layer-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">{% if layer %}<input type="hidden" name="id" value="{{ layer.id }}">{% endif %}
+  <div class="row g-4">
+    <div class="col-12 col-xxl-7">
+      <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-plug me-2"></i>Dienst</div><div class="card-body"><div class="row g-3">
+        <div class="col-md-4"><label class="form-label" for="f-kind">Art</label>
+          <select class="form-select" id="f-kind" name="kind">{% for k, label in kinds.items() %}<option value="{{ k }}" {% if val('kind') == k %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-8"><label class="form-label" for="f-url">Adresse</label>
+          <div class="input-group"><input class="form-control" id="f-url" name="url" value="{{ val('url') }}" required placeholder="https://…">
+            <button class="btn btn-outline-primary" type="button" id="f-query"><i class="fa-solid fa-magnifying-glass me-1"></i>Dienst abfragen</button></div>
+          <div class="form-text" id="f-url-hint">WMS/WFS: Basisadresse des Dienstes. Kacheln/WMTS: Vorlage mit {z}, {x}, {y}. Vektorkarte: Adresse der style.json.</div></div>
+        <div class="col-12" id="f-caps"></div>
+        <div class="col-md-8 kind-wms kind-wfs"><label class="form-label" for="f-layers">Layer (WMS, mehrere mit Komma) bzw. Objektart (WFS)</label><input class="form-control" id="f-layers" name="layers" value="{{ val('layers') }}"></div>
+        <div class="col-md-4 kind-wms kind-wfs"><label class="form-label" for="f-version">Version</label>
+          <select class="form-select" id="f-version" name="version">{% for ver in ['', '1.3.0', '1.1.1', '2.0.0', '1.1.0'] %}<option value="{{ ver }}" {% if val('version') == ver %}selected{% endif %}>{{ ver or 'Standard' }}</option>{% endfor %}</select></div>
+        <div class="col-md-4 kind-wms"><label class="form-label" for="f-styles">Stile (WMS)</label><input class="form-control" id="f-styles" name="styles" value="{{ val('styles') }}" placeholder="leer = Standard"></div>
+        <div class="col-md-4 kind-wms"><label class="form-label" for="f-format">Bildformat</label>
+          <select class="form-select" id="f-format" name="image_format">{% for f in formats %}<option {% if val('image_format', 'image/png') == f %}selected{% endif %}>{{ f }}</option>{% endfor %}</select></div>
+        <div class="col-md-4 kind-wms kind-xyz"><label class="form-label" for="f-tile">Kachelgröße (px)</label><input class="form-control" id="f-tile" name="tile_size" type="number" min="128" max="1024" value="{{ val('tile_size', 256) }}"></div>
+        <div class="col-12 kind-wms d-flex flex-wrap gap-4">
+          <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="f-transp" name="transparent" value="1" {{ flag('transparent') }}><label class="form-check-label" for="f-transp">Transparent</label></div>
+          <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="f-info" name="feature_info" value="1" {{ flag('feature_info') }}><label class="form-check-label" for="f-info">Sachinformation per Klick (GetFeatureInfo)</label></div>
+        </div>
+        <div class="col-md-6 kind-wms"><label class="form-label" for="f-times">Zeitwerte (WMS-T), kommagetrennt</label><textarea class="form-control font-monospace small" id="f-times" name="time_values" rows="2" placeholder="z. B. 2020,2021,2022 oder Datumswerte">{{ val('time_values') }}</textarea></div>
+        <div class="col-md-6 kind-wms"><label class="form-label" for="f-time">Vorgabezeit</label><input class="form-control" id="f-time" name="time_default" value="{{ val('time_default') }}" placeholder="leer = jüngster Wert"></div>
+        <div class="col-md-6 kind-wms"><label class="form-label" for="f-legend">Legende (Adresse, optional)</label><input class="form-control" id="f-legend" name="legend_url" value="{{ val('legend_url') }}" placeholder="leer = GetLegendGraphic des Dienstes"></div>
+        <div class="col-md-3 kind-wfs kind-geojson"><label class="form-label" for="f-color">Farbe</label><input class="form-control form-control-color w-100" type="color" id="f-color" name="color" value="{{ val('color', '#e4572e') }}"></div>
+        <div class="col-md-5 kind-wfs d-flex align-items-end"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="f-swap" name="swap_xy" value="1" {{ flag('swap_xy') }}><label class="form-check-label" for="f-swap">Breite/Länge vertauscht (Objekte liegen im Meer?)</label></div></div>
+      </div></div></div>
+
+      <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-palette me-2"></i>Darstellung</div><div class="card-body"><div class="row g-3">
+        <div class="col-md-7"><label class="form-label" for="f-name">Name</label><input class="form-control" id="f-name" name="name" value="{{ val('name') }}" required maxlength="200"></div>
+        <div class="col-md-5"><label class="form-label" for="f-role">Rolle</label>
+          <select class="form-select" id="f-role" name="role">{% for k, label in roles.items() %}<option value="{{ k }}" {% if val('role') == k %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-6"><label class="form-label" for="f-cat">Gruppe</label><input class="form-control" id="f-cat" name="category" value="{{ val('category') }}" list="cats" placeholder="z. B. Bauleitplanung, Umwelt, Luftbilder"><datalist id="cats">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist></div>
+        <div class="col-md-3"><label class="form-label" for="f-op">Deckkraft</label><input class="form-control" id="f-op" name="opacity" type="number" step="0.05" min="0" max="1" value="{{ val('opacity', 1) }}"></div>
+        <div class="col-md-3"><label class="form-label">Zoom von/bis</label><div class="input-group"><input class="form-control" name="min_zoom" type="number" min="0" max="24" value="{{ val('min_zoom', 0) }}" aria-label="Zoom von"><input class="form-control" name="max_zoom" type="number" min="0" max="24" value="{{ val('max_zoom', 22) }}" aria-label="Zoom bis"></div></div>
+        <div class="col-12"><label class="form-label" for="f-desc">Beschreibung (im Kartenbrowser als Hinweis)</label><textarea class="form-control" id="f-desc" name="description" rows="2">{{ val('description') }}</textarea></div>
+        <div class="col-12"><label class="form-label" for="f-attr">Quellenangabe (Attribution, HTML-Links erlaubt)</label><input class="form-control" id="f-attr" name="attribution" value="{{ val('attribution') }}" placeholder="© Datenquelle, Lizenz"></div>
+      </div></div></div>
+
+      <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-shield-halved me-2"></i>Laden, Sichtbarkeit, Datenschutz</div><div class="card-body"><div class="row g-3">
+        <div class="col-md-6">
+          <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="f-proxy" name="proxy" value="1" {{ flag('proxy') }}><label class="form-check-label" for="f-proxy"><strong>Über das Portal laden (Proxy)</strong></label></div>
+          <div class="form-text">Empfohlen: Besucher:innen bleiben dem Anbieter unbekannt, Kacheln werden zwischengespeichert, keine CORS-Probleme. Ohne Proxy lädt der Browser direkt beim Anbieter (Hinweis in der Datenschutzerklärung nötig).</div></div>
+        <div class="col-md-3"><label class="form-label" for="f-cache">Zwischenspeicher (Stunden)</label><input class="form-control" id="f-cache" name="cache_hours" type="number" min="0" value="{{ val('cache_hours', 168) }}"><div class="form-text">0 = aus</div></div>
+        <div class="col-12 d-flex flex-wrap gap-4">
+          <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="f-en" name="enabled" value="1" {{ flag('enabled') }}><label class="form-check-label" for="f-en">Aktiv</label></div>
+          <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="f-pub" name="public" value="1" {{ flag('public') }}><label class="form-check-label" for="f-pub">Öffentlich (auch ohne Anmeldung)</label></div>
+          <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="f-def" name="default_visible" value="1" {{ flag('default_visible') }}><label class="form-check-label" for="f-def">Beim Öffnen sichtbar</label></div>
+          <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="f-forms" name="in_forms" value="1" {{ flag('in_forms') }}><label class="form-check-label" for="f-forms">Grundkarte für GPS-Fragen in Formularen</label></div>
+        </div>
+        <div class="col-12"><label class="form-label" for="f-hosts">Zusätzliche Hosts bei direktem Laden (für die Sicherheitsrichtlinie)</label><input class="form-control font-monospace small" id="f-hosts" name="extra_hosts" value="{{ val('extra_hosts') }}" placeholder="z. B. https://tiles.example.de (Vektorkarten laden oft Schriften und Symbole von weiteren Servern)"></div>
+      </div></div></div>
+      <div class="d-flex gap-2 mb-4">
+        <button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
+        <button class="btn btn-outline-primary" type="submit" name="stay" value="1">Speichern und Vorschau</button>
+        <a class="btn btn-outline-secondary" href="/admin/maps">Abbrechen</a>
+      </div>
+    </div>
+    <div class="col-12 col-xxl-5">
+      <div class="card" style="position: sticky; top: 5rem"><div class="card-header"><i class="fa-regular fa-eye me-2"></i>Vorschau {% if not layer %}<span class="small text-secondary">(nach dem Speichern)</span>{% endif %}</div>
+        <div class="card-body p-0"><div class="map-mini" id="preview-map" style="height: 460px; border: 0; border-radius: 0"></div></div>
+        {% if layer %}<div class="card-footer small text-secondary">Zeigt den gespeicherten Stand{% if not layer.enabled %} (Layer ist ausgeschaltet – nur Sie sehen die Vorschau){% endif %}.</div>{% endif %}
+      </div>
+    </div>
+  </div>
+</form>
+<script type="application/json" id="map-bundle">{{ bundle | tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/maplibre/maplibre-gl.js"></script>
+<script src="/static/map-core.js"></script>
+<script>
+(function () {
+  var csrf = document.querySelector('meta[name="csrf"]').content;
+  var kind = document.getElementById('f-kind');
+  function showKind() {
+    document.querySelectorAll('[class*="kind-"]').forEach(function (el) { el.classList.toggle('d-none', !el.classList.contains('kind-' + kind.value)); });
+    document.getElementById('f-proxy').disabled = kind.value === 'style';
+  }
+  kind.addEventListener('change', showKind);
+  showKind();
+  var esc = MapKit.esc, capsBox = document.getElementById('f-caps');
+  document.getElementById('f-query').addEventListener('click', function () {
+    var body = new FormData();
+    body.append('csrf', csrf); body.append('url', document.getElementById('f-url').value.trim());
+    body.append('kind', kind.value === 'xyz' ? 'wmts' : kind.value);
+    capsBox.innerHTML = '<div class="small text-secondary"><span class="spinner-border spinner-border-sm me-1"></span>Frage Dienst ab …</div>';
+    fetch('/admin/maps/capabilities', { method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.ok) { capsBox.innerHTML = '<div class="alert alert-danger py-2 small mb-0">' + esc(d.error) + '</div>'; return; }
+        capsBox.innerHTML = '<div class="small mb-1"><strong>' + esc(d.title || 'Dienst') + '</strong> · ' + esc(d.type.toUpperCase()) + ' ' + esc(d.version) + ' · ' + d.layers.length + ' Layer – zum Übernehmen anklicken:</div>' +
+          '<div class="list-group small" style="max-height: 16rem; overflow: auto">' + d.layers.map(function (l, i) {
+            return '<button type="button" class="list-group-item list-group-item-action" data-i="' + i + '" style="padding-left:' + (0.75 + (l.depth || 0) * 0.8) + 'rem">' +
+              '<strong>' + esc(l.title) + '</strong> <code>' + esc(l.name) + '</code>' + (l.times && l.times.length ? ' <span class="badge text-bg-info">Zeit</span>' : '') +
+              (l.queryable ? ' <span class="badge text-bg-light border">abfragbar</span>' : '') + '</button>';
+          }).join('') + '</div>';
+        capsBox.querySelectorAll('[data-i]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            var l = d.layers[parseInt(b.dataset.i, 10)];
+            if (d.type === 'xyz') { kind.value = 'xyz'; document.getElementById('f-url').value = l.template; }
+            else {
+              kind.value = d.type;
+              document.getElementById('f-url').value = document.getElementById('f-url').value.split('?')[0];
+              document.getElementById('f-layers').value = l.name;
+              if (d.version) { document.getElementById('f-version').value = d.version; }
+              document.getElementById('f-times').value = (l.times || []).join(',');
+              document.getElementById('f-time').value = l.time || '';
+              if (l.legend) { document.getElementById('f-legend').value = l.legend; }
+              document.getElementById('f-info').checked = !!l.queryable;
+            }
+            if (!document.getElementById('f-name').value) { document.getElementById('f-name').value = l.title; }
+            if (!document.getElementById('f-desc').value && l.abstract) { document.getElementById('f-desc').value = l.abstract; }
+            showKind();
+            capsBox.querySelectorAll('[data-i]').forEach(function (x) { x.classList.toggle('active', x === b); });
+          });
+        });
+      }).catch(function () { capsBox.innerHTML = '<div class="alert alert-danger py-2 small mb-0">Abfrage fehlgeschlagen.</div>'; });
+  });
+  var bundle = JSON.parse(document.getElementById('map-bundle').textContent);
+  var kit = MapKit.create('preview-map', bundle, {});
+  kit.map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+})();
+</script>
+{% endblock %}

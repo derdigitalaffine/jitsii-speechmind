@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Kartenlayer{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/vendor/maplibre/maplibre-gl.css"><link rel="stylesheet" href="/static/map.css">{% endblock %}
+{% macro layer_rows(role) %}
+{% for l in layers if l.role == role %}
+<tr data-id="{{ l.id }}">
+  <td class="text-secondary"><i class="fa-solid fa-grip-vertical drag-row" title="Reihenfolge ändern" style="cursor:grab"></i></td>
+  <td><a class="fw-semibold" href="/admin/maps/{{ l.id }}">{{ l.name }}</a>
+    <div class="small text-secondary">{{ kinds[l.kind] }}{% if l.category %} · {{ l.category }}{% endif %}{% if l.time_values %} · <i class="fa-regular fa-clock"></i> Zeit{% endif %}</div>
+    <div class="small text-secondary text-truncate" style="max-width: 28rem" title="{{ l.url }}"><code>{{ l.url }}</code></div></td>
+  {% for field, label in [('enabled', 'aktiv'), ('public', 'öffentlich'), ('in_forms', 'Formulare'), ('default_visible', 'sichtbar'), ('proxy', 'Proxy')] %}
+  <td class="text-center">{% if field == 'in_forms' and l.role != 'base' %}<span class="text-secondary">–</span>{% else %}
+    <div class="form-check form-switch d-inline-block mb-0"><input class="form-check-input js-layer-toggle" type="checkbox" role="switch" data-field="{{ field }}" {% if l[field] %}checked{% endif %} {% if field == 'proxy' and l.kind == 'style' %}disabled title="Vektorkarten werden direkt geladen"{% endif %} aria-label="{{ label }}"></div>{% endif %}</td>
+  {% endfor %}
+  <td class="text-end text-nowrap">
+    <button class="btn btn-sm btn-outline-secondary js-layer-test" type="button" title="Erreichbarkeit prüfen"><i class="fa-solid fa-stethoscope"></i></button>
+    <a class="btn btn-sm btn-outline-primary" href="/admin/maps/{{ l.id }}" title="Bearbeiten"><i class="fa-solid fa-pen"></i></a>
+    <form method="post" action="/admin/maps/{{ l.id }}/duplicate" class="d-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-secondary" title="Duplizieren"><i class="fa-regular fa-clone"></i></button></form>
+    <form method="post" action="/admin/maps/{{ l.id }}/delete" class="d-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" title="Löschen" data-confirm="Layer „{{ l.name }}“ löschen? Gespeicherte Karten zeigen ihn dann nicht mehr." data-confirm-button="Löschen"><i class="fa-regular fa-trash-can"></i></button></form>
+  </td>
+</tr>
+{% else %}<tr><td colspan="9" class="text-secondary small">Keine Einträge.</td></tr>{% endfor %}
+{% endmacro %}
+{% block content %}
+{% call m.page_head('Kartenlayer', 'Systemweite Grundkarten und Fachdaten für den Kartenbrowser und für GPS-Fragen in Formularen. Je Layer wählen Sie, ob er über das Portal geladen wird (Zwischenspeicher, keine IP-Adressen an Dritte) oder direkt beim Anbieter.') %}
+<a class="btn btn-outline-secondary" href="/admin/maps/export.json"><i class="fa-solid fa-file-export me-1"></i>Export</a>
+<button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#import-box"><i class="fa-solid fa-file-import me-1"></i>Import</button>
+{% if maps_module %}<a class="btn btn-outline-secondary" href="/karte" target="_blank"><i class="fa-solid fa-map-location-dot me-1"></i>Kartenbrowser</a>{% endif %}
+<a class="btn btn-primary" href="/admin/maps/new"><i class="fa-solid fa-plus me-1"></i>Neuer Layer</a>
+{% endcall %}
+
+<form method="post" action="/admin/maps/import" enctype="multipart/form-data" class="collapse card card-body mb-3" id="import-box" style="max-width: 40rem">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label class="form-label" for="imp-file">Layer aus einer Exportdatei (JSON) hinzufügen – z. B. von einer anderen Verwaltung</label>
+  <div class="input-group"><input class="form-control" type="file" id="imp-file" name="file" accept=".json,application/json" required><button class="btn btn-primary" type="submit">Importieren</button></div>
+</form>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">{{ m.stat('fa-layer-group', layers | length, 'Layer gesamt') }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-toggle-on', layers | selectattr('enabled') | list | length, 'aktiv') }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-hard-drive', (cache_size // 1048576) ~ ' MB', cache_count ~ ' Kacheln im Zwischenspeicher') }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-map', saved_maps, 'gespeicherte Karten') }}</div>
+</div>
+
+{% for role, title, hint in [('base', 'Grundkarten', 'Eine davon ist jeweils sichtbar. „sichtbar“ = Startgrundkarte.'), ('overlay', 'Überlagerungen (Fachdaten)', 'Beliebig viele gleichzeitig. Die Reihenfolge hier ist die Reihenfolge im Kartenbrowser (oben = oben).')] %}
+<div class="card mb-4"><div class="card-header d-flex flex-wrap align-items-center gap-2"><strong>{{ title }}</strong><span class="small text-secondary">{{ hint }}</span></div>
+  <div class="card-body p-0 table-responsive">
+    <table class="table align-middle mb-0">
+      <thead class="small"><tr><th style="width:2rem"></th><th>Layer</th>
+        <th class="text-center" title="eingeschaltet">aktiv</th><th class="text-center" title="auch ohne Anmeldung sichtbar">öffentlich</th>
+        <th class="text-center" title="als Karte für GPS-Fragen in Formularen">Formulare</th><th class="text-center" title="beim Öffnen eingeschaltet">sichtbar</th>
+        <th class="text-center" title="über das Portal laden">Proxy</th><th></th></tr></thead>
+      <tbody class="js-sort" data-role="{{ role }}">{{ layer_rows(role) }}</tbody>
+    </table>
+  </div></div>
+{% endfor %}
+
+<div class="row g-4">
+  <div class="col-12 col-xxl-7" id="einstellungen"><form method="post" action="/admin/maps/settings" class="card h-100"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="card-header"><i class="fa-solid fa-sliders me-2"></i>Einstellungen</div>
+    <div class="card-body">
+      <div class="row g-2 mb-2">
+        <div class="col-4"><label class="form-label small" for="c-lat">Startpunkt Breite</label><input class="form-control form-control-sm" id="c-lat" name="map_center_lat" value="{{ cfg.map_center_lat }}"></div>
+        <div class="col-4"><label class="form-label small" for="c-lon">Länge</label><input class="form-control form-control-sm" id="c-lon" name="map_center_lon" value="{{ cfg.map_center_lon }}"></div>
+        <div class="col-4"><label class="form-label small" for="c-zoom">Zoomstufe</label><input class="form-control form-control-sm" id="c-zoom" name="map_zoom" value="{{ cfg.map_zoom }}"></div>
+      </div>
+      <div class="map-mini mb-1" id="center-map"></div>
+      <button class="btn btn-sm btn-outline-secondary mb-3" type="button" id="take-view"><i class="fa-solid fa-crosshairs me-1"></i>Aktuellen Kartenausschnitt als Start übernehmen</button>
+      <div class="row g-2">
+        <div class="col-md-4"><label class="form-label small" for="c-cache">Zwischenspeicher (MB)</label><input class="form-control form-control-sm" id="c-cache" name="map_cache_mb" type="number" min="10" value="{{ cfg.map_cache_mb }}"></div>
+        <div class="col-md-8"><label class="form-label small">Einbetten des Kartenbrowsers (<code>/karte-embed</code>)</label>
+          <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="c-embed" name="maps_embed" value="1" {% if cfg.maps_embed == '1' %}checked{% endif %}><label class="form-check-label small" for="c-embed">erlaubt</label></div></div>
+        <div class="col-12"><label class="form-label small" for="c-origins">Nur auf diesen Webseiten einbettbar (leer = alle)</label>
+          <textarea class="form-control form-control-sm font-monospace" id="c-origins" name="maps_embed_origins" rows="2" placeholder="https://www.example.de">{{ cfg.maps_embed_origins | replace(' ', '\n') }}</textarea></div>
+      </div>
+    </div>
+    <div class="card-footer"><button class="btn btn-primary btn-sm" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div>
+  </form></div>
+  <div class="col-12 col-xxl-5 d-flex flex-column gap-4">
+    <div class="card" id="cache"><div class="card-header"><i class="fa-solid fa-hard-drive me-2"></i>Zwischenspeicher</div><div class="card-body">
+      <p class="small text-secondary">{{ cache_count }} Kacheln, {{ '%.1f' | format(cache_size / 1048576) }} MB von höchstens {{ cfg.map_cache_mb }} MB. Älteste Kacheln werden automatisch gelöscht. Bei geänderten Layer-Einstellungen leert das Portal den Speicher dieses Layers selbst.</p>
+      <form method="post" action="/admin/maps/cache/clear" class="d-flex gap-2"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <select class="form-select form-select-sm" name="layer" aria-label="Layer"><option value="">alle Layer</option>{% for l in layers if l.proxy %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}</select>
+        <button class="btn btn-sm btn-outline-danger text-nowrap" type="submit">Leeren</button></form>
+    </div></div>
+    <div class="card"><div class="card-header"><i class="fa-solid fa-user-plus me-2"></i>Layer aus Benutzerkarten übernehmen</div><div class="card-body">
+      {% if user_layers %}
+      <p class="small text-secondary">Diese Dienste haben Personen in ihren gespeicherten Karten hinzugefügt. Mit einem Klick werden sie zu Systemlayern (zunächst ausgeschaltet).</p>
+      <div class="list-group list-group-flush small">
+        {% for u in user_layers[:30] %}
+        <div class="list-group-item d-flex align-items-center gap-2 px-0">
+          <div class="flex-grow-1 min-w-0"><div class="fw-semibold text-truncate">{{ u.def.name or u.def.layers }}</div>
+            <div class="text-secondary text-truncate">{{ u.def.kind | upper }} · {{ u.def.url }} · Karte „{{ u.map.title }}“{% if u.map.owner %} von {{ u.map.owner.name }}{% endif %}</div></div>
+          <form method="post" action="/admin/maps/adopt"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="map_id" value="{{ u.map.id }}"><input type="hidden" name="index" value="{{ u.index }}">
+            <button class="btn btn-sm btn-outline-primary text-nowrap">Übernehmen</button></form>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}<p class="small text-secondary mb-0">Keine eigenen Layer in gespeicherten Karten, die noch nicht im System sind.</p>{% endif %}
+    </div></div>
+  </div>
+</div>
+<script type="application/json" id="map-bundle">{{ bundle | tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/maplibre/maplibre-gl.js"></script>
+<script src="/static/vendor/sortablejs/Sortable.min.js"></script>
+<script src="/static/map-core.js"></script>
+<script>
+(function () {
+  var csrf = document.querySelector('meta[name="csrf"]').content;
+  function post(url, fields) {
+    var body = new FormData(); body.append('csrf', csrf);
+    Object.keys(fields || {}).forEach(function (k) { body.append(k, fields[k]); });
+    return fetch(url, { method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' }).then(function (r) { return r.json(); });
+  }
+  function toast(text, error) { Swal.fire({ toast: true, position: 'top-end', timer: error ? 8000 : 2500, showConfirmButton: false, icon: error ? 'error' : 'success', title: text }); }
+  document.querySelectorAll('.js-layer-toggle').forEach(function (sw) {
+    sw.addEventListener('change', function () {
+      var id = sw.closest('tr').dataset.id;
+      post('/admin/maps/' + id + '/toggle', { field: sw.dataset.field }).then(function (d) {
+        if (!d.ok) { sw.checked = !sw.checked; toast(d.error, true); } else { sw.checked = d.value; }
+      });
+    });
+  });
+  document.querySelectorAll('.js-layer-test').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.closest('tr').dataset.id, old = btn.innerHTML;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+      post('/admin/maps/' + id + '/test').then(function (d) { btn.innerHTML = old; toast(d.message, !d.ok); });
+    });
+  });
+  document.querySelectorAll('.js-sort').forEach(function (tb) {
+    Sortable.create(tb, { handle: '.drag-row', animation: 150, onEnd: function () {
+      var ids = Array.prototype.map.call(document.querySelectorAll('.js-sort tr[data-id]'), function (r) { return r.dataset.id; });
+      post('/admin/maps/order', { ids: ids.join(',') }).then(function () { toast('Reihenfolge gespeichert'); });
+    } });
+  });
+  var bundle = JSON.parse(document.getElementById('map-bundle').textContent);
+  bundle.layers = bundle.layers.filter(function (l) { return l.role === 'base'; });
+  var kit = MapKit.create('center-map', bundle, {});
+  kit.map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+  document.getElementById('take-view').addEventListener('click', function () {
+    var c = kit.map.getCenter();
+    document.getElementById('c-lat').value = c.lat.toFixed(5);
+    document.getElementById('c-lon').value = c.lng.toFixed(5);
+    document.getElementById('c-zoom').value = kit.map.getZoom().toFixed(1);
+  });
+})();
+</script>
+{% endblock %}

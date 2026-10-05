@@ -1,0 +1,51 @@
+{% extends layout %}
+{% block title %}Online-Anträge{% endblock %}
+{% block content %}
+<div class="lex-hero p-4 p-lg-5 mb-4 rounded-3" style="background: linear-gradient(135deg, rgba(var(--bs-primary-rgb), .12), rgba(var(--bs-primary-rgb), .02));">
+  <h1 class="h2 mb-2"><i class="fa-solid fa-file-signature me-2 text-primary"></i>Online-Anträge</h1>
+  <p class="text-secondary mb-3" style="max-width: 46rem">Stellen Sie Ihren Antrag bequem online – rund um die Uhr. Sie erhalten sofort ein Aktenzeichen und können den Stand der Bearbeitung jederzeit verfolgen.</p>
+  <input class="form-control form-control-lg" id="cat-filter" type="search" placeholder="Antrag suchen, z. B. Gewerbe, Sondernutzung, Hund …" aria-label="Anträge durchsuchen" style="max-width: 40rem">
+</div>
+{% if total %}
+{% for cat, items in cats.items() %}
+<section class="mb-4 js-cat">
+  <h2 class="h5 mb-3">{{ cat }}</h2>
+  <div class="row g-3">
+    {% for f in items %}
+    <div class="col-12 col-lg-6 js-item" data-text="{{ (f.title ~ ' ' ~ f.description ~ ' ' ~ cat ~ ' ' ~ f.app_info) | lower }}"><div class="card h-100"><div class="card-body d-flex flex-column">
+      <h3 class="h6 mb-1">{{ f.title }}</h3>
+      {% if f.description %}<div class="small text-secondary mb-2">{{ f.description | richtext }}</div>{% endif %}
+      {% if f.app_info %}<details class="small mb-2"><summary>Benötigte Unterlagen und Hinweise</summary><div class="mt-1">{{ f.app_info | richtext }}</div></details>{% endif %}
+      <div class="small text-secondary d-flex flex-wrap gap-3 mb-3">
+        {% if f.app_fee %}<span><i class="fa-solid fa-euro-sign me-1"></i>{{ f.app_fee }}</span>{% endif %}
+        {% if f.app_duration %}<span><i class="fa-regular fa-clock me-1"></i>{{ f.app_duration }}</span>{% endif %}
+        {% if f.expires_at %}<span><i class="fa-regular fa-hourglass-half me-1"></i>bis {{ f.expires_at | local('%d.%m.%Y') }}</span>{% endif %}
+      </div>
+      <div class="mt-auto"><a class="btn btn-primary btn-sm" href="{{ public_link(f) }}" {% if embed %}target="_blank" rel="noopener"{% endif %}><i class="fa-solid fa-pen-to-square me-1"></i>Antrag stellen{% if embed %} <i class="fa-solid fa-arrow-up-right-from-square ms-1 small"></i>{% endif %}</a></div>
+    </div></div></div>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+<p class="text-secondary js-none" hidden>Kein passender Antrag gefunden.</p>
+{% else %}
+<div class="text-center text-secondary py-5"><i class="fa-regular fa-folder-open fa-3x mb-3"></i><p>Zurzeit sind keine Online-Anträge verfügbar.</p></div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var input = document.getElementById('cat-filter');
+  if (!input) { return; }
+  input.addEventListener('input', function () {
+    var q = input.value.trim().toLowerCase(), any = false;
+    document.querySelectorAll('.js-cat').forEach(function (sec) {
+      var shown = 0;
+      sec.querySelectorAll('.js-item').forEach(function (it) { var ok = !q || it.dataset.text.indexOf(q) >= 0; it.hidden = !ok; if (ok) { shown++; } });
+      sec.hidden = !shown; if (shown) { any = true; }
+    });
+    var none = document.querySelector('.js-none'); if (none) { none.hidden = any; }
+  });
+})();
+</script>
+{% endblock %}

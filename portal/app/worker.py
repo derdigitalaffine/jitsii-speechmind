@@ -410,6 +410,9 @@ async def run_forever() -> None:
                 from . import bookings
                 if await asyncio.to_thread(bookings.send_reminders):
                     await asyncio.to_thread(notify.process_queue)
+                from . import applications
+                if await asyncio.to_thread(applications.send_overdue_reminders):
+                    await asyncio.to_thread(notify.process_queue)
             if time.monotonic() - _last_chat_prune[0] >= 3600:
                 _last_chat_prune[0] = time.monotonic()
                 await asyncio.to_thread(chat.prune)

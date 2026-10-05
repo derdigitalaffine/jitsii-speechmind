@@ -101,6 +101,7 @@ PERMISSIONS = {
     "polls": ("Terminumfragen", "fa-calendar-check", "Terminumfragen (wie Doodle) erstellen und auswerten"),
     "bookings": ("Terminbuchung", "fa-calendar-plus", "Buchungsseiten mit freien Zeitfenstern anbieten (z. B. Vorstellungsgespräche)"),
     "laws": ("Rechtstexte", "fa-scale-balanced", "Gesetze, Satzungen und Verordnungen einstellen, gliedern und veröffentlichen"),
+    "maps": ("Karten", "fa-map-location-dot", "Im Kartenbrowser eigene WMS/WFS-Layer hinzufügen, Karten speichern und teilen"),
     "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
 }
 
@@ -381,10 +382,28 @@ class Form(Base):
     notify_json: Mapped[bool] = mapped_column(Boolean, default=False)
     notify_csv: Mapped[bool] = mapped_column(Boolean, default=False)
     notify_scope: Mapped[str] = mapped_column(String(10), default="single")  # single | all
+    # Online-Antrag (siehe applications.py): Aktenzeichen, Status, Zuständigkeit, PDF, Antragskatalog
+    kind: Mapped[str] = mapped_column(String(12), default="survey")          # survey | application
+    app_prefix: Mapped[str] = mapped_column(String(12), default="")          # z. B. GEW → GEW-2026-00042
+    app_category: Mapped[str] = mapped_column(String(100), default="")
+    app_info: Mapped[str] = mapped_column(Text, default="")                  # Unterlagen, Hinweise
+    app_fee: Mapped[str] = mapped_column(String(255), default="")            # Gebühr
+    app_duration: Mapped[str] = mapped_column(String(255), default="")       # übliche Bearbeitungsdauer
+    app_assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    app_group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
+    app_mailbox: Mapped[str] = mapped_column(String(255), default="")        # Funktionspostfach
+    app_routing_json: Mapped[str] = mapped_column(Text, default="[]")        # Regeln je Antwort
+    app_deadline_days: Mapped[int] = mapped_column(Integer, default=14)
+    app_catalog: Mapped[bool] = mapped_column(Boolean, default=True)
+    app_pdf: Mapped[bool] = mapped_column(Boolean, default=True)
+    app_seq_year: Mapped[int] = mapped_column(Integer, default=0)
+    app_seq: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
-    owner: Mapped[User | None] = relationship()
+    owner: Mapped[User | None] = relationship(foreign_keys=[owner_id])
+    app_assignee: Mapped[User | None] = relationship(foreign_keys=[app_assignee_id])
+    app_group: Mapped[Group | None] = relationship(foreign_keys=[app_group_id])
     invites: Mapped[list["FormInvite"]] = relationship(back_populates="form", cascade="all, delete-orphan",
                                                        order_by="FormInvite.email", passive_deletes=True)
     responses: Mapped[list["FormResponse"]] = relationship(back_populates="form", cascade="all, delete-orphan",
@@ -444,8 +463,24 @@ class FormResponse(Base):
     email: Mapped[str] = mapped_column(String(255), default="")
     source: Mapped[str] = mapped_column(String(20), default="public")  # public | invite | user
     answers_json: Mapped[str] = mapped_column(Text, default="{}")
+    # Nur bei Online-Anträgen
+    ref_no: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(16), default="")
+    status_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="SET NULL"), nullable=True, index=True)
+    route_email: Mapped[str] = mapped_column(String(255), default="")
+    due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    overdue_notified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    track_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
+    checksum: Mapped[str] = mapped_column(String(64), default="")
 
     form: Mapped[Form] = relationship(back_populates="responses")
+    assignee: Mapped[User | None] = relationship(foreign_keys=[assignee_id])
+    group: Mapped[Group | None] = relationship(foreign_keys=[group_id])
+    events: Mapped[list["ApplicationEvent"]] = relationship(back_populates="response", cascade="all, delete-orphan",
+                                                            order_by="ApplicationEvent.at", passive_deletes=True)
 
     @property
     def answers(self) -> dict:
@@ -454,6 +489,23 @@ class FormResponse(Base):
             return _json.loads(self.answers_json or "{}")
         except ValueError:
             return {}
+
+
+class ApplicationEvent(Base):
+    """Verlauf eines Online-Antrags: Eingang, Status, Nachrichten, Notizen, Zuweisungen."""
+    __tablename__ = "application_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    response_id: Mapped[int] = mapped_column(ForeignKey("form_responses.id", ondelete="CASCADE"), index=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    kind: Mapped[str] = mapped_column(String(12))        # created | status | message | reply | note | assign | due
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    actor_name: Mapped[str] = mapped_column(String(255), default="")
+    status: Mapped[str] = mapped_column(String(16), default="")
+    text: Mapped[str] = mapped_column(Text, default="")
+    public: Mapped[bool] = mapped_column(Boolean, default=False)   # für Antragsteller:in sichtbar
+
+    response: Mapped[FormResponse] = relationship(back_populates="events")
 
 
 class Poll(Base):
@@ -665,6 +717,93 @@ class BookingShare(Base):
     group: Mapped[Group | None] = relationship()
 
 
+class MapLayer(Base):
+    """Systemweiter Kartenlayer (Admin › Kartenlayer). Siehe maps.py für die Arten."""
+    __tablename__ = "map_layers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(10), default="xyz")      # xyz | wms | wfs | style | geojson
+    role: Mapped[str] = mapped_column(String(10), default="overlay")  # base | overlay
+    category: Mapped[str] = mapped_column(String(100), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    url: Mapped[str] = mapped_column(Text, default="")
+    layers: Mapped[str] = mapped_column(Text, default="")             # WMS-Layer / WFS-Typname
+    styles: Mapped[str] = mapped_column(String(255), default="")
+    image_format: Mapped[str] = mapped_column(String(40), default="image/png")
+    version: Mapped[str] = mapped_column(String(10), default="")
+    transparent: Mapped[bool] = mapped_column(Boolean, default=True)
+    tile_size: Mapped[int] = mapped_column(Integer, default=256)
+    min_zoom: Mapped[int] = mapped_column(Integer, default=0)
+    max_zoom: Mapped[int] = mapped_column(Integer, default=22)
+    opacity: Mapped[float] = mapped_column(Float, default=1.0)
+    attribution: Mapped[str] = mapped_column(Text, default="")
+    legend_url: Mapped[str] = mapped_column(Text, default="")
+    feature_info: Mapped[bool] = mapped_column(Boolean, default=False)
+    time_values: Mapped[str] = mapped_column(Text, default="")        # WMS-T: Werte (kommagetrennt)
+    time_default: Mapped[str] = mapped_column(String(60), default="")
+    color: Mapped[str] = mapped_column(String(9), default="#e4572e")   # WFS/GeoJSON
+    swap_xy: Mapped[bool] = mapped_column(Boolean, default=False)      # WFS liefert Breite/Länge vertauscht
+    extra_hosts: Mapped[str] = mapped_column(Text, default="")         # zusätzliche Hosts für die CSP (direkt)
+    proxy: Mapped[bool] = mapped_column(Boolean, default=True)         # über das Portal laden
+    cache_hours: Mapped[int] = mapped_column(Integer, default=168)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    public: Mapped[bool] = mapped_column(Boolean, default=True)        # im öffentlichen Kartenbrowser
+    in_forms: Mapped[bool] = mapped_column(Boolean, default=False)     # als Karte für GPS-Fragen in Formularen
+    default_visible: Mapped[bool] = mapped_column(Boolean, default=False)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class UserMap(Base):
+    """Gespeicherte Karte einer Person: Ausschnitt, Layer, Transparenz, eigene WMS/WFS-Layer."""
+    __tablename__ = "user_maps"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    state_json: Mapped[str] = mapped_column(Text, default="{}")
+    public_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    owner: Mapped[User | None] = relationship()
+
+
+# Startausstattung der Kartenlayer (nur wenn noch keiner existiert). Adressen laut Dienstbeschreibung von
+# OpenStreetMap bzw. dem BKG (basemap.de, Datenlizenz Deutschland – Namensnennung 2.0).
+_BASEMAP_WMTS = ("https://sgx.geodatenzentrum.de/wmts_basemapde/tile/1.0.0/{layer}/default/GLOBAL_WEBMERCATOR/"
+                 "{{z}}/{{y}}/{{x}}.png")
+_BASEMAP_ATTR = '© <a href="https://basemap.de">basemap.de</a> / BKG, Datenlizenz Deutschland – Namensnennung 2.0'
+DEFAULT_MAP_LAYERS = [
+    dict(name="basemap.de (farbig)", kind="xyz", role="base", category="Grundkarten",
+         url=_BASEMAP_WMTS.format(layer="de_basemapde_web_raster_farbe"), attribution=_BASEMAP_ATTR, max_zoom=19,
+         proxy=True, in_forms=True, default_visible=True,
+         description="Amtliche Grundkarte Deutschlands (Rasterkacheln) des Bundesamts für Kartographie und Geodäsie."),
+    dict(name="basemap.de (grau)", kind="xyz", role="base", category="Grundkarten",
+         url=_BASEMAP_WMTS.format(layer="de_basemapde_web_raster_grau"), attribution=_BASEMAP_ATTR, max_zoom=19,
+         proxy=True, in_forms=True, description="Graue Variante – gut als Hintergrund für Fachdaten."),
+    dict(name="basemap.de Vektor", kind="style", role="base", category="Grundkarten",
+         url="https://sgx.geodatenzentrum.de/gdz_basemapde_vektor/styles/bm_web_col.json", attribution=_BASEMAP_ATTR,
+         proxy=False, enabled=False, extra_hosts="https://sgx.geodatenzentrum.de",
+         description="Vektorkarte von basemap.de (wird direkt beim BKG geladen). Vor dem Einschalten Datenschutzhinweis prüfen."),
+    dict(name="OpenStreetMap", kind="xyz", role="base", category="Grundkarten",
+         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png", max_zoom=19, proxy=True, cache_hours=168, in_forms=True,
+         attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende',
+         description="Freie Weltkarte. Kacheln werden über das Portal geladen und eine Woche zwischengespeichert "
+                     "(Nutzungsrichtlinie der OSM Foundation)."),
+]
+
+
+def seed_map_layers(db) -> None:
+    if db.scalar(select(MapLayer.id).limit(1)) is not None:
+        return
+    for pos, spec in enumerate(DEFAULT_MAP_LAYERS):
+        db.add(MapLayer(position=pos, **spec))
+
+
 class LawLevel(Base):
     """Ebene im Rechtsbaum (EU, Bund, Land, Landkreis, Verbandsgemeinde, Ortsgemeinde …), beliebig verschachtelt."""
     __tablename__ = "law_levels"
@@ -845,6 +984,18 @@ DEFAULT_SETTINGS = {
     # Rechtstexte per <iframe> einbinden (/recht-embed); leere Liste = alle Seiten dürfen einbinden
     "laws_embed": "1",
     "laws_embed_origins": "",
+    # Kartenbrowser (Modul) und Kartenlayer
+    "module_maps": "1",
+    "map_center_lat": "49.4930",      # Startausschnitt: Verbandsgemeinde Otterbach-Otterberg
+    "map_center_lon": "7.7680",
+    "map_zoom": "11",
+    "map_cache_mb": "500",           # Größe des Kachel-Zwischenspeichers
+    "maps_embed": "1",
+    "maps_embed_origins": "",
+    # Online-Anträge (Teil des Formularservers) und öffentlicher Antragskatalog
+    "module_applications": "1",
+    "apps_embed": "1",
+    "apps_embed_origins": "",
     # Kurzlinks
     "short_domain": "",           # optional eigene Kurz-Domain, z. B. kurz.example.de
     "short_fallback_url": "",     # Ziel für unbekannte Kurzlinks und die Startseite der Kurz-Domain
@@ -869,6 +1020,21 @@ _NEW_COLUMNS = {
                  "ics_uid": "VARCHAR(255)", "ics_sequence": "INTEGER NOT NULL DEFAULT 0",
                  "cancelled_at": "DATETIME", "guest_token": "VARCHAR(64)"},
     "notifications": {"reply_to": "VARCHAR(255)", "attachments_json": "TEXT"},
+    "forms": {"kind": "VARCHAR(12) NOT NULL DEFAULT 'survey'", "app_prefix": "VARCHAR(12) NOT NULL DEFAULT ''",
+              "app_category": "VARCHAR(100) NOT NULL DEFAULT ''", "app_info": "TEXT NOT NULL DEFAULT ''",
+              "app_fee": "VARCHAR(255) NOT NULL DEFAULT ''", "app_duration": "VARCHAR(255) NOT NULL DEFAULT ''",
+              "app_assignee_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
+              "app_group_id": "INTEGER REFERENCES groups(id) ON DELETE SET NULL",
+              "app_mailbox": "VARCHAR(255) NOT NULL DEFAULT ''", "app_routing_json": "TEXT NOT NULL DEFAULT '[]'",
+              "app_deadline_days": "INTEGER NOT NULL DEFAULT 14", "app_catalog": "BOOLEAN NOT NULL DEFAULT 1",
+              "app_pdf": "BOOLEAN NOT NULL DEFAULT 1", "app_seq_year": "INTEGER NOT NULL DEFAULT 0",
+              "app_seq": "INTEGER NOT NULL DEFAULT 0"},
+    "form_responses": {"ref_no": "VARCHAR(40)", "status": "VARCHAR(16) NOT NULL DEFAULT ''", "status_at": "DATETIME",
+                       "assignee_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
+                       "group_id": "INTEGER REFERENCES groups(id) ON DELETE SET NULL",
+                       "route_email": "VARCHAR(255) NOT NULL DEFAULT ''", "due_at": "DATETIME",
+                       "overdue_notified_at": "DATETIME", "closed_at": "DATETIME", "track_token": "VARCHAR(64)",
+                       "checksum": "VARCHAR(64) NOT NULL DEFAULT ''"},
     "invitees": {"rsvp_status": "VARCHAR(16)", "rsvp_at": "DATETIME", "rsvp_comment": "TEXT",
                  "join_token": "VARCHAR(64)"},
 }
@@ -883,8 +1049,13 @@ def _migrate() -> None:
                 if name not in existing:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
         for name, table, column in (("ix_recordings_status", "recordings", "status"),
-                                    ("ix_recordings_meeting_id", "recordings", "meeting_id")):
+                                    ("ix_recordings_meeting_id", "recordings", "meeting_id"),
+                                    ("ix_form_responses_ref_no", "form_responses", "ref_no"),
+                                    ("ix_form_responses_assignee_id", "form_responses", "assignee_id"),
+                                    ("ix_form_responses_group_id", "form_responses", "group_id")):
             conn.execute(text(f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({column})"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_form_responses_track_token "
+                          "ON form_responses (track_token)"))
 
 
 def init_db() -> None:
@@ -895,6 +1066,7 @@ def init_db() -> None:
             if db.get(Setting, key) is None:
                 db.add(Setting(key=key, value=value))
         seed_law_levels(db)
+        seed_map_layers(db)
         db.commit()
 
 

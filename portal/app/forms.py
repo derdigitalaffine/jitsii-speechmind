@@ -41,6 +41,7 @@ TYPES = {
     "scale": ("Lineare Skala", "fa-sliders", True),
     "color": ("Farbe", "fa-palette", True),
     "file": ("Datei-Upload", "fa-paperclip", True),
+    "geo": ("GPS-Koordinaten", "fa-location-dot", True),
     "heading": ("Überschrift", "fa-heading", False),
     "subheading": ("Zwischenüberschrift", "fa-text-height", False),
     "text": ("Hinweistext", "fa-paragraph", False),
@@ -146,6 +147,9 @@ def clean_schema(raw) -> list[dict]:
             item["file_types"] = [e for e in exts if EXT_RE.match(e)][:30]
             item["max_size_mb"] = _int(src.get("max_size_mb"), 1, MAX_FILE_MB, 10)
             item["max_files"] = _int(src.get("max_files"), 1, 10, 1)
+        elif kind == "geo":
+            item["allow_gps"] = src.get("allow_gps") is not False
+            item["show_inputs"] = src.get("show_inputs") is not False
         elif kind == "heading" or kind == "subheading" or kind == "pagebreak":
             pass
         items.append(item)
@@ -301,12 +305,41 @@ def validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
                     errors[qid] = "Bitte einen Wert auf der Skala wählen."
             elif kind == "color" and raw and not COLOR_RE.match(raw):
                 errors[qid] = "Bitte eine Farbe wählen."
+            elif kind == "geo" and raw:
+                point = parse_point(raw, data.get(name + "__acc"), data.get(name + "__src"))
+                if point is None:
+                    errors[qid] = "Bitte einen Punkt in der Karte wählen oder Breite und Länge angeben (z. B. 49.4930, 7.7680)."
+                else:
+                    if required and not raw:
+                        errors[qid] = "Bitte einen Punkt wählen."
+                    answers[qid] = point
+                    continue
             if required and not raw:
                 errors.setdefault(qid, "Bitte ausfüllen.")
             value = raw or None
         if value is not None and qid not in errors:
             answers[qid] = value
     return answers, errors, uploads
+
+
+GEO_RE = re.compile(r"^\s*(-?\d{1,2}(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:[.,]\d+)?)\s*$")
+
+
+def parse_point(raw: str, accuracy=None, source=None) -> dict | None:
+    """„Breite, Länge“ (WGS84) → {lat, lon, acc, src}. Genauigkeit in Metern nur bei GPS."""
+    m = GEO_RE.match(raw or "")
+    if not m:
+        return None
+    lat, lon = float(m.group(1).replace(",", ".")), float(m.group(2).replace(",", "."))
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
+    point = {"lat": round(lat, 6), "lon": round(lon, 6)}
+    acc = _num(accuracy)
+    if acc is not None and 0 < acc < 100000:
+        point["acc"] = round(acc)
+    if source in ("gps", "map", "manual"):
+        point["src"] = source
+    return point
 
 
 def files_dir(form_id: int, response_id: int | None = None) -> Path:
@@ -347,6 +380,8 @@ def display(item: dict, value) -> str:
     kind = item.get("type")
     if kind == "file":
         return ", ".join(f.get("name", "") for f in value if isinstance(f, dict))
+    if kind == "geo" and isinstance(value, dict):
+        return f"{value.get('lat'):.6f}, {value.get('lon'):.6f}" + (f" (±{value['acc']} m)" if value.get("acc") else "")
     if isinstance(value, list):
         return ", ".join(str(v) for v in value)
     if kind == "date":
@@ -408,6 +443,8 @@ def to_json(form: Form, responses: list[FormResponse]) -> str:
 def _json_value(item: dict, value):
     if item["type"] == "file" and isinstance(value, list):
         return [f.get("name") for f in value if isinstance(f, dict)]
+    if item["type"] == "geo" and isinstance(value, dict):
+        return value
     if item["type"] == "scale" and value not in (None, ""):
         return _int(value, -1, 99, None)
     if item["type"] == "short" and item.get("subtype") == "number" and value not in (None, ""):
@@ -458,6 +495,10 @@ def summary(form: Form, responses: list[FormResponse]) -> list[dict]:
             nums = [n for n in (_num(v) for v in given) if n is not None]
             entry["average"] = (sum(nums) / len(nums)) if nums else None
             entry["minmax"] = (min(nums), max(nums)) if nums else None
+            entry["latest"] = [display(q, v) for v in given[-8:]][::-1]
+        elif q["type"] == "geo":
+            entry["points"] = [{"lat": v["lat"], "lon": v["lon"], "label": f"Antwort {n}"}
+                               for n, v in enumerate(values, start=1) if isinstance(v, dict) and "lat" in v][:5000]
             entry["latest"] = [display(q, v) for v in given[-8:]][::-1]
         else:
             entry["latest"] = [display(q, v) for v in given[-8:]][::-1]

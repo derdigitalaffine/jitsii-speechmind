@@ -1,6 +1,6 @@
 # Videokonferenzserver der Verbandsgemeinde Otterbach-Otterberg
 
-**Selbst gehostetes Portal für Verwaltungen:** Videokonferenzen mit [Jitsi Meet](https://jitsi.org/), Aufnahme und Transkription über [SpeechMind](https://www.speechmind.com/), Besprechungsplanung mit Outlook-Einladungen, Terminumfragen wie Doodle, Terminbuchung wie Calendly, Kurzlinks mit QR-Codes, ein Formularserver und Rechtstexte (Ortsrecht online) – alles auf dem eigenen Server, ohne Daten an große Plattformen.
+**Selbst gehostetes Portal für Verwaltungen:** Videokonferenzen mit [Jitsi Meet](https://jitsi.org/), Aufnahme und Transkription über [SpeechMind](https://www.speechmind.com/), Besprechungsplanung mit Outlook-Einladungen, Terminumfragen wie Doodle, Terminbuchung wie Calendly, Kurzlinks mit QR-Codes, ein Formularserver mit Online-Anträgen, ein Kartenbrowser und Rechtstexte (Ortsrecht online) – alles auf dem eigenen Server, ohne Daten an große Plattformen.
 
 Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Software (MIT-Lizenz)** ausdrücklich für alle anderen Verwaltungen gedacht: Verbandsgemeinden, Städte, Kreise, Zweckverbände. Nutzen Sie es, passen Sie es an Ihr Haus an, und teilen Sie Verbesserungen, damit alle davon profitieren. Name, Farben und Logo stellen Sie in der Oberfläche um (Design & Branding), voreingestellt über `BRAND_NAME` und `BRAND_PRODUCT` in `.env`.
 
@@ -64,6 +64,23 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - **Auswerten:** Zusammenfassung mit Diagrammen, Einzelansicht, Export **CSV** (Excel) und **JSON**.
 - **Benachrichtigung** bei neuen Antworten, wahlweise mit CSV- und/oder JSON-Anhang – nur die neue Antwort oder jeweils alle.
 - **Im Portal teilen** mit Personen oder Gruppen in drei Stufen: Ergebnisse einsehen · zusätzlich einladen · zusätzlich bearbeiten und löschen.
+- **Fragetyp GPS-Koordinaten:** Ort per Klick in die Karte (basemap.de, OpenStreetMap), per Standort des Geräts oder per Eingabe; Auswertung als Karte mit allen Punkten, Export mit Koordinaten.
+
+### Online-Anträge (abschaltbares Modul, Teil des Formularservers)
+
+- Jedes Formular lässt sich zum **Online-Antrag** machen: jede Einsendung bekommt ein **Aktenzeichen** (z. B. `GEW-2026-00042`), einen **Status** (eingegangen, in Bearbeitung, Rückfrage, genehmigt, abgelehnt, erledigt, zurückgezogen) und eine **Bearbeitungsfrist**.
+- **Zuständigkeit und Weiterleitung:** Person, Gruppe oder Funktionspostfach als Vorgabe, dazu Regeln nach Antworten (z. B. Ortsgemeinde „Otterberg“ → Sachbearbeitung Otterberg). Zuweisen, übernehmen, Frist ändern, **Erinnerung bei Fristüberschreitung**.
+- **Antragseingang** mit Filtern (offen, mir zugewiesen, überfällig, Rückfrage) und Vorgangsansicht mit Verlauf, internen Notizen und Nachrichten an die antragstellende Person.
+- **Statusseite für Antragsteller:innen** über einen geheimen Link: Stand und Verlauf ansehen, auf Rückfragen antworten, Antrag zurückziehen, PDF herunterladen.
+- **PDF des Antrags** (mit Prüfsumme gegen nachträgliche Änderungen) als Anhang der Eingangsbestätigung und der Mail an Zuständige bzw. Funktionspostfach – für die E-Akte.
+- **Öffentlicher Antragskatalog** unter `/antraege` mit Kategorien, Suche, Gebühren, Unterlagen und Bearbeitungsdauer – auch per iframe in die Homepage einbettbar.
+
+### Kartenbrowser und Kartenlayer (abschaltbares Modul)
+
+- **Kartenbrowser** mit MapLibre GL unter `/karte` für alle, auch ohne Anmeldung (einbettbar): Grundkarten (basemap.de farbig/grau/Vektor, OpenStreetMap), Fachdaten als **WMS, WMS-T (Zeitregler), WFS, WMTS/XYZ** und GeoJSON, Transparenz, Reihenfolge per Ziehen, Legende, Sachinformation per Klick, Strecken- und Flächenmessung, Koordinaten in WGS84 und UTM 32, Koordinatensuche, Kartenbild als PNG, Link auf den Ausschnitt.
+- Angemeldete mit Recht „Karten“ fügen **eigene Dienste** komfortabel hinzu („Dienst abfragen“ liest die Layer aus GetCapabilities), **speichern Karten** und **teilen** sie per Link oder iframe.
+- **Systemweite Layerverwaltung** für Admins: Layer anlegen (mit Dienstabfrage), Grundkarte oder Überlagerung, Gruppen, Reihenfolge per Ziehen, öffentlich/intern, Startsichtbarkeit, Verwendung in Formularen, WMS-T-Zeitwerte, Legende, Erreichbarkeit prüfen, Duplizieren, Export/Import als JSON, Übernahme von Benutzer-Layern, Startausschnitt, Zwischenspeicher.
+- Je Layer wählbar: **über das Portal laden** (Proxy mit Kachel-Zwischenspeicher, keine IP-Adressen an Dritte, keine CORS-Probleme) oder direkt beim Anbieter. Eigene Layer von Benutzer:innen laufen immer über den Proxy – mit Schutz vor Zugriffen ins interne Netz.
 
 ### Rechtstexte – Ortsrecht online (abschaltbares Modul)
 
@@ -76,10 +93,10 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 
 ### Verwaltung und Sicherheit
 
-- **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Terminumfragen, Terminbuchung, Rechtstexte, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
+- **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Terminumfragen, Terminbuchung, Karten, Rechtstexte, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
 - **Gehärtet:** Content-Security-Policy und weitere Sicherheits-Header, CSRF-Schutz für alle Formulare, Bremse gegen Passwort-Raten je IP und je Konto, keine Kontenermittlung über Antwortzeiten, Uploads nur als Download, aktuelle Bibliotheken ohne bekannte Sicherheitslücken.
 - **Zwei-Faktor-Anmeldung** per **Authenticator-App (TOTP)** oder **Code per E-Mail**, mit Notfallcodes; freiwillig oder Pflicht für Admins/alle. „Passwort vergessen“ per Mail-Link.
-- **Module** Kurzlinks, Formulare, Terminumfragen, Terminbuchung und Rechtstexte komplett abschaltbar.
+- **Module** Kurzlinks, Formulare, Online-Anträge, Terminumfragen, Terminbuchung, Kartenbrowser und Rechtstexte komplett abschaltbar.
 - **Sitzungen & Cookies:** technische Übersicht, wer angemeldet ist (Gerät, IP, letzte Aktivität), Inhalt und Eigenschaften der Session-Cookies; Sitzungen einzeln, je Person oder alle anderen beenden. Jede:r sieht unter Profil › Sicherheit die eigenen angemeldeten Geräte; ein neues Passwort meldet alle anderen Geräte ab.
 - **E-Mail** über SMTP mit Warteschlange, Wiederholungen und Protokoll; optional Ablage in „Gesendet“ per IMAP. **Alle Mails als Vorlagen bearbeitbar**, mit Platzhaltern und Live-Vorschau.
 - **HTTPS** mit Caddy: Start mit selbst signiertem Zertifikat, **Let's Encrypt** per Klick in der Oberfläche.

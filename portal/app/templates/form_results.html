@@ -4,6 +4,7 @@
 {% macro value_html(q, value, resp) -%}
 {%- if q.type == 'file' and value -%}
   {%- for f in value %}<a href="/forms/{{ form.id }}/responses/{{ resp.id }}/files/{{ f.file }}" class="d-block text-truncate"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a>{% endfor -%}
+{%- elif q.type == 'geo' and value is mapping -%}<a href="https://www.openstreetmap.org/?mlat={{ value.lat }}&mlon={{ value.lon }}#map=17/{{ value.lat }}/{{ value.lon }}" target="_blank" rel="noopener" title="In OpenStreetMap öffnen"><i class="fa-solid fa-location-dot me-1"></i>{{ display(q, value) }}</a>
 {%- elif q.type == 'color' and value -%}<span class="d-inline-block rounded border me-1 align-middle" style="width:1rem;height:1rem;background:{{ value }}"></span>{{ value }}
 {%- else -%}{{ display(q, value) }}{%- endif -%}
 {%- endmacro %}
@@ -27,7 +28,7 @@
 <div class="tab-content">
   <div class="tab-pane fade show active" id="zusammenfassung"><div class="row g-3">
     {% for s in summary %}
-    <div class="col-12 {{ 'col-xl-6' if s.chart }}"><div class="card h-100">
+    <div class="col-12 {{ 'col-xl-6' if s.chart or s.points is defined }}"><div class="card h-100">
       <div class="card-header d-flex justify-content-between gap-2"><span class="fw-semibold">{{ s.q.title or types[s.q.type][0] }}</span>
         <span class="small text-secondary text-nowrap">{{ s.count }} von {{ s.total }} beantwortet</span></div>
       <div class="card-body">
@@ -35,6 +36,9 @@
         <div style="height: {{ [140, 34 * (s.chart['labels'] | length) + 40] | max if s.chart.horizontal else 220 }}px"><canvas data-chart='{{ s.chart | tojson }}' aria-label="Diagramm"></canvas></div>
         {% if s.get('average') is not none %}<div class="small mt-2">Durchschnitt: <strong>{{ '%.1f' | format(s.average) | replace('.', ',') }}</strong></div>{% endif %}
         {% if s.others %}<div class="small text-secondary mt-2">Sonstiges: {{ s.others | join(' · ') }}</div>{% endif %}
+        {% elif s.points is defined %}
+          {% if s.points %}<div class="map-mini js-points-map mb-2" data-points='{{ s.points | tojson }}' role="img" aria-label="Karte mit {{ s.points | length }} Orten"></div>{% endif %}
+          {% if s.latest %}<ul class="list-unstyled small mb-0">{% for v in s.latest[:5] %}<li class="border-start border-3 ps-2 mb-1">{{ v }}</li>{% endfor %}</ul>{% else %}<span class="text-secondary small">Keine Antworten</span>{% endif %}
         {% else %}
           {% if s.get('average') is not none %}<div class="small mb-2">Durchschnitt <strong>{{ '%.2f' | format(s.average) | replace('.', ',') }}</strong>{% if s.minmax %} · kleinster Wert {{ s.minmax[0] | round(2) }} · größter Wert {{ s.minmax[1] | round(2) }}{% endif %}</div>{% endif %}
           {% if s.latest %}<div class="small text-secondary mb-1">Neueste Antworten:</div>
@@ -66,7 +70,30 @@
 </div>
 {% endif %}
 {% endblock %}
+{% block head %}{% if geo_bundle %}<link rel="stylesheet" href="/static/vendor/maplibre/maplibre-gl.css"><link rel="stylesheet" href="/static/map.css">{% endif %}{% endblock %}
 {% block scripts %}
 <script src="/static/vendor/chartjs/chart.umd.min.js"></script>
 <script src="/static/charts.js"></script>
+{% if geo_bundle %}
+<script type="application/json" id="geo-bundle">{{ geo_bundle | tojson }}</script>
+<script src="/static/vendor/maplibre/maplibre-gl.js"></script>
+<script src="/static/map-core.js"></script>
+<script>
+(function () {
+  var bundle = JSON.parse(document.getElementById('geo-bundle').textContent);
+  document.querySelectorAll('.js-points-map').forEach(function (el) {
+    var pts = JSON.parse(el.dataset.points);
+    var kit = MapKit.create(el, JSON.parse(JSON.stringify(bundle)), {});
+    kit.map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    var bounds = new maplibregl.LngLatBounds();
+    pts.forEach(function (p) {
+      new maplibregl.Marker({ color: '#d62828', scale: 0.8 }).setLngLat([p.lon, p.lat])
+        .setPopup(new maplibregl.Popup({ offset: 20 }).setText(p.label + ': ' + p.lat.toFixed(6) + ', ' + p.lon.toFixed(6))).addTo(kit.map);
+      bounds.extend([p.lon, p.lat]);
+    });
+    kit.map.on('load', function () { kit.map.fitBounds(bounds, { padding: 40, maxZoom: 16, duration: 0 }); });
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}
