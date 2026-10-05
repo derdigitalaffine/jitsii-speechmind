@@ -56,6 +56,8 @@ SERVICES = [
      "https://basemap.de"),
     ("OpenStreetMap", "ODbL (Daten), Tile Usage Policy (Kacheln)", "Freie Weltkarte – nur wenn als Kartenlayer eingeschaltet; Kacheln über das Portal zwischengespeichert",
      "https://www.openstreetmap.org/copyright"),
+    ("Nominatim (OpenStreetMap)", "ODbL (Daten), Nominatim Usage Policy", "Adress- und Ortssuche in Formularen und im Kartenbrowser – über das Portal, zwischengespeichert, höchstens eine Anfrage je Sekunde; eigener Server einstellbar",
+     "https://nominatim.org"),
     ("SpeechMind", "Externer Dienst (eigene Nutzungsbedingungen)", "Transkription und Protokoll – nur wenn angebunden und gestartet",
      "https://speechmind.com"),
     ("Let's Encrypt", "Externer Dienst (Subscriber Agreement)", "Kostenlose TLS-Zertifikate – nur wenn eingeschaltet",

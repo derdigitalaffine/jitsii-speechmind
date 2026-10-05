@@ -675,6 +675,15 @@ class ApplicationDocument(Base):
     response: Mapped[FormResponse] = relationship(back_populates="documents")
 
 
+class GeoCache(Base):
+    """Zwischenspeicher für Antworten des Geocoders (Nominatim), siehe geocode.py."""
+    __tablename__ = "geo_cache"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class Poll(Base):
     """Terminumfrage (wie Doodle): Teilnehmende stimmen je Terminvorschlag mit Ja, Wenn nötig oder Nein."""
     __tablename__ = "polls"
@@ -1159,6 +1168,9 @@ DEFAULT_SETTINGS = {
     "map_cache_mb": "500",           # Größe des Kachel-Zwischenspeichers
     "maps_embed": "1",
     "maps_embed_origins": "",
+    "geocoder_url": "https://nominatim.openstreetmap.org",   # Adress-/Ortssuche (eigener Nominatim-Server möglich)
+    "geocoder_countries": "de",
+    "geocoder_contact": "",
     # Online-Anträge (Teil des Formularservers) und öffentlicher Antragskatalog
     "module_applications": "1",
     "apps_embed": "1",

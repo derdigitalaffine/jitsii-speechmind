@@ -243,3 +243,4 @@ footer.app-footer { border-top: 1px solid var(--bs-border-color); color: var(--b
 .fill-step-btn:disabled { opacity: 1; cursor: default; }
 @media (max-width: 575.98px) { .fill-step:not(.is-current) .fill-step-label { display: none; } }
 .review-page dt { font-weight: 500; color: var(--bs-secondary-color); }
+.addr-results { position: absolute; z-index: 20; left: 0; right: 0; top: 100%; max-height: 18rem; overflow-y: auto; box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .12); }

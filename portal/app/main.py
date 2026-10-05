@@ -2236,6 +2236,7 @@ from . import routes_shortlinks  # noqa: E402,F401
 from . import routes_applications  # noqa: E402,F401  (vor routes_forms: /forms/applications vor /forms/{id})
 from . import routes_forms  # noqa: E402,F401
 from . import routes_workflow  # noqa: E402,F401
+from . import routes_geo  # noqa: E402,F401
 from . import routes_polls  # noqa: E402,F401
 from . import routes_bookings  # noqa: E402,F401
 from . import routes_sessions  # noqa: E402,F401

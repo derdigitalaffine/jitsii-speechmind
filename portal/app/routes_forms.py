@@ -459,6 +459,8 @@ def _values_for_redisplay(items: list[dict], data) -> dict:
         name = f"q_{q['id']}"
         if q["type"] == "checkbox":
             values[q["id"]] = data.getlist(name)
+        elif q["type"] == "address":
+            values[q["id"]] = {k: data.get(f"{name}__{k}", "") for k in (*fm.ADDRESS_PARTS, "lat", "lon")}
         elif q["type"] == "geo":
             values[q["id"]] = data.get(name, "")
             values[q["id"] + "__pos"] = data.get(name + "__pos", "")

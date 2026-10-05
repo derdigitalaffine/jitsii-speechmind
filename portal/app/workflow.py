@@ -47,7 +47,7 @@ MAIL_TARGETS = {"applicant": "Antragsteller:in", "case": "Zuständige des Vorgan
 KEY_RE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 STEP_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 TOKEN_RE = re.compile(r"\{(feld|frage):([^{}]{1,200})\}|\{([a-z_]{1,30})\}")
-REQUEST_TYPES = ("short", "long", "radio", "checkbox", "dropdown", "date", "file", "geo", "text")
+REQUEST_TYPES = ("short", "long", "radio", "checkbox", "dropdown", "date", "file", "address", "geo", "text")
 CLOSED = apps.CLOSED
 
 

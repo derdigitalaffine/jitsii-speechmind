@@ -120,19 +120,50 @@
     var u = MapKit.toUtm32(ev.lngLat.lng, ev.lngLat.lat);
     coords.textContent = MapKit.fmtLatLon(ev.lngLat) + '  ·  UTM 32: ' + Math.round(u[0]) + ' ' + Math.round(u[1]);
   });
+  var searchBox = document.getElementById('place-results'), searchMarker = null;
+  function jump(lngLat, label, bbox) {
+    if (bbox && bbox.length === 4) {
+      map.fitBounds([[parseFloat(bbox[2]), parseFloat(bbox[0])], [parseFloat(bbox[3]), parseFloat(bbox[1])]], { padding: 40, maxZoom: 18 });
+    } else { map.flyTo({ center: lngLat, zoom: Math.max(map.getZoom(), 16) }); }
+    if (searchMarker) { searchMarker.remove(); }
+    searchMarker = new maplibregl.Marker({ color: '#1f5fa8' }).setLngLat(lngLat)
+      .setPopup(new maplibregl.Popup({ offset: 24 }).setText(label)).addTo(map);
+    searchMarker.togglePopup();
+    if (window.innerWidth < 768) { shell.classList.add('panel-hidden'); setTimeout(function () { map.resize(); }, 50); }
+  }
+  function coordsFrom(text) {
+    var t = text.replace(/utm\s*32[nN]?/i, '').trim();
+    if (/[a-zäöüß]{3,}/i.test(t)) { return null; }   // enthält Wörter → Ortssuche
+    var nums = t.match(/-?\d+(?:[.,]\d+)?/g);
+    if (!nums || nums.length !== 2) { return null; }
+    var a = parseFloat(nums[0].replace(',', '.')), b = parseFloat(nums[1].replace(',', '.'));
+    if (Math.abs(a) > 1000 || Math.abs(b) > 1000) { return utmToLngLat(a, b); }
+    if (Math.abs(a) <= 90) { return (a < 20 && b > 40) ? [a, b] : [b, a]; }   // üblich: Breite, Länge
+    return [a, b];
+  }
   document.getElementById('coord-search').addEventListener('submit', function (ev) {
     ev.preventDefault();
-    var t = document.getElementById('coord-input').value.replace(/utm\s*32[nN]?/i, '').trim();
-    var nums = t.match(/-?\d+(?:[.,]\d+)?/g);
-    if (!nums || nums.length < 2) { return; }
-    var a = parseFloat(nums[0].replace(',', '.')), b = parseFloat(nums[1].replace(',', '.'));
-    var lngLat;
-    if (Math.abs(a) > 1000 || Math.abs(b) > 1000) { lngLat = utmToLngLat(a, b); }
-    else if (Math.abs(a) <= 90) { lngLat = (a < 20 && b > 40) ? [a, b] : [b, a]; }   // üblich: Breite, Länge
-    else { lngLat = [a, b]; }
-    if (!lngLat) { return; }
-    map.flyTo({ center: lngLat, zoom: Math.max(map.getZoom(), 15) });
-    new maplibregl.Popup({ closeOnClick: true }).setLngLat(lngLat).setHTML('<strong>' + lngLat[1].toFixed(6) + ', ' + lngLat[0].toFixed(6) + '</strong>').addTo(map);
+    var text = document.getElementById('coord-input').value.trim();
+    if (!text) { return; }
+    var lngLat = coordsFrom(text);
+    if (lngLat) { searchBox.innerHTML = ''; jump(lngLat, lngLat[1].toFixed(6) + ', ' + lngLat[0].toFixed(6)); return; }
+    if (/^\d{5}$/.test(text)) { text = text + ', Deutschland'; }
+    searchBox.innerHTML = '<div class="small text-secondary py-1"><span class="spinner-border spinner-border-sm me-1"></span>Suche …</div>';
+    fetch('/geo/search?q=' + encodeURIComponent(text), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      var res = d.results || [];
+      if (!res.length) { searchBox.innerHTML = '<div class="small text-secondary py-1">Nichts gefunden.</div>'; return; }
+      searchBox.innerHTML = '<div class="list-group list-group-flush small">' + res.map(function (r, i) {
+        return '<button type="button" class="list-group-item list-group-item-action px-2 py-1" data-i="' + i + '"><i class="fa-solid fa-location-dot me-1 text-secondary"></i>' +
+          esc(r.name && r.label.indexOf(r.name) < 0 ? r.name + ' – ' + r.label : r.label) + '</button>';
+      }).join('') + '</div>';
+      searchBox.onclick = function (e) {
+        var b = e.target.closest('[data-i]');
+        if (!b) { return; }
+        var r = res[+b.dataset.i];
+        jump([r.lon, r.lat], r.label, r.type === 'house' ? null : r.bbox);
+      };
+      if (res.length === 1) { jump([res[0].lon, res[0].lat], res[0].label, res[0].type === 'house' ? null : res[0].bbox); }
+    }).catch(function () { searchBox.innerHTML = '<div class="small text-danger py-1">Suche gerade nicht möglich.</div>'; });
   });
   /* UTM 32N → WGS84 (Näherung ausreichend für die Suche) */
   function utmToLngLat(e, n) {

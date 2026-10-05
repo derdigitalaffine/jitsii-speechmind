@@ -42,6 +42,7 @@ TYPES = {
     "color": ("Farbe", "fa-palette", True),
     "file": ("Datei-Upload", "fa-paperclip", True),
     "geo": ("Ort in der Karte (Punkt, Linie, Fläche)", "fa-location-dot", True),
+    "address": ("Adresse / PLZ und Ort", "fa-house", True),
     "heading": ("Überschrift", "fa-heading", False),
     "subheading": ("Zwischenüberschrift", "fa-text-height", False),
     "text": ("Hinweistext", "fa-paragraph", False),
@@ -167,6 +168,10 @@ def clean_schema(raw) -> list[dict]:
             item["show_inputs"] = src.get("show_inputs") is not False
             item["allow_gps"] = src.get("allow_gps") is not False
             item["show_inputs"] = src.get("show_inputs") is not False
+        elif kind == "address":
+            item["mode"] = "zip_city" if src.get("mode") == "zip_city" else "full"
+            for flag, default in (("search", True), ("locate", True), ("district", False), ("coords", True)):
+                item[flag] = bool(src.get(flag, default))
         elif kind == "heading" or kind == "subheading" or kind == "pagebreak":
             pass
         items.append(item)
@@ -421,6 +426,13 @@ def _validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
                     errors[qid] = "Bitte einen Wert auf der Skala wählen."
             elif kind == "color" and raw and not COLOR_RE.match(raw):
                 errors[qid] = "Bitte eine Farbe wählen."
+            elif kind == "address":
+                value, error = parse_address(item, data, name, required)
+                if error:
+                    errors[qid] = error
+                elif value:
+                    answers[qid] = value
+                continue
             elif kind == "geo":
                 value, error = parse_geo(item, raw, data.get(name + "__pos"), data.get(name + "__acc"), data.get(name + "__src"))
                 if error:
@@ -493,6 +505,42 @@ def parse_shape(raw: str, kind: str) -> dict | None:
     lons, lats = [p[0] for p in pts], [p[1] for p in pts]
     return {"type": kind, "coordinates": geom["coordinates"], "length": round(length, 1), "area": round(area, 1),
             "center": [round((min(lons) + max(lons)) / 2, 6), round((min(lats) + max(lats)) / 2, 6)]}
+
+
+ADDRESS_PARTS = ("street", "house_no", "zip", "city", "district")
+ZIP_DE = re.compile(r"^\d{5}$")
+
+
+def parse_address(item: dict, data, name: str, required: bool) -> tuple[dict | None, str]:
+    """Adresse aus den Teilfeldern q_<id>__street, __house_no, __zip, __city, __district, __lat, __lon."""
+    full = item.get("mode", "full") == "full"
+    parts = {k: _str(data.get(f"{name}__{k}"), 200).replace("\n", " ") for k in ADDRESS_PARTS}
+    if not full:
+        parts["street"] = parts["house_no"] = ""
+    if not item.get("district"):
+        parts["district"] = ""
+    value = {k: v for k, v in parts.items() if v}
+    if not value:
+        return None, ("Bitte die Adresse angeben." if full else "Bitte Postleitzahl und Ort angeben.") if required else ""
+    missing = [label for key, label in (("street", "Straße"), ("zip", "PLZ"), ("city", "Ort")) if (full or key != "street") and not parts[key]]
+    if missing:
+        return None, "Bitte ergänzen: " + ", ".join(missing) + "."
+    if not ZIP_DE.match(parts["zip"]):
+        return None, "Bitte eine fünfstellige Postleitzahl angeben."
+    if item.get("coords", True):
+        lat, lon = _num(data.get(f"{name}__lat")), _num(data.get(f"{name}__lon"))
+        if lat is not None and lon is not None and -90 <= lat <= 90 and -180 <= lon <= 180:
+            value["lat"], value["lon"] = round(lat, 6), round(lon, 6)
+    return value, ""
+
+
+def address_text(value) -> str:
+    if not isinstance(value, dict):
+        return ""
+    street = " ".join(x for x in (value.get("street"), value.get("house_no")) if x)
+    town = " ".join(x for x in (value.get("zip"), value.get("city")) if x)
+    text = ", ".join(x for x in (street, town) if x)
+    return text + (f" (Ortsteil {value['district']})" if value.get("district") else "")
 
 
 GEO_LABELS = {"point": ("einen Punkt", "Punkte"), "line": ("eine Linie", "Linien"), "polygon": ("eine Fläche", "Flächen")}
@@ -713,6 +761,8 @@ def display(item: dict, value) -> str:
     kind = item.get("type")
     if kind == "file":
         return ", ".join(f.get("name", "") for f in value if isinstance(f, dict))
+    if kind == "address":
+        return address_text(value)
     if kind == "geo" and isinstance(value, dict):
         feats, pos = geo_parts(value)
         parts = [_describe(f) for f in feats]

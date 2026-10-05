@@ -433,7 +433,8 @@ def admin_maps(request: Request, user: User = Depends(admin_user), db: Session =
 @app.post("/admin/maps/settings", dependencies=[Depends(check_csrf)])
 def admin_maps_settings(request: Request, map_center_lat: str = Form(""), map_center_lon: str = Form(""),
                         map_zoom: str = Form("11"), map_cache_mb: str = Form("500"), maps_embed: str = Form(""),
-                        maps_embed_origins: str = Form(""), user: User = Depends(admin_user),
+                        maps_embed_origins: str = Form(""), geocoder_url: str = Form(""), geocoder_countries: str = Form("de"),
+                        geocoder_contact: str = Form(""), user: User = Depends(admin_user),
                         db: Session = Depends(get_db)):
     try:
         lat, lon, zoom = float(map_center_lat.replace(",", ".")), float(map_center_lon.replace(",", ".")), float(map_zoom)
@@ -443,6 +444,13 @@ def admin_maps_settings(request: Request, map_center_lat: str = Form(""), map_ce
         flash(request, "Bitte gültige Werte angeben (Breite −85…85, Länge −180…180, Zoom 0…20, Speicher ab 10 MB).", "error")
         return redirect("/admin/maps#einstellungen")
     origins = [o.strip().rstrip("/") for o in re.split(r"[\s,;]+", maps_embed_origins) if o.strip()]
+    geo_url = geocoder_url.strip().rstrip("/") or "https://nominatim.openstreetmap.org"
+    if not re.match(r"^https?://[^\s/]+", geo_url):
+        flash(request, "Die Adresse des Geocoders muss mit http:// oder https:// beginnen.", "error")
+        return redirect("/admin/maps#einstellungen")
+    set_setting(db, "geocoder_url", geo_url[:300])
+    set_setting(db, "geocoder_countries", ",".join(c for c in re.split(r"[\s,;]+", geocoder_countries.lower()) if re.fullmatch(r"[a-z]{2}", c)))
+    set_setting(db, "geocoder_contact", geocoder_contact.strip()[:200])
     for key, value in (("map_center_lat", f"{lat:.5f}"), ("map_center_lon", f"{lon:.5f}"), ("map_zoom", f"{zoom:g}"),
                        ("map_cache_mb", str(cache)), ("maps_embed", "1" if maps_embed == "1" else "0"),
                        ("maps_embed_origins", " ".join(origins))):

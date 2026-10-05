@@ -37,6 +37,7 @@
     if (type === 'scale') { it.min = 1; it.max = 5; it.low_label = ''; it.high_label = ''; }
     if (type === 'file') { it.file_types = []; it.max_size_mb = Math.min(10, data.maxFileMb); it.max_files = 1; }
     if (type === 'geo') { it.title = 'Ort'; it.geometries = ['point']; it.max_features = 1; it.allow_gps = true; it.show_inputs = true; it.capture_location = false; }
+    if (type === 'address') { it.title = 'Anschrift'; it.mode = 'full'; it.search = true; it.locate = true; it.district = false; it.coords = true; }
     if (type === 'heading') { it.title = 'Abschnitt'; }
     if (type === 'pagebreak') { it.title = ''; }
     return it;
@@ -124,6 +125,14 @@
           switchHtml('capture_location', '<strong>Eigenen Standort zusätzlich erfassen</strong> – Knopf „Meinen Standort erfassen“, unabhängig vom Eingezeichneten (z. B. wo die meldende Person steht)', it.capture_location) +
           (it.capture_location ? switchHtml('location_required', 'Standort ist Pflicht', it.location_required) : '') + '</div></div></div>' +
           '<div class="col-12 small text-secondary"><i class="fa-solid fa-ruler me-1"></i>Länge und Fläche werden automatisch berechnet. Die Karte zeigt die Grundkarten, die unter Verwaltung › Kartenlayer für Formulare freigegeben sind.</div>';
+        break;
+      case 'address':
+        h += field('Umfang', '<select class="form-select form-select-sm" data-key="mode"><option value="full"' + (it.mode !== 'zip_city' ? ' selected' : '') + '>Straße, Hausnummer, PLZ, Ort</option>' +
+          '<option value="zip_city"' + (it.mode === 'zip_city' ? ' selected' : '') + '>nur PLZ und Ort</option></select>');
+        h += '<div class="col-12 d-flex flex-wrap gap-3 small">' + switchHtml('search', 'Suchfeld „Adresse suchen“ (OpenStreetMap)', it.search !== false) +
+          switchHtml('locate', 'Knopf „Meinen Standort übernehmen“', it.locate !== false) + switchHtml('district', 'Feld „Ortsteil“', it.district) +
+          switchHtml('coords', 'Koordinate mitspeichern (Karte, Ortsfilter in der Ablage)', it.coords !== false) + '</div>' +
+          '<div class="col-12 small text-secondary">Die PLZ ergänzt den Ort automatisch; alle Felder bleiben von Hand änderbar.</div>';
         break;
       case 'file':
         h += field('Erlaubte Dateiendungen', input('file_types', (it.file_types || []).join(', '), 'placeholder="leer = alle, z. B. pdf, jpg, png, docx"'));
