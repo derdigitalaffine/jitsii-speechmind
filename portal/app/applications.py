@@ -173,8 +173,11 @@ def applicant_email(form: Form, resp: FormResponse) -> str:
 def _pdf_attachment(form: Form, resp: FormResponse) -> list[dict] | None:
     if not form.app_pdf:
         return None
+    data = pdf(form, resp)
+    if len(data) > 15 * 1024 * 1024:   # zu groß für viele Postfächer: Mail ohne eingebettete Anlagen
+        data = pdf(form, resp, with_attachments=False)
     return [{"filename": f"{resp.ref_no}.pdf", "mime": "application/pdf",
-             "content_b64": base64.b64encode(pdf(form, resp)).decode("ascii")}]
+             "content_b64": base64.b64encode(data).decode("ascii")}]
 
 
 def _common(form: Form, resp: FormResponse) -> dict:
@@ -324,7 +327,147 @@ def _latin(text: str) -> str:
     return (text or "").encode("cp1252", "replace").decode("cp1252")
 
 
-def pdf(form: Form, resp: FormResponse) -> bytes:
+MAX_ATTACH_BYTES = 60 * 1024 * 1024   # größere Anhänge bleiben eigene Downloads
+IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tif", ".tiff"}
+
+
+def _attachments(form: Form, resp: FormResponse) -> list[dict]:
+    """Hochgeladene Dateien des Antrags und nachgereichte Dateien: {name, path, label, kind}."""
+    from pathlib import Path
+    out = []
+    base = fm.files_dir(resp.form_id, resp.id)
+    titles = {q["id"]: q.get("title") or "Datei" for q in fm.questions(fm.schema(form))}
+    for qid, value in resp.answers.items():
+        for f in value if isinstance(value, list) else []:
+            if isinstance(f, dict) and f.get("file"):
+                out.append({"name": f.get("name") or f["file"], "path": base / f["file"], "label": titles.get(qid, "Datei")})
+    for req in resp.requests:
+        if req.state != "answered":
+            continue
+        labels = {i["id"]: i.get("title") or "Datei" for i in req.items}
+        labels.update(titles)
+        for qid, value in req.answers.items():
+            for f in value if isinstance(value, list) else []:
+                if isinstance(f, dict) and f.get("file"):
+                    out.append({"name": f.get("name") or f["file"], "path": base / f"req{req.id}" / f["file"],
+                                "label": f"{labels.get(qid, 'Datei')} (nachgereicht {to_local(req.answered_at).strftime('%d.%m.%Y')})"})
+    for a in out:
+        ext = Path(a["name"]).suffix.lower() or Path(str(a["path"])).suffix.lower()
+        a["kind"] = "pdf" if ext == ".pdf" else ("image" if ext in IMAGE_EXT else "other")
+    return out
+
+
+def _image_pdf(path, caption: str) -> bytes:
+    """Bild als A4-Seite (hoch oder quer nach Bildformat), mit Bildunterschrift."""
+    from PIL import Image, ImageOps
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas as rl_canvas
+
+    img = ImageOps.exif_transpose(Image.open(path))
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+    img.thumbnail((2400, 2400))
+    size = landscape(A4) if img.width > img.height else A4
+    buf = io.BytesIO()
+    c = rl_canvas.Canvas(buf, pagesize=size)
+    w, h = size[0] - 30 * mm, size[1] - 40 * mm
+    scale = min(w / img.width, h / img.height, 1.0 * 72 / 96 * 4)
+    iw, ih = img.width * scale, img.height * scale
+    c.drawImage(ImageReader(img), (size[0] - iw) / 2, 25 * mm + (h - ih) / 2, iw, ih)
+    c.setFont("Helvetica", 8)
+    c.drawString(15 * mm, 15 * mm, _latin(caption)[:150])
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+def _stamp(text: str, width: float, height: float) -> bytes:
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas as rl_canvas
+    buf = io.BytesIO()
+    c = rl_canvas.Canvas(buf, pagesize=(width, height))
+    c.setFillColor(colors.white)
+    c.rect(0, 0, width, 6 * mm, stroke=0, fill=1)
+    c.setFillColor(colors.HexColor("#444444"))
+    c.setFont("Helvetica", 7)
+    c.drawString(8 * mm, 2.2 * mm, _latin(text)[:160])
+    c.save()
+    return buf.getvalue()
+
+
+def pdf(form: Form, resp: FormResponse, with_attachments: bool = True) -> bytes:
+    """Antrag als PDF. Hochgeladene PDFs werden angehängt, Bilder als eigene Seiten eingebettet; das Deckblatt
+    listet die Anlagen mit Seitenzahl. Nicht einbindbare Dateien (verschlüsselt, defekt, andere Formate) werden
+    im Verzeichnis vermerkt und bleiben eigene Downloads."""
+    files = _attachments(form, resp) if with_attachments else []
+    if not files:
+        return _base_pdf(form, resp, [])
+    from pypdf import PdfReader, PdfWriter
+
+    parts, total = [], 0
+    for n, f in enumerate(files, start=1):
+        entry = {"n": n, "name": f["name"], "label": f["label"], "pages": 0, "note": "", "data": None}
+        try:
+            size = f["path"].stat().st_size
+            if total + size > MAX_ATTACH_BYTES:
+                entry["note"] = "zu groß – liegt als eigene Datei vor"
+            elif f["kind"] == "pdf":
+                reader = PdfReader(str(f["path"]))
+                if reader.is_encrypted:
+                    try:
+                        if not reader.decrypt(""):
+                            raise ValueError
+                    except Exception:  # noqa: BLE001
+                        entry["note"] = "verschlüsselt – liegt als eigene Datei vor"
+                        reader = None
+                if reader is not None:
+                    entry["data"], entry["pages"] = reader, len(reader.pages)
+                    total += size
+            elif f["kind"] == "image":
+                data = _image_pdf(f["path"], f"Anlage {n}: {f['name']}")
+                entry["data"], entry["pages"] = PdfReader(io.BytesIO(data)), 1
+                total += size
+            else:
+                entry["note"] = "Dateiformat nicht einbindbar – liegt als eigene Datei vor"
+        except Exception:  # noqa: BLE001  (defekte Datei darf das PDF nicht verhindern)
+            entry["note"], entry["data"], entry["pages"] = "nicht lesbar – liegt als eigene Datei vor", None, 0
+        parts.append(entry)
+
+    # Seitenzahlen der Anlagen hängen von der Länge des Deckteils ab – zweimal setzen genügt
+    base_pages = len(PdfReader(io.BytesIO(_base_pdf(form, resp, parts))).pages)
+    for _ in range(2):
+        page = base_pages + 1
+        for e in parts:
+            e["start"] = page if e["pages"] else None
+            page += e["pages"]
+        base = _base_pdf(form, resp, parts)
+        pages_now = len(PdfReader(io.BytesIO(base)).pages)
+        if pages_now == base_pages:
+            break
+        base_pages = pages_now
+    writer = PdfWriter()
+    writer.append(PdfReader(io.BytesIO(base)))
+    for e in parts:
+        if not e["data"]:
+            continue
+        for i, page in enumerate(e["data"].pages, start=1):
+            w, h = float(page.mediabox.width), float(page.mediabox.height)
+            try:
+                page.merge_page(PdfReader(io.BytesIO(_stamp(f"{resp.ref_no} · Anlage {e['n']}: {e['name']} · Seite {i}/{e['pages']}", w, h))).pages[0])
+            except Exception:  # noqa: BLE001
+                pass
+            writer.add_page(page)
+        writer.add_outline_item(f"Anlage {e['n']}: {e['name']}"[:120], e["start"] - 1)
+    writer.add_metadata({"/Title": _latin(f"{resp.ref_no} {form.title}"), "/Subject": "Online-Antrag mit Anlagen"})
+    out = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()
+
+
+def _base_pdf(form: Form, resp: FormResponse, parts: list[dict]) -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -370,6 +513,16 @@ def pdf(form: Form, resp: FormResponse) -> bytes:
         table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LINEBELOW", (0, 0), (-1, -1), 0.25, colors.HexColor("#d0d5dd")),
                                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4), ("TOPPADDING", (0, 0), (-1, -1), 4)]))
         story.append(table)
+    if parts:
+        story += [Spacer(1, 6 * mm), p("Anlagen", ParagraphStyle("h2", parent=bold, fontSize=12, leading=15, spaceAfter=3))]
+        arows = [[p("Nr.", bold), p("Datei", bold), p("Zu", bold), p("Seite", bold)]]
+        for e in parts:
+            arows.append([p(str(e["n"])), p(e["name"] + (f"\n({e['note']})" if e["note"] else "")), p(e["label"]),
+                          p(str(e.get("start") or "…") if e["pages"] else "–")])
+        at = Table(arows, colWidths=[12 * mm, 80 * mm, 55 * mm, 18 * mm], repeatRows=1)
+        at.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LINEBELOW", (0, 0), (-1, -1), 0.25, colors.HexColor("#d0d5dd")),
+                                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f2f4f7"))]))
+        story.append(at)
     story += [Spacer(1, 8 * mm),
               p(f"Prüfsumme (SHA-256 über Aktenzeichen, Eingang und Angaben): {resp.checksum or checksum(resp)}", small)]
     # Der geheime Statuslink steht bewusst nicht im PDF – es landet in der E-Akte und bei weiteren Stellen.
