@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ person.name }} · Personen{% endblock %}
+{% block content %}
+<nav aria-label="Pfad" class="small mb-2"><a href="/dms">Ablage</a> › <a href="/dms/persons">Personen</a></nav>
+{% call m.page_head(person.name or person.email, 'Person seit ' ~ (person.created_at | local('%d.%m.%Y')) ~ ' im Portal') %}
+<a class="btn btn-outline-secondary" href="/dms?person={{ person.id }}"><i class="fa-solid fa-magnifying-glass me-1"></i>In der Recherche</a>
+<a class="btn btn-primary" href="/dms/new?person={{ person.id }}"><i class="fa-solid fa-plus me-1"></i>Vorgang für diese Person ablegen</a>
+{% endcall %}
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card"><div class="card-header"><i class="fa-solid fa-folder-tree me-2"></i>Vorgänge ({{ total }})</div>
+      <div class="list-group list-group-flush">
+        {% for r in records %}
+        <a class="list-group-item list-group-item-action py-2" href="/dms/r/{{ r.id }}">
+          <div class="d-flex flex-wrap gap-2 align-items-center"><span class="font-monospace fw-semibold">{{ r.ref_no or '—' }}</span><span>{{ r.title }}</span>
+            {% if r.kind == 'manuell' %}<span class="badge text-bg-light border">abgelegt</span>{% else %}{% set st = statuses.get(r.status, (r.status, 'secondary', 'fa-circle')) %}<span class="badge text-bg-{{ st[1] }}">{{ st[0] }}</span>{% endif %}
+            <span class="small text-secondary ms-auto">{{ r.received_at | local('%d.%m.%Y') }}</span></div>
+          <div class="small text-secondary"><i class="fa-solid fa-folder me-1"></i>{{ label(r.area, by_id) }}</div>
+        </a>
+        {% else %}<div class="list-group-item text-secondary">Keine Vorgänge, die Sie sehen dürfen.</div>{% endfor %}
+      </div>
+      {% if hidden > 0 %}<div class="card-footer small text-secondary">{{ hidden }} weitere Vorgänge liegen in Bereichen, für die Sie nicht berechtigt sind.</div>{% endif %}
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <form method="post" action="/dms/persons/{{ person.id }}" class="card mb-4"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="card-header"><i class="fa-regular fa-address-card me-2"></i>Kontaktdaten</div>
+      <fieldset class="card-body row g-2" {% if not can_edit %}disabled{% endif %}>
+        <div class="col-12"><label class="form-label small mb-1" for="p-name">Name</label><input class="form-control form-control-sm" id="p-name" name="name" value="{{ person.name }}" required maxlength="255"></div>
+        <div class="col-md-7"><label class="form-label small mb-1" for="p-mail">E-Mail</label><input class="form-control form-control-sm" id="p-mail" name="email" type="email" value="{{ person.email }}"></div>
+        <div class="col-md-5"><label class="form-label small mb-1" for="p-tel">Telefon</label><input class="form-control form-control-sm" id="p-tel" name="phone" value="{{ person.phone }}"></div>
+        <div class="col-12"><label class="form-label small mb-1" for="p-str">Straße und Hausnummer</label><input class="form-control form-control-sm" id="p-str" name="street" value="{{ person.street }}"></div>
+        <div class="col-4"><label class="form-label small mb-1" for="p-zip">PLZ</label><input class="form-control form-control-sm" id="p-zip" name="zip" value="{{ person.zip }}" maxlength="10"></div>
+        <div class="col-8"><label class="form-label small mb-1" for="p-city">Ort</label><input class="form-control form-control-sm" id="p-city" name="city" value="{{ person.city }}"></div>
+        <div class="col-12"><label class="form-label small mb-1" for="p-note">Vermerk (intern)</label><textarea class="form-control form-control-sm" id="p-note" name="note" rows="2">{{ person.note }}</textarea></div>
+        {% if can_edit %}<div class="col-12"><button class="btn btn-sm btn-primary" type="submit">Speichern</button></div>{% endif %}
+      </fieldset>
+    </form>
+    {% if merge %}
+    <div class="card"><div class="card-header"><i class="fa-solid fa-code-merge me-2"></i>Mögliche Doppelungen</div>
+      <ul class="list-group list-group-flush small">{% for o in merge %}
+        <li class="list-group-item d-flex gap-2 align-items-center"><a class="flex-grow-1" href="/dms/persons/{{ o.id }}">{{ o.name }} <span class="text-secondary">{{ o.email }} {{ o.zip }} {{ o.city }}</span></a>
+          <form method="post" action="/dms/persons/{{ person.id }}/merge"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="other_id" value="{{ o.id }}">
+            <button class="btn btn-sm btn-outline-secondary" type="submit" data-confirm-title="Personen zusammenführen?" data-confirm="Alle Vorgänge von „{{ o.name }}“ werden „{{ person.name }}“ zugeordnet, fehlende Angaben ergänzt; der doppelte Eintrag wird gelöscht." data-confirm-button="Zusammenführen">Hierher übernehmen</button></form></li>
+      {% endfor %}</ul></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

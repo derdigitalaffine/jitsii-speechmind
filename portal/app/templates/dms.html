@@ -7,6 +7,7 @@
 {%- endmacro %}
 {% block content %}
 {% call m.page_head('Ablage', 'Recherche in Online-Anträgen und abgelegten Vorgängen der Bereiche, für die Sie berechtigt sind.') %}
+<a class="btn btn-outline-secondary" href="/dms/persons"><i class="fa-solid fa-address-book me-1"></i>Personen</a>
 {% if manager %}<a class="btn btn-outline-secondary" href="/dms/areas"><i class="fa-solid fa-sitemap me-1"></i>Aktenplan</a><a class="btn btn-outline-secondary" href="/dms/retention"><i class="fa-regular fa-calendar-xmark me-1"></i>Löschfristen</a>{% endif %}
 {% if can_write %}<a class="btn btn-primary" href="/dms/new{% if f.area %}?area={{ f.area }}{% endif %}"><i class="fa-solid fa-plus me-1"></i>Vorgang ablegen</a>{% endif %}
 {% endcall %}
@@ -56,7 +57,7 @@
   <div class="col-12 col-xl-9">
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
       <strong>{{ total }} Treffer</strong>
-      {% for k, v in active.items() %}<span class="badge text-bg-light border fw-normal">{{ {'q': 'Text', 'applicant': 'Antragsteller:in', 'ref': 'Aktenzeichen', 'area': 'Bereich', 'form': 'Antragsart', 'status': 'Status', 'from': 'ab', 'to': 'bis', 'place': 'Ort', 'kind': 'Art'}[k] }}: {{ by_id[v | int].name if k == 'area' and v.isdigit() and (v | int) in by_id else v }}</span>{% endfor %}
+      {% for k, v in active.items() %}<span class="badge text-bg-light border fw-normal">{{ {'q': 'Text', 'applicant': 'Antragsteller:in', 'ref': 'Aktenzeichen', 'area': 'Bereich', 'form': 'Antragsart', 'status': 'Status', 'from': 'ab', 'to': 'bis', 'place': 'Ort', 'kind': 'Art', 'person': 'Person'}[k] }}: {{ by_id[v | int].name if k == 'area' and v.isdigit() and (v | int) in by_id else (person_name if k == 'person' else v) }}</span>{% endfor %}
       <div class="ms-auto d-flex gap-2 align-items-center">
         <select class="form-select form-select-sm w-auto" name="sort" form="dms-filter" onchange="this.form.submit()" aria-label="Sortierung">
           {% for k, lbl in [('', 'neueste zuerst'), ('old', 'älteste zuerst'), ('ref', 'nach Aktenzeichen'), ('applicant', 'nach Antragsteller:in')] %}<option value="{{ k }}" {% if f.sort == k %}selected{% endif %}>{{ lbl }}</option>{% endfor %}</select>
@@ -64,22 +65,33 @@
       </div>
     </div>
     {% if records %}
+    {% if write_areas %}
+    <form method="post" action="/dms/move" id="bulk" class="d-flex flex-wrap gap-2 align-items-center mb-2 small"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/dms?{{ qs }}">
+      <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="bulk-all" aria-label="Alle auswählen"><label class="form-check-label" for="bulk-all">alle</label></div>
+      <span class="text-secondary">Markierte verschieben nach</span>
+      <select class="form-select form-select-sm w-auto" name="area_id" aria-label="Zielbereich">{% for a, d in write_areas %}<option value="{{ a.id }}">{{ '  ' * d }}{{ a.code ~ ' ' if a.code }}{{ a.name }}</option>{% endfor %}</select>
+      <button class="btn btn-sm btn-outline-primary" type="submit" id="bulk-go" disabled><i class="fa-solid fa-right-left me-1"></i>Verschieben</button>
+    </form>
+    {% endif %}
     <div class="card"><div class="list-group list-group-flush">
       {% for r in records %}
-      <a class="list-group-item list-group-item-action py-2" href="/dms/r/{{ r.id }}">
+      <div class="list-group-item list-group-item-action py-2 d-flex gap-2 align-items-start position-relative">
+        {% if write_areas %}<input class="form-check-input mt-1 position-relative js-bulk" style="z-index: 2" type="checkbox" name="ids" value="{{ r.id }}" form="bulk" aria-label="{{ r.ref_no or r.title }} auswählen">{% endif %}
+        <div class="flex-grow-1">
         <div class="d-flex flex-wrap align-items-center gap-2">
-          <span class="font-monospace fw-semibold">{{ r.ref_no or '—' }}</span>
+          <a class="font-monospace fw-semibold stretched-link" href="/dms/r/{{ r.id }}">{{ r.ref_no or '—' }}</a>
           <span class="fw-semibold">{{ r.title }}</span>
           {{ status_badge(r) }}
           <span class="small text-secondary ms-auto">{{ r.received_at | local('%d.%m.%Y') }}</span>
         </div>
         <div class="small text-secondary d-flex flex-wrap gap-3 mt-1">
-          {% if r.applicant or r.applicant_email %}<span><i class="fa-regular fa-user me-1"></i>{{ r.applicant or r.applicant_email }}</span>{% endif %}
+          {% if r.person %}<span><i class="fa-regular fa-circle-user me-1"></i>{{ r.person.name or r.person.email }}</span>{% elif r.applicant or r.applicant_email %}<span><i class="fa-regular fa-user me-1"></i>{{ r.applicant or r.applicant_email }}</span>{% endif %}
           {% if r.city or r.street %}<span><i class="fa-solid fa-location-dot me-1"></i>{{ r.street }}{{ ', ' if r.street and r.city }}{{ r.zip }} {{ r.city }}{% if r.district %} ({{ r.district }}){% endif %}</span>{% endif %}
           <span><i class="fa-solid fa-folder me-1"></i>{{ label(r.area, by_id) }}</span>
           {% if r.files %}<span><i class="fa-solid fa-paperclip me-1"></i>{{ r.files | length }}</span>{% endif %}
         </div>
-      </a>
+        </div>
+      </div>
       {% endfor %}
     </div></div>
     {% if pages > 1 %}
@@ -92,4 +104,7 @@
     {% endif %}
   </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/dms.js"></script>
 {% endblock %}

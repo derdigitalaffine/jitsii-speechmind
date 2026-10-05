@@ -124,6 +124,7 @@
             {% if 'dms' in modules and (user.is_admin or user.can('dms_admin') or dms_nav) %}
             <li class="nav-section">Ablage</li>
             {{ m.nav_item('/dms', 'fa-box-archive', 'Recherche', path == '/dms' or path.startswith('/dms/r/') or path.startswith('/dms/new')) }}
+            {{ m.nav_item('/dms/persons', 'fa-address-book', 'Personen', path.startswith('/dms/persons')) }}
             {% if user.is_admin or user.can('dms_admin') %}{{ m.nav_item('/dms/areas', 'fa-sitemap', 'Aktenplan', path.startswith('/dms/areas') or path.startswith('/dms/retention')) }}{% endif %}
             {% endif %}
             {% if 'maps' in modules %}

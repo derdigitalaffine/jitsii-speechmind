@@ -1095,6 +1095,15 @@ def usage(db, process: Process) -> dict:
     return {"forms": forms, "running": running}
 
 
+def responses_of(db, process: Process) -> list[FormResponse]:
+    """Alle Anträge, die nach diesem Prozess laufen oder liefen (bzw. deren Formular ihn nutzt)."""
+    version_ids = [v.id for v in process.versions] or [-1]
+    form_ids = [f.id for f in db.scalars(select(Form).where(Form.process_id == process.id))] or [-1]
+    return db.scalars(select(FormResponse).where(FormResponse.ref_no.is_not(None), or_(
+        FormResponse.process_version_id.in_(version_ids),
+        (FormResponse.process_version_id.is_(None)) & FormResponse.form_id.in_(form_ids)))).all()
+
+
 def question_titles(db, process: Process) -> list[str]:
     """Fragen aller Antragsformulare, die den Prozess nutzen (für Bedingungen und Platzhalter im Editor)."""
     titles: list[str] = []

@@ -4,7 +4,7 @@
 {% block content %}
 {% set base = '/dms/r/' ~ record.id %}
 <nav aria-label="Pfad" class="small mb-2"><a href="/dms">Ablage</a> › {% for a in label(record.area, by_id).split(' › ') %}{{ a }}{{ ' › ' if not loop.last }}{% endfor %}</nav>
-{% call m.page_head((record.ref_no ~ ' · ' if record.ref_no else '') ~ record.title, (record.applicant or record.applicant_email or '') ) %}
+{% call m.page_head((record.ref_no ~ ' · ' if record.ref_no else '') ~ record.title, ((record.person.name if record.person else '') or record.applicant or record.applicant_email or '') ) %}
 {% if resp %}<a class="btn btn-outline-secondary" href="{{ base }}/pdf"><i class="fa-regular fa-file-pdf me-1"></i>Antrags-PDF mit Anlagen</a>
 {% if case_access %}<a class="btn btn-outline-primary" href="/forms/{{ resp.form_id }}/applications/{{ resp.id }}"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Zum Vorgang</a>{% endif %}{% endif %}
 {% endcall %}
@@ -51,6 +51,41 @@
   </div>
 
   <div class="col-12 col-xxl-5">
+    <div class="card mb-4" id="person"><div class="card-header"><i class="fa-solid fa-user me-2"></i>Bürger:in / Antragsteller:in</div>
+      <div class="card-body small">
+        {% if record.person %}{% set p = record.person %}
+        <div class="d-flex gap-3 align-items-start">
+          <span class="pe-icon text-primary fs-4"><i class="fa-regular fa-circle-user"></i></span>
+          <div class="flex-grow-1"><a class="fw-semibold fs-6" href="/dms/persons/{{ p.id }}">{{ p.name or p.email }}</a>
+            <div class="text-secondary">{{ p.email }}{% if p.phone %} · {{ p.phone }}{% endif %}</div>
+            {% if p.street or p.city %}<div class="text-secondary">{{ p.street }}{{ ', ' if p.street and p.city }}{{ p.zip }} {{ p.city }}</div>{% endif %}
+            <a class="d-inline-block mt-1" href="/dms?person={{ p.id }}"><i class="fa-solid fa-folder-tree me-1"></i>Alle Vorgänge dieser Person</a></div>
+        </div>
+        {% else %}<p class="text-secondary mb-2">Noch keiner Person zugeordnet.</p>{% endif %}
+        {% if level >= 2 %}
+        <details class="mt-2" {% if person_q %}open{% endif %}><summary class="text-primary">{{ 'Andere Person zuordnen' if record.person else 'Person zuordnen' }}</summary>
+          <form method="get" action="{{ base }}#person" class="input-group input-group-sm mt-2"><input class="form-control" name="person_q" value="{{ person_q }}" placeholder="Name, E-Mail, PLZ oder Ort" aria-label="Person suchen"><button class="btn btn-outline-secondary" type="submit" aria-label="Suchen"><i class="fa-solid fa-magnifying-glass"></i></button></form>
+          {% if person_q %}<ul class="list-group mt-2">{% for c in candidates %}
+            <li class="list-group-item d-flex gap-2 align-items-center"><span class="flex-grow-1">{{ c.name }} <span class="text-secondary">{{ c.email }} {{ c.zip }} {{ c.city }}</span></span>
+              <form method="post" action="{{ base }}/person"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="person_id" value="{{ c.id }}"><button class="btn btn-sm btn-outline-primary" type="submit" {% if record.person_id == c.id %}disabled{% endif %}>Zuordnen</button></form></li>
+            {% else %}<li class="list-group-item text-secondary">Keine Person gefunden.</li>{% endfor %}</ul>{% endif %}
+          <form method="post" action="{{ base }}/person" class="mt-2"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="person_id" value="new"><button class="btn btn-sm btn-link px-0" type="submit"><i class="fa-solid fa-user-plus me-1"></i>Neue Person aus den Angaben anlegen</button></form>
+        </details>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if level >= 2 and write_areas | length > 1 %}
+    <form method="post" action="/dms/move" class="card mb-4" id="verschieben"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="ids" value="{{ record.id }}"><input type="hidden" name="next" value="{{ base }}">
+      <div class="card-header"><i class="fa-solid fa-right-left me-2"></i>Im Aktenplan verschieben</div>
+      <div class="card-body small">
+        <div class="input-group input-group-sm"><select class="form-select" name="area_id" aria-label="Zielbereich">{% for a, d in write_areas %}<option value="{{ a.id }}" {% if a.id == record.area_id %}selected disabled{% endif %}>{{ '  ' * d }}{{ a.code ~ ' ' if a.code }}{{ a.name }}{{ ' (aktuell)' if a.id == record.area_id }}</option>{% endfor %}</select>
+          <button class="btn btn-outline-primary" type="submit">Verschieben</button></div>
+        <div class="form-text">{% if record.kind == 'antrag' and not record.area_manual %}Derzeit automatisch abgelegt (Prozess/Formular). Nach dem Verschieben bleibt der Eintrag dort.{% elif record.area_manual %}Von Hand einsortiert.{% endif %} Die Löschfrist richtet sich nach dem neuen Bereich.</div>
+      </div>
+    </form>
+    {% endif %}
+
     <div class="card mb-4" id="dateien"><div class="card-header"><i class="fa-solid fa-folder-open me-2"></i>Abgelegte Dateien</div>
       <ul class="list-group list-group-flush">
         {% if resp %}{% for d in resp.documents %}<li class="list-group-item small d-flex gap-2 align-items-center"><i class="fa-regular fa-file-pdf text-danger"></i><a class="flex-grow-1" href="{{ base }}/document/{{ d.id }}">{{ d.name }}</a><span class="text-secondary">im Vorgang erzeugt</span></li>{% endfor %}{% endif %}
@@ -86,8 +121,6 @@
         <div class="col-md-6"><label class="form-label small mb-1" for="e-dist">Ortsteil</label><input class="form-control form-control-sm" id="e-dist" name="district" value="{{ record.district }}"></div>
         <div class="col-md-6"><label class="form-label small mb-1" for="e-rec">Eingang</label><input class="form-control form-control-sm" type="date" id="e-rec" name="received" value="{{ record.received_at | local('%Y-%m-%d') }}"></div>
         {% endif %}
-        <div class="col-12"><label class="form-label small mb-1" for="e-area">Bereich</label>
-          <select class="form-select form-select-sm" id="e-area" name="area_id">{% for a, d in write_areas %}<option value="{{ a.id }}" {% if a.id == record.area_id %}selected{% endif %}>{{ '  ' * d }}{{ a.code ~ ' ' if a.code }}{{ a.name }}</option>{% endfor %}</select></div>
         <div class="col-12"><label class="form-label small mb-1" for="e-note">Vermerk</label><textarea class="form-control form-control-sm" id="e-note" name="note" rows="3">{{ record.note }}</textarea></div>
         {% if record.kind == 'manuell' or record.closed_at %}<div class="col-md-6"><label class="form-label small mb-1" for="e-ret">Aufbewahren bis</label><input class="form-control form-control-sm" type="date" id="e-ret" name="retention_until" value="{{ record.retention_until | local('%Y-%m-%d') if record.retention_until else '' }}"><div class="form-text">leer = unbegrenzt</div></div>{% endif %}
       </div></div>

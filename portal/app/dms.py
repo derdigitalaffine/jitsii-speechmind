@@ -1,7 +1,9 @@
 """Ablage (DMS): Aktenplan mit Lese-/Schreibrechten, Index der Online-Anträge, manuelle Ablage, Recherche,
 gespeicherte Suchen und Löschfristen.
 
-Online-Anträge eines Formulars mit Ablagebereich erscheinen ab Eingang in der Ablage (laufend, mit Status).
+Jeder Online-Antrag erscheint ab Eingang in der Ablage (laufend, mit Status) – im Bereich seines Prozesses, sonst
+im Bereich seines Formulars, sonst unter „Nicht einsortiert“. Von Hand verschobene Einträge bleiben, wo sie sind.
+Jeder Eintrag ist einer Person (Bürger:in/Antragsteller:in) zugeordnet.
 Beim Abschluss legt das Portal einen unveränderlichen Abschlussstand ab: Antrags-PDF mit Anlagen und alle
 erzeugten Dokumente (Bescheide) als Kopie mit SHA-256-Prüfsumme. Die Aufbewahrungsfrist beginnt mit dem Ende
 des Abschlussjahres.
@@ -19,8 +21,8 @@ from sqlalchemy import or_, select
 from . import applications as apps, forms as fm
 from .config import settings
 from .db import (
-    ApplicationEvent, DmsAccess, DmsArea, DmsFile, DmsLog, DmsRecord, FormResponse, GroupMember, SessionLocal, User,
-    to_local, utcnow,
+    ApplicationEvent, DmsAccess, DmsArea, DmsFile, DmsLog, DmsRecord, FormResponse, GroupMember, Person, SessionLocal,
+    User, get_settings, to_local, utcnow,
 )
 
 READ, WRITE = 1, 2
@@ -67,8 +69,33 @@ def label(area: DmsArea, by_id: dict[int, DmsArea]) -> str:
     return " › ".join(f"{a.code} {a.name}".strip() for a in path(area, by_id))
 
 
+UNSORTED = "unsorted"
+
+
+def unsorted(db) -> DmsArea:
+    """Bereich „Nicht einsortiert“ (wird bei Bedarf angelegt, lässt sich nicht löschen)."""
+    area = db.scalar(select(DmsArea).where(DmsArea.system_key == UNSORTED))
+    if area is None:
+        area = DmsArea(name="Nicht einsortiert", code="", system_key=UNSORTED, position=10_000,
+                       description="Vorgänge, deren Prozess und Formular keinen Ablagebereich festlegen. "
+                                   "Von hier aus in den passenden Bereich verschieben.")
+        db.add(area)
+        db.flush()
+    return area
+
+
+def target_area_id(db, resp: FormResponse) -> int:
+    """Ablagebereich eines Antrags: Prozess → Formular → „Nicht einsortiert“."""
+    process = resp.process_version.process if resp.process_version is not None else resp.form.process
+    for aid in ((process.dms_area_id if process is not None else None), resp.form.dms_area_id):
+        if aid and db.get(DmsArea, aid) is not None:
+            return aid
+    return unsorted(db).id
+
+
 def levels(db, user: User) -> dict[int, int]:
-    """Bereich → Rechtestufe der Person (vererbt an Unterbereiche; Admins: alles schreibend)."""
+    """Bereich → Rechtestufe der Person (vererbt an Unterbereiche; Admins: alles schreibend).
+    Wer den Aktenplan verwaltet, darf „Nicht einsortiert“ bearbeiten, um Vorgänge einzusortieren."""
     all_areas = areas(db)
     if user.is_admin:
         return {a.id: WRITE for a in all_areas}
@@ -77,6 +104,10 @@ def levels(db, user: User) -> dict[int, int]:
     for acc in db.scalars(select(DmsAccess).where(or_(DmsAccess.user_id == user.id,
                                                       DmsAccess.group_id.in_(groups or [-1])))):
         own[acc.area_id] = max(own.get(acc.area_id, 0), acc.level)
+    if user.can("dms_admin"):
+        for a in all_areas:
+            if a.system_key == UNSORTED:
+                own[a.id] = WRITE
     by_id = {a.id: a for a in all_areas}
     result = {}
     for a in all_areas:
@@ -153,16 +184,28 @@ def _fulltext(resp: FormResponse, items: list[dict]) -> str:
     return " ".join(p for p in parts if p).lower()[:200000]
 
 
+def enabled(db) -> bool:
+    return get_settings(db).get("module_dms", "1") == "1"
+
+
 def sync(db, resp: FormResponse) -> DmsRecord | None:
-    """Ablage-Eintrag eines Online-Antrags anlegen bzw. aktualisieren (nur bei Formularen mit Ablagebereich)."""
+    """Ablage-Eintrag eines Online-Antrags anlegen bzw. aktualisieren – ab Eingang, auch laufende Vorgänge."""
     form = resp.form
     record = db.scalar(select(DmsRecord).where(DmsRecord.response_id == resp.id))
     if record is None:
-        if not form.dms_area_id or not resp.ref_no:
+        if not resp.ref_no or not enabled(db):
             return None
-        record = DmsRecord(area_id=form.dms_area_id, response_id=resp.id, kind="antrag", received_at=resp.created_at,
-                           created_by="Online-Antrag")
+        record = DmsRecord(area_id=target_area_id(db, resp), response_id=resp.id, kind="antrag",
+                           received_at=resp.created_at, created_by="Online-Antrag")
         db.add(record)
+    elif not record.area_manual:
+        target = target_area_id(db, resp)
+        if target != record.area_id:
+            old = record.area.name if record.area else "?"
+            record.area_id = target
+            db.flush()
+            db.refresh(record, ["area"])
+            log(db, None, "einsortiert", f"{record.ref_no} automatisch von „{old}“ nach „{record.area.name}“ (Prozess/Formular)")
     items = fm.schema(form)
     record.title = form.title
     record.ref_no = resp.ref_no or ""
@@ -175,6 +218,9 @@ def sync(db, resp: FormResponse) -> DmsRecord | None:
     for key in ("street", "zip", "city", "district"):
         setattr(record, key, str(place.get(key) or "")[:200])
     record.lat, record.lon = place.get("lat"), place.get("lon")
+    if record.person_id is None:
+        record.person = match_person(db, record.applicant, record.applicant_email, record.street, record.zip, record.city,
+                                     phone=_phone(resp, items))
     record.text = _fulltext(resp, items) + " " + " ".join(f.name.lower() for f in record.files)
     was_closed = record.closed_at
     record.closed_at = resp.closed_at
@@ -231,12 +277,19 @@ def reconcile() -> int:
             if record.response is not None:
                 sync(db, record.response)
                 n += 1
-        # Formulare, denen nachträglich ein Bereich zugeordnet wurde: bestehende Anträge aufnehmen
+        if not enabled(db):
+            db.commit()
+            return n
+        # Anträge, die noch fehlen (z. B. aus der Zeit vor der Ablage), aufnehmen
         missing = db.scalars(select(FormResponse).where(FormResponse.ref_no.is_not(None),
                                                         ~FormResponse.id.in_(select(DmsRecord.response_id).where(DmsRecord.response_id.is_not(None))))).all()
         for resp in missing:
-            if resp.form.dms_area_id:
-                sync(db, resp)
+            sync(db, resp)
+            n += 1
+        # Automatisch abgelegte Einträge umsortieren, wenn Prozess oder Formular einen anderen Bereich bekommen haben
+        for record in db.scalars(select(DmsRecord).where(DmsRecord.response_id.is_not(None), DmsRecord.area_manual.is_(False))):
+            if record.response is not None and target_area_id(db, record.response) != record.area_id:
+                sync(db, record.response)
                 n += 1
         db.commit()
     return n
@@ -244,7 +297,7 @@ def reconcile() -> int:
 
 # --- Recherche ---------------------------------------------------------------------------------
 
-FILTERS = ("q", "applicant", "ref", "area", "form", "status", "from", "to", "place", "kind", "sort")
+FILTERS = ("q", "applicant", "ref", "area", "form", "status", "from", "to", "place", "kind", "sort", "person")
 
 
 def search(db, user: User, f: dict, limit: int = 50, offset: int = 0) -> tuple[list[DmsRecord], int]:
@@ -259,6 +312,8 @@ def search(db, user: User, f: dict, limit: int = 50, offset: int = 0) -> tuple[l
     if f.get("applicant"):
         like = f"%{f['applicant'].strip()}%"
         q = q.where(or_(DmsRecord.applicant.ilike(like), DmsRecord.applicant_email.ilike(like)))
+    if f.get("person", "").isdigit():
+        q = q.where(DmsRecord.person_id == int(f["person"]))
     if f.get("ref"):
         q = q.where(DmsRecord.ref_no.ilike(f"%{f['ref'].strip()}%"))
     if f.get("form"):
@@ -295,8 +350,90 @@ def record_level(db, user: User, record: DmsRecord) -> int:
     return levels(db, user).get(record.area_id, 0)
 
 
-def log(db, user: User, action: str, text: str) -> None:
-    db.add(DmsLog(user_name=user.name, action=action, text=text[:5000]))
+def log(db, user: User | None, action: str, text: str) -> None:
+    db.add(DmsLog(user_name=user.name if user else "Portal", action=action, text=text[:5000]))
+
+
+def move_record(db, record: DmsRecord, area: DmsArea, user: User) -> bool:
+    """Eintrag in einen anderen Bereich verschieben (bleibt danach dort, auch wenn der Prozess anders ablegt)."""
+    if area.id == record.area_id:
+        return False
+    old = record.area.name if record.area else "?"
+    record.area_id, record.area_manual, record.updated_at = area.id, True, utcnow()
+    db.flush()
+    db.refresh(record, ["area"])
+    if record.closed_at:
+        by_id = {a.id: a for a in areas(db)}
+        record.retention_until = retention_date(record.closed_at, retention_years(area, by_id))
+    log(db, user, "verschoben", f"{record.ref_no or '#' + str(record.id)} „{record.title}“ von „{old}“ nach „{area.name}“")
+    return True
+
+
+# --- Personen (Bürger:innen / Antragsteller:innen) ------------------------------------------------
+
+def _phone(resp: FormResponse, items: list[dict]) -> str:
+    for q in fm.questions(items):
+        if q["type"] == "short" and q.get("subtype") in ("phone", "tel"):
+            v = resp.answers.get(q["id"])
+            if isinstance(v, str) and v.strip():
+                return v.strip()[:60]
+    return ""
+
+
+def _norm(text: str) -> str:
+    return " ".join(str(text or "").lower().split())
+
+
+def match_person(db, name: str, email: str, street: str = "", zip_code: str = "", city: str = "",
+                 phone: str = "") -> Person | None:
+    """Person zu einem Vorgang finden oder anlegen: gleiche E-Mail-Adresse, sonst gleicher Name und gleiche PLZ."""
+    name, email = " ".join(str(name or "").split())[:255], str(email or "").strip().lower()[:255]
+    if not name and not email:
+        return None
+    person = None
+    if email:
+        person = db.scalar(select(Person).where(Person.email == email).order_by(Person.id))
+    if person is None and name and zip_code:
+        for cand in db.scalars(select(Person).where(Person.zip == zip_code[:10])):
+            if _norm(cand.name) == _norm(name) and (not cand.email or not email):
+                person = cand
+                break
+    if person is None:
+        person = Person(name=name, email=email)
+        db.add(person)
+    # Fehlende Angaben ergänzen, vorhandene nicht überschreiben (die Verwaltung pflegt sie von Hand)
+    for attr, value in (("name", name), ("email", email), ("street", street), ("zip", zip_code), ("city", city),
+                        ("phone", phone)):
+        if value and not getattr(person, attr):
+            setattr(person, attr, str(value)[:255 if attr != "zip" else 10])
+    person.updated_at = utcnow()
+    db.flush()
+    return person
+
+
+def visible_persons_query(db, user: User):
+    """Personen, zu denen die Person mindestens einen lesbaren Eintrag hat (Admins und Aktenplan-Verwaltung: alle)."""
+    q = select(Person)
+    if user.is_admin or user.can("dms_admin"):
+        return q
+    readable = list(levels(db, user))
+    return q.where(Person.id.in_(select(DmsRecord.person_id).where(DmsRecord.area_id.in_(readable or [-1]))))
+
+
+def merge_persons(db, keep: Person, drop: Person, user: User) -> int:
+    """Doppelte Person zusammenführen: alle Einträge wandern zu keep, fehlende Angaben werden ergänzt."""
+    n = 0
+    for record in db.scalars(select(DmsRecord).where(DmsRecord.person_id == drop.id)):
+        record.person_id = keep.id
+        n += 1
+    for attr in ("name", "email", "phone", "street", "zip", "city"):
+        if not getattr(keep, attr) and getattr(drop, attr):
+            setattr(keep, attr, getattr(drop, attr))
+    if drop.note:
+        keep.note = (keep.note + "\n" + drop.note).strip()
+    log(db, user, "zusammengeführt", f"Person #{drop.id} „{drop.name}“ in #{keep.id} „{keep.name}“ ({n} Einträge)")
+    db.delete(drop)
+    return n
 
 
 def expired(db) -> list[DmsRecord]:

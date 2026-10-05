@@ -25,8 +25,8 @@
 <div class="card" id="bereich-{{ a.id }}" style="margin-left: {{ d * 1.5 }}rem">
   <div class="card-body py-2">
     <div class="d-flex flex-wrap align-items-center gap-2">
-      <i class="fa-solid {{ 'fa-folder-tree' if d == 0 else 'fa-folder' }} text-primary"></i>
-      <strong>{{ a.code ~ ' ' if a.code }}{{ a.name }}</strong>
+      <i class="fa-solid {{ 'fa-inbox' if a.system_key else ('fa-folder-tree' if d == 0 else 'fa-folder') }} {{ 'text-warning' if a.system_key else 'text-primary' }}"></i>
+      <strong>{{ a.code ~ ' ' if a.code }}{{ a.name }}</strong>{% if a.system_key %}<span class="badge text-bg-warning-subtle text-warning-emphasis fw-normal" title="Hier landen Vorgänge, deren Prozess und Formular keinen Ablagebereich festlegen">fest eingerichtet</span>{% endif %}
       <span class="badge text-bg-light border fw-normal">{{ counts.get(a.id, 0) }} Einträge</span>
       <span class="badge text-bg-light border fw-normal"><i class="fa-regular fa-calendar me-1"></i>{% if a.retention_years %}{{ a.retention_years }} Jahre{% elif inherited[a.id] %}{{ inherited[a.id] }} Jahre (geerbt){% else %}unbegrenzt{% endif %}</span>
       {% for acc in a.access %}<span class="badge {{ 'text-bg-primary' if acc.level == 2 else 'text-bg-secondary' }} fw-normal d-inline-flex align-items-center gap-1"><i class="fa-solid {{ 'fa-users' if acc.group else 'fa-user' }}"></i>{{ acc.group.name if acc.group else acc.user.name }} · {{ levels[acc.level] }}
@@ -39,7 +39,7 @@
           <div class="row g-2">
             <div class="col-4"><label class="form-label small mb-1">Nr.</label><input class="form-control form-control-sm" name="code" value="{{ a.code }}"></div>
             <div class="col-8"><label class="form-label small mb-1">Name</label><input class="form-control form-control-sm" name="name" value="{{ a.name }}" required></div>
-            <div class="col-8"><label class="form-label small mb-1">Unter</label><select class="form-select form-select-sm" name="parent_id"><option value="">– oberste Ebene –</option>{% for b, e in tree if b.id != a.id %}<option value="{{ b.id }}" {% if b.id == a.parent_id %}selected{% endif %}>{{ '  ' * e }}{{ b.code ~ ' ' if b.code }}{{ b.name }}</option>{% endfor %}</select></div>
+            <div class="col-8"><label class="form-label small mb-1">Einordnen unter <span class="text-secondary">(zum Verschieben ändern)</span></label><select class="form-select form-select-sm" name="parent_id"><option value="">– oberste Ebene –</option>{% for b, e in tree if b.id != a.id %}<option value="{{ b.id }}" {% if b.id == a.parent_id %}selected{% endif %}>{{ '  ' * e }}{{ b.code ~ ' ' if b.code }}{{ b.name }}</option>{% endfor %}</select></div>
             <div class="col-4"><label class="form-label small mb-1">Jahre</label><input class="form-control form-control-sm" name="retention_years" type="number" min="0" max="100" value="{{ a.retention_years }}"></div>
             <div class="col-12"><textarea class="form-control form-control-sm" name="description" rows="2" placeholder="Beschreibung (optional)">{{ a.description }}</textarea></div>
             <div class="col-12 d-flex gap-2"><button class="btn btn-sm btn-primary" type="submit">Speichern</button></div>
@@ -54,7 +54,7 @@
             </select>
             <div class="d-flex gap-2"><select class="form-select form-select-sm w-auto" name="level"><option value="1">lesen</option><option value="2">lesen und ablegen</option></select><button class="btn btn-sm btn-outline-primary" type="submit">Hinzufügen</button></div>
           </form>
-          <form method="post" action="/dms/areas/{{ a.id }}/delete" class="mt-3"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" type="submit" {% if counts.get(a.id, 0) %}disabled title="Enthält Einträge"{% endif %} data-confirm-title="Bereich löschen?" data-confirm="Nur leere Bereiche ohne Unterbereiche lassen sich löschen." data-confirm-button="Löschen">Bereich löschen</button></form>
+          {% if not a.system_key %}<form method="post" action="/dms/areas/{{ a.id }}/delete" class="mt-3"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" type="submit" {% if counts.get(a.id, 0) %}disabled title="Enthält Einträge"{% endif %} data-confirm-title="Bereich löschen?" data-confirm="Nur leere Bereiche ohne Unterbereiche lassen sich löschen." data-confirm-button="Löschen">Bereich löschen</button></form>{% endif %}
         </div>
       </div>
     </div>

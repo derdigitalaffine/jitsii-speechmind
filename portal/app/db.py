@@ -549,6 +549,7 @@ class Process(Base):
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     draft_json: Mapped[str] = mapped_column(Text, default="{}")      # {steps: [...], end_status: ...}
     draft_changed: Mapped[bool] = mapped_column(Boolean, default=True)
+    dms_area_id: Mapped[int | None] = mapped_column(ForeignKey("dms_areas.id", ondelete="SET NULL"), nullable=True)   # Ablage der Vorgänge
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -780,6 +781,7 @@ class DmsArea(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     retention_years: Mapped[int] = mapped_column(Integer, default=0)   # 0 = unbegrenzt / vom übergeordneten Bereich
     position: Mapped[int] = mapped_column(Integer, default=0)
+    system_key: Mapped[str] = mapped_column(String(20), default="")   # "unsorted" = „Nicht einsortiert“ (nicht löschbar)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     access: Mapped[list["DmsAccess"]] = relationship(back_populates="area", cascade="all, delete-orphan",
@@ -798,6 +800,23 @@ class DmsAccess(Base):
     area: Mapped[DmsArea] = relationship(back_populates="access")
     user: Mapped[User | None] = relationship()
     group: Mapped[Group | None] = relationship()
+
+
+class Person(Base):
+    """Bürger:in bzw. Antragsteller:in: verbindet Ablage-Einträge (Anträge, Buchungen, manuell Abgelegtes) mit
+    einer Person. Zuordnung automatisch über die E-Mail-Adresse, sonst Name und PLZ (siehe dms.match_person)."""
+    __tablename__ = "persons"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), default="", index=True)
+    email: Mapped[str] = mapped_column(String(255), default="", index=True)
+    phone: Mapped[str] = mapped_column(String(60), default="")
+    street: Mapped[str] = mapped_column(String(255), default="")
+    zip: Mapped[str] = mapped_column(String(10), default="")
+    city: Mapped[str] = mapped_column(String(200), default="")
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class DmsRecord(Base):
@@ -825,6 +844,8 @@ class DmsRecord(Base):
     note: Mapped[str] = mapped_column(Text, default="")
     received_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    person_id: Mapped[int | None] = mapped_column(ForeignKey("persons.id", ondelete="SET NULL"), nullable=True, index=True)
+    area_manual: Mapped[bool] = mapped_column(Boolean, default=False)   # von Hand verschoben: nicht mehr automatisch umsortieren
     retention_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     text: Mapped[str] = mapped_column(Text, default="")               # Volltext (klein geschrieben)
     created_by: Mapped[str] = mapped_column(String(255), default="")
@@ -832,6 +853,7 @@ class DmsRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     area: Mapped[DmsArea] = relationship()
+    person: Mapped[Person | None] = relationship()
     response: Mapped["FormResponse | None"] = relationship()
     files: Mapped[list["DmsFile"]] = relationship(back_populates="record", cascade="all, delete-orphan",
                                                   order_by="DmsFile.id", passive_deletes=True)
@@ -1458,6 +1480,10 @@ _NEW_COLUMNS = {
                        "checksum": "VARCHAR(64) NOT NULL DEFAULT ''",
                        "process_version_id": "INTEGER REFERENCES process_versions(id) ON DELETE SET NULL",
                        "fields_json": "TEXT NOT NULL DEFAULT '{}'"},
+    "dms_areas": {"system_key": "VARCHAR(20) NOT NULL DEFAULT ''"},
+    "dms_records": {"person_id": "INTEGER REFERENCES persons(id) ON DELETE SET NULL",
+                    "area_manual": "BOOLEAN NOT NULL DEFAULT 0"},
+    "processes": {"dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL"},
     "invitees": {"rsvp_status": "VARCHAR(16)", "rsvp_at": "DATETIME", "rsvp_comment": "TEXT",
                  "join_token": "VARCHAR(64)"},
 }
