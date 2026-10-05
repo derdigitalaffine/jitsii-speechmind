@@ -33,7 +33,7 @@ COMPONENTS = {
         ("Segno", "1.6", "BSD-3-Clause", "QR-Codes", "https://segno.readthedocs.io"),
         ("Pillow", "12.3", "MIT-CMU (HPND)", "Bilder verkleinern, JPG-Ausgabe, Favicon", "https://python-pillow.org"),
         ("markdown-it-py", "3.0", "MIT", "Rechtstexte aus Markdown setzen", "https://github.com/executablebooks/markdown-it-py"),
-        ("ReportLab", "4.4", "BSD-3-Clause", "PDF der Online-Anträge", "https://www.reportlab.com/opensource/"),
+        ("ReportLab", "4.4", "BSD-3-Clause", "PDF der Online-Anträge und Bescheide", "https://www.reportlab.com/opensource/"),
         ("mdurl", "0.1", "MIT", "Links in Markdown prüfen (von markdown-it-py)", "https://github.com/executablebooks/mdurl"),
     ],
     "Portal (Oberfläche)": [
@@ -47,7 +47,7 @@ COMPONENTS = {
         ("Chart.js", "4.5", "MIT", "Diagramme", "https://www.chartjs.org"),
         ("SortableJS", "1.15", "MIT", "Ziehen und Ablegen im Formular-Baukasten", "https://sortablejs.github.io/Sortable/"),
         ("FullCalendar", "6.1", "MIT", "Wochenkalender der Terminbuchung", "https://fullcalendar.io"),
-        ("MapLibre GL JS", "5.24", "BSD-3-Clause", "Kartenbrowser, Kartenlayer, GPS-Fragen in Formularen", "https://maplibre.org"),
+        ("MapLibre GL JS", "5.24", "BSD-3-Clause", "Kartenbrowser, Zeichnen und Messen, Kartenfragen in Formularen", "https://maplibre.org"),
     ],
 }
 

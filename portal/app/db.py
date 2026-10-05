@@ -101,6 +101,7 @@ PERMISSIONS = {
     "polls": ("Terminumfragen", "fa-calendar-check", "Terminumfragen (wie Doodle) erstellen und auswerten"),
     "bookings": ("Terminbuchung", "fa-calendar-plus", "Buchungsseiten mit freien Zeitfenstern anbieten (z. B. Vorstellungsgespräche)"),
     "laws": ("Rechtstexte", "fa-scale-balanced", "Gesetze, Satzungen und Verordnungen einstellen, gliedern und veröffentlichen"),
+    "processes": ("Prozesse", "fa-diagram-project", "Bearbeitungsprozesse für Online-Anträge im Prozesseditor gestalten und veröffentlichen"),
     "maps": ("Karten", "fa-map-location-dot", "Im Kartenbrowser eigene WMS/WFS-Layer hinzufügen, Karten speichern und teilen"),
     "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
 }
@@ -398,12 +399,14 @@ class Form(Base):
     app_pdf: Mapped[bool] = mapped_column(Boolean, default=True)
     app_seq_year: Mapped[int] = mapped_column(Integer, default=0)
     app_seq: Mapped[int] = mapped_column(Integer, default=0)
+    process_id: Mapped[int | None] = mapped_column(ForeignKey("processes.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
     owner: Mapped[User | None] = relationship(foreign_keys=[owner_id])
     app_assignee: Mapped[User | None] = relationship(foreign_keys=[app_assignee_id])
     app_group: Mapped[Group | None] = relationship(foreign_keys=[app_group_id])
+    process: Mapped["Process | None"] = relationship(foreign_keys=[process_id])
     invites: Mapped[list["FormInvite"]] = relationship(back_populates="form", cascade="all, delete-orphan",
                                                        order_by="FormInvite.email", passive_deletes=True)
     responses: Mapped[list["FormResponse"]] = relationship(back_populates="form", cascade="all, delete-orphan",
@@ -475,8 +478,27 @@ class FormResponse(Base):
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     track_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
     checksum: Mapped[str] = mapped_column(String(64), default="")
+    process_version_id: Mapped[int | None] = mapped_column(ForeignKey("process_versions.id", ondelete="SET NULL"),
+                                                           nullable=True)
+    fields_json: Mapped[str] = mapped_column(Text, default="{}")   # interne Felder aus den Arbeitsschritten
 
     form: Mapped[Form] = relationship(back_populates="responses")
+    process_version: Mapped["ProcessVersion | None"] = relationship()
+    tasks: Mapped[list["ApplicationTask"]] = relationship(back_populates="response", cascade="all, delete-orphan",
+                                                          order_by="ApplicationTask.id", passive_deletes=True)
+    requests: Mapped[list["ApplicationRequest"]] = relationship(back_populates="response", cascade="all, delete-orphan",
+                                                                order_by="ApplicationRequest.id", passive_deletes=True)
+    documents: Mapped[list["ApplicationDocument"]] = relationship(back_populates="response", cascade="all, delete-orphan",
+                                                                  order_by="ApplicationDocument.id", passive_deletes=True)
+
+    @property
+    def fields(self) -> dict:
+        import json as _json
+        try:
+            data = _json.loads(self.fields_json or "{}")
+        except ValueError:
+            return {}
+        return data if isinstance(data, dict) else {}
     assignee: Mapped[User | None] = relationship(foreign_keys=[assignee_id])
     group: Mapped[Group | None] = relationship(foreign_keys=[group_id])
     events: Mapped[list["ApplicationEvent"]] = relationship(back_populates="response", cascade="all, delete-orphan",
@@ -506,6 +528,150 @@ class ApplicationEvent(Base):
     public: Mapped[bool] = mapped_column(Boolean, default=False)   # für Antragsteller:in sichtbar
 
     response: Mapped[FormResponse] = relationship(back_populates="events")
+
+
+class Process(Base):
+    """Wiederverwendbarer Bearbeitungsprozess für Online-Anträge. Bearbeitet wird ein Entwurf,
+    Anträge laufen immer auf einer veröffentlichten Version (siehe workflow.py)."""
+    __tablename__ = "processes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    draft_json: Mapped[str] = mapped_column(Text, default="{}")      # {steps: [...], end_status: ...}
+    draft_changed: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    owner: Mapped[User | None] = relationship()
+    versions: Mapped[list["ProcessVersion"]] = relationship(back_populates="process", cascade="all, delete-orphan",
+                                                            order_by="ProcessVersion.version.desc()",
+                                                            passive_deletes=True)
+
+    @property
+    def current(self) -> "ProcessVersion | None":
+        return self.versions[0] if self.versions else None
+
+
+class ProcessVersion(Base):
+    __tablename__ = "process_versions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    process_id: Mapped[int] = mapped_column(ForeignKey("processes.id", ondelete="CASCADE"), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    definition_json: Mapped[str] = mapped_column(Text, default="{}")
+    note: Mapped[str] = mapped_column(String(500), default="")
+    published_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    published_by: Mapped[str] = mapped_column(String(255), default="")
+
+    process: Mapped[Process] = relationship(back_populates="versions")
+
+
+class ApplicationTask(Base):
+    """Ein Arbeitsschritt eines Antrags: offen, wartet auf die antragstellende Person, erledigt, übersprungen."""
+    __tablename__ = "application_tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    response_id: Mapped[int] = mapped_column(ForeignKey("form_responses.id", ondelete="CASCADE"), index=True)
+    step_id: Mapped[str] = mapped_column(String(40))
+    name: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(12))           # task | approval | request | auto
+    state: Mapped[str] = mapped_column(String(12), default="open", index=True)  # open | waiting | done | skipped | cancelled
+    outcome: Mapped[str] = mapped_column(String(12), default="")  # done | approved | rejected
+    assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="SET NULL"), nullable=True, index=True)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    completed_by: Mapped[str] = mapped_column(String(255), default="")
+    comment: Mapped[str] = mapped_column(Text, default="")
+    data_json: Mapped[str] = mapped_column(Text, default="{}")  # abgehakte Prüfpunkte
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    response: Mapped[FormResponse] = relationship(back_populates="tasks")
+    assignee: Mapped[User | None] = relationship(foreign_keys=[assignee_id])
+    group: Mapped[Group | None] = relationship(foreign_keys=[group_id])
+
+    @property
+    def data(self) -> dict:
+        import json as _json
+        try:
+            value = _json.loads(self.data_json or "{}")
+        except ValueError:
+            return {}
+        return value if isinstance(value, dict) else {}
+
+
+class ApplicationRequest(Base):
+    """Nachforderung an die antragstellende Person: zusätzliche Felder/Dateien oder Korrektur von Antragsfeldern."""
+    __tablename__ = "application_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    response_id: Mapped[int] = mapped_column(ForeignKey("form_responses.id", ondelete="CASCADE"), index=True)
+    task_id: Mapped[int | None] = mapped_column(ForeignKey("application_tasks.id", ondelete="SET NULL"), nullable=True)
+    title: Mapped[str] = mapped_column(String(200), default="")
+    message: Mapped[str] = mapped_column(Text, default="")
+    schema_json: Mapped[str] = mapped_column(Text, default="[]")     # zusätzliche Felder (wie im Baukasten)
+    reopen_json: Mapped[str] = mapped_column(Text, default="[]")     # IDs der Antragsfragen zur Korrektur
+    answers_json: Mapped[str] = mapped_column(Text, default="{}")
+    state: Mapped[str] = mapped_column(String(12), default="open", index=True)  # open | answered | cancelled
+    due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    created_by: Mapped[str] = mapped_column(String(255), default="")
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    response: Mapped[FormResponse] = relationship(back_populates="requests")
+
+    def _load(self, raw, default):
+        import json as _json
+        try:
+            value = _json.loads(raw or "")
+        except ValueError:
+            return default
+        return value if isinstance(value, type(default)) else default
+
+    @property
+    def items(self) -> list:
+        return self._load(self.schema_json, [])
+
+    @property
+    def reopen(self) -> list:
+        return self._load(self.reopen_json, [])
+
+    @property
+    def answers(self) -> dict:
+        return self._load(self.answers_json, {})
+
+
+class RequestTemplate(Base):
+    """Vorbereitete Nachforderung (z. B. „Lageplan nachreichen“), im Vorgang mit einem Klick auswählbar."""
+    __tablename__ = "request_templates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    message: Mapped[str] = mapped_column(Text, default="")
+    schema_json: Mapped[str] = mapped_column(Text, default="[]")
+    due_days: Mapped[int] = mapped_column(Integer, default=14)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class ApplicationDocument(Base):
+    """Im Vorgang erzeugtes Dokument, z. B. ein Bescheid als PDF."""
+    __tablename__ = "application_documents"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    response_id: Mapped[int] = mapped_column(ForeignKey("form_responses.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    file: Mapped[str] = mapped_column(String(64))
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    public: Mapped[bool] = mapped_column(Boolean, default=False)   # auf der Statusseite abrufbar
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    response: Mapped[FormResponse] = relationship(back_populates="documents")
 
 
 class Poll(Base):
@@ -1028,13 +1194,16 @@ _NEW_COLUMNS = {
               "app_mailbox": "VARCHAR(255) NOT NULL DEFAULT ''", "app_routing_json": "TEXT NOT NULL DEFAULT '[]'",
               "app_deadline_days": "INTEGER NOT NULL DEFAULT 14", "app_catalog": "BOOLEAN NOT NULL DEFAULT 1",
               "app_pdf": "BOOLEAN NOT NULL DEFAULT 1", "app_seq_year": "INTEGER NOT NULL DEFAULT 0",
-              "app_seq": "INTEGER NOT NULL DEFAULT 0"},
+              "app_seq": "INTEGER NOT NULL DEFAULT 0",
+              "process_id": "INTEGER REFERENCES processes(id) ON DELETE SET NULL"},
     "form_responses": {"ref_no": "VARCHAR(40)", "status": "VARCHAR(16) NOT NULL DEFAULT ''", "status_at": "DATETIME",
                        "assignee_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
                        "group_id": "INTEGER REFERENCES groups(id) ON DELETE SET NULL",
                        "route_email": "VARCHAR(255) NOT NULL DEFAULT ''", "due_at": "DATETIME",
                        "overdue_notified_at": "DATETIME", "closed_at": "DATETIME", "track_token": "VARCHAR(64)",
-                       "checksum": "VARCHAR(64) NOT NULL DEFAULT ''"},
+                       "checksum": "VARCHAR(64) NOT NULL DEFAULT ''",
+                       "process_version_id": "INTEGER REFERENCES process_versions(id) ON DELETE SET NULL",
+                       "fields_json": "TEXT NOT NULL DEFAULT '{}'"},
     "invitees": {"rsvp_status": "VARCHAR(16)", "rsvp_at": "DATETIME", "rsvp_comment": "TEXT",
                  "join_token": "VARCHAR(64)"},
 }

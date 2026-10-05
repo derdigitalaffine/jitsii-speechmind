@@ -22,7 +22,7 @@ from sqlalchemy import or_, select
 from . import forms as fm, mailtpl, notify
 from .config import settings
 from .db import (
-    ApplicationEvent, Form, FormResponse, GroupMember, SessionLocal, User, get_settings, to_local, utcnow,
+    ApplicationEvent, ApplicationTask, Form, FormResponse, GroupMember, SessionLocal, User, get_settings, to_local, utcnow,
 )
 from .planning import EMAIL_RE
 
@@ -119,7 +119,11 @@ def _group_ids(db, user: User) -> list[int]:
 def access(db, user: User, resp: FormResponse) -> int:
     """0 = kein Zugriff, 1 = ansehen, 2 = bearbeiten (Status, Nachrichten, Notizen, Zuweisung)."""
     level = fm.access_level(db, resp.form, user)
-    if level >= fm.INVITE or resp.assignee_id == user.id or (resp.group_id and resp.group_id in _group_ids(db, user)):
+    groups = _group_ids(db, user)
+    if level >= fm.INVITE or resp.assignee_id == user.id or (resp.group_id and resp.group_id in groups):
+        return 2
+    # Wer einen Arbeitsschritt im Vorgang hat (offen oder erledigt), arbeitet mit
+    if any(t.assignee_id == user.id or (t.group_id and t.group_id in groups) for t in resp.tasks):
         return 2
     return 1 if level >= fm.VIEW else 0
 
@@ -131,8 +135,11 @@ def inbox_query(db, user: User):
         return q
     groups = _group_ids(db, user)
     shared_forms = [f.id for f, _lvl in fm.shared_with(db, user)]
+    task_cases = select(ApplicationTask.response_id).where(
+        or_(ApplicationTask.assignee_id == user.id, ApplicationTask.group_id.in_(groups or [-1])))
     return q.where(or_(Form.owner_id == user.id, FormResponse.assignee_id == user.id,
-                       FormResponse.group_id.in_(groups or [-1]), Form.id.in_(shared_forms or [-1])))
+                       FormResponse.group_id.in_(groups or [-1]), Form.id.in_(shared_forms or [-1]),
+                       FormResponse.id.in_(task_cases)))
 
 
 # --- Mails ------------------------------------------------------------------------------
@@ -235,6 +242,8 @@ def on_submit(db, form: Form, resp: FormResponse) -> None:
                      attach_pdf=True)
     notify_staff(db, form, resp, "app_new", {"antworten": fm.answers_text(form, resp) if form.notify_answers else ""},
                  attach_pdf=True)
+    from . import workflow
+    workflow.start(db, resp)
 
 
 def set_status(db, resp: FormResponse, status: str, message: str, actor: User, inform: bool) -> None:
@@ -243,6 +252,9 @@ def set_status(db, resp: FormResponse, status: str, message: str, actor: User, i
     resp.status, resp.status_at = status, utcnow()
     resp.closed_at = utcnow() if status in CLOSED else None
     _event(resp, "status", message, actor, status=status, public=True)
+    if status in CLOSED:
+        from . import workflow
+        workflow.cancel_open(resp, f"Vorgang abgeschlossen ({status_label(status)})")
     if inform:
         notify_applicant(db, resp.form, resp, "app_status", {"nachricht": message},
                          attach_pdf=False)
@@ -286,6 +298,8 @@ def withdraw(db, resp: FormResponse) -> None:
     resp.status, resp.status_at, resp.closed_at = "withdrawn", utcnow(), utcnow()
     _event(resp, "status", "Antrag von der antragstellenden Person zurückgezogen", status="withdrawn", public=True,
            actor_name=resp.name or resp.email or "Antragsteller:in")
+    from . import workflow
+    workflow.cancel_open(resp, "Antrag zurückgezogen")
     notify_staff(db, resp.form, resp, "app_reply", {"nachricht": "Der Antrag wurde zurückgezogen."})
 
 

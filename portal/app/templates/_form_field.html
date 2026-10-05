@@ -68,6 +68,20 @@
     <input class="form-control {{ 'is-invalid' if err }}" type="file" id="{{ name }}" name="{{ name }}" {% if item.max_files > 1 %}multiple{% endif %}
       {% if item.file_types %}accept=".{{ item.file_types | join(',.') }}"{% endif %} data-max-mb="{{ item.max_size_mb }}" data-max-files="{{ item.max_files }}" {% if item.required %}required{% endif %}>
     <div class="form-text">{% if item.file_types %}Erlaubt: {{ item.file_types | join(', ') }} · {% endif %}max. {{ item.max_size_mb }} MB{% if item.max_files > 1 %} je Datei, bis zu {{ item.max_files }} Dateien{% endif %}</div>
+  {% elif item.type == 'geo' and item.geometry in ('line', 'polygon') %}
+    {% set shape = val if val is mapping and val.coordinates else none %}
+    <div class="js-geo js-geo-shape" data-name="{{ name }}" data-geometry="{{ item.geometry }}" data-gps="{{ '1' if item.allow_gps else '' }}">
+      <input type="hidden" name="{{ name }}" class="js-geo-value" value="{{ ({'type': 'LineString' if item.geometry == 'line' else 'Polygon', 'coordinates': shape.coordinates} | tojson) if shape else (val if val is string else '') }}" {% if item.required %}data-required="1"{% endif %}>
+      <div class="map-mini js-geo-map mb-2" role="application" aria-label="Karte zum Zeichnen {{ 'der Linie' if item.geometry == 'line' else 'der Fläche' }}"></div>
+      <div class="geo-tools">
+        <button class="btn btn-sm btn-primary js-shape-start" type="button"><i class="fa-solid {{ 'fa-route' if item.geometry == 'line' else 'fa-draw-polygon' }} me-1"></i><span>{{ 'Linie zeichnen' if item.geometry == 'line' else 'Fläche zeichnen' }}</span></button>
+        <button class="btn btn-sm btn-success js-shape-finish d-none" type="button"><i class="fa-solid fa-check me-1"></i>Fertig</button>
+        <button class="btn btn-sm btn-outline-secondary js-shape-undo d-none" type="button" title="Letzten Punkt entfernen"><i class="fa-solid fa-rotate-left me-1"></i>Rückgängig</button>
+        {% if item.allow_gps %}<button class="btn btn-sm btn-outline-primary js-shape-gps d-none" type="button" title="Ihren aktuellen Standort als nächsten Punkt setzen – z. B. beim Abgehen einer Grenze"><i class="fa-solid fa-location-crosshairs me-1"></i>Standort als Punkt</button>{% endif %}
+        <button class="btn btn-sm btn-link text-secondary js-geo-clear" type="button">Löschen</button>
+      </div>
+      <div class="form-text js-geo-info">{{ 'Punkte der Linie nacheinander in die Karte klicken; Doppelklick oder „Fertig“ beendet.' if item.geometry == 'line' else 'Eckpunkte nacheinander in die Karte klicken; Klick auf den ersten Punkt, Doppelklick oder „Fertig“ schließt die Fläche.' }} Danach lassen sich die Punkte verschieben.</div>
+    </div>
   {% elif item.type == 'geo' %}
     {% set pt = val if val is mapping else none %}
     <div class="js-geo" data-name="{{ name }}" data-gps="{{ '1' if item.allow_gps else '' }}">

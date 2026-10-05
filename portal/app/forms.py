@@ -41,7 +41,7 @@ TYPES = {
     "scale": ("Lineare Skala", "fa-sliders", True),
     "color": ("Farbe", "fa-palette", True),
     "file": ("Datei-Upload", "fa-paperclip", True),
-    "geo": ("GPS-Koordinaten", "fa-location-dot", True),
+    "geo": ("Ort in der Karte (Punkt, Linie, Fläche)", "fa-location-dot", True),
     "heading": ("Überschrift", "fa-heading", False),
     "subheading": ("Zwischenüberschrift", "fa-text-height", False),
     "text": ("Hinweistext", "fa-paragraph", False),
@@ -51,6 +51,7 @@ TYPES = {
 SUBTYPES = {"text": "Text", "email": "E-Mail-Adresse", "phone": "Telefonnummer", "number": "Zahl",
             "regex": "Eigenes Muster (regulärer Ausdruck)"}
 CHOICE_TYPES = {"radio", "checkbox", "dropdown"}
+GEOMETRIES = {"point": "Punkt", "line": "Linie", "polygon": "Fläche"}
 OTHER = "__other__"
 MAX_FILE_MB = 20
 PHONE_RE = re.compile(r"^\+?[0-9 ()/\-.]{3,30}$")
@@ -148,6 +149,7 @@ def clean_schema(raw) -> list[dict]:
             item["max_size_mb"] = _int(src.get("max_size_mb"), 1, MAX_FILE_MB, 10)
             item["max_files"] = _int(src.get("max_files"), 1, 10, 1)
         elif kind == "geo":
+            item["geometry"] = src.get("geometry") if src.get("geometry") in GEOMETRIES else "point"
             item["allow_gps"] = src.get("allow_gps") is not False
             item["show_inputs"] = src.get("show_inputs") is not False
         elif kind == "heading" or kind == "subheading" or kind == "pagebreak":
@@ -305,13 +307,19 @@ def validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
                     errors[qid] = "Bitte einen Wert auf der Skala wählen."
             elif kind == "color" and raw and not COLOR_RE.match(raw):
                 errors[qid] = "Bitte eine Farbe wählen."
+            elif kind == "geo" and raw and item.get("geometry", "point") != "point":
+                shape = parse_shape(raw, item["geometry"])
+                if shape is None:
+                    errors[qid] = ("Bitte eine Linie mit mindestens zwei Punkten zeichnen." if item["geometry"] == "line"
+                                   else "Bitte eine Fläche mit mindestens drei Eckpunkten zeichnen.")
+                else:
+                    answers[qid] = shape
+                    continue
             elif kind == "geo" and raw:
                 point = parse_point(raw, data.get(name + "__acc"), data.get(name + "__src"))
                 if point is None:
                     errors[qid] = "Bitte einen Punkt in der Karte wählen oder Breite und Länge angeben (z. B. 49.4930, 7.7680)."
                 else:
-                    if required and not raw:
-                        errors[qid] = "Bitte einen Punkt wählen."
                     answers[qid] = point
                     continue
             if required and not raw:
@@ -340,6 +348,72 @@ def parse_point(raw: str, accuracy=None, source=None) -> dict | None:
     if source in ("gps", "map", "manual"):
         point["src"] = source
     return point
+
+
+def _haversine(a, b) -> float:
+    import math
+    r = 6371008.8
+    p1, p2 = math.radians(a[1]), math.radians(b[1])
+    dp, dl = p2 - p1, math.radians(b[0] - a[0])
+    h = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(h))
+
+
+def _ring_area(pts) -> float:
+    import math
+    r, area = 6371008.8, 0.0
+    for i, p1 in enumerate(pts):
+        p2 = pts[(i + 1) % len(pts)]
+        area += math.radians(p2[0] - p1[0]) * (2 + math.sin(math.radians(p1[1])) + math.sin(math.radians(p2[1])))
+    return abs(area * r * r / 2)
+
+
+def parse_shape(raw: str, kind: str) -> dict | None:
+    """Linie/Fläche aus dem Formular (GeoJSON-Geometrie) → {type, coordinates, length, area, center}."""
+    from .maps import clean_geometry
+    try:
+        geom = clean_geometry(json.loads(raw), max_points=1000)
+    except ValueError:
+        return None
+    want = {"line": "LineString", "polygon": "Polygon"}[kind]
+    if geom is None or geom["type"] != want:
+        return None
+    pts = geom["coordinates"] if kind == "line" else geom["coordinates"][0][:-1]
+    length = sum(_haversine(pts[i - 1], pts[i]) for i in range(1, len(pts)))
+    area = 0.0
+    if kind == "polygon":
+        length += _haversine(pts[-1], pts[0])
+        area = _ring_area(pts)
+    lons, lats = [p[0] for p in pts], [p[1] for p in pts]
+    return {"type": kind, "coordinates": geom["coordinates"], "length": round(length, 1), "area": round(area, 1),
+            "center": [round((min(lons) + max(lons)) / 2, 6), round((min(lats) + max(lats)) / 2, 6)]}
+
+
+def _fmt_len(m: float) -> str:
+    return f"{m / 1000:.2f} km".replace(".", ",") if m >= 1000 else f"{round(m)} m"
+
+
+def _fmt_area(m2: float) -> str:
+    if m2 >= 1e6:
+        return f"{m2 / 1e6:.3f} km²".replace(".", ",")
+    if m2 >= 1e4:
+        return f"{m2 / 1e4:.2f} ha".replace(".", ",")
+    return f"{round(m2)} m²"
+
+
+def geo_feature(value, label: str = "") -> dict | None:
+    """Antwort einer Kartenfrage als GeoJSON-Feature (für Karten in Auswertung und Vorgang)."""
+    if not isinstance(value, dict):
+        return None
+    if value.get("type") == "line":
+        geom = {"type": "LineString", "coordinates": value.get("coordinates")}
+    elif value.get("type") == "polygon":
+        geom = {"type": "Polygon", "coordinates": value.get("coordinates")}
+    elif "lat" in value:
+        geom = {"type": "Point", "coordinates": [value["lon"], value["lat"]]}
+    else:
+        return None
+    return {"type": "Feature", "geometry": geom, "properties": {"label": label}}
 
 
 def files_dir(form_id: int, response_id: int | None = None) -> Path:
@@ -380,7 +454,12 @@ def display(item: dict, value) -> str:
     kind = item.get("type")
     if kind == "file":
         return ", ".join(f.get("name", "") for f in value if isinstance(f, dict))
-    if kind == "geo" and isinstance(value, dict):
+    if kind == "geo" and isinstance(value, dict) and value.get("type") == "line":
+        return f"Linie, {len(value.get('coordinates') or [])} Punkte, Länge {_fmt_len(value.get('length') or 0)}"
+    if kind == "geo" and isinstance(value, dict) and value.get("type") == "polygon":
+        n = max(len((value.get("coordinates") or [[]])[0]) - 1, 0)
+        return f"Fläche, {n} Eckpunkte, {_fmt_area(value.get('area') or 0)} (Umfang {_fmt_len(value.get('length') or 0)})"
+    if kind == "geo" and isinstance(value, dict) and "lat" in value:
         return f"{value.get('lat'):.6f}, {value.get('lon'):.6f}" + (f" (±{value['acc']} m)" if value.get("acc") else "")
     if isinstance(value, list):
         return ", ".join(str(v) for v in value)
@@ -444,6 +523,9 @@ def _json_value(item: dict, value):
     if item["type"] == "file" and isinstance(value, list):
         return [f.get("name") for f in value if isinstance(f, dict)]
     if item["type"] == "geo" and isinstance(value, dict):
+        feature = geo_feature(value)   # GeoJSON-Geometrie, dazu Länge/Fläche in Metern
+        if feature and value.get("type") in ("line", "polygon"):
+            return {"geometrie": feature["geometry"], "laenge_m": value.get("length"), "flaeche_m2": value.get("area")}
         return value
     if item["type"] == "scale" and value not in (None, ""):
         return _int(value, -1, 99, None)
@@ -497,8 +579,8 @@ def summary(form: Form, responses: list[FormResponse]) -> list[dict]:
             entry["minmax"] = (min(nums), max(nums)) if nums else None
             entry["latest"] = [display(q, v) for v in given[-8:]][::-1]
         elif q["type"] == "geo":
-            entry["points"] = [{"lat": v["lat"], "lon": v["lon"], "label": f"Antwort {n}"}
-                               for n, v in enumerate(values, start=1) if isinstance(v, dict) and "lat" in v][:5000]
+            feats = [geo_feature(v, f"Antwort {n}") for n, v in enumerate(values, start=1)]
+            entry["points"] = [f for f in feats if f][:5000]
             entry["latest"] = [display(q, v) for v in given[-8:]][::-1]
         else:
             entry["latest"] = [display(q, v) for v in given[-8:]][::-1]

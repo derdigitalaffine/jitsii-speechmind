@@ -2,25 +2,141 @@
 {% import "_macros.html" as m with context %}
 {% block title %}{{ resp.ref_no }} · {{ form.title }}{% endblock %}
 {% macro status_badge(key) -%}{% set st = statuses.get(key, (key, 'secondary', 'fa-circle')) %}<span class="badge text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>{%- endmacro %}
+{% macro file_links(files, base) -%}{% for f in files %}<a href="{{ base }}{{ f.file }}"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a> <span class="small text-secondary">({{ f.size | filesize }})</span><br>{% endfor %}{%- endmacro %}
+{% macro value(q, v, base) -%}
+{% if q.type == 'file' and v %}{{ file_links(v, base) }}{% elif q.type == 'geo' and v is mapping %}{% set c = v.center if v.center else [v.lon, v.lat] %}<a href="https://www.openstreetmap.org/?mlat={{ c[1] }}&mlon={{ c[0] }}#map=17/{{ c[1] }}/{{ c[0] }}" target="_blank" rel="noopener"><i class="fa-solid {{ 'fa-draw-polygon' if v.type == 'polygon' else ('fa-route' if v.type == 'line' else 'fa-location-dot') }} me-1"></i>{{ display(q, v) }}</a>{% if 'maps' in modules %} · <a href="/karte#17/{{ c[1] }}/{{ c[0] }}">Kartenbrowser</a>{% endif %}{% else %}{{ display(q, v) or '–' }}{% endif %}
+{%- endmacro %}
 {% block content %}
 {% set overdue = resp.due_at and not resp.closed_at and resp.due_at < now %}
+{% set act = '/forms/' ~ form.id ~ '/applications/' ~ resp.id %}
 <nav aria-label="Pfad" class="small mb-2"><a href="/forms/applications">Antragseingang</a> › {{ form.title }}</nav>
 {% call m.page_head(resp.ref_no, form.title) %}
-<a class="btn btn-outline-secondary" href="/forms/{{ form.id }}/applications/{{ resp.id }}/pdf"><i class="fa-regular fa-file-pdf me-1"></i>PDF</a>
+<a class="btn btn-outline-secondary" href="{{ act }}/pdf"><i class="fa-regular fa-file-pdf me-1"></i>PDF</a>
 <button class="btn btn-outline-secondary" type="button" data-copy-text="{{ track_link }}" title="Link der Statusseite kopieren (nur an die antragstellende Person geben)"><i class="fa-solid fa-link me-1"></i>Statuslink</button>
-{% if level >= 2 and resp.assignee_id != user.id %}
-<form method="post" action="/forms/{{ form.id }}/applications/{{ resp.id }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="take">
-  <button class="btn btn-primary" type="submit"><i class="fa-solid fa-hand me-1"></i>Selbst übernehmen</button></form>
+{% if level >= 2 and not resp.closed_at %}<button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#req-modal"><i class="fa-solid fa-file-circle-question me-1"></i>Nachfordern</button>{% endif %}
+{% if level >= 2 and resp.assignee_id != user.id and not resp.closed_at %}
+<form method="post" action="{{ act }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="take">
+  <button class="btn btn-outline-primary" type="submit" title="Als zuständige Person für den gesamten Vorgang eintragen"><i class="fa-solid fa-hand me-1"></i>Vorgang übernehmen</button></form>
 {% endif %}
 {% endcall %}
 
-<div class="d-flex flex-wrap align-items-center gap-2 mb-4">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
   {{ status_badge(resp.status) }}
   {% if overdue %}<span class="badge text-bg-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i>Frist überschritten</span>{% endif %}
   <span class="small text-secondary">Eingang {{ resp.created_at | local }} Uhr{% if resp.due_at %} · Frist {{ resp.due_at | local('%d.%m.%Y') }}{% endif %}</span>
-  <span class="small text-secondary">· Zuständig: {{ resp.assignee.name if resp.assignee else '' }}{% if resp.group %} Gruppe {{ resp.group.name }}{% endif %}{% if not resp.assignee and not resp.group %}{{ resp.route_email or 'niemand' }}{% endif %}</span>
+  <span class="small text-secondary">· Vorgang: {{ resp.assignee.name if resp.assignee else '' }}{% if resp.group %} Gruppe {{ resp.group.name }}{% endif %}{% if not resp.assignee and not resp.group %}{{ resp.route_email or 'niemand' }}{% endif %}</span>
+  {% if resp.process_version %}<span class="small text-secondary">· Prozess „{{ resp.process_version.process.name }}“ v{{ resp.process_version.version }}</span>{% endif %}
   {% if level < 2 %}<span class="badge text-bg-light border">nur Lesezugriff</span>{% endif %}
 </div>
+
+{# --- Prozess: Schritte und aktueller Arbeitsschritt ------------------------------------- #}
+{% if resp.process_version %}
+{% set by_step = {} %}{% for t in resp.tasks %}{% set _ = by_step.update({t.step_id: t}) %}{% endfor %}
+<div class="card mb-4 border-primary-subtle" id="schritt">
+  <div class="card-body pb-2">
+    <ol class="wf-steps" aria-label="Arbeitsschritte">
+      {% for s in steps %}{% set t = by_step.get(s.id) %}
+      {% set st = 'todo' if not t else ('current' if t.state in ('open', 'waiting') else ('skip' if t.state in ('skipped', 'cancelled') else ('rejected' if t.outcome == 'rejected' else 'done'))) %}
+      <li class="wf-step wf-{{ st }}" title="{{ s.name }}{% if t and t.completed_by %} – {{ t.completed_by }}, {{ t.completed_at | local }}{% endif %}{% if st == 'skip' %} – übersprungen{% endif %}">
+        <span class="wf-dot"><i class="fa-solid {{ 'fa-check' if st == 'done' else ('fa-xmark' if st == 'rejected' else ('fa-forward' if st == 'skip' else step_types[s.type][1])) }}"></i></span>
+        <span class="wf-label">{{ s.name }}</span>
+      </li>
+      {% endfor %}
+      <li class="wf-step {{ 'wf-done' if resp.closed_at else 'wf-todo' }}"><span class="wf-dot"><i class="fa-solid fa-flag-checkered"></i></span><span class="wf-label">Abschluss</span></li>
+    </ol>
+  </div>
+  {% if task %}
+  {% set tdue = task.due_at and task.due_at < now %}
+  <div class="card-body border-top bg-body-tertiary">
+    <div class="d-flex flex-wrap align-items-start gap-2 mb-2">
+      <div class="flex-grow-1">
+        <div class="small text-secondary"><i class="fa-solid {{ step_types[task.kind][1] }} me-1"></i>Aktueller Schritt · {{ step_types[task.kind][0] }}</div>
+        <h2 class="h5 mb-1">{{ task.name }}</h2>
+        <div class="small">Zuständig: <strong>{{ task.assignee.name if task.assignee else '' }}{% if task.group and not task.assignee %}Gruppe {{ task.group.name }}{% elif task.group %} (Gruppe {{ task.group.name }}){% endif %}{% if not task.assignee and not task.group %}{{ 'Antragsteller:in' if task.kind == 'request' else 'Zuständige des Vorgangs' }}{% endif %}</strong>
+          {% if task.due_at %} · Frist <span class="{{ 'text-danger fw-semibold' if tdue }}">{{ task.due_at | local('%d.%m.%Y') }}{% if tdue %} (überfällig){% endif %}</span>{% endif %}</div>
+      </div>
+      {% if task.state == 'open' and task.assignee_id != user.id and (can_work or level >= 2) %}
+      <form method="post" action="{{ act }}/task/{{ task.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="claim">
+        <button class="btn btn-sm btn-outline-primary" type="submit"><i class="fa-solid fa-hand me-1"></i>Schritt übernehmen</button></form>
+      {% endif %}
+    </div>
+    {% if step.description %}<div class="alert alert-light border small py-2 mb-3"><i class="fa-solid fa-circle-info me-1 text-primary"></i>{{ step.description | richtext }}</div>{% endif %}
+
+    {% if task.kind == 'request' %}
+      {% set oreq = resp.requests | selectattr('task_id', 'equalto', task.id) | selectattr('state', 'equalto', 'open') | first %}
+      <p class="mb-2"><i class="fa-solid fa-hourglass-half me-1 text-warning"></i>Wartet auf die antragstellende Person{% if oreq %} seit {{ oreq.created_at | local }}{% if oreq.reminded_at %} · erinnert am {{ oreq.reminded_at | local('%d.%m.%Y') }}{% endif %}{% endif %}. Sobald die Angaben eingehen, geht es automatisch weiter.</p>
+      {% if level >= 2 %}
+      <div class="d-flex flex-wrap gap-2">
+        <form method="post" action="{{ act }}/task/{{ task.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="remind">
+          <button class="btn btn-sm btn-outline-primary" type="submit" {% if not applicant %}disabled{% endif %}><i class="fa-regular fa-bell me-1"></i>Erinnern</button></form>
+        <form method="post" action="{{ act }}/task/{{ task.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="skip"><input type="hidden" name="comment" value="Nachforderung nicht mehr nötig">
+          <button class="btn btn-sm btn-outline-secondary" type="submit" data-confirm-title="Nachforderung überspringen?" data-confirm="Die Nachforderung wird zurückgenommen und der Prozess läuft mit dem nächsten Schritt weiter." data-confirm-button="Überspringen"><i class="fa-solid fa-forward me-1"></i>Nicht mehr nötig – weiter</button></form>
+      </div>
+      {% endif %}
+    {% elif can_work %}
+      <form method="post" action="{{ act }}/task/{{ task.id }}" class="js-task-form"><input type="hidden" name="csrf" value="{{ csrf }}">
+        {% if step.checklist %}
+        <fieldset class="mb-3"><legend class="form-label fw-semibold fs-6 mb-1">Prüfpunkte</legend>
+          {% for c in step.checklist %}<div class="form-check"><input class="form-check-input js-check" type="checkbox" name="check" value="{{ c }}" id="chk-{{ loop.index }}"><label class="form-check-label" for="chk-{{ loop.index }}">{{ c }}</label></div>{% endfor %}
+        </fieldset>
+        {% endif %}
+        {% if step.fields %}
+        <div class="row g-2 mb-3">
+          {% for f in step.fields %}{% set fv = fields.get(f.key, '') %}
+          <div class="{{ 'col-12' if f.type == 'textarea' else 'col-sm-6 col-xl-4' }}"><label class="form-label small mb-1" for="fld-{{ f.key }}">{{ f.label }}{% if f.required %} <span class="req">*</span>{% endif %}</label>
+            {% if f.type == 'textarea' %}<textarea class="form-control form-control-sm" id="fld-{{ f.key }}" name="f_{{ f.key }}" rows="3" {% if f.required %}required{% endif %}>{{ fv }}</textarea>
+            {% elif f.type == 'select' %}<select class="form-select form-select-sm" id="fld-{{ f.key }}" name="f_{{ f.key }}" {% if f.required %}required{% endif %}><option value="">Bitte wählen …</option>{% for o in f.options %}<option {% if fv == o %}selected{% endif %}>{{ o }}</option>{% endfor %}</select>
+            {% elif f.type == 'yesno' %}<div>{% for o in ['Ja', 'Nein'] %}<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="f_{{ f.key }}" id="fld-{{ f.key }}-{{ o }}" value="{{ o }}" {% if fv == o %}checked{% endif %} {% if f.required %}required{% endif %}><label class="form-check-label" for="fld-{{ f.key }}-{{ o }}">{{ o }}</label></div>{% endfor %}</div>
+            {% elif f.type == 'money' %}<div class="input-group input-group-sm"><input class="form-control" id="fld-{{ f.key }}" name="f_{{ f.key }}" inputmode="decimal" value="{{ fv }}" placeholder="0,00" {% if f.required %}required{% endif %}><span class="input-group-text">€</span></div>
+            {% else %}<input class="form-control form-control-sm" id="fld-{{ f.key }}" name="f_{{ f.key }}" value="{{ fv }}" type="{{ {'date': 'date', 'number': 'text'}.get(f.type, 'text') }}" {% if f.type == 'number' %}inputmode="decimal"{% endif %} {% if f.required %}required{% endif %}>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <label class="form-label small mb-1" for="t-comment">{{ 'Begründung / Vermerk' if task.kind == 'approval' else 'Vermerk (optional)' }}</label>
+        <textarea class="form-control form-control-sm mb-2" id="t-comment" name="comment" rows="2" placeholder="{{ 'Bei Ablehnung Pflicht – die Begründung geht an die antragstellende Person, wenn der Prozess damit endet.' if task.kind == 'approval' else 'Erscheint im Verlauf (intern).' }}"></textarea>
+        {% if four_eyes %}<div class="alert alert-warning small py-2"><i class="fa-solid fa-user-shield me-1"></i>{{ four_eyes }}</div>{% endif %}
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          {% if task.kind == 'approval' %}
+          <button class="btn btn-success" type="submit" name="action" value="approved" {% if four_eyes %}disabled{% endif %}><i class="fa-solid fa-circle-check me-1"></i>Genehmigen</button>
+          <button class="btn btn-outline-danger js-reject" type="submit" name="action" value="rejected" {% if four_eyes %}disabled{% endif %}><i class="fa-solid fa-circle-xmark me-1"></i>{{ 'Ablehnen' if step.on_reject == 'end' else 'Zurückgeben' }}</button>
+          <span class="small text-secondary">{% if step.on_reject == 'end' %}Ablehnen beendet den Vorgang.{% else %}Zurückgeben führt zurück zu „{{ (steps | selectattr('id', 'equalto', step.on_reject) | first or {}).get('name', 'einem früheren Schritt') }}“.{% endif %}</span>
+          {% else %}
+          {% set nxt = namespace(name='') %}{% for s in steps %}{% if s.id == step.goto %}{% set nxt.name = s.name %}{% endif %}{% endfor %}
+          <button class="btn btn-primary js-done" type="submit" name="action" value="done"><i class="fa-solid fa-check me-1"></i>Erledigt{% if nxt.name %} – weiter mit „{{ nxt.name }}“{% endif %}</button>
+          {% if step.checklist %}<span class="small text-secondary js-check-hint">Erst alle Prüfpunkte abhaken.</span>{% endif %}
+          {% endif %}
+        </div>
+      </form>
+    {% else %}
+      <p class="text-secondary small mb-0"><i class="fa-solid fa-lock me-1"></i>Dieser Schritt ist {{ 'für die Freigabe ' if task.kind == 'approval' }}einer anderen Person oder Gruppe zugewiesen.</p>
+    {% endif %}
+
+    {% if level >= 2 %}
+    <details class="mt-3 small"><summary class="text-secondary">Schritt umverteilen, Frist ändern oder überspringen</summary>
+      <div class="row g-2 mt-1">
+        <form method="post" action="{{ act }}/task/{{ task.id }}" class="col-lg-6 d-flex flex-wrap gap-2 align-items-center"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="reassign">
+          <select class="form-select form-select-sm w-auto" name="user_id" aria-label="Person"><option value="">– Person –</option>{% for u in users %}<option value="{{ u.id }}" {% if task.assignee_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}</select>
+          <select class="form-select form-select-sm w-auto" name="group_id" aria-label="Gruppe"><option value="">– Gruppe –</option>{% for g in groups %}<option value="{{ g.id }}" {% if task.group_id == g.id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select>
+          <button class="btn btn-sm btn-outline-primary" type="submit">Zuweisen</button></form>
+        <form method="post" action="{{ act }}/task/{{ task.id }}" class="col-lg-3 d-flex gap-2"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="due">
+          <input class="form-control form-control-sm" type="date" name="due" value="{{ task.due_at | local('%Y-%m-%d') if task.due_at else '' }}" aria-label="Frist des Schritts"><button class="btn btn-sm btn-outline-secondary" type="submit">Frist</button></form>
+        {% if task.kind != 'request' %}
+        <form method="post" action="{{ act }}/task/{{ task.id }}" class="col-lg-3"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="skip"><input type="hidden" name="comment" value="manuell übersprungen">
+          <button class="btn btn-sm btn-outline-secondary w-100" type="submit" data-confirm-title="Schritt überspringen?" data-confirm="Der Schritt wird ohne Bearbeitung übersprungen; das steht im Verlauf." data-confirm-button="Überspringen"><i class="fa-solid fa-forward me-1"></i>Überspringen</button></form>
+        {% endif %}
+      </div>
+    </details>
+    {% endif %}
+  </div>
+  {% elif not resp.closed_at %}
+  <div class="card-body border-top small text-secondary">Kein offener Arbeitsschritt.</div>
+  {% endif %}
+</div>
+{% elif can_start and level >= 2 %}
+<div class="alert alert-info d-flex flex-wrap align-items-center gap-2"><i class="fa-solid fa-diagram-project"></i><span class="flex-grow-1">Für diesen Antrag gibt es den Prozess „{{ form.process.name }}“. Der Antrag ist vor dessen Zuordnung eingegangen.</span>
+  <form method="post" action="{{ act }}/process"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-primary" type="submit">Prozess jetzt starten</button></form></div>
+{% endif %}
 
 <div class="row g-4">
   <div class="col-12 col-xxl-7">
@@ -29,19 +145,74 @@
       <div class="card-body">
         <dl class="row mb-0">
           <dt class="col-sm-4">Antragsteller:in</dt><dd class="col-sm-8">{{ resp.name or '–' }}{% if applicant %} · <a href="mailto:{{ applicant }}?subject={{ (resp.ref_no ~ ' – ' ~ form.title) | urlencode }}">{{ applicant }}</a>{% endif %}</dd>
-          {% for q in questions %}{% set v = resp.answers.get(q.id) %}
+          {% for q in questions %}{% set fix = corrections.get(q.id) %}
           <dt class="col-sm-4">{{ q.title or 'Frage' }}</dt>
-          <dd class="col-sm-8 text-break" style="white-space: pre-line">{% if q.type == 'file' and v %}{% for f in v %}<a href="/forms/{{ form.id }}/responses/{{ resp.id }}/files/{{ f.file }}"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a> <span class="small text-secondary">({{ f.size | filesize }})</span><br>{% endfor %}{% elif q.type == 'geo' and v is mapping %}<a href="https://www.openstreetmap.org/?mlat={{ v.lat }}&mlon={{ v.lon }}#map=17/{{ v.lat }}/{{ v.lon }}" target="_blank" rel="noopener"><i class="fa-solid fa-location-dot me-1"></i>{{ display(q, v) }}</a>{% if 'maps' in modules %} · <a href="/karte#17/{{ v.lat }}/{{ v.lon }}">Kartenbrowser</a>{% endif %}{% else %}{{ display(q, v) or '–' }}{% endif %}</dd>
+          <dd class="col-sm-8 text-break" style="white-space: pre-line">{% if fix %}{% set rq = resp.requests | selectattr('answered_at', 'equalto', fix[0]) | first %}{{ value(q, current.get(q.id), act ~ '/request/' ~ rq.id ~ '/files/') }}
+            <div class="small text-secondary mt-1"><span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fa-solid fa-pen me-1"></i>korrigiert am {{ fix[0] | local }}</span> ursprünglich: {{ value(q, fix[1], '/forms/' ~ form.id ~ '/responses/' ~ resp.id ~ '/files/') }}</div>
+            {% else %}{{ value(q, current.get(q.id), '/forms/' ~ form.id ~ '/responses/' ~ resp.id ~ '/files/') }}{% endif %}</dd>
           {% endfor %}
         </dl>
+        {% if geo_features %}<div class="map-mini js-geo-view mt-3" data-features='{{ geo_features | tojson }}' role="img" aria-label="Karte mit den Ortsangaben des Antrags"></div>{% endif %}
       </div></div>
+
+    {% if fields %}
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-table-list me-2"></i>Interne Angaben aus der Bearbeitung</div><div class="card-body">
+      <dl class="row mb-0">{% for k, v in fields.items() %}<dt class="col-sm-4">{{ field_labels.get(k, k) }}</dt><dd class="col-sm-8" style="white-space: pre-line">{{ v }}</dd>{% endfor %}</dl>
+    </div></div>
+    {% endif %}
+
+    {% if resp.requests %}
+    <div class="card mb-4" id="nachforderungen"><div class="card-header"><i class="fa-solid fa-file-circle-question me-2"></i>Nachforderungen</div>
+      <ul class="list-group list-group-flush">
+        {% for r in resp.requests | reverse %}
+        <li class="list-group-item">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <strong>{{ r.title }}</strong>
+            {% if r.state == 'open' %}<span class="badge text-bg-warning"><i class="fa-solid fa-hourglass-half me-1"></i>offen{% if r.due_at %} bis {{ r.due_at | local('%d.%m.%Y') }}{% endif %}</span>
+            {% elif r.state == 'answered' %}<span class="badge text-bg-success"><i class="fa-solid fa-check me-1"></i>beantwortet {{ r.answered_at | local }}</span>
+            {% else %}<span class="badge text-bg-secondary">zurückgenommen</span>{% endif %}
+            <span class="small text-secondary ms-auto">{{ r.created_at | local }} · {{ r.created_by }}</span>
+          </div>
+          {% if r.message %}<div class="small text-secondary mt-1" style="white-space: pre-line">{{ r.message }}</div>{% endif %}
+          {% if r.state == 'answered' %}
+          <dl class="row small mt-2 mb-0">
+            {% for q in r.items if q.type != 'text' %}<dt class="col-sm-4">{{ q.title or 'Angabe' }}</dt><dd class="col-sm-8 text-break" style="white-space: pre-line">{{ value(q, r.answers.get(q.id), act ~ '/request/' ~ r.id ~ '/files/') }}</dd>{% endfor %}
+            {% for qid in r.reopen %}{% set q = questions | selectattr('id', 'equalto', qid) | first %}{% if q %}<dt class="col-sm-4">{{ q.title }} <span class="badge text-bg-light border">Korrektur</span></dt><dd class="col-sm-8 text-break">{{ value(q, r.answers.get(qid), act ~ '/request/' ~ r.id ~ '/files/') }}</dd>{% endif %}{% endfor %}
+          </dl>
+          {% elif r.state == 'open' %}
+          <div class="small mt-1">Angefordert: {% for q in r.items if q.type != 'text' %}{{ q.title or 'Angabe' }}{{ ', ' if not loop.last }}{% endfor %}{% for qid in r.reopen %}{% set q = questions | selectattr('id', 'equalto', qid) | first %}{% if q %}{{ ', ' if r.items or not loop.first }}{{ q.title }} (Korrektur){% endif %}{% endfor %}</div>
+          {% if level >= 2 and not r.task_id %}
+          <div class="d-flex gap-2 mt-2">
+            <form method="post" action="{{ act }}/request/{{ r.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-primary" name="action" value="remind" type="submit" {% if not applicant %}disabled{% endif %}><i class="fa-regular fa-bell me-1"></i>Erinnern</button></form>
+            <form method="post" action="{{ act }}/request/{{ r.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-secondary" name="action" value="cancel" type="submit" data-confirm-title="Nachforderung zurücknehmen?" data-confirm="Die antragstellende Person kann dann nichts mehr nachreichen." data-confirm-button="Zurücknehmen">Zurücknehmen</button></form>
+          </div>
+          {% endif %}
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul></div>
+    {% endif %}
+
+    {% if resp.documents %}
+    <div class="card mb-4" id="dokumente"><div class="card-header"><i class="fa-regular fa-file-pdf me-2"></i>Dokumente</div>
+      <ul class="list-group list-group-flush">
+        {% for d in resp.documents %}
+        <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+          <a href="{{ act }}/documents/{{ d.id }}"><i class="fa-regular fa-file-pdf me-1"></i>{{ d.name }}</a>
+          <span class="small text-secondary">{{ d.created_at | local }} · {{ d.size | filesize }}</span>
+          {% if d.public %}<span class="badge text-bg-success-subtle text-success-emphasis border border-success-subtle"><i class="fa-solid fa-globe me-1"></i>auf der Statusseite</span>{% endif %}
+          {% if level >= 2 %}<form method="post" action="{{ act }}/documents/{{ d.id }}" class="ms-auto"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link" type="submit">{{ 'Nicht mehr freigeben' if d.public else 'Für Antragsteller:in freigeben' }}</button></form>{% endif %}
+        </li>
+        {% endfor %}
+      </ul></div>
+    {% endif %}
 
     <div class="card" id="verlauf"><div class="card-header"><i class="fa-solid fa-clock-rotate-left me-2"></i>Verlauf</div>
       <ul class="list-group list-group-flush">
         {% for e in resp.events | reverse %}
         <li class="list-group-item">
           <div class="d-flex flex-wrap gap-2 align-items-center small">
-            <strong>{{ {'created': 'Eingang', 'status': 'Status', 'message': 'Nachricht an Antragsteller:in', 'reply': 'Antwort der antragstellenden Person', 'note': 'Interne Notiz', 'assign': 'Zuständigkeit', 'due': 'Frist'}.get(e.kind, e.kind) }}</strong>
+            <strong>{{ {'created': 'Eingang', 'status': 'Status', 'message': 'Nachricht an Antragsteller:in', 'reply': 'Antragsteller:in', 'note': 'Interne Notiz', 'assign': 'Zuständigkeit', 'due': 'Frist', 'process': 'Prozess', 'task': 'Arbeitsschritt', 'request': 'Nachforderung', 'document': 'Dokument'}.get(e.kind, e.kind) }}</strong>
             {% if e.status %}{{ status_badge(e.status) }}{% endif %}
             {% if not e.public %}<span class="badge text-bg-light border"><i class="fa-solid fa-lock me-1"></i>intern</span>{% endif %}
             <span class="text-secondary ms-auto">{{ e.at | local }} · {{ e.actor_name or '–' }}</span>
@@ -55,41 +226,85 @@
   <div class="col-12 col-xxl-5">
     {% if level >= 2 %}
     <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-flag me-2"></i>Status ändern</div><div class="card-body">
-      <form method="post" action="/forms/{{ form.id }}/applications/{{ resp.id }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="status">
+      <form method="post" action="{{ act }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="status">
         <select class="form-select mb-2" name="status" aria-label="Neuer Status">{% for k, st in statuses.items() %}<option value="{{ k }}" {% if resp.status == k %}selected{% endif %}>{{ st[0] }}</option>{% endfor %}</select>
-        <textarea class="form-control mb-2" name="text" rows="3" placeholder="Mitteilung an die antragstellende Person (optional, z. B. Begründung oder benötigte Unterlagen bei Rückfrage)"></textarea>
+        <textarea class="form-control mb-2" name="text" rows="3" placeholder="Mitteilung an die antragstellende Person (optional, z. B. Begründung)"></textarea>
         <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="inform" value="1" id="inf" {% if applicant and mail_ready %}checked{% else %}disabled{% endif %}><label class="form-check-label small" for="inf">Antragsteller:in per E-Mail informieren{% if not applicant %} (keine Adresse bekannt){% endif %}</label></div>
         <button class="btn btn-primary btn-sm" type="submit">Status speichern</button>
       </form>
-      <div class="form-text mt-2">„Rückfrage“: Die antragstellende Person kann auf der Statusseite antworten. Genehmigt, Abgelehnt, Erledigt und Zurückgezogen schließen den Vorgang.</div>
+      <div class="form-text mt-2">Genehmigt, Abgelehnt, Erledigt und Zurückgezogen schließen den Vorgang{% if resp.process_version %} und beenden offene Arbeitsschritte{% endif %}. Fehlende Angaben oder Dateien fordern Sie über <strong>Nachfordern</strong> an.</div>
     </div></div>
 
     <div class="card mb-4"><div class="card-header"><i class="fa-regular fa-comments me-2"></i>Nachricht &amp; Notiz</div><div class="card-body">
-      <form method="post" action="/forms/{{ form.id }}/applications/{{ resp.id }}/action" class="mb-3"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="message">
+      <form method="post" action="{{ act }}/action" class="mb-3"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="message">
         <label class="form-label small" for="msg">Nachricht an die antragstellende Person</label>
         <textarea class="form-control mb-2" id="msg" name="text" rows="3" required></textarea>
         <button class="btn btn-outline-primary btn-sm" type="submit" {% if not applicant %}disabled title="keine E-Mail-Adresse bekannt"{% endif %}><i class="fa-regular fa-paper-plane me-1"></i>Senden (erscheint auch auf der Statusseite)</button></form>
-      <form method="post" action="/forms/{{ form.id }}/applications/{{ resp.id }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="note">
+      <form method="post" action="{{ act }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="note">
         <label class="form-label small" for="note">Interne Notiz (nur für die Verwaltung)</label>
         <textarea class="form-control mb-2" id="note" name="text" rows="2" required></textarea>
         <button class="btn btn-outline-secondary btn-sm" type="submit"><i class="fa-solid fa-lock me-1"></i>Notiz speichern</button></form>
     </div></div>
 
-    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-user-tie me-2"></i>Zuständigkeit &amp; Frist</div><div class="card-body">
-      <form method="post" action="/forms/{{ form.id }}/applications/{{ resp.id }}/action" class="row g-2 mb-3"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="assign">
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-user-tie me-2"></i>Zuständigkeit &amp; Frist des Vorgangs</div><div class="card-body">
+      <form method="post" action="{{ act }}/action" class="row g-2 mb-3"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="assign">
         <div class="col-6"><select class="form-select form-select-sm" name="user_id" aria-label="Person"><option value="">– Person –</option>{% for u in users %}<option value="{{ u.id }}" {% if resp.assignee_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}</select></div>
         <div class="col-6"><select class="form-select form-select-sm" name="group_id" aria-label="Gruppe"><option value="">– Gruppe –</option>{% for g in groups %}<option value="{{ g.id }}" {% if resp.group_id == g.id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select></div>
         <div class="col-12"><button class="btn btn-outline-primary btn-sm" type="submit">Zuweisen (mit Hinweis per Mail)</button></div>
       </form>
-      <form method="post" action="/forms/{{ form.id }}/applications/{{ resp.id }}/action" class="d-flex gap-2"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="due">
+      <form method="post" action="{{ act }}/action" class="d-flex gap-2"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="due">
         <input class="form-control form-control-sm" type="date" name="due" value="{{ resp.due_at | local('%Y-%m-%d') if resp.due_at else '' }}" aria-label="Frist">
         <button class="btn btn-outline-secondary btn-sm text-nowrap" type="submit">Frist setzen</button></form>
     </div></div>
     {% endif %}
     <div class="card"><div class="card-body small text-secondary">
       <div><i class="fa-solid fa-fingerprint me-1"></i>Prüfsumme (SHA-256): <code class="text-break">{{ resp.checksum }}</code></div>
-      <div class="mt-1"><i class="fa-solid fa-globe me-1"></i>Statusseite der antragstellenden Person: geheimer Link, nur an sie weitergeben.</div>
+      <div class="mt-1"><i class="fa-solid fa-globe me-1"></i>Statusseite der antragstellenden Person: geheimer Link, nur an sie weitergeben. Korrekturen über Nachforderungen ändern die ursprünglichen Angaben nicht – sie werden daneben gespeichert.</div>
     </div></div>
   </div>
 </div>
+
+{% if level >= 2 and not resp.closed_at %}
+<div class="modal fade" id="req-modal" tabindex="-1" aria-labelledby="req-title" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-scrollable"><form class="modal-content" method="post" action="{{ act }}/request" id="req-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="items_json" id="req-items">
+  <div class="modal-header"><h2 class="modal-title h5" id="req-title"><i class="fa-solid fa-file-circle-question me-2"></i>Angaben oder Unterlagen nachfordern</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+  <div class="modal-body">
+    <div class="row g-2 mb-3">
+      <div class="col-md-7"><label class="form-label small mb-1" for="req-name">Betreff</label><input class="form-control" id="req-name" name="title" value="Bitte ergänzen Sie Ihren Antrag" maxlength="200"></div>
+      <div class="col-md-5"><label class="form-label small mb-1" for="req-tpl">Vorlage</label><select class="form-select" id="req-tpl"><option value="">– ohne Vorlage –</option></select></div>
+      <div class="col-12"><label class="form-label small mb-1" for="req-msg">Nachricht an die antragstellende Person</label><textarea class="form-control" id="req-msg" name="message" rows="3" placeholder="z. B. Für die Prüfung benötigen wir noch einen aktuellen Lageplan."></textarea></div>
+    </div>
+    <div class="fw-semibold small mb-1">Zusätzliche Felder</div>
+    <div id="req-fields" class="mb-3"></div>
+    {% if questions %}
+    <details class="mb-3"><summary class="fw-semibold small">Angaben aus dem Antrag zur Korrektur öffnen</summary>
+      <div class="row row-cols-1 row-cols-md-2 g-1 mt-1">{% for q in questions %}<div class="col"><div class="form-check"><input class="form-check-input" type="checkbox" name="reopen" value="{{ q.id }}" id="ro-{{ q.id }}"><label class="form-check-label small" for="ro-{{ q.id }}">{{ q.title or 'Frage' }} <span class="text-secondary">({{ display(q, current.get(q.id)) | truncate(40) or 'leer' }})</span></label></div></div>{% endfor %}</div>
+      <div class="form-text">Die Felder erscheinen vorausgefüllt; die ursprünglichen Angaben bleiben erhalten.</div>
+    </details>
+    {% endif %}
+    <div class="row g-2 align-items-end">
+      <div class="col-sm-4"><label class="form-label small mb-1" for="req-due">Nachreichen bis</label><input class="form-control form-control-sm" type="date" id="req-due" name="due"></div>
+      <div class="col-sm-8 d-flex flex-column gap-1">
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="set_query" value="1" id="req-q" checked><label class="form-check-label small" for="req-q">Status auf „Rückfrage“ setzen</label></div>
+        {% if user.can('processes') %}<div class="form-check"><input class="form-check-input" type="checkbox" name="save_template" value="1" id="req-save"><label class="form-check-label small" for="req-save">Zusätzlich als Vorlage speichern</label></div>{% endif %}
+      </div>
+    </div>
+    {% if not applicant %}<div class="alert alert-warning small mt-3 mb-0">Keine E-Mail-Adresse bekannt – die antragstellende Person erfährt nur über den Statuslink von der Nachforderung.</div>{% endif %}
+  </div>
+  <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button><button class="btn btn-primary" type="submit"><i class="fa-regular fa-paper-plane me-1"></i>Nachforderung senden</button></div>
+</form></div></div>
+<script type="application/json" id="req-bundle">{{ request_bundle | tojson }}</script>
+{% endif %}
+{% endblock %}
+{% block head %}{% if geo_bundle %}<link rel="stylesheet" href="/static/vendor/maplibre/maplibre-gl.css"><link rel="stylesheet" href="/static/map.css">{% endif %}{% endblock %}
+{% block scripts %}
+{% if geo_bundle %}
+<script type="application/json" id="geo-bundle">{{ geo_bundle | tojson }}</script>
+<script src="/static/vendor/maplibre/maplibre-gl.js"></script>
+<script src="/static/map-core.js"></script>
+<script src="/static/map-draw.js"></script>
+<script src="/static/geo-view.js"></script>
+{% endif %}
+<script src="/static/field-list.js"></script>
+<script src="/static/application.js"></script>
 {% endblock %}

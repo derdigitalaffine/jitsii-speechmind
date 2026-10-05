@@ -37,6 +37,15 @@
       </div></div></div>
     </div>
 
+    <div class="col-12"><div class="card border-primary-subtle" id="prozess"><div class="card-header"><i class="fa-solid fa-diagram-project me-2"></i>Bearbeitungsprozess</div><div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-6"><label class="form-label" for="a-proc">Prozess für neue Anträge</label>
+          <select class="form-select" id="a-proc" name="process_id"><option value="">– ohne Prozess (freie Bearbeitung über Status) –</option>{% for p in processes %}<option value="{{ p.id }}" {% if form.process_id == p.id %}selected{% endif %}>{{ p.name }} (Version {{ p.current.version }})</option>{% endfor %}</select></div>
+        <div class="col-md-6 small text-secondary">{% if processes %}Jeder neue Antrag durchläuft die Arbeitsschritte des Prozesses: Aufgaben, Freigaben, Nachforderungen und Automatiken. Laufende Anträge bleiben auf ihrer Version.{% else %}Es gibt noch keinen veröffentlichten Prozess.{% endif %}
+          {% if can_processes %}<a href="/processes" class="ms-1">Prozesse verwalten <i class="fa-solid fa-arrow-right"></i></a>{% endif %}</div>
+      </div>
+    </div></div></div>
+
     <div class="col-12"><div class="card"><div class="card-header"><i class="fa-solid fa-route me-2"></i>Weiterleitung nach Antworten <span class="small text-secondary fw-normal">– die erste passende Regel bestimmt die Zuständigkeit</span></div>
       <div class="card-body">
         {% if questions %}

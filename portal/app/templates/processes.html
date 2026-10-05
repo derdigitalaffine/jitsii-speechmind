@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Prozesse{% endblock %}
+{% block content %}
+{% call m.page_head('Prozesse', 'Bearbeitungsabläufe für Online-Anträge: Arbeitsschritte, Zuständigkeiten, Fristen, Freigaben, Nachforderungen und Automatiken. Ein Prozess kann von mehreren Antragsformularen genutzt werden.') %}
+<button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#import-modal"><i class="fa-solid fa-file-import me-1"></i>Importieren</button>
+<button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#new-modal"><i class="fa-solid fa-plus me-1"></i>Neuer Prozess</button>
+{% endcall %}
+
+{% if processes %}
+<div class="row g-3 mb-5">
+  {% for p in processes %}{% set u = usage[p.id] %}
+  <div class="col-12 col-lg-6 col-xxl-4"><div class="card h-100">
+    <div class="card-body">
+      <div class="d-flex align-items-start gap-2 mb-2">
+        <span class="pe-icon text-primary"><i class="fa-solid fa-diagram-project"></i></span>
+        <div class="flex-grow-1"><a class="fw-semibold stretched-link" href="/processes/{{ p.id }}">{{ p.name }}</a>
+          <div class="small">{% if p.current %}<span class="badge text-bg-success-subtle text-success-emphasis border border-success-subtle">Version {{ p.current.version }} veröffentlicht</span>{% else %}<span class="badge text-bg-secondary">Entwurf – noch nicht veröffentlicht</span>{% endif %}
+            {% if p.current and p.draft_changed %}<span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle">Entwurf geändert</span>{% endif %}</div></div>
+      </div>
+      {% if p.description %}<p class="small text-secondary mb-2">{{ p.description | truncate(160) }}</p>{% endif %}
+      {% set psteps = steps[p.id] %}
+      <div class="d-flex flex-wrap gap-1 mb-2">{% for s in psteps[:8] %}<span class="badge text-bg-light border fw-normal"><i class="fa-solid {{ types[s.type][1] }} me-1"></i>{{ s.name | truncate(24) }}</span>{% endfor %}{% if psteps | length > 8 %}<span class="badge text-bg-light border fw-normal">+{{ psteps | length - 8 }}</span>{% endif %}</div>
+      <div class="small text-secondary"><i class="fa-regular fa-file-lines me-1"></i>{{ u.forms | length }} Antragsformular(e){% if u.running %} · <i class="fa-solid fa-gears ms-1 me-1"></i>{{ u.running }} laufende Vorgänge{% endif %}</div>
+    </div>
+  </div></div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card mb-5"><div class="card-body text-center py-5">
+  <i class="fa-solid fa-diagram-project fa-3x text-secondary mb-3"></i>
+  <h2 class="h5">Noch keine Prozesse</h2>
+  <p class="text-secondary mx-auto" style="max-width: 36rem">Beginnen Sie mit einer Vorlage – z. B. „Prüfung, Freigabe und Bescheid“ – und passen Sie die Schritte an. Danach ordnen Sie den Prozess im Reiter „Antrag“ eines Formulars zu.</p>
+  <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#new-modal"><i class="fa-solid fa-plus me-1"></i>Ersten Prozess anlegen</button>
+</div></div>
+{% endif %}
+
+<h2 class="h5 mb-1" id="vorlagen"><i class="fa-solid fa-file-circle-question me-2"></i>Vorlagen für Nachforderungen</h2>
+<p class="text-secondary small">Häufige Nachforderungen (z. B. „Lageplan nachreichen“) einmal anlegen – im Vorgang sind sie dann mit einem Klick auswählbar.</p>
+<div class="row g-3">
+  {% for t in request_templates %}
+  <div class="col-12 col-xl-6"><form method="post" action="/processes/templates" class="card h-100"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ t.id }}"><input type="hidden" name="items_json" id="tpl-items-{{ t.id }}">
+    <div class="card-body">
+      <div class="row g-2 mb-2"><div class="col-sm-8"><input class="form-control form-control-sm fw-semibold" name="name" value="{{ t.name }}" required aria-label="Name"></div>
+        <div class="col-sm-4"><div class="input-group input-group-sm"><input class="form-control" type="number" min="1" max="365" name="due_days" value="{{ t.due_days }}" aria-label="Frist in Tagen"><span class="input-group-text">Tage</span></div></div></div>
+      <textarea class="form-control form-control-sm mb-2" name="message" rows="2" placeholder="Nachricht an die antragstellende Person">{{ t.message }}</textarea>
+      <div data-field-list="fl-config" data-target="tpl-items-{{ t.id }}" data-items="{{ t.schema_json }}"></div>
+    </div>
+    <div class="card-footer d-flex gap-2"><button class="btn btn-sm btn-primary" name="action" value="save" type="submit">Speichern</button>
+      <button class="btn btn-sm btn-outline-danger ms-auto" name="action" value="delete" type="submit" formnovalidate data-confirm-title="Vorlage löschen?" data-confirm="Bereits gestellte Nachforderungen bleiben erhalten." data-confirm-button="Löschen">Löschen</button></div>
+  </form></div>
+  {% endfor %}
+  <div class="col-12 col-xl-6"><form method="post" action="/processes/templates" class="card h-100" style="border-style: dashed"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="items_json" id="tpl-items-new">
+    <div class="card-header small fw-semibold"><i class="fa-solid fa-plus me-1"></i>Neue Vorlage</div>
+    <div class="card-body">
+      <div class="row g-2 mb-2"><div class="col-sm-8"><input class="form-control form-control-sm" name="name" placeholder="z. B. Lageplan nachreichen" required aria-label="Name"></div>
+        <div class="col-sm-4"><div class="input-group input-group-sm"><input class="form-control" type="number" min="1" max="365" name="due_days" value="14" aria-label="Frist in Tagen"><span class="input-group-text">Tage</span></div></div></div>
+      <textarea class="form-control form-control-sm mb-2" name="message" rows="2" placeholder="Nachricht an die antragstellende Person"></textarea>
+      <div data-field-list="fl-config" data-target="tpl-items-new"></div>
+    </div>
+    <div class="card-footer"><button class="btn btn-sm btn-primary" name="action" value="save" type="submit">Vorlage anlegen</button></div>
+  </form></div>
+</div>
+<script type="application/json" id="fl-config">{{ {'types': fl_types, 'subtypes': fl_subtypes, 'order': fl_order} | tojson }}</script>
+
+<div class="modal fade" id="new-modal" tabindex="-1" aria-labelledby="new-title" aria-hidden="true"><div class="modal-dialog modal-lg"><form class="modal-content" method="post" action="/processes/new">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="modal-header"><h2 class="modal-title h5" id="new-title">Neuer Prozess</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+  <div class="modal-body">
+    <label class="form-label" for="np-name">Name</label>
+    <input class="form-control mb-3" id="np-name" name="name" placeholder="z. B. Sondernutzungserlaubnis" maxlength="200">
+    <div class="form-label">Startpunkt</div>
+    <div class="d-grid gap-2">
+      <label class="card card-body flex-row gap-3 align-items-start mb-0" style="cursor: pointer"><input class="form-check-input mt-1" type="radio" name="template" value="" checked><div><strong>Leer</strong><div class="small text-secondary">Sie fügen die Schritte selbst hinzu.</div></div></label>
+      {% for key, t in templates.items() %}
+      <label class="card card-body flex-row gap-3 align-items-start mb-0" style="cursor: pointer"><input class="form-check-input mt-1" type="radio" name="template" value="{{ key }}"><div><strong>{{ t[0] }}</strong><div class="small text-secondary">{{ t[1] }}</div>
+        <div class="d-flex flex-wrap gap-1 mt-1">{% for s in t[2].steps %}<span class="badge text-bg-light border fw-normal"><i class="fa-solid {{ types[s.type][1] }} me-1"></i>{{ s.name }}</span>{% endfor %}</div></div></label>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button><button class="btn btn-primary" type="submit">Anlegen und bearbeiten</button></div>
+</form></div></div>
+
+<div class="modal fade" id="import-modal" tabindex="-1" aria-labelledby="imp-title" aria-hidden="true"><div class="modal-dialog"><form class="modal-content" method="post" action="/processes/import" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="modal-header"><h2 class="modal-title h5" id="imp-title">Prozess importieren</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+  <div class="modal-body"><input class="form-control" type="file" name="file" accept=".json,application/json" required aria-label="JSON-Datei">
+    <div class="form-text">Datei aus „Exportieren“ – z. B. von einer anderen Verbandsgemeinde. Zuständigkeiten werden zurückgesetzt und müssen neu gewählt werden.</div></div>
+  <div class="modal-footer"><button class="btn btn-primary" type="submit">Importieren</button></div>
+</form></div></div>
+{% endblock %}
+{% block scripts %}<script src="/static/field-list.js"></script>{% endblock %}

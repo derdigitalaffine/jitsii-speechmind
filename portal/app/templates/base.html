@@ -113,7 +113,11 @@
             <li class="nav-section">Formulare</li>
             {{ m.nav_item('/forms', 'fa-clipboard-list', 'Formulare' if user.can('forms') else 'Geteilte Formulare', path == '/forms' or (path.startswith('/forms/') and not path.startswith('/forms/inbox') and '/applications' not in path)) }}
             {{ m.nav_item('/forms/inbox', 'fa-inbox', 'Zum Ausfüllen', path.startswith('/forms/inbox')) }}
-            {% if 'applications' in modules %}{{ m.nav_item('/forms/applications', 'fa-file-signature', 'Antragseingang', '/applications' in path) }}{% endif %}
+            {% if 'applications' in modules %}
+            <li class="nav-item"><a class="nav-link {{ 'active' if path.startswith('/tasks') }}" href="/tasks" {% if path.startswith('/tasks') %}aria-current="page"{% endif %}><i class="fa-solid fa-list-check"></i><span>Meine Aufgaben</span>{% if task_badge %}<span class="badge rounded-pill text-bg-danger ms-auto" title="{{ task_badge }} offene Arbeitsschritte">{{ task_badge }}</span>{% endif %}</a></li>
+            {{ m.nav_item('/forms/applications', 'fa-file-signature', 'Antragseingang', '/applications' in path) }}
+            {% if user.can('processes') %}{{ m.nav_item('/processes', 'fa-diagram-project', 'Prozesse', path.startswith('/processes')) }}{% endif %}
+            {% endif %}
             {% endif %}
             {% if 'maps' in modules %}
             <li class="nav-section">Karten</li>
