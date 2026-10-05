@@ -65,6 +65,8 @@
     {% if task.kind == 'request' and task.state == 'open' %}
       <p class="mb-2"><i class="fa-solid fa-file-circle-question me-1 text-warning"></i>Stellen Sie zusammen, was nachgefordert werden soll. Der Prozess schlägt Felder vor; Sie können eine Vorlage wählen, Felder ergänzen oder Angaben aus dem Antrag zur Korrektur öffnen.</p>
       {% if can_work or level >= 2 %}<button class="btn btn-primary js-compose" type="button" data-bs-toggle="modal" data-bs-target="#req-modal"><i class="fa-solid fa-file-circle-question me-1"></i>Nachforderung zusammenstellen</button>{% endif %}
+    {% elif task.kind == 'payment' %}
+      <p class="mb-2"><i class="fa-solid fa-euro-sign me-1 text-warning"></i>Wartet auf die Zahlung{% if task.due_at %} (Frist {{ task.due_at | local('%d.%m.%Y') }}){% endif %}. Danach geht es automatisch weiter – auch wenn Sie die Zahlung unten von Hand als bezahlt markieren.</p>
     {% elif task.kind == 'confirm' %}
       <p class="mb-2"><i class="fa-solid fa-envelope-circle-check me-1 text-warning"></i>Wartet darauf, dass die antragstellende Person ihre E-Mail-Adresse bestätigt{% if task.due_at %} (bis {{ task.due_at | local('%d.%m.%Y') }}){% endif %}{% if task.reminded_at %} · erinnert am {{ task.reminded_at | local('%d.%m.%Y') }}{% endif %}. Danach geht es automatisch weiter.</p>
       {% if level >= 2 %}
@@ -237,6 +239,7 @@
   </div>
 
   <div class="col-12 col-xxl-5">
+    {% for ctx in case_payments %}{% with pay_p = ctx.pay_p, pay_money = ctx.pay_money, pay_statuses = ctx.pay_statuses, pay_methods = ctx.pay_methods, pay_manage = ctx.pay_manage, pay_next = ctx.pay_next %}{% include "_payment_box.html" %}{% endwith %}{% endfor %}
     {% if level >= 2 %}
     <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-flag me-2"></i>Status ändern</div><div class="card-body">
       <form method="post" action="{{ act }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="status">

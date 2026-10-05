@@ -180,7 +180,11 @@ def application_detail(request: Request, form_id: int, resp_id: int, user: User 
                     for f in fm.geo_features(answers.get(q["id"]), q.get("title") or "Ort")]
     from .routes_maps import map_bundle
     import json
-    return render(request, "application.html", user, resp=resp, form=resp.form, level=level, items=items,
+    from . import fees, payments as pay
+    case_payments = [p for p in [fees.payment_of(db, resp)] + [workflow.payment_of_task(db, t) for t in resp.tasks
+                                                                if t.kind == "payment"] if p is not None]
+    case_payments = [pay.box(db, user, p, f"/forms/{resp.form_id}/applications/{resp.id}") for p in case_payments]
+    return render(request, "application.html", user, resp=resp, form=resp.form, level=level, items=items, case_payments=case_payments,
                   questions=fm.questions(items), display=fm.display, statuses=apps.STATUSES, closed=apps.CLOSED,
                   users=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(),
                   groups=db.scalars(select(Group).order_by(Group.name)).all(), now=utcnow(),
@@ -274,7 +278,8 @@ def application_status(request: Request, token: str, db: Session = Depends(get_d
                       events=[e for e in resp.events if e.public], progress=workflow.progress(resp),
                       open_requests=workflow.open_requests(resp), current=workflow.current_answers(resp),
                       confirm_task=workflow.open_confirm(resp), applicant=apps.applicant_email(resp.form, resp),
-                      corrections=workflow.corrections(resp), documents=[d for d in resp.documents if d.public])
+                      corrections=workflow.corrections(resp), documents=[d for d in resp.documents if d.public],
+                      open_payments=_open_payments(db, resp), money=_money)
     response.headers["Cache-Control"] = "no-store"
     response.headers["Referrer-Policy"] = "no-referrer"   # geheimer Link soll nicht weitergegeben werden
     return response
@@ -358,3 +363,15 @@ def applications_settings(request: Request, apps_embed: str = FormField(""), app
     flash(request, "Einstellungen zum Antragskatalog gespeichert.")
     return redirect("/forms/applications#katalog")
 
+
+
+
+def _open_payments(db, resp):
+    from . import fees
+    found = [fees.payment_of(db, resp)] + [workflow.payment_of_task(db, t) for t in resp.tasks if t.kind == "payment"]
+    return [p for p in found if p is not None and p.status in ("open", "pending")]
+
+
+def _money(cents):
+    from .payments import money
+    return money(cents)

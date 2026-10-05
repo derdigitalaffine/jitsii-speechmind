@@ -410,6 +410,7 @@ class Form(Base):
     app_seq: Mapped[int] = mapped_column(Integer, default=0)
     process_id: Mapped[int | None] = mapped_column(ForeignKey("processes.id", ondelete="SET NULL"), nullable=True)
     dms_area_id: Mapped[int | None] = mapped_column(ForeignKey("dms_areas.id", ondelete="SET NULL"), nullable=True)
+    fee_json: Mapped[str] = mapped_column(Text, default="{}")        # Gebühr beim Absenden (siehe fees.py)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -1824,7 +1825,8 @@ _NEW_COLUMNS = {
               "app_seq": "INTEGER NOT NULL DEFAULT 0",
               "process_id": "INTEGER REFERENCES processes(id) ON DELETE SET NULL",
               "review": "BOOLEAN NOT NULL DEFAULT 1",
-              "dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL"},
+              "dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL",
+              "fee_json": "TEXT NOT NULL DEFAULT '{}'"},
     "form_responses": {"ref_no": "VARCHAR(40)", "status": "VARCHAR(16) NOT NULL DEFAULT ''", "status_at": "DATETIME",
                        "assignee_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
                        "group_id": "INTEGER REFERENCES groups(id) ON DELETE SET NULL",
