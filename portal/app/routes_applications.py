@@ -153,8 +153,8 @@ def application_detail(request: Request, form_id: int, resp_id: int, user: User 
     task = workflow.open_task(resp)
     step = workflow.step_of(task) if task else None
     answers = workflow.current_answers(resp)
-    geo_features = [f for f in (fm.geo_feature(answers.get(q["id"]), q.get("title") or "Ort")
-                                for q in fm.questions(items) if q["type"] == "geo") if f]
+    geo_features = [f for q in fm.questions(items) if q["type"] == "geo"
+                    for f in fm.geo_features(answers.get(q["id"]), q.get("title") or "Ort")]
     from .routes_maps import map_bundle
     import json
     return render(request, "application.html", user, resp=resp, form=resp.form, level=level, items=items,

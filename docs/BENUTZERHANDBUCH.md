@@ -446,7 +446,7 @@ Menü **Formulare** (Recht „Formulare“). Damit bauen Sie Umfragen, Anmeldung
 | **Lineare Skala** | Zufriedenheit, Bewertung | von 0 oder 1 bis 2–10, Beschriftung links/rechts |
 | **Farbe** | Farbwahl | – |
 | **Datei-Upload** | Nachweise, Fotos, Anträge | erlaubte Dateiendungen (z. B. `pdf, jpg, png`), größte Datei (bis 20 MB), Anzahl Dateien (bis 10) |
-| **Ort in der Karte** | **Punkt:** Ort eines Schadens, Standort einer Veranstaltung · **Linie:** Leitungstrasse, Umleitungsstrecke · **Fläche:** Baufläche, Sondernutzungsfläche | Was wird erfasst (Punkt, Linie, Fläche), Knopf für den Standort des Geräts (bei Linie/Fläche als nächster Eckpunkt – z. B. beim Abgehen einer Grenze), bei Punkten Felder für Breite und Länge. Länge und Fläche werden automatisch berechnet |
+| **Ort in der Karte** | **Punkt:** Ort eines Schadens · **Linie:** Leitungstrasse, Umleitung · **Fläche:** Baufläche, Sondernutzungsfläche – auch kombiniert | **Was darf eingezeichnet werden** (Punkt, Linie, Fläche – beliebig ankreuzen), **wie viele Objekte höchstens**, GPS-Knöpfe beim Einzeichnen (Punkt am Standort, Standort als Eckpunkt), bei einem einzelnen Punkt Felder für Breite/Länge, **Eigenen Standort zusätzlich erfassen** (unabhängig vom Eingezeichneten, wahlweise Pflicht). Länge und Fläche werden automatisch berechnet |
 
 Jede Frage hat einen **Titel**, eine optionale **Beschreibung** (Hilfetext) und den Schalter **Pflichtfeld**.
 

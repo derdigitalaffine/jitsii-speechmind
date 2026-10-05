@@ -110,6 +110,14 @@ templates.env.globals.update(brand=settings.brand_name, product=settings.brand_p
 templates.env.globals["themes"] = branding.THEMES
 templates.env.globals["permissions"] = PERMISSIONS
 # Rechte, deren Modul anders heißt als das Recht (für die Auswahl in der Benutzerverwaltung)
+def _forms_mod():
+    from . import forms
+    return forms
+
+
+templates.env.filters["geocenter"] = lambda v: _forms_mod().geo_center(v)
+templates.env.filters["geoinput"] = lambda v: _forms_mod().geo_input(v)
+templates.env.globals["geo_position"] = lambda v, raw="": _forms_mod().geo_position(v, raw)
 templates.env.globals["perm_modules"] = {"processes": "applications"}
 templates.env.globals.update(planning_when=planning.when, cancel_recipients=planning.cancel_recipients, local_input=planning.local_input,
                              is_upcoming=planning.is_upcoming, rsvp_labels=planning.RSVP_LABELS,
@@ -237,6 +245,11 @@ async def _security_headers(request: Request, call_next):
     if request.url.path.startswith(("/admin", "/profile", "/login", "/invite", "/laws")) and \
             response.headers.get("content-type", "").startswith("text/html"):
         response.headers.setdefault("Cache-Control", "no-store")   # keine Verwaltungsseiten im Browser-Cache
+    if request.url.path.startswith("/static/"):
+        # Eigene Skripte/Stile nach einem Update sofort neu laden (Browser fragt mit ETag nach, meist 304);
+        # Bibliotheken unter vendor/ ändern sich selten und dürfen einen Tag im Cache bleiben.
+        response.headers.setdefault("Cache-Control", "public, max-age=86400" if request.url.path.startswith("/static/vendor/")
+                                    else "no-cache")
     return response
 
 

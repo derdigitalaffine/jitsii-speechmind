@@ -4,7 +4,7 @@
 {% macro value_html(q, value, resp) -%}
 {%- if q.type == 'file' and value -%}
   {%- for f in value %}<a href="/forms/{{ form.id }}/responses/{{ resp.id }}/files/{{ f.file }}" class="d-block text-truncate"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a>{% endfor -%}
-{%- elif q.type == 'geo' and value is mapping -%}{% set c = value.center if value.center else [value.lon, value.lat] %}<a href="https://www.openstreetmap.org/?mlat={{ c[1] }}&mlon={{ c[0] }}#map=17/{{ c[1] }}/{{ c[0] }}" target="_blank" rel="noopener" title="In OpenStreetMap öffnen"><i class="fa-solid {{ 'fa-draw-polygon' if value.type == 'polygon' else ('fa-route' if value.type == 'line' else 'fa-location-dot') }} me-1"></i>{{ display(q, value) }}</a>
+{%- elif q.type == 'geo' and value is mapping -%}{% set c = value | geocenter %}{% if c %}<a href="https://www.openstreetmap.org/?mlat={{ c[1] }}&mlon={{ c[0] }}#map=17/{{ c[1] }}/{{ c[0] }}" target="_blank" rel="noopener" title="In OpenStreetMap öffnen"><i class="fa-solid fa-map-location-dot me-1"></i>{{ display(q, value) }}</a>{% else %}{{ display(q, value) }}{% endif %}
 {%- elif q.type == 'color' and value -%}<span class="d-inline-block rounded border me-1 align-middle" style="width:1rem;height:1rem;background:{{ value }}"></span>{{ value }}
 {%- else -%}{{ display(q, value) }}{%- endif -%}
 {%- endmacro %}

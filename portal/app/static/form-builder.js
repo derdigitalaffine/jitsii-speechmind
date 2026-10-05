@@ -36,7 +36,7 @@
     }
     if (type === 'scale') { it.min = 1; it.max = 5; it.low_label = ''; it.high_label = ''; }
     if (type === 'file') { it.file_types = []; it.max_size_mb = Math.min(10, data.maxFileMb); it.max_files = 1; }
-    if (type === 'geo') { it.title = 'Ort'; it.geometry = 'point'; it.allow_gps = true; it.show_inputs = true; }
+    if (type === 'geo') { it.title = 'Ort'; it.geometries = ['point']; it.max_features = 1; it.allow_gps = true; it.show_inputs = true; it.capture_location = false; }
     if (type === 'heading') { it.title = 'Abschnitt'; }
     if (type === 'pagebreak') { it.title = ''; }
     return it;
@@ -108,13 +108,21 @@
         h += field('Beschriftung rechts', input('high_label', it.high_label, 'placeholder="z. B. sehr zufrieden"'), 'md-4');
         break;
       case 'geo':
-        h += field('Was wird erfasst?', '<select class="form-select form-select-sm" data-key="geometry">' +
-          [['point', 'Punkt (z. B. Standort, Fundort)'], ['line', 'Linie (z. B. Leitungstrasse, Wegstrecke)'], ['polygon', 'Fläche (z. B. Baufläche, Sondernutzungsfläche)']].map(function (g) {
-            return '<option value="' + g[0] + '"' + ((it.geometry || 'point') === g[0] ? ' selected' : '') + '>' + g[1] + '</option>'; }).join('') + '</select>');
-        h += '<div class="col-12 d-flex flex-wrap gap-3 small">' + switchHtml('allow_gps', (it.geometry || 'point') === 'point' ? 'Knopf „Meinen Standort verwenden“ (GPS des Geräts)' : 'Knopf „Standort als Punkt“ (GPS, z. B. beim Abgehen einer Grenze)', it.allow_gps !== false) +
-          ((it.geometry || 'point') === 'point' ? switchHtml('show_inputs', 'Felder für Breite und Länge anzeigen', it.show_inputs !== false) : '') + '</div>' +
-          ((it.geometry || 'point') !== 'point' ? '<div class="col-12 small text-secondary"><i class="fa-solid fa-ruler me-1"></i>Länge bzw. Fläche wird automatisch berechnet und mit der Antwort gespeichert.</div>' : '') +
-          '<div class="col-12 small text-secondary"><i class="fa-solid fa-map me-1"></i>Die Karte zeigt die Grundkarten, die unter Verwaltung › Kartenlayer für Formulare freigegeben sind.</div>';
+        var geoms = it.geometries || [it.geometry || 'point'];
+        h += '<div class="col-12"><div class="form-label small mb-1">Was darf eingezeichnet werden?</div><div class="d-flex flex-wrap gap-3 small">' +
+          [['point', 'Punkt', 'z. B. Standort, Fundort'], ['line', 'Linie', 'z. B. Trasse, Wegstrecke'], ['polygon', 'Fläche', 'z. B. Baufläche']].map(function (g) {
+            var id = 'geo-' + g[0] + '-' + uid();
+            return '<div class="form-check"><input class="form-check-input" type="checkbox" id="' + id + '" data-geom="' + g[0] + '"' + (geoms.indexOf(g[0]) >= 0 ? ' checked' : '') + '>' +
+              '<label class="form-check-label" for="' + id + '"><strong>' + g[1] + '</strong> <span class="text-secondary">(' + g[2] + ')</span></label></div>';
+          }).join('') + '</div></div>';
+        h += field('Wie viele Objekte höchstens?', input('max_features', it.max_features || 1, 'type="number" min="1" max="50"'), 'md-3');
+        h += '<div class="col-12 d-flex flex-wrap gap-3 small">' +
+          switchHtml('allow_gps', 'GPS-Knöpfe beim Einzeichnen („Punkt an meinem Standort“, „Standort als Eckpunkt“)', it.allow_gps !== false) +
+          (geoms.length === 1 && geoms[0] === 'point' && Number(it.max_features || 1) === 1 ? switchHtml('show_inputs', 'Felder für Breite und Länge anzeigen', it.show_inputs !== false) : '') + '</div>';
+        h += '<div class="col-12"><div class="border rounded p-2 small"><div class="d-flex flex-wrap gap-3">' +
+          switchHtml('capture_location', '<strong>Eigenen Standort zusätzlich erfassen</strong> – Knopf „Meinen Standort erfassen“, unabhängig vom Eingezeichneten (z. B. wo die meldende Person steht)', it.capture_location) +
+          (it.capture_location ? switchHtml('location_required', 'Standort ist Pflicht', it.location_required) : '') + '</div></div></div>' +
+          '<div class="col-12 small text-secondary"><i class="fa-solid fa-ruler me-1"></i>Länge und Fläche werden automatisch berechnet. Die Karte zeigt die Grundkarten, die unter Verwaltung › Kartenlayer für Formulare freigegeben sind.</div>';
         break;
       case 'file':
         h += field('Erlaubte Dateiendungen', input('file_types', (it.file_types || []).join(', '), 'placeholder="leer = alle, z. B. pdf, jpg, png, docx"'));
@@ -263,6 +271,7 @@
       if (key === 'file_types') { val = val.split(/[\s,;]+/).filter(Boolean); }
       f.item[key] = val;
       if (key === 'subtype' || el.tagName === 'SELECT') { render(); }
+      if (key === 'max_features') { f.item.max_features = parseInt(val, 10) || 1; }
     } else if (el.hasAttribute('data-option')) {
       readOptions(f.item, f.card);
     } else if (el.dataset.flag) {
@@ -272,6 +281,14 @@
   });
   list.addEventListener('change', function (ev) {
     var f = find(ev.target);
+    if (f && ev.target.dataset.geom) {
+      var boxes = f.card.querySelectorAll('[data-geom]');
+      var chosen = Array.prototype.filter.call(boxes, function (b) { return b.checked; }).map(function (b) { return b.dataset.geom; });
+      if (!chosen.length) { ev.target.checked = true; return; }   // mindestens eine Art
+      f.item.geometries = chosen; delete f.item.geometry;
+      markDirty(); render(); return;
+    }
+    if (f && (ev.target.dataset.flag === 'capture_location')) { f.item.capture_location = ev.target.checked; markDirty(); render(); return; }
     if (f && ev.target.dataset.flag) { f.item[ev.target.dataset.flag] = ev.target.checked; markDirty(); }
     if (f && ev.target.tagName === 'SELECT' && ev.target.dataset.key) { f.item[ev.target.dataset.key] = ev.target.value; render(); markDirty(); }
   });
