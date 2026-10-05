@@ -119,7 +119,7 @@ templates.env.filters["geocenter"] = lambda v: _forms_mod().geo_center(v)
 templates.env.filters["geoinput"] = lambda v: _forms_mod().geo_input(v)
 templates.env.globals["geo_position"] = lambda v, raw="": _forms_mod().geo_position(v, raw)
 templates.env.globals["perm_modules"] = {"processes": "applications", "app_create": "applications", "formblocks": "forms",
-                                         "dms_admin": "dms"}
+                                         "dms_admin": "dms", "votes": "polls"}
 templates.env.globals.update(planning_when=planning.when, cancel_recipients=planning.cancel_recipients, local_input=planning.local_input,
                              is_upcoming=planning.is_upcoming, rsvp_labels=planning.RSVP_LABELS,
                              rsvp_summary=planning.rsvp_summary)
@@ -147,7 +147,7 @@ templates.env.filters["local"] = lambda dt, fmt="%d.%m.%Y, %H:%M": to_local(dt).
 MODULES = {
     "shortlinks": ("Kurzlinks & QR-Codes", "module_shortlinks", ("/shortlinks", "/s/", "/s")),
     "forms": ("Formulare", "module_forms", ("/forms", "/f/")),
-    "polls": ("Terminumfragen", "module_polls", ("/polls", "/t/")),
+    "polls": ("Umfragen & Abstimmungen", "module_polls", ("/polls", "/t/", "/votes", "/v/")),
     "bookings": ("Terminbuchung", "module_bookings", ("/bookings", "/b/")),
     "laws": ("Rechtstexte", "module_laws", ("/laws", "/recht")),
     "maps": ("Kartenbrowser", "module_maps", ("/karte", "/maps")),
@@ -374,12 +374,12 @@ def flash(request: Request, message: str, kind: str = "ok") -> None:
 
 def _shared_nav(user: User | None) -> set[str]:
     """Bereiche, die im Menü erscheinen, weil etwas mit der Person geteilt wurde (ohne eigenes Recht)."""
-    if user is None or user.is_admin or (user.can("polls") and user.can("bookings")):
+    kinds = (("polls", "poll"), ("bookings", "booking"), ("votes", "vote"))
+    if user is None or user.is_admin or all(user.can(k) for k, _ in kinds):
         return set()
     from . import shares
     with SessionLocal() as db:
-        return {kind for kind, perm in (("polls", "poll"), ("bookings", "booking"))
-                if not user.can(kind) and shares.has_any(db, perm, user)}
+        return {kind for kind, perm in kinds if not user.can(kind) and shares.has_any(db, perm, user)}
 
 
 def _task_badge(user: User | None) -> int:
@@ -2259,3 +2259,4 @@ from . import routes_sessions  # noqa: E402,F401
 from . import routes_laws  # noqa: E402,F401
 from . import routes_maps  # noqa: E402,F401
 from . import routes_payments  # noqa: E402,F401
+from . import routes_votes  # noqa: E402,F401

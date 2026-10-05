@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ vote.title }} · Abstimmungen{% endblock %}
+{% block content %}
+{% set st = statuses[vote.status] %}
+<nav aria-label="Pfad" class="small mb-2"><a href="/votes">Abstimmungen</a> › {{ vote.title }}</nav>
+{% call m.page_head(vote.title, vote.description) %}
+  {% if level >= 2 and vote.status != 'closed' %}<a class="btn btn-outline-secondary" href="/votes/{{ vote.id }}/live"><i class="fa-solid fa-tv me-1"></i>Live-Modus</a>{% endif %}
+  {% if level >= 3 %}<a class="btn btn-outline-secondary" href="/votes/{{ vote.id }}/edit"><i class="fa-solid fa-pen me-1"></i>Bearbeiten</a>{% endif %}
+  <div class="dropdown"><button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Weitere Aktionen"><i class="fa-solid fa-ellipsis"></i></button>
+    <ul class="dropdown-menu dropdown-menu-end">
+      <li><a class="dropdown-item" href="/votes/{{ vote.id }}/protocol.pdf" target="_blank"><i class="fa-regular fa-file-pdf me-2"></i>Ergebnisprotokoll (PDF)</a></li>
+      {% if vote.status == 'closed' or vote.results == 'live' %}<li><a class="dropdown-item" href="/votes/{{ vote.id }}/export.csv"><i class="fa-solid fa-file-csv me-2"></i>Stimmzettel (CSV)</a></li>{% endif %}
+      {% if user.can('votes') %}<li><form method="post" action="/votes/{{ vote.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item" type="submit"><i class="fa-regular fa-clone me-2"></i>Kopie anlegen</button></form></li>{% endif %}
+      {% if level >= 3 %}<li><hr class="dropdown-divider"></li><li><form method="post" action="/votes/{{ vote.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item text-danger" type="submit" data-confirm-title="Abstimmung löschen?" data-confirm="Alle Stimmzettel und das Wählerverzeichnis werden gelöscht." data-confirm-button="Löschen"><i class="fa-regular fa-trash-can me-2"></i>Löschen</button></form></li>{% endif %}
+    </ul></div>
+{% endcall %}
+
+<div class="card mb-4 border-{{ st[1] }}"><div class="card-body d-flex flex-wrap gap-4 align-items-center">
+  <div><div class="small text-secondary">Stand</div><span class="badge fs-6 text-bg-{{ st[1] }}">{% if vote.status == 'draft' and vote.opened_at %}angehalten{% else %}{{ st[0] }}{% endif %}</span></div>
+  <div><div class="small text-secondary">Art</div><strong>{{ secrecy[vote.secrecy][0] }}</strong></div>
+  <div><div class="small text-secondary">Stimmzettel</div><strong class="fs-5">{{ turnout.ballots }}</strong></div>
+  {% if vote.secrecy != 'anonymous' and turnout.eligible %}<div><div class="small text-secondary">Beteiligung</div><strong>{{ turnout.voted }} / {{ turnout.eligible }}</strong>{% if turnout.percent is not none %} <span class="text-secondary">({{ turnout.percent }} %)</span>{% endif %}</div>{% endif %}
+  {% if vote.ends_at %}<div><div class="small text-secondary">Ende</div>{{ vote.ends_at | local }}</div>{% endif %}
+  <div class="ms-auto d-flex gap-2">
+    {% if level >= 2 %}
+    {% if vote.status != 'open' and vote.status != 'closed' %}<form method="post" action="/votes/{{ vote.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="start"><button class="btn btn-success" type="submit"><i class="fa-solid fa-play me-1"></i>{{ 'Fortsetzen' if vote.opened_at else 'Abstimmung starten' }}</button></form>{% endif %}
+    {% if vote.status == 'open' %}<form method="post" action="/votes/{{ vote.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="pause"><button class="btn btn-outline-secondary" type="submit"><i class="fa-solid fa-pause me-1"></i>Anhalten</button></form>{% endif %}
+    {% endif %}
+    {% if level >= 3 and vote.status != 'closed' and vote.opened_at %}<form method="post" action="/votes/{{ vote.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="close"><button class="btn btn-danger" type="submit" data-confirm-title="Abstimmung beenden?" data-confirm="Danach kann niemand mehr abstimmen; das Ergebnis wird mit Prüfsumme festgeschrieben." data-confirm-button="Beenden"><i class="fa-solid fa-flag-checkered me-1"></i>Beenden</button></form>{% endif %}
+  </div>
+</div>
+{% if vote.result_hash %}<div class="card-footer small text-secondary text-break">Ergebnis festgeschrieben am {{ vote.closed_at | local }} · SHA-256 <span class="font-monospace">{{ vote.result_hash }}</span></div>{% endif %}
+</div>
+
+<div class="row g-4">
+  <div class="col-12 col-xxl-7">
+    <h2 class="h5 mb-3"><i class="fa-solid fa-chart-column me-2"></i>{{ 'Ergebnis' if vote.status == 'closed' else 'Zwischenstand' }}</h2>
+    {% include "_vote_results.html" %}
+    {% if named %}
+    <details class="card mb-3"><summary class="card-header"><i class="fa-solid fa-users me-2"></i>Stimmen mit Namen ({{ named | length }})</summary>
+      <div class="table-responsive"><table class="table table-sm small mb-0"><thead><tr><th>Name</th>{% for q in vote.questions %}<th>{{ loop.index }}.</th>{% endfor %}</tr></thead><tbody>
+        {% for name, cells in named %}<tr><td>{{ name }}</td>{% for c in cells %}<td>{% if c == 'Enthaltung' %}<span class="text-secondary">{{ c }}</span>{% else %}{{ c or '–' }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+      </tbody></table></div></details>
+    {% endif %}
+  </div>
+
+  <div class="col-12 col-xxl-5">
+    {% if level >= 2 %}
+    <div class="card mb-4" id="zugang"><div class="card-header"><i class="fa-solid fa-door-open me-2"></i>Zugang</div><div class="card-body small">
+      <div class="mb-2">{% for k in modes %}<span class="badge text-bg-light border me-1">{{ access[k][0] }}</span>{% endfor %}</div>
+      {% if 'public' in modes or 'codes' in modes %}
+      <label class="form-label fw-semibold" for="v-link">Öffentlicher Link{% if 'codes' in modes and 'public' not in modes %} (Code-Eingabe){% endif %}</label>
+      <div class="input-group input-group-sm mb-2"><input class="form-control" id="v-link" value="{{ public_link }}" readonly><button class="btn btn-outline-secondary" type="button" data-copy="#v-link" aria-label="Kopieren"><i class="fa-regular fa-copy"></i></button>
+        <a class="btn btn-outline-secondary" href="/votes/{{ vote.id }}/qr/public.svg" target="_blank" title="QR-Code"><i class="fa-solid fa-qrcode"></i></a></div>
+      {% endif %}
+      {% if vote.status == 'draft' and not vote.opened_at %}<p class="text-secondary mb-0">Der Link funktioniert ab dem Start. Einladungen gehen beim Start raus.</p>{% endif %}
+    </div></div>
+
+    <div class="card mb-4" id="waehler"><div class="card-header d-flex align-items-center"><i class="fa-solid fa-address-book me-2"></i><span class="flex-grow-1">Wählerverzeichnis</span>
+      {% if vote.status == 'open' %}<form method="post" action="/votes/{{ vote.id }}/remind"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-secondary" type="submit"><i class="fa-regular fa-bell me-1"></i>Offene erinnern</button></form>{% endif %}</div>
+      <form method="post" action="/votes/{{ vote.id }}/invite" class="card-body border-bottom small"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="row g-2">
+          <div class="col-md-6"><label class="form-label mb-1" for="inv-users">Benutzer:innen</label><select class="form-select form-select-sm js-select" data-search="1" id="inv-users" name="users" multiple>{% for u in users %}<option value="{{ u.id }}">{{ u.name }} ({{ u.email }})</option>{% endfor %}</select></div>
+          <div class="col-md-6"><label class="form-label mb-1" for="inv-groups">Gruppen</label><select class="form-select form-select-sm js-select" id="inv-groups" name="groups" multiple>{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select></div>
+          <div class="col-12"><label class="form-label mb-1" for="inv-mails">Weitere E-Mail-Adressen</label><textarea class="form-control form-control-sm" id="inv-mails" name="emails" rows="2" placeholder="eine je Zeile oder mit Komma getrennt"></textarea></div>
+          <div class="col-12"><button class="btn btn-sm btn-primary" type="submit"><i class="fa-solid fa-user-plus me-1"></i>Eintragen{{ ' und einladen' if vote.status == 'open' }}</button></div>
+        </div>
+      </form>
+      {% set listed = vote.voters | rejectattr('source', 'equalto', 'code') | list %}
+      {% if listed %}
+      <ul class="list-group list-group-flush small" style="max-height: 22rem; overflow: auto">
+        {% for v in listed %}<li class="list-group-item d-flex gap-2 align-items-center">
+          <span class="flex-grow-1 text-truncate">{{ v.name or v.email }} <span class="text-secondary">{{ v.email if v.name }}</span>
+            {% if v.source == 'public' %}<span class="badge text-bg-light border">öffentlich</span>{% endif %}</span>
+          {% if vote.secrecy == 'anonymous' %}<span class="text-secondary">–</span>
+          {% elif v.voted %}<span class="badge text-bg-success" title="am {{ v.voted_on.strftime('%d.%m.%Y') if v.voted_on }}"><i class="fa-solid fa-check me-1"></i>abgestimmt</span>
+          {% elif not v.confirmed %}<span class="badge text-bg-warning">nicht bestätigt</span>
+          {% else %}<span class="badge text-bg-light border">offen</span>{% endif %}
+          {% if not v.voted %}<form method="post" action="/votes/{{ vote.id }}/voters/{{ v.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger p-0" type="submit" title="Entfernen" aria-label="Aus dem Wählerverzeichnis entfernen"><i class="fa-solid fa-xmark"></i></button></form>{% endif %}
+        </li>{% endfor %}
+      </ul>
+      {% else %}<div class="card-body small text-secondary pt-0">Noch niemand eingetragen.</div>{% endif %}
+    </div>
+
+    <div class="card mb-4" id="codes"><div class="card-header d-flex align-items-center"><i class="fa-solid fa-ticket me-2"></i><span class="flex-grow-1">Zugangscodes ({{ codes | length }}{% if codes %}, davon {{ codes | selectattr('voted') | list | length }} benutzt{% endif %})</span>
+      {% if codes %}<a class="btn btn-sm btn-outline-secondary" href="/votes/{{ vote.id }}/codes/print" target="_blank"><i class="fa-solid fa-print me-1"></i>Drucken</a>{% endif %}</div>
+      <form method="post" action="/votes/{{ vote.id }}/codes" class="card-body small d-flex flex-wrap gap-2 align-items-end"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <div><label class="form-label mb-1" for="c-n">Anzahl</label><input class="form-control form-control-sm" style="width: 6rem" type="number" min="1" max="2000" id="c-n" name="count" value="20"></div>
+        <div class="flex-grow-1"><label class="form-label mb-1" for="c-l">Vermerk (optional)</label><input class="form-control form-control-sm" id="c-l" name="label" placeholder="z. B. Sitzung 14.10."></div>
+        <button class="btn btn-sm btn-outline-primary" type="submit"><i class="fa-solid fa-plus me-1"></i>Codes erzeugen</button>
+        <div class="form-text w-100">Jeder Code gilt für genau eine Stimme. Ausgedruckt mit QR-Code; eingeben unter dem öffentlichen Link.</div>
+      </form>
+    </div>
+    {% endif %}
+
+    {% if dms_areas %}
+    <form method="post" action="/votes/{{ vote.id }}/dms" class="card mb-4"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="card-body small"><div class="fw-semibold mb-2"><i class="fa-solid fa-box-archive me-1"></i>Ergebnisprotokoll in die Ablage</div>
+        <div class="input-group input-group-sm"><select class="form-select" name="area_id" aria-label="Ablagebereich">{% for a, d in dms_areas %}<option value="{{ a.id }}">{{ '  ' * d }}{{ a.code ~ ' ' if a.code }}{{ a.name }}</option>{% endfor %}</select>
+          <button class="btn btn-outline-primary" type="submit">Ablegen</button></div>
+        <div class="form-text">{{ 'Legt das PDF mit Prüfsumme ab.' if vote.status == 'closed' else 'Achtung: Die Abstimmung läuft noch – abgelegt wird der Zwischenstand.' }}</div></div>
+    </form>
+    {% endif %}
+
+    {% if level == 4 %}
+    <div class="card" id="teilen"><div class="card-header"><i class="fa-solid fa-share-nodes me-2"></i>Im Portal freigeben</div><div class="card-body small">
+      <form method="post" action="/votes/{{ vote.id }}/shares" class="row g-2 mb-2"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="col-md-6"><select class="form-select form-select-sm js-select" data-search="1" name="users" multiple aria-label="Personen">{% for u in users if u.id != vote.owner_id %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</select></div>
+        <div class="col-md-6"><select class="form-select form-select-sm js-select" name="groups" multiple aria-label="Gruppen">{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select></div>
+        <div class="col-8"><select class="form-select form-select-sm" name="level" aria-label="Stufe">{% for k, l in share_levels.items() %}<option value="{{ k }}">{{ l[0] }} – {{ l[1] }}</option>{% endfor %}</select></div>
+        <div class="col-4"><button class="btn btn-sm btn-outline-primary w-100" type="submit">Freigeben</button></div>
+      </form>
+      <ul class="list-group">{% for s in vote.shares %}<li class="list-group-item d-flex gap-2 align-items-center"><span class="flex-grow-1">{% if s.user %}<i class="fa-regular fa-user me-1"></i>{{ s.user.name }}{% else %}<i class="fa-solid fa-users me-1"></i>{{ s.group.name }}{% endif %}</span>
+        <form method="post" action="/votes/{{ vote.id }}/shares/{{ s.id }}" class="d-flex gap-1"><input type="hidden" name="csrf" value="{{ csrf }}"><select class="form-select form-select-sm" name="level" aria-label="Stufe">{% for k, l in share_levels.items() %}<option value="{{ k }}" {% if s.level == k %}selected{% endif %}>{{ l[0] }}</option>{% endfor %}</select><button class="btn btn-sm btn-outline-secondary" name="action" value="save" type="submit">OK</button><button class="btn btn-sm btn-outline-danger" name="action" value="delete" type="submit" aria-label="Freigabe entfernen"><i class="fa-solid fa-xmark"></i></button></form></li>
+      {% else %}<li class="list-group-item text-secondary">Noch nicht freigegeben.</li>{% endfor %}</ul>
+    </div></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/chartjs/chart.umd.min.js"></script>
+<script src="/static/charts.js"></script>
+{% endblock %}

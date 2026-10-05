@@ -1,0 +1,13 @@
+{# Ergebnis je Frage. Erwartet: results (Liste aus votes.tally), kinds #}
+{% for q in results %}
+<div class="card mb-3"><div class="card-body">
+  <div class="d-flex flex-wrap gap-2 align-items-baseline mb-2"><h3 class="h6 mb-0 flex-grow-1">{{ loop.index }}. {{ q.title }}</h3>
+    <span class="small text-secondary">{{ kinds[q.kind][0] }} · {{ q.valid }} gültig{% if q.abstain %} · {{ q.abstain }} Enthaltung{{ 'en' if q.abstain != 1 }}{% endif %}</span></div>
+  {% if q.valid %}
+  <div style="height: {{ [120, 30 * (q['items'] | length) + 30] | max }}px"><canvas data-chart='{{ {"type": "bar", "horizontal": True, "labels": q.chart['labels'], "values": q.chart['values']} | tojson }}' aria-label="Diagramm: {{ q.title }}"></canvas></div>
+  <table class="table table-sm small mt-2 mb-0"><thead><tr><th>Antwort</th><th class="text-end">{{ q.unit[1] }}</th><th class="text-end">Anteil</th>{% if q.kind == 'rank' %}<th class="text-end">Platz 1</th><th class="text-end">Ø Platz</th>{% endif %}</tr></thead><tbody>
+    {% for it in q['items'] %}<tr class="{{ 'fw-semibold' if it.id in q.winners }}"><td>{% if it.id in q.winners %}<i class="fa-solid fa-trophy text-warning me-1" title="vorn"></i>{% endif %}{{ it.label }}</td><td class="text-end">{{ it.value }}</td><td class="text-end">{{ it.percent }} %</td>{% if q.kind == 'rank' %}<td class="text-end">{{ it.firsts }}</td><td class="text-end">{{ it.avg_rank or '–' }}</td>{% endif %}</tr>{% endfor %}
+  </tbody></table>
+  {% else %}<p class="text-secondary small mb-0">Noch keine gültigen Stimmen.</p>{% endif %}
+</div></div>
+{% endfor %}

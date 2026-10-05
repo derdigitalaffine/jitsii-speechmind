@@ -105,9 +105,11 @@
             {% endif %}
             {% set nav_polls = (user.can('polls') or 'polls' in shared_nav) and 'polls' in modules %}
             {% set nav_bookings = (user.can('bookings') or 'bookings' in shared_nav) and 'bookings' in modules %}
-            {% if nav_polls or nav_bookings %}
-            <li class="nav-section">Termine</li>
+            {% set nav_votes = (user.can('votes') or 'votes' in shared_nav) and 'polls' in modules %}
+            {% if nav_polls or nav_bookings or nav_votes %}
+            <li class="nav-section">Termine & Abstimmungen</li>
             {% if nav_polls %}{{ m.nav_item('/polls', 'fa-calendar-check', 'Terminumfragen', path.startswith('/polls')) }}{% endif %}
+            {% if nav_votes %}{{ m.nav_item('/votes', 'fa-check-to-slot', 'Abstimmungen', path.startswith('/votes')) }}{% endif %}
             {% if nav_bookings %}{{ m.nav_item('/bookings', 'fa-calendar-plus', 'Terminbuchung', path.startswith('/bookings')) }}{% endif %}
             {% endif %}
             {% if 'forms' in modules %}

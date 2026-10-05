@@ -468,6 +468,30 @@ TEMPLATES: dict[str, dict] = {
         "body": ("Guten Tag {name},\n\nwir haben Ihnen {erstattet} für „{zweck}“ ({verwendungszweck}) erstattet. Bei PayPal-Zahlungen "
                  "erscheint der Betrag in wenigen Tagen auf Ihrem PayPal-Konto, sonst auf dem angegebenen Konto.\n\n{grund}\n\n{fusszeile}"),
     },
+    "vote_invite": {
+        "group": "Abstimmungen", "label": "Einladung zur Abstimmung",
+        "vars": {"name": "Name", "titel": "Titel der Abstimmung", "beschreibung": "Beschreibung", "link": "Persönlicher Link",
+                 "frist": "Abstimmen bis …", "geheim": "Art (geheim/offen/anonym) mit Erklärung", "absender": "Einladende Person"},
+        "subject": "Abstimmung: {titel}",
+        "body": ("Guten Tag {name},\n\nSie sind eingeladen, an der Abstimmung „{titel}“ teilzunehmen.\n\n{beschreibung}\n\n"
+                 "Ihr persönlicher Link (bitte nicht weitergeben):\n{link}\n\n{frist}\n{geheim}\n\n{fusszeile}"),
+    },
+    "vote_confirm": {
+        "group": "Abstimmungen", "label": "Bestätigung der E-Mail-Adresse (öffentliche Abstimmung)",
+        "vars": {"name": "Name", "titel": "Titel der Abstimmung", "link": "Persönlicher Link zum Abstimmen", "frist": "Abstimmen bis …",
+                 "geheim": "Art (geheim/offen/anonym) mit Erklärung"},
+        "subject": "Ihr Link zur Abstimmung „{titel}“",
+        "body": ("Guten Tag {name},\n\nüber diesen persönlichen Link geben Sie Ihre Stimme ab – damit ist auch Ihre "
+                 "E-Mail-Adresse bestätigt:\n{link}\n\n{frist}\n{geheim}\n\nWenn Sie sich nicht angemeldet haben, "
+                 "ignorieren Sie diese Nachricht bitte.\n\n{fusszeile}"),
+    },
+    "vote_reminder": {
+        "group": "Abstimmungen", "label": "Erinnerung an die Abstimmung",
+        "vars": {"name": "Name", "titel": "Titel der Abstimmung", "link": "Persönlicher Link", "frist": "Abstimmen bis …",
+                 "absender": "Erinnernde Person"},
+        "subject": "Erinnerung: Abstimmung „{titel}“",
+        "body": ("Guten Tag {name},\n\nSie haben bei der Abstimmung „{titel}“ noch nicht abgestimmt.\n\n{link}\n\n{frist}\n\n{fusszeile}"),
+    },
 }
 
 SAMPLE = {
@@ -501,6 +525,7 @@ SAMPLE = {
     "verwendungszweck": "Z-2026-00012", "zahl_link": "https://portal.example.org/pay/beispiel", "zahlbar_bis": "20.10.2026",
     "ueberweisung": "Per Überweisung: Verbandsgemeindekasse, IBAN DE12 3456 7890 1234 5678 90, Verwendungszweck Z-2026-00012",
     "zahlart": "PayPal", "erstattet": "15,00 €",
+    "geheim": "Geheim: Wer abgestimmt hat, ist sichtbar – wie, nicht.",
 }
 
 

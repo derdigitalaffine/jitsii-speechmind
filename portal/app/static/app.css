@@ -254,3 +254,6 @@ a.dash-num:hover > span { text-decoration: underline; }
 .dash-tile.is-hidden .card { opacity: .5; }
 #dash-tiles:not(.dash-editing) .dash-tile.is-hidden { display: none; }
 .dash-handle { cursor: grab; }
+
+/* Abstimmung: Live-Modus (Beamer) */
+.vote-live:fullscreen { background: var(--bs-body-bg); padding: 2rem; overflow: auto; }

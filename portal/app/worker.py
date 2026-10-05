@@ -418,6 +418,8 @@ async def run_forever() -> None:
                     await asyncio.to_thread(notify.process_queue)
                 from . import dms
                 await asyncio.to_thread(dms.reconcile)
+                from . import votes
+                await asyncio.to_thread(votes.finish_due)
                 from . import payments
                 if await asyncio.to_thread(payments.send_reminders):
                     await asyncio.to_thread(notify.process_queue)

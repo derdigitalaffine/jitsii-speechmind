@@ -1,10 +1,10 @@
 import os
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import (
-    Boolean, DateTime, Float, ForeignKey, Integer, String, Text, create_engine, event, inspect, select, text,
+    Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, create_engine, event, inspect, select, text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
@@ -100,6 +100,7 @@ PERMISSIONS = {
     "shortlinks": ("Kurzlinks", "fa-link", "Kurzlinks anlegen und auswerten"),
     "forms": ("Formulare", "fa-clipboard-list", "Formulare erstellen, verteilen und auswerten"),
     "polls": ("Terminumfragen", "fa-calendar-check", "Terminumfragen (wie Doodle) erstellen und auswerten"),
+    "votes": ("Abstimmungen", "fa-check-to-slot", "Abstimmungen und Wahlen anlegen (offen, geheim, anonym), Wahlberechtigte einladen, Codes drucken, auswerten"),
     "bookings": ("Terminbuchung", "fa-calendar-plus", "Buchungsseiten mit freien Zeitfenstern anbieten (z. B. Vorstellungsgespräche)"),
     "laws": ("Rechtstexte", "fa-scale-balanced", "Gesetze, Satzungen und Verordnungen einstellen, gliedern und veröffentlichen"),
     "formblocks": ("Formularbausteine", "fa-cubes", "Datenblöcke (z. B. Antragsteller:in, Hund) in der zentralen Bibliothek anlegen und ändern"),
@@ -929,6 +930,107 @@ class Payment(Base):
     reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     overdue_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # Frist abgelaufen (gemeldet)
     log_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class Vote(Base):
+    """Abstimmung/Wahl (siehe votes.py): mehrere Fragen, offen, geheim oder anonym, Zugang per Einladung,
+    öffentlichem Link mit E-Mail-Bestätigung und/oder ausgedruckten Codes."""
+    __tablename__ = "votes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(Text, default="")
+    secrecy: Mapped[str] = mapped_column(String(12), default="secret")       # open | secret | anonymous
+    access: Mapped[str] = mapped_column(String(40), default="invite")        # invite,public,codes
+    results: Mapped[str] = mapped_column(String(12), default="after_end")    # live | after_vote | after_end | owner
+    status: Mapped[str] = mapped_column(String(10), default="draft")         # draft | open | closed
+    allow_change: Mapped[bool] = mapped_column(Boolean, default=False)       # Stimme bis zum Ende änderbar (nur offen)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    public_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    result_json: Mapped[str] = mapped_column(Text, default="")              # eingefrorenes Ergebnis beim Beenden
+    result_hash: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    owner: Mapped[User | None] = relationship()
+    questions: Mapped[list["VoteQuestion"]] = relationship(back_populates="vote", cascade="all, delete-orphan",
+                                                           order_by="VoteQuestion.position", passive_deletes=True)
+    voters: Mapped[list["VoteVoter"]] = relationship(back_populates="vote", cascade="all, delete-orphan",
+                                                     order_by="VoteVoter.id", passive_deletes=True)
+    shares: Mapped[list["VoteShare"]] = relationship(back_populates="vote", cascade="all, delete-orphan",
+                                                     passive_deletes=True)
+
+
+class VoteQuestion(Base):
+    __tablename__ = "vote_questions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    vote_id: Mapped[int] = mapped_column(ForeignKey("votes.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    title: Mapped[str] = mapped_column(String(500))
+    description: Mapped[str] = mapped_column(Text, default="")
+    kind: Mapped[str] = mapped_column(String(10), default="single")          # single | multi | rank | points
+    options_json: Mapped[str] = mapped_column(Text, default="[]")           # [{"id": "a1", "label", "info"}]
+    min_choices: Mapped[int] = mapped_column(Integer, default=0)
+    max_choices: Mapped[int] = mapped_column(Integer, default=1)              # Mehrfach: höchstens; Rangfolge: Plätze
+    points_total: Mapped[int] = mapped_column(Integer, default=10)
+    abstain: Mapped[bool] = mapped_column(Boolean, default=True)              # „Enthaltung“ anbieten
+
+    vote: Mapped[Vote] = relationship(back_populates="questions")
+
+
+class VoteVoter(Base):
+    """Wählerverzeichnis: wer abstimmen darf und ob schon abgestimmt wurde (bei geheimen Abstimmungen getrennt
+    von der Stimme gespeichert)."""
+    __tablename__ = "vote_voters"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    vote_id: Mapped[int] = mapped_column(ForeignKey("votes.id", ondelete="CASCADE"), index=True)
+    source: Mapped[str] = mapped_column(String(10), default="invite")        # invite | public | code
+    name: Mapped[str] = mapped_column(String(255), default="")
+    email: Mapped[str] = mapped_column(String(255), default="")
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)  # persönlicher Link /v/p/<token>
+    code: Mapped[str] = mapped_column(String(12), default="", index=True)     # Zugangscode (Ausdruck)
+    confirmed: Mapped[bool] = mapped_column(Boolean, default=True)           # öffentlich: erst nach Mail-Bestätigung
+    voted: Mapped[bool] = mapped_column(Boolean, default=False)
+    voted_on: Mapped[date | None] = mapped_column(Date, nullable=True)      # nur der Tag (kein Rückschluss auf die Stimme)
+    invited_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    vote: Mapped[Vote] = relationship(back_populates="voters")
+
+
+class VoteBallot(Base):
+    """Stimmzettel. Zufällige ID und keine Uhrzeit: Bei geheimen und anonymen Abstimmungen lässt sich die Stimme
+    nicht über Reihenfolge oder Zeitpunkt einer Person zuordnen. voter_id nur bei offenen Abstimmungen."""
+    __tablename__ = "vote_ballots"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    vote_id: Mapped[int] = mapped_column(ForeignKey("votes.id", ondelete="CASCADE"), index=True)
+    voter_id: Mapped[int | None] = mapped_column(ForeignKey("vote_voters.id", ondelete="SET NULL"), nullable=True)
+    answers_json: Mapped[str] = mapped_column(Text, default="{}")
+    receipt: Mapped[str] = mapped_column(String(16), default="", index=True)   # Quittung für die abstimmende Person
+
+
+class VoteShare(Base):
+    """Freigabe einer Abstimmung im Portal (Stufen wie bei Formularen, siehe shares.py)."""
+    __tablename__ = "vote_shares"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    vote_id: Mapped[int] = mapped_column(ForeignKey("votes.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=True, index=True)
+    level: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    vote: Mapped[Vote] = relationship(back_populates="shares")
+    user: Mapped[User | None] = relationship()
+    group: Mapped[Group | None] = relationship()
 
 
 class Poll(Base):

@@ -6,7 +6,7 @@ Besitzer:in und Admins haben immer die volle Stufe 4 (dazu gehört das Verwalten
 
 from sqlalchemy import select
 
-from .db import BookingPage, BookingShare, GroupMember, Poll, PollShare, User
+from .db import BookingPage, BookingShare, GroupMember, Poll, PollShare, User, Vote, VoteShare
 
 VIEW, INVITE, EDIT, OWNER = 1, 2, 3, 4
 
@@ -15,6 +15,11 @@ LEVELS = {
         VIEW: ("Ergebnisse einsehen", "Abstimmungsergebnis, Teilnehmende und Export ansehen"),
         INVITE: ("Einladen", "zusätzlich Personen einladen, erinnern und den Abstimmungslink verwalten"),
         EDIT: ("Bearbeiten", "zusätzlich Terminvorschläge und Einstellungen ändern, Termin festlegen, Umfrage löschen"),
+    },
+    "vote": {
+        VIEW: ("Ergebnisse einsehen", "Ergebnis, Beteiligung und Export ansehen (wann sichtbar, legt die Abstimmung fest)"),
+        INVITE: ("Einladen", "zusätzlich Wahlberechtigte einladen, erinnern, Codes drucken und den Live-Modus bedienen"),
+        EDIT: ("Bearbeiten", "zusätzlich Fragen und Einstellungen ändern, starten, beenden und löschen"),
     },
     "booking": {
         VIEW: ("Buchungen einsehen", "Kalender, Terminliste und Exporte ansehen"),
@@ -28,6 +33,7 @@ LEVELS = {
 KINDS = {
     "poll": (PollShare, "poll_id", Poll),
     "booking": (BookingShare, "page_id", BookingPage),
+    "vote": (VoteShare, "vote_id", Vote),
 }
 
 

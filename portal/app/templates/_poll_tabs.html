@@ -1,0 +1,9 @@
+{# Reiter „Terminumfragen | Abstimmungen“ (Modul Umfragen & Abstimmungen). active: 'polls' oder 'votes' #}
+{% set tab_polls = user.can('polls') or 'polls' in shared_nav %}
+{% set tab_votes = user.can('votes') or 'votes' in shared_nav %}
+{% if tab_polls and tab_votes %}
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item"><a class="nav-link {{ 'active' if active == 'polls' }}" href="/polls" {% if active == 'polls' %}aria-current="page"{% endif %}><i class="fa-solid fa-calendar-check me-1"></i>Terminumfragen</a></li>
+  <li class="nav-item"><a class="nav-link {{ 'active' if active == 'votes' }}" href="/votes" {% if active == 'votes' %}aria-current="page"{% endif %}><i class="fa-solid fa-check-to-slot me-1"></i>Abstimmungen</a></li>
+</ul>
+{% endif %}
