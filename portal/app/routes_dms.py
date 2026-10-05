@@ -279,7 +279,11 @@ def dms_new(request: Request, area: str = "", user: User = Depends(current_user)
     lv = _user(db, user)
     write = [(a, d) for a, d in dms.tree(db) if lv.get(a.id, 0) >= dms.WRITE]
     if not write:
-        raise HTTPException(403, "Sie haben in keinem Bereich Schreibrechte.")
+        if user.can("dms_admin"):
+            flash(request, "Legen Sie zuerst im Aktenplan einen Bereich an.", "error")
+            return redirect("/dms/areas")
+        flash(request, "Sie haben in keinem Ablagebereich Schreibrechte.", "error")
+        return redirect("/dms")
     return render(request, "dms_new.html", user, write_areas=write, selected=area, today=datetime.now(LOCAL_TZ).date().isoformat())
 
 

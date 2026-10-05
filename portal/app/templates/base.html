@@ -93,9 +93,10 @@
         </div>
         <div class="offcanvas-body d-block p-2">
           <ul class="nav flex-column gap-1">
+            {{ m.nav_item('/', 'fa-house', 'Übersicht', path == '/') }}
             {% if user.can('video') %}
             <li class="nav-section">Videokonferenzen</li>
-            {{ m.nav_item('/', 'fa-video', 'Meetings', path == '/' or (path.startswith('/meetings') and path != '/meetings/plan')) }}
+            {{ m.nav_item('/meetings', 'fa-video', 'Meetings', path.startswith('/meetings') and path != '/meetings/plan') }}
             {{ m.nav_item('/meetings/plan', 'fa-calendar-plus', 'Besprechung planen', path == '/meetings/plan') }}
             {% endif %}
             {% if user.can('shortlinks') and 'shortlinks' in modules %}
@@ -135,13 +136,13 @@
             {{ m.nav_item('/recht', 'fa-scale-balanced', 'Ortsrecht ansehen', path.startswith('/recht')) }}
             {% if user.can('laws') %}{{ m.nav_item('/laws', 'fa-pen-to-square', 'Rechtstexte pflegen', path.startswith('/laws')) }}{% endif %}
             {% endif %}
-            {% if user.is_admin or user.can('users') %}
+            {% if user.is_admin or user.can('users') or user.can('maps_admin') %}
             <li class="nav-section">Verwaltung</li>
             {% if user.is_admin %}{{ m.nav_item('/admin/recordings', 'fa-file-audio', 'Aufnahmen', path == '/admin/recordings' or path.startswith('/recordings')) }}{% endif %}
-            {{ m.nav_item('/admin/users', 'fa-users', 'Benutzer &amp; Gruppen'|safe, path == '/admin/users') }}
+            {% if user.can('users') %}{{ m.nav_item('/admin/users', 'fa-users', 'Benutzer &amp; Gruppen'|safe, path == '/admin/users') }}{% endif %}
+            {% if user.can('maps_admin') %}{{ m.nav_item('/admin/maps', 'fa-layer-group', 'Kartenlayer', path.startswith('/admin/maps')) }}{% endif %}
             {% if user.is_admin %}
             {{ m.nav_item('/admin/modules', 'fa-puzzle-piece', 'Module', path == '/admin/modules') }}
-            {{ m.nav_item('/admin/maps', 'fa-layer-group', 'Kartenlayer', path.startswith('/admin/maps')) }}
             {{ m.nav_item('/admin/sessions', 'fa-user-clock', 'Sitzungen &amp; Cookies'|safe, path == '/admin/sessions') }}
             {{ m.nav_item('/admin/notifications', 'fa-envelope', 'Benachrichtigungen', path.startswith('/admin/notifications')) }}
             {{ m.nav_item('/admin/templates', 'fa-envelope-open-text', 'E-Mail-Vorlagen', path == '/admin/templates') }}

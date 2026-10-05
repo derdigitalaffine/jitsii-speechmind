@@ -71,6 +71,7 @@ class User(Base):
     token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     # Freigeschaltete Bereiche, kommagetrennt (siehe PERMISSIONS). Admins dürfen immer alles.
+    dashboard_json: Mapped[str] = mapped_column(Text, default="")   # Startseite: Reihenfolge/ausgeblendete Kacheln
     permissions: Mapped[str] = mapped_column(String(255), default="video")
     # Zwei-Faktor-Anmeldung (siehe twofa.py)
     totp_secret_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -104,6 +105,8 @@ PERMISSIONS = {
     "formblocks": ("Formularbausteine", "fa-cubes", "Datenblöcke (z. B. Antragsteller:in, Hund) in der zentralen Bibliothek anlegen und ändern"),
     "dms_admin": ("Aktenplan verwalten", "fa-sitemap", "Ablagebereiche (DMS) anlegen, Lese-/Schreibrechte und Löschfristen festlegen, abgelaufene Vorgänge löschen"),
     "processes": ("Prozesse", "fa-diagram-project", "Bearbeitungsprozesse für Online-Anträge im Prozesseditor gestalten und veröffentlichen"),
+    "app_create": ("Online-Anträge einrichten", "fa-file-signature", "Formulare zu Online-Anträgen machen (Aktenzeichen, Frist, Zuständigkeit) und wieder zurückstellen"),
+    "maps_admin": ("Kartenlayer & Geocoding", "fa-layer-group", "Kartenlayer, Kartenstandard und die Adresssuche (Nominatim) einrichten"),
     "maps": ("Karten", "fa-map-location-dot", "Im Kartenbrowser eigene WMS/WFS-Layer hinzufügen, Karten speichern und teilen"),
     "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
 }
@@ -1380,7 +1383,7 @@ _NEW_COLUMNS = {
         "permissions": "VARCHAR(255) NOT NULL DEFAULT 'video'",
         "totp_secret_enc": "TEXT", "totp_enabled": "BOOLEAN NOT NULL DEFAULT 0", "totp_last_step": "INTEGER",
         "mfa_email": "BOOLEAN NOT NULL DEFAULT 0", "recovery_json": "TEXT", "email_code_hash": "VARCHAR(64)",
-        "email_code_expires": "DATETIME",
+        "email_code_expires": "DATETIME", "dashboard_json": "TEXT NOT NULL DEFAULT ''",
     },
     "recordings": {"audio_path": "VARCHAR(1024)", "audio_max_db": "FLOAT", "media_deleted_at": "DATETIME",
                    "chat_json": "TEXT", "polls_json": "TEXT"},
@@ -1441,6 +1444,12 @@ def init_db() -> None:
         seed_law_levels(db)
         seed_map_layers(db)
         seed_form_blocks(db)
+        if db.get(Setting, "migrated_app_create") is None:
+            # Neues Recht „Online-Anträge einrichten“: wer bisher Formulare bearbeiten durfte, behält die Möglichkeit.
+            for u in db.scalars(select(User)):
+                if "forms" in u.perms and "app_create" not in u.perms:
+                    u.permissions = ",".join([*u.perms, "app_create"])
+            db.add(Setting(key="migrated_app_create", value="1"))
         db.commit()
 
 

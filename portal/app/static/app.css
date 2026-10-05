@@ -246,3 +246,11 @@ footer.app-footer { border-top: 1px solid var(--bs-border-color); color: var(--b
 .addr-results { position: absolute; z-index: 20; left: 0; right: 0; top: 100%; max-height: 18rem; overflow-y: auto; box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .12); }
 .block-head { border-left: 4px solid var(--bs-primary); padding: .2rem 0 .2rem .7rem; }
 .builder-palette .card-body { max-height: calc(100vh - 10rem); overflow-y: auto; }
+
+/* Startseite */
+.dash-num { display: flex; flex-direction: column; text-decoration: none; color: inherit; font-size: .8rem; line-height: 1.2; }
+.dash-num > span { font-size: 1.6rem; font-weight: 600; }
+a.dash-num:hover > span { text-decoration: underline; }
+.dash-tile.is-hidden .card { opacity: .5; }
+#dash-tiles:not(.dash-editing) .dash-tile.is-hidden { display: none; }
+.dash-handle { cursor: grab; }

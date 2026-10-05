@@ -13,11 +13,12 @@ from sqlalchemy.orm import Session
 from . import maps as mp
 from .db import MapLayer, User, UserMap, get_settings, set_setting
 from .main import (
-    admin_user, app, check_csrf, enabled_modules, flash, get_db, rate_limit, redirect, render, require,
+    app, check_csrf, enabled_modules, flash, get_db, rate_limit, redirect, render, require,
     session_user,
 )
 
 map_user = require("maps")
+maps_admin_user = require("maps_admin")
 EMBED = "/karte-embed"
 
 
@@ -239,7 +240,7 @@ async def maps_capabilities(request: Request, user: User = Depends(map_user)):
 
 
 @app.post("/admin/maps/capabilities", dependencies=[Depends(check_csrf)])
-async def admin_maps_capabilities(request: Request, user: User = Depends(admin_user)):
+async def admin_maps_capabilities(request: Request, user: User = Depends(maps_admin_user)):
     return await _capabilities(request, guard=False)   # Admins dürfen auch Dienste im eigenen Netz nutzen
 
 
@@ -419,7 +420,7 @@ def _user_layers(db: Session) -> list[dict]:
 
 
 @app.get("/admin/maps")
-def admin_maps(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+def admin_maps(request: Request, user: User = Depends(maps_admin_user), db: Session = Depends(get_db)):
     layers = list(db.scalars(select(MapLayer).order_by(MapLayer.role, MapLayer.position, MapLayer.name)))
     count, size = mp.cache_stats()
     known = {(lyr.kind, lyr.url, lyr.layers) for lyr in layers}
@@ -434,7 +435,7 @@ def admin_maps(request: Request, user: User = Depends(admin_user), db: Session =
 def admin_maps_settings(request: Request, map_center_lat: str = Form(""), map_center_lon: str = Form(""),
                         map_zoom: str = Form("11"), map_cache_mb: str = Form("500"), maps_embed: str = Form(""),
                         maps_embed_origins: str = Form(""), geocoder_url: str = Form(""), geocoder_countries: str = Form("de"),
-                        geocoder_contact: str = Form(""), user: User = Depends(admin_user),
+                        geocoder_contact: str = Form(""), user: User = Depends(maps_admin_user),
                         db: Session = Depends(get_db)):
     try:
         lat, lon, zoom = float(map_center_lat.replace(",", ".")), float(map_center_lon.replace(",", ".")), float(map_zoom)
@@ -476,7 +477,7 @@ def _layer_page(request: Request, db: Session, user: User, layer: MapLayer | Non
 
 
 @app.get("/admin/maps/new")
-def admin_map_new(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+def admin_map_new(request: Request, user: User = Depends(maps_admin_user), db: Session = Depends(get_db)):
     return _layer_page(request, db, user, None, {"kind": "wms", "role": "overlay", "proxy": True, "enabled": True,
                                                  "public": True, "transparent": True, "opacity": 1.0,
                                                  "cache_hours": 168, "tile_size": 256, "max_zoom": 22,
@@ -485,7 +486,7 @@ def admin_map_new(request: Request, user: User = Depends(admin_user), db: Sessio
 
 
 @app.get("/admin/maps/{layer_id:int}")
-def admin_map_edit(request: Request, layer_id: int, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+def admin_map_edit(request: Request, layer_id: int, user: User = Depends(maps_admin_user), db: Session = Depends(get_db)):
     layer = db.get(MapLayer, layer_id)
     if layer is None:
         raise HTTPException(404)
@@ -493,7 +494,7 @@ def admin_map_edit(request: Request, layer_id: int, user: User = Depends(admin_u
 
 
 @app.post("/admin/maps/save", dependencies=[Depends(check_csrf)])
-async def admin_map_save(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+async def admin_map_save(request: Request, user: User = Depends(maps_admin_user), db: Session = Depends(get_db)):
     data = await request.form()
     layer_id = str(data.get("id", ""))
     layer = db.get(MapLayer, int(layer_id)) if layer_id.isdigit() else None
@@ -514,7 +515,7 @@ async def admin_map_save(request: Request, user: User = Depends(admin_user), db:
 
 
 @app.post("/admin/maps/{layer_id:int}/toggle", dependencies=[Depends(check_csrf)])
-def admin_map_toggle(request: Request, layer_id: int, field: str = Form(...), user: User = Depends(admin_user),
+def admin_map_toggle(request: Request, layer_id: int, field: str = Form(...), user: User = Depends(maps_admin_user),
                      db: Session = Depends(get_db)):
     layer = db.get(MapLayer, layer_id)
     if layer is None or field not in ("enabled", "public", "in_forms", "default_visible", "proxy"):
@@ -527,7 +528,7 @@ def admin_map_toggle(request: Request, layer_id: int, field: str = Form(...), us
 
 
 @app.post("/admin/maps/order", dependencies=[Depends(check_csrf)])
-async def admin_map_order(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+async def admin_map_order(request: Request, user: User = Depends(maps_admin_user), db: Session = Depends(get_db)):
     data = await request.form()
     for pos, raw in enumerate(str(data.get("ids", "")).split(",")):
         if raw.isdigit() and (layer := db.get(MapLayer, int(raw))):
@@ -537,7 +538,7 @@ async def admin_map_order(request: Request, user: User = Depends(admin_user), db
 
 
 @app.post("/admin/maps/{layer_id:int}/duplicate", dependencies=[Depends(check_csrf)])
-def admin_map_duplicate(request: Request, layer_id: int, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+def admin_map_duplicate(request: Request, layer_id: int, user: User = Depends(maps_admin_user), db: Session = Depends(get_db)):
     layer = db.get(MapLayer, layer_id)
     if layer is None:
         raise HTTPException(404)
@@ -552,7 +553,7 @@ def admin_map_duplicate(request: Request, layer_id: int, user: User = Depends(ad
 
 
 @app.post("/admin/maps/{layer_id:int}/delete", dependencies=[Depends(check_csrf)])
-def admin_map_delete(request: Request, layer_id: int, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+def admin_map_delete(request: Request, layer_id: int, user: User = Depends(maps_admin_user), db: Session = Depends(get_db)):
     layer = db.get(MapLayer, layer_id)
     if layer is None:
         raise HTTPException(404)
@@ -564,7 +565,7 @@ def admin_map_delete(request: Request, layer_id: int, user: User = Depends(admin
 
 
 @app.post("/admin/maps/{layer_id:int}/test", dependencies=[Depends(check_csrf)])
-def admin_map_test(request: Request, layer_id: int, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+def admin_map_test(request: Request, layer_id: int, user: User = Depends(maps_admin_user), db: Session = Depends(get_db)):
     """Erreichbarkeit prüfen: eine Probeanfrage an den Dienst (Kachel, Kartenbild oder Objekte)."""
     import time as _time
     layer = db.get(MapLayer, layer_id)
@@ -600,7 +601,7 @@ def admin_map_test(request: Request, layer_id: int, user: User = Depends(admin_u
 
 
 @app.post("/admin/maps/cache/clear", dependencies=[Depends(check_csrf)])
-def admin_map_cache_clear(request: Request, layer: str = Form(""), user: User = Depends(admin_user)):
+def admin_map_cache_clear(request: Request, layer: str = Form(""), user: User = Depends(maps_admin_user)):
     removed = mp.clear_cache(f"l{layer}-" if layer.isdigit() else "")
     flash(request, f"{removed} Kacheln aus dem Zwischenspeicher gelöscht.")
     return redirect("/admin/maps#cache")
@@ -613,7 +614,7 @@ EXPORT_FIELDS = [c for c in ("name", "kind", "role", "category", "description", 
 
 
 @app.get("/admin/maps/export.json")
-def admin_map_export(user: User = Depends(admin_user), db: Session = Depends(get_db)):
+def admin_map_export(user: User = Depends(maps_admin_user), db: Session = Depends(get_db)):
     layers = db.scalars(select(MapLayer).order_by(MapLayer.role, MapLayer.position))
     data = {"format": "kartenlayer/1", "layers": [{k: getattr(lyr, k) for k in EXPORT_FIELDS} for lyr in layers]}
     return Response(json.dumps(data, ensure_ascii=False, indent=2), media_type="application/json",
@@ -621,7 +622,7 @@ def admin_map_export(user: User = Depends(admin_user), db: Session = Depends(get
 
 
 @app.post("/admin/maps/import", dependencies=[Depends(check_csrf)])
-async def admin_map_import(request: Request, file: UploadFile = File(...), user: User = Depends(admin_user),
+async def admin_map_import(request: Request, file: UploadFile = File(...), user: User = Depends(maps_admin_user),
                            db: Session = Depends(get_db)):
     try:
         data = json.loads((await file.read(5_000_000)).decode("utf-8-sig"))
@@ -655,7 +656,7 @@ async def admin_map_import(request: Request, file: UploadFile = File(...), user:
 
 
 @app.post("/admin/maps/adopt", dependencies=[Depends(check_csrf)])
-def admin_map_adopt(request: Request, map_id: int = Form(...), index: int = Form(...), user: User = Depends(admin_user),
+def admin_map_adopt(request: Request, map_id: int = Form(...), index: int = Form(...), user: User = Depends(maps_admin_user),
                     db: Session = Depends(get_db)):
     """Eigenen Layer aus einer gespeicherten Karte als Systemlayer übernehmen (zunächst ausgeschaltet)."""
     saved = db.get(UserMap, map_id)

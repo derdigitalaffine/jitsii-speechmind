@@ -61,7 +61,12 @@ async def form_application_save(request: Request, form_id: int, user: User = Dep
     _module_on()
     form, _ = _form(db, form_id, user, fm.EDIT)
     data = await request.form()
-    form.kind = "application" if data.get("is_application") == "1" else "survey"
+    kind = "application" if data.get("is_application") == "1" else "survey"
+    if kind != form.kind and not user.can("app_create"):
+        flash(request, "Ob ein Formular als Online-Antrag läuft, darf nur ändern, wer das Recht "
+                       "„Online-Anträge einrichten“ hat. Die übrigen Einstellungen wurden gespeichert.", "error")
+    else:
+        form.kind = kind
     prefix = re.sub(r"[^A-Z0-9]", "", str(data.get("app_prefix", "")).upper())[:10]
     form.app_prefix = prefix
     form.app_category = " ".join(str(data.get("app_category", "")).split())[:100]

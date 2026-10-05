@@ -13,7 +13,8 @@ Für alle, die das Portal der Verbandsgemeinde Otterbach-Otterberg betreuen: Vid
 7. [Kurzlinks und QR-Codes](#kurzlinks-und-qr-codes)
 8. [Formulare](#formulare)
 8e. [Online-Anträge](#online-anträge) (mit [Prozesse und Workflow](#prozesse-und-workflow))
-8f. [Kartenlayer und Kartenbrowser](#kartenlayer-und-kartenbrowser)
+8g. [Ablage (DMS)](#ablage-dms)
+8f. [Kartenlayer und Kartenbrowser](#kartenlayer-und-kartenbrowser) (mit [Adresssuche (Nominatim)](#adresssuche-nominatim))
 8a. [Terminumfragen](#terminumfragen)
 8b. [Terminbuchung](#terminbuchung)
 8c. [Rechtstexte (Ortsrecht online)](#rechtstexte-ortsrecht-online)
@@ -33,18 +34,22 @@ Für alle, die das Portal der Verbandsgemeinde Otterbach-Otterberg betreuen: Vid
 
 ## Die Oberfläche im Überblick
 
-Das Menü links ist nach Bereichen gegliedert. Jede Person sieht nur, wofür sie freigeschaltet ist; Admins sehen alles:
+Das Menü links ist nach Bereichen gegliedert. Jede Person sieht nur, wofür sie freigeschaltet ist; Admins sehen alles. Nach der Anmeldung landen alle – auch Admins – auf der **Übersicht** (Startseite mit Kacheln, siehe [Benutzerhandbuch](BENUTZERHANDBUCH.md#2-die-oberfläche)); Meetings stehen jetzt unter `/meetings`.
 
 | Bereich | Menüpunkt | Wozu |
 |---|---|---|
+| – | **Übersicht** | Startseite: Aufgaben und Fristen, Antragseingang, Termine, Umfragen, Buchungen, Zum Ausfüllen, neue Antworten, Ablage, Schnellzugriff – je Person sortier- und ausblendbar |
 | Videokonferenzen | **Meetings** | Eigene Räume anlegen und betreten, anstehende Besprechungen |
 | | **Besprechung planen** | Termin anlegen und Teilnehmende per Kalendereinladung einladen |
 | Kurzlinks | **Kurzlinks** | Kurze Adressen mit Statistik, QR-Generator; für Admins die Einstellungen (Kurz-Domain) |
 | Formulare | **Formulare** | Eigene und geteilte Formulare bauen, verteilen, auswerten |
 | | **Zum Ausfüllen** | Formulare, zu denen man eingeladen ist |
-| Verwaltung | **Aufnahmen** | Alle Aufnahmen: MP3, Chat, Umfragen, Übergabe an SpeechMind. *Hier landen Admins nach dem Login.* |
+| | **Datenblöcke** | Zentrale Bibliothek wiederkehrender Feldgruppen (Recht „Formularbausteine“ zum Ändern) |
+| Ablage | **Recherche** / **Aktenplan** | Ablage (DMS) durchsuchen, Vorgänge ablegen; Aktenplan, Rechte und Löschfristen (Recht „Aktenplan verwalten“) |
+| Verwaltung | **Aufnahmen** | Alle Aufnahmen: MP3, Chat, Umfragen, Übergabe an SpeechMind |
 | | **Benutzer & Gruppen** | Konten, Rechte, Gruppen, Anmelde-Einstellungen (Zwei-Faktor), Konferenzen ohne Anmeldung. *Auch für Personen mit dem Recht „Benutzerverwaltung“* |
-| | **Module** | Kurzlinks und Formulare komplett ein- oder ausschalten |
+| | **Kartenlayer** | Kartenlayer, Startausschnitt, Adresssuche (Nominatim). *Auch für Personen mit dem Recht „Kartenlayer & Geocoding“* |
+| | **Module** | Kurzlinks, Formulare, Online-Anträge, Ablage, Karten usw. komplett ein- oder ausschalten |
 | | **Benachrichtigungen** | E-Mail-Versand (SMTP/IMAP), Zu-/Absagen, Postfach-Diagnose, Versandprotokoll |
 | | **E-Mail-Vorlagen** | Texte aller Mails anpassen |
 | | **SpeechMind** | API-Key, Projekt, Sprache, Protokollart |
@@ -69,10 +74,14 @@ Jede Person bekommt einzeln die Bereiche freigeschaltet, die sie braucht:
 |---|---|
 | **Videokonferenzen** | Meetings anlegen, Besprechungen planen, moderieren, aufnehmen, eigene Aufnahmen transkribieren |
 | **Kurzlinks** | Kurzlinks anlegen, auswerten, QR-Codes erzeugen |
-| **Formulare** | Formulare erstellen, verteilen, auswerten (geteilte Formulare und „Zum Ausfüllen“ sehen alle, auch ohne dieses Recht) |
+| **Formulare** | Formulare erstellen, verteilen, auswerten (geteilte Formulare und „Zum Ausfüllen“ sehen alle, auch ohne dieses Recht). Datenblöcke aus der Bibliothek einfügen kann jede:r mit diesem Recht |
+| **Formularbausteine** | Datenblöcke (z. B. Antragsteller:in, Hund) in der zentralen Bibliothek anlegen, ändern, kopieren und löschen. Änderungen wirken in allen Formularen, die den Block verwenden |
+| **Online-Anträge einrichten** | Ein Formular zum Online-Antrag machen oder zurückstellen (Schalter im Reiter „Antrag“). Die übrigen Antragseinstellungen darf ändern, wer das Formular bearbeiten darf. *Bei der Aktualisierung bekommen alle, die bisher „Formulare“ hatten, dieses Recht einmalig dazu* |
 | **Terminbuchung** | Buchungsseiten anlegen, in denen andere selbst freie Zeitfenster buchen (z. B. Vorstellungsgespräche). Online-Termine mit eigener Videokonferenz brauchen zusätzlich „Videokonferenzen“ |
 | **Terminumfragen** | Terminumfragen wie Doodle anlegen, verteilen und auswerten. Aus dem festgelegten Termin eine Besprechung anlegen geht nur mit zusätzlichem Recht „Videokonferenzen“ |
 | **Prozesse** | Bearbeitungsprozesse für Online-Anträge im Prozesseditor anlegen, ändern, veröffentlichen, exportieren und Vorlagen für Nachforderungen pflegen. Arbeitsschritte erledigen kann jede:r, dem ein Schritt zugewiesen ist – dafür braucht es kein Recht |
+| **Aktenplan verwalten** | Ablagebereiche (DMS) anlegen, Lese-/Schreibrechte und Löschfristen festlegen, abgelaufene Vorgänge löschen. Wer was in der Ablage **sieht**, steuern die Rechte am Bereich, nicht dieses Recht |
+| **Kartenlayer & Geocoding** | Verwaltung › Kartenlayer: Layer, Startausschnitt, Zwischenspeicher, Einbetten und die Adresssuche (Nominatim) einrichten – ohne Admin zu sein |
 | **Karten** | Im Kartenbrowser eigene WMS/WFS/WMTS-Dienste hinzufügen, Karten speichern und per Link oder iframe teilen. Ansehen kann den Kartenbrowser jede:r, auch ohne Anmeldung |
 | **Rechtstexte** | Gesetze, Satzungen und Verordnungen einstellen, ändern, veröffentlichen und den Rechtsbaum (Ebenen) pflegen. Lesen kann jede:r ohne Anmeldung unter `/recht` |
 | **Benutzerverwaltung** | Benutzer und Gruppen anlegen, bearbeiten, sperren, löschen – aber keine Admin-Konten ändern und niemanden zum Admin machen |
@@ -324,7 +333,11 @@ Menü **Formulare** (Recht „Formulare“). Ein Formularserver mit Baukasten, v
 **Funktionsumfang**
 
 - Fragetypen: kurze Antwort (Text, E-Mail, Telefon, Zahl, eigenes Muster), langer Text, Einfach- und Mehrfachauswahl (mit „Sonstiges“, Mindest-/Höchstzahl, zufälliger Reihenfolge), Auswahlliste, Datum, Uhrzeit, Datum mit Uhrzeit, lineare Skala, Farbe, Datei-Upload (Endungen, Größe bis 20 MB, bis 10 Dateien), **Ort in der Karte** (Karte mit den unter Kartenlayer für Formulare freigegebenen Grundkarten): je Frage einstellbar, ob **Punkte, Linien und/oder Flächen** eingezeichnet werden dürfen und wie viele Objekte höchstens; Punkte per Klick, GPS oder Breite/Länge, Linien/Flächen gezeichnet (Eckpunkte verschiebbar, GPS-Standort als Eckpunkt). Optional wird **zusätzlich der eigene Standort** der ausfüllenden Person erfasst (GPS mit Genauigkeit und Zeitpunkt, unabhängig vom Eingezeichneten, wahlweise Pflicht). Gespeichert als WGS84 bzw. GeoJSON-Geometrie mit Länge und Fläche, höchstens 1000 Punkte je Objekt).
-- Gliederung: Überschrift, Zwischenüberschrift, Hinweistext, Trennlinie, **Neue Seite** (mehrseitige Formulare mit Fortschrittsanzeige und Prüfung je Seite).
+- Gliederung: Überschrift, Zwischenüberschrift, Hinweistext, Trennlinie, **Neue Seite** (mehrseitige Formulare mit Schrittanzeige und Prüfung je Seite).
+- **Adresse:** Straße, Hausnummer, PLZ, Ort, optional Ortsteil und Koordinaten. Je Feld einstellbar: vollständige Anschrift oder nur **PLZ + Ort** (Ort wird aus der PLZ ermittelt), **Adresssuche** (Vorschläge beim Tippen) und **Standort als Adresse übernehmen**. Suche und PLZ-Abfrage laufen über das Portal zu Nominatim (siehe [Adresssuche](#adresssuche-nominatim)); die Felder bleiben immer von Hand ausfüllbar.
+- **Bedingungen:** Jedes Feld kann nur unter Bedingungen **angezeigt** und/oder nur unter Bedingungen **Pflicht** sein – mehrere Regeln, verknüpft mit „alle“ (UND) oder „eine“ (ODER). Ausgeblendete Felder werden nicht gespeichert; der Server prüft dieselben Regeln.
+- **Datenblöcke:** Unter **Formulare › Datenblöcke** liegt die zentrale Bibliothek (Startvorlagen: Antragsteller:in, Firma, Adresse, Bankverbindung, Hund, Fahrzeug). Im Baukasten werden Blöcke **verknüpft** eingefügt: Eine Änderung am Block gilt sofort in allen Formularen; die Felder des Blocks lassen sich in Bedingungen verwenden. Gelöscht werden kann ein Block erst, wenn ihn kein Formular mehr verwendet; „Kopieren“ erzeugt einen unabhängigen Block. Antworten speichern die Feldwerte – bestehende Antworten bleiben auch bei späteren Blockänderungen lesbar.
+- Darstellung: Feldbreite je Feld (ganz, zwei Drittel, halb, Drittel; auf dem Handy immer ganz), **Zusammenfassung vor dem Absenden** (Reiter Einstellungen, ab drei Fragen), automatischer **Entwurf** im Browser der ausfüllenden Person (nur lokal, Dateien ausgenommen). Datum wahlweise **mit Uhrzeit**.
 - Verteilung: öffentlicher Link (mit QR-Code und Kurzlink), persönliche Einladungen an Benutzer, **Gruppen** und Gäste per E-Mail, Erinnerungen, Frist, anonyme Formulare, Mehrfachantworten.
 - Auswertung: Zusammenfassung mit Diagrammen, Einzelansicht, Export **CSV** (Semikolon, UTF-8 mit BOM – öffnet sich in Excel korrekt) und **JSON**.
 - Benachrichtigung bei neuen Antworten an die Besitzerin und weitere Adressen, wahlweise mit Antworten im Text und **CSV- und/oder JSON-Anhang** – nur die neue Antwort oder jeweils alle.
@@ -341,7 +354,7 @@ Menü **Formulare** (Recht „Formulare“). Ein Formularserver mit Baukasten, v
 
 ## Online-Anträge
 
-Modul **Online-Anträge** (Verwaltung › Module, setzt „Formulare“ voraus). Ein Online-Antrag ist ein Formular mit Vorgangsbearbeitung. Anlegen: unter **Formulare** beim Anlegen „Online-Antrag“ wählen oder bei einem bestehenden Formular den Reiter **Antrag** öffnen und „Als Online-Antrag verwenden“ einschalten.
+Modul **Online-Anträge** (Verwaltung › Module, setzt „Formulare“ voraus). Ein Online-Antrag ist ein Formular mit Vorgangsbearbeitung. Anlegen: unter **Formulare** beim Anlegen „Online-Antrag“ wählen oder bei einem bestehenden Formular den Reiter **Antrag** öffnen und „Als Online-Antrag verwenden“ einschalten (Recht „Online-Anträge einrichten“).
 
 **Einstellungen im Reiter „Antrag“**
 
@@ -349,7 +362,8 @@ Modul **Online-Anträge** (Verwaltung › Module, setzt „Formulare“ voraus).
 |---|---|
 | Kürzel | Präfix des Aktenzeichens, z. B. `GEW` → `GEW-2026-00001`. Der Zähler beginnt jedes Jahr neu. Ohne Kürzel: `A<Formularnummer>` |
 | Bearbeitungsfrist | Tage ab Eingang; bei Überschreitung bekommen die Zuständigen einmal eine Erinnerung (Prüfung alle 5 Minuten) |
-| PDF anhängen | Antrag als PDF (A4, mit Prüfsumme) an Eingangsbestätigung und Hinweis an die Zuständigen bzw. das Funktionspostfach |
+| PDF anhängen | Antrag als PDF (A4, mit Prüfsumme) an Eingangsbestätigung und Hinweis an die Zuständigen bzw. das Funktionspostfach. Hochgeladene **PDFs und Bilder** (JPG, PNG, GIF, WebP) werden angehängt – mit Anlagenverzeichnis, Seitenzahlen und Fußzeile „Anlage n zu …“. Verschlüsselte oder beschädigte PDFs und andere Dateitypen stehen nur im Verzeichnis. Wird das PDF größer als 15 MB, geht die Mail ohne Anhang raus (der Link zur Statusseite bleibt) |
+| Ablagebereich | Bereich im Aktenplan, in dem die Anträge dieses Formulars abgelegt werden (siehe [Ablage](#ablage-dms)) |
 | Zuständig | Vorgabe: Person, Gruppe (alle Mitglieder) und/oder Funktionspostfach (z. B. für die E-Akte) |
 | Weiterleitung | Regeln: Antwort auf Frage X lautet Y → Person/Gruppe/Postfach. Die erste passende Regel gilt, sonst die Vorgabe |
 | Antragskatalog | Eintrag im öffentlichen Katalog `/antraege` mit Kategorie, Gebühr, Bearbeitungsdauer und Hinweisen (Unterlagen, Rechtsgrundlage). Einschalten erzeugt automatisch den öffentlichen Link |
@@ -381,16 +395,17 @@ Menü **Formulare › Prozesse** (Recht „Prozesse“). Ein Prozess beschreibt,
 |---|---|---|
 | **Aufgabe** | Die Sachbearbeitung hakt Prüfpunkte ab und erfasst interne Felder (Text, Zahl, Betrag, Datum, Auswahl, Ja/Nein). Erst wenn alle Prüfpunkte abgehakt und Pflichtfelder gefüllt sind, lässt sich der Schritt erledigen | Checkliste (eine Zeile je Punkt), interne Felder, Anleitung, „danach weiter mit …“ |
 | **Freigabe** | Genehmigen oder ablehnen (Ablehnung nur mit Begründung) | **Vier-Augen-Prinzip** (wer den vorigen Schritt erledigt hat, darf nicht freigeben), bei Ablehnung: Vorgang beenden (Status wählbar) oder **zurück** zu einem früheren Schritt |
-| **Nachforderung** | Die antragstellende Person bekommt eine Mail mit Link und reicht Angaben/Dateien über ihre Statusseite nach; der Prozess wartet so lange (Status „Rückfrage“) | Nachricht, Felder (wie im Formular-Baukasten, auch Datei-Upload und Kartenfragen), Antragsfragen zur Korrektur, Frist (danach einmal Erinnerung) |
+| **Nachforderung** | Die antragstellende Person bekommt eine Mail mit Link und reicht Angaben/Dateien über ihre Statusseite nach; der Prozess wartet so lange (Status „Rückfrage“) | **Wer legt fest, was nachgefordert wird:** „Fest im Prozess“ (wird automatisch verschickt) oder „**Sachbearbeitung wählt**“ – dann hält der Prozess an, die zuständige Person (mit Frist zum Zusammenstellen) bekommt die vorgeschlagenen Felder, kann sie ändern, eine **Vorlage** wählen und das Ergebnis als neue Vorlage speichern. Nachricht, Felder (wie im Formular-Baukasten, auch Datei-Upload, Adresse und Kartenfragen), Antragsfragen zur Korrektur, Frist (danach einmal Erinnerung) |
+| **E-Mail bestätigen** (Double-Opt-in) | Die antragstellende Person bekommt eine Mail mit Bestätigungslink; der Prozess hält an, bis sie klickt (Status „Rückfrage“ bleibt unberührt) | Zusätzlicher Hinweis, Frist (Tage), einmal erinnern nach der Hälfte der Frist, bei Ablauf: Zuständige informieren oder Vorgang beenden („Zurückgezogen“). Im Vorgang: Link erneut senden oder ohne Bestätigung fortfahren. Mail-Vorlage „E-Mail-Adresse bestätigen (Double-Opt-in)“ |
 | **Automatik** | Läuft sofort ohne Zutun | Aktionen: E-Mail (an Antragsteller:in, Zuständige oder feste Adresse; optional mit Antrag oder Dokumenten als Anhang), Status setzen, **Dokument als PDF** erzeugen (z. B. Bescheid; Briefkopf, Anschrift, Datum und Aktenzeichen setzt das Portal), Zuständigkeit ändern |
 
 **Für jeden Schritt:** interner Name und – optional – **Name für Antragsteller:in** (erscheint als Fortschrittsleiste auf der Statusseite; leer = Schritt bleibt unsichtbar), Status beim Start, **Bedingung** (Schritt nur ausführen, wenn eine Antwort, ein internes Feld oder das Ergebnis eines früheren Schritts passt – sonst wird er übersprungen). Aufgaben und Freigaben haben eine **Zuständigkeit** (Zuständige des Vorgangs, bestimmte Person, Gruppe, wer den vorigen Schritt erledigt hat), eine **Frist** in Tagen und optional eine **Eskalation** (nach X Tagen Überschreitung Vertretung bzw. Leitung informieren oder die Aufgabe übertragen). Am **Ende** setzt der Prozess den Abschluss-Status (z. B. Genehmigt) und informiert auf Wunsch die antragstellende Person.
 
-**Platzhalter** in Mails, Mitteilungen und Dokumenten: `{aktenzeichen}`, `{titel}`, `{name}`, `{eingang}`, `{datum}`, `{status}`, `{bearbeiter}`, `{statuslink}`, `{gebuehr}`, `{feld:schluessel}` (internes Feld, der Schlüssel steht neben dem Feld im Editor) und `{frage:Titel der Frage}` (Antwort aus dem Antrag).
+**Platzhalter** in Mails, Mitteilungen und Dokumenten: `{aktenzeichen}`, `{titel}`, `{name}`, `{eingang}`, `{datum}`, `{status}`, `{bearbeiter}`, `{statuslink}`, `{gebuehr}`, `{feld:schluessel}` (internes Feld; den Schlüssel legen Sie im Editor selbst fest – vorgeschlagen wird die nächste freie Nummer, z. B. `{feld:3}`; erlaubt sind Kleinbuchstaben, Ziffern und `_`, eindeutig im ganzen Prozess) und `{frage:Titel der Frage}` (Antwort aus dem Antrag).
 
 **Bedienung des Editors:** links die Schritte (Ziehen am Griff ändert die Reihenfolge, „Schritt hinzufügen“ fügt nach dem ausgewählten Schritt ein), rechts die Einstellungen des gewählten Schritts. **Entwurf speichern** (Strg+S) prüft den Prozess und zeigt Hinweise (fehlende Person, leere Nachforderung, Rücksprünge). **Veröffentlichen** macht aus dem Entwurf eine neue **Version**: Neue Anträge laufen nach ihr, **laufende Vorgänge bleiben auf ihrer Version**. Frühere Versionen lassen sich in den Entwurf laden. Vorlagen beim Anlegen: „Einfache Prüfung“ und „Prüfung, Freigabe und Bescheid“. **Export/Import** als JSON (Zuständigkeiten werden beim Import zurückgesetzt). Löschen geht erst, wenn keine laufenden Vorgänge mehr den Prozess nutzen.
 
-**Vorlagen für Nachforderungen** (unten auf der Seite Prozesse): häufige Nachforderungen einmal anlegen, im Vorgang mit einem Klick auswählen.
+**Vorlagen für Nachforderungen** (unten auf der Seite Prozesse): häufige Nachforderungen einmal anlegen, im Vorgang mit einem Klick auswählen. Vorlagen lassen sich auch direkt aus dem Prozesseditor („Als Vorlage speichern“) und von jeder Sachbearbeitung beim Nachfordern speichern.
 
 **Im Alltag:**
 
@@ -400,9 +415,27 @@ Menü **Formulare › Prozesse** (Recht „Prozesse“). Ein Prozess beschreibt,
 - Wird ein Vorgang über den Status abgeschlossen oder zurückgezogen, enden offene Schritte und Nachforderungen.
 - Fristen, Erinnerungen und Eskalationen prüft der Hintergrunddienst alle 5 Minuten.
 
+## Ablage (DMS)
+
+Modul **Ablage (DMS)** (Verwaltung › Module). Menü **Ablage › Recherche** und – mit dem Recht „Aktenplan verwalten“ – **Aktenplan** und **Löschfristen**.
+
+**Einrichten in drei Schritten**
+
+1. **Aktenplan** anlegen: Bereiche mit Aktenplankennzeichen und Namen, beliebig verschachtelt (z. B. `1 Ordnung` › `1.2 Hundesteuer`). Unterbereiche erben Rechte und Löschfrist, solange sie keine eigene haben.
+2. **Rechte** je Bereich: Personen oder Gruppen mit **Lesen** (recherchieren, öffnen, herunterladen) oder **Schreiben** (zusätzlich ablegen, Dateien hochladen und löschen, Angaben ändern). Rechte gelten für den Bereich und alle Unterbereiche. Jede:r sieht nur Vorgänge aus den eigenen Bereichen; **Admins sehen alles**.
+3. Im Reiter **Antrag** eines Antragsformulars den **Ablagebereich** wählen.
+
+**Was abgelegt wird:** Jeder Online-Antrag des Formulars erscheint sofort nach dem Eingang in der Ablage und wird bei jeder Statusänderung aktualisiert (Antragsteller:in, Anschrift, Status, Volltext der Angaben). Beim **Abschluss** legt das Portal den Abschlussstand ab: das Antrags-PDF mit allen Anlagen und Kopien der erzeugten Dokumente (Bescheide). Zusätzlich lassen sich Vorgänge **manuell ablegen** (Titel, Aktenzeichen, Antragsteller:in, Anschrift mit Adresssuche, Datum, Dateien bis 50 MB je Datei). Ein Abgleich im Hintergrund (alle 5 Minuten) holt Anträge nach, falls einmal etwas nicht übertragen wurde.
+
+**Recherche:** Volltext (Angaben, Notizen, Dateinamen), Antragsteller:in, Aktenzeichen, Ort/PLZ/Straße, Bereich mit Unterbereichen, Antragsart, Status, Art (Online-Antrag/manuell), Eingangsdatum. Suchen lassen sich unter einem Namen **speichern** (je Person). Export der Treffer als CSV.
+
+**Löschfristen:** je Bereich in Jahren (vererbbar). Die Frist läuft am Ende des Jahres ab, in dem der Vorgang abgeschlossen wurde, plus N Jahre (laufende Vorgänge haben keine Frist). Unter **Löschfristen** stehen abgelaufene Vorgänge; Löschen geht nur mit Begründung, löscht bei Online-Anträgen auch den Antrag mit allen Uploads und wird protokolliert (Protokoll auf derselben Seite). Automatisch gelöscht wird nichts.
+
+**Speicherort:** Dateien der Ablage unter `data/portal/dms/<nr>/`, Angaben in der Datenbank. Beide gehören in die Sicherung.
+
 ## Kartenlayer und Kartenbrowser
 
-**Kartenlayer** (Verwaltung › Kartenlayer, nur Admins) sind die systemweite Grundlage für den Kartenbrowser und für Kartenfragen in Formularen – auch wenn das Modul Kartenbrowser abgeschaltet ist.
+**Kartenlayer** (Verwaltung › Kartenlayer, Admins und Recht „Kartenlayer & Geocoding“) sind die systemweite Grundlage für den Kartenbrowser und für Kartenfragen in Formularen – auch wenn das Modul Kartenbrowser abgeschaltet ist.
 
 **Voreingestellt:** basemap.de farbig und grau (WMTS-Kacheln, über das Portal), basemap.de Vektor (ausgeschaltet; wird direkt beim BKG geladen) und OpenStreetMap (über das Portal, eine Woche zwischengespeichert, wie es die Nutzungsrichtlinie der OSM Foundation verlangt). Startausschnitt: Verbandsgemeinde Otterbach-Otterberg – unter „Einstellungen“ per Kartenausschnitt änderbar.
 
@@ -412,9 +445,21 @@ Menü **Formulare › Prozesse** (Recht „Prozesse“). Ein Prozess beschreibt,
 
 **Weitere Funktionen:** Reihenfolge per Ziehen (= Reihenfolge im Kartenbrowser), **Erreichbarkeit prüfen** (Probeanfrage mit Antwortzeit; zeigt Dienstfehler wie „Layer not defined“), Duplizieren, **Export/Import** aller Layer als JSON (z. B. Austausch zwischen Verwaltungen), Zwischenspeicher je Layer oder ganz leeren, **Übernahme** von Diensten, die Benutzer:innen in gespeicherten Karten verwenden (als ausgeschalteter Systemlayer). Kaputte Kacheln und Dienstfehler erscheinen im Kartenbrowser unsichtbar statt als Fehlerbild.
 
-**Kartenbrowser** (Modul, `/karte`, einbettbar unter `/karte-embed`): öffentlich mit allen aktiven, öffentlichen Layern; angemeldet zusätzlich mit den internen. **Zeichnen & messen** (Punkt, Linie, Fläche; benennen, einfärben, Eckpunkte verschieben, GeoJSON laden/herunterladen) steht allen offen. Mit dem Recht „Karten“ können Personen eigene Dienste hinzufügen und Karten samt Zeichnungen speichern/teilen (höchstens 500 Zeichnungen je Karte, Geometrien werden auf dem Server geprüft). Eigene Dienste laufen immer über den Proxy – aber nur mit vom Server signierter Beschreibung und nur zu öffentlichen Adressen (kein Zugriff auf `localhost`, interne Netze oder Docker-Dienste). Admins dürfen in der Layerverwaltung auch Dienste im eigenen Netz eintragen.
+**Kartenbrowser** (Modul, `/karte`, einbettbar unter `/karte-embed`): öffentlich mit allen aktiven, öffentlichen Layern; angemeldet zusätzlich mit den internen. Das Suchfeld findet **Orte und Adressen** (Nominatim, siehe unten) und Koordinaten. **Zeichnen & messen** (Punkt, Linie, Fläche; benennen, einfärben, Eckpunkte verschieben, GeoJSON laden/herunterladen) steht allen offen. Mit dem Recht „Karten“ können Personen eigene Dienste hinzufügen und Karten samt Zeichnungen speichern/teilen (höchstens 500 Zeichnungen je Karte, Geometrien werden auf dem Server geprüft). Eigene Dienste laufen immer über den Proxy – aber nur mit vom Server signierter Beschreibung und nur zu öffentlichen Adressen (kein Zugriff auf `localhost`, interne Netze oder Docker-Dienste). Admins dürfen in der Layerverwaltung auch Dienste im eigenen Netz eintragen.
 
 **Einbetten:** Unter Einstellungen „Einbetten erlaubt“ und optional die erlaubten Webseiten. Gespeicherte Karten mit öffentlichem Link liefern ihren iframe-Code unter „Meine Karten“.
+
+### Adresssuche (Nominatim)
+
+Adressfelder in Formularen, die manuelle Ablage und die Ortssuche im Kartenbrowser fragen **Nominatim** (OpenStreetMap) – immer **über den Server**, nie direkt aus dem Browser. Einstellungen unter **Kartenlayer › Einstellungen**:
+
+| Einstellung | Bedeutung |
+|---|---|
+| Adresse des Dienstes | Standard: der öffentliche Dienst `https://nominatim.openstreetmap.org`. Für viele Anfragen besser ein eigener Nominatim-Server oder ein kommerzieller Anbieter mit Nominatim-Schnittstelle. Leer = Adresssuche aus |
+| Länder | Suche auf Länder beschränken, z. B. `de` |
+| Kontakt-E-Mail | Wird im User-Agent mitgeschickt; die Nutzungsrichtlinie des öffentlichen Dienstes verlangt eine Kontaktmöglichkeit |
+
+Das Portal hält die **Nutzungsrichtlinie** des öffentlichen Dienstes ein: höchstens eine Anfrage pro Sekunde (weitere warten kurz), Ergebnisse 30 Tage zwischengespeichert, Suche erst nach einer Tipp-Pause, je Adresse höchstens 60 Anfragen pro Minute. Für Massenabfragen ist der öffentliche Dienst nicht gedacht. In die Datenschutzerklärung gehört: Suchbegriffe bzw. Koordinaten (nicht die IP-Adresse der Besucher:innen) werden an den eingestellten Dienst übermittelt.
 
 **Hinweis für die Installation:** Die Adressen von basemap.de und OpenStreetMap entsprechen den Dienstbeschreibungen der Anbieter. Prüfen Sie nach dem ersten Start mit „Erreichbarkeit prüfen“, ob Ihr Server sie erreicht (Firewall/Proxy).
 
@@ -750,7 +795,7 @@ Die Datenbank wird beim Start automatisch auf das neue Format gebracht. Vorher b
 
 ## Sicherung und Wiederherstellung
 
-**Was sichern?** Den Ordner `data/portal/` (Datenbank mit Benutzern, Meetings, Kurzlinks, Formularen und Antworten; MP3-Dateien; Logo; Formular-Uploads), `data/caddy/` (Zertifikate) und die Datei `.env`. Bei Bedarf zusätzlich `data/recordings/` (Videos).
+**Was sichern?** Den Ordner `data/portal/` (Datenbank mit Benutzern, Meetings, Kurzlinks, Formularen und Antworten; MP3-Dateien; Logo; Formular-Uploads; Ablage/DMS), `data/caddy/` (Zertifikate) und die Datei `.env`. Bei Bedarf zusätzlich `data/recordings/` (Videos).
 
 **Sauber sichern (Datenbank im laufenden Betrieb):**
 
@@ -758,7 +803,7 @@ Die Datenbank wird beim Start automatisch auf das neue Format gebracht. Vorher b
 docker compose exec portal python -c "import sqlite3; s=sqlite3.connect('/data/portal.db'); d=sqlite3.connect('/data/backup.db'); s.backup(d)"
 ```
 
-Danach `data/portal/backup.db` sowie die Ordner `data/portal/audio/`, `data/portal/forms/` und `data/portal/branding/` wegkopieren, am einfachsten alles mit `rsync -a data/portal/ /pfad/zur/sicherung/`.
+Danach `data/portal/backup.db` sowie die Ordner `data/portal/audio/`, `data/portal/forms/`, `data/portal/dms/` und `data/portal/branding/` wegkopieren, am einfachsten alles mit `rsync -a data/portal/ /pfad/zur/sicherung/`.
 
 **Wiederherstellen:** `docker compose down`, gesicherten Ordner `data/portal/` zurückkopieren (`backup.db` als `portal.db`), dieselbe `.env` verwenden, `docker compose up -d`.
 
