@@ -43,6 +43,10 @@
       s.name = 'E-Mail-Adresse bestätigen'; s.public_name = 'Bestätigung Ihrer E-Mail-Adresse'; s.message = '';
       s.due_days = 7; s.remind = true; s.on_expire = 'notify';
     }
+    if (type === 'payment') {
+      s.name = 'Gebühr anfordern'; s.public_name = 'Bezahlung der Gebühr'; s.label = 'Gebühr'; s.amount = ''; s.field = '';
+      s.due_days = 14; s.methods = 'paypal,transfer'; s.on_expire = 'notify'; s.message = '';
+    }
     if (type === 'auto') {
       s.name = 'Antragsteller:in informieren';
       s.actions = [{ type: 'mail', to: 'applicant', subject: 'Ihr Antrag {aktenzeichen}', body: 'Guten Tag {name},\n\n…', attach: '' }];
@@ -54,6 +58,7 @@
   function assignText(s) {
     var a = s.assign || {};
     if (s.type === 'confirm') { return 'Antragsteller:in (Link in der Mail)'; }
+    if (s.type === 'payment') { return 'Antragsteller:in (Zahlung)'; }
     if (s.type === 'request' && s.compose !== 'clerk') { return 'Antragsteller:in'; }
     if (s.type === 'auto') { return 'automatisch'; }
     if (a.mode === 'user') { var u = byId(D.users, a.user_id); return u ? u.name : 'Person fehlt!'; }
@@ -281,6 +286,20 @@
         '<div class="col-sm-7 d-flex align-items-end">' + sw('remind', 'Nach der Hälfte der Frist einmal erinnern', s.remind !== false) + '</div>' +
         lbl('Wenn nicht bestätigt wird', sel('on_expire', keys('expireActions').map(function (k) { return [k, D.expireActions[k]]; }), s.on_expire || 'notify'), 'col-12') + '</div>' +
         '<div class="form-text">Der Prozess hält an, bis der Link angeklickt wurde. Die Sachbearbeitung kann im Vorgang den Link erneut senden oder ohne Bestätigung fortfahren.</div>');
+    }
+    if (s.type === 'payment') {
+      var keysList = [];
+      def.steps.forEach(function (st) { (st.fields || []).forEach(function (f) { if (f.key && keysList.indexOf(f.key) < 0) keysList.push(f.key); }); });
+      h += section('Zahlung', 'fa-euro-sign', '<div class="row g-2">' +
+        lbl('Bezeichnung', inp('label', s.label || 'Gebühr'), 'col-sm-6') +
+        lbl('Fester Betrag (€)', inp('amount', s.amount === 0 ? '' : (typeof s.amount === 'number' ? (s.amount / 100).toFixed(2).replace('.', ',') : s.amount), 'inputmode="decimal" placeholder="z. B. 26,00"'), 'col-sm-6') +
+        lbl('… oder Betrag aus internem Feld', inp('field', s.field || '', 'list="pe-fieldkeys" placeholder="z. B. gebuehr"') + '<datalist id="pe-fieldkeys">' + keysList.map(function (k) { return '<option value="' + esc(k) + '">'; }).join('') + '</datalist>', 'col-sm-6',
+            'Schlüssel eines internen Feldes (Art „Betrag“) aus einer früheren Aufgabe. Ist es gefüllt, gilt dieser Betrag. Betrag 0 = Schritt wird übersprungen.') +
+        lbl('Zahlfrist', '<div class="input-group input-group-sm"><input class="form-control" type="number" min="1" max="90" data-p="due_days" data-num="1" value="' + esc(s.due_days || 14) + '"><span class="input-group-text">Tage</span></div>', 'col-sm-6') +
+        lbl('Zahlarten', sel('methods', [['paypal,transfer', 'PayPal und Überweisung'], ['paypal,transfer,cash', 'PayPal, Überweisung, bar'], ['paypal', 'nur PayPal'], ['transfer', 'nur Überweisung'], ['transfer,cash', 'Überweisung oder bar']], Array.isArray(s.methods) ? s.methods.join(',') : (s.methods || 'paypal,transfer')), 'col-sm-6') +
+        lbl('Wenn nicht bezahlt wird', sel('on_expire', keys('expireActions').map(function (k) { return [k, D.expireActions[k]]; }), s.on_expire || 'notify'), 'col-sm-6') +
+        lbl('Hinweis für die antragstellende Person (optional)', area('message', s.message, 2, 'data-ph="1"'), 'col-12') + '</div>' +
+        '<div class="form-text">Die Person bekommt eine Zahlungsaufforderung mit Link (PayPal/Überweisung laut Einstellungen). Der Prozess geht weiter, sobald bezahlt ist – auch wenn die Verwaltung die Zahlung von Hand als bezahlt markiert.</div>');
     }
     if (s.type === 'auto') {
       h += section('Aktionen', 'fa-bolt', actionsHtml(s));

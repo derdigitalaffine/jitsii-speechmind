@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="{{ ui.favicon or 'data:,' }}">
+<title>Zugangscodes – {{ vote.title }}</title>
+<link rel="stylesheet" href="/static/vendor/bootstrap/bootstrap.min.css">
+<link rel="stylesheet" href="/static/print-codes.css">
+</head><body>
+<div class="no-print p-3 border-bottom d-flex gap-2 align-items-center"><strong class="flex-grow-1">{{ codes | length }} Zugangscodes – {{ vote.title }}</strong>
+  <a class="btn btn-sm btn-outline-secondary" href="?only_new=1">nur unbenutzte</a><button class="btn btn-sm btn-primary js-print" type="button">Drucken</button></div>
+<div class="codes">
+{% for v in codes %}
+<div class="code-card{{ ' used' if v.voted }}">
+  <div class="small text-secondary">Zugangscode zur Abstimmung</div>
+  <div class="fw-semibold">{{ vote.title }}</div>
+  <div class="d-flex gap-3 align-items-center mt-2">
+    <img src="/votes/{{ vote.id }}/qr/{{ v.token }}.svg" alt="QR-Code" width="96" height="96">
+    <div><div class="code font-monospace">{{ format_code(v.code) }}</div>
+      <div class="small">QR-Code scannen oder<br><span class="text-break">{{ public_link.split('//', 1)[-1] }}</span><br>öffnen und Code eingeben.</div>
+      {% if v.voted %}<div class="small text-danger fw-semibold">bereits benutzt</div>{% endif %}</div>
+  </div>
+  <div class="small text-secondary mt-2">Gilt für eine Stimme. {% if vote.secrecy != 'open' %}Die Stimmabgabe ist geheim.{% endif %}</div>
+</div>
+{% endfor %}
+</div>
+<script src="/static/print-codes.js"></script>
+</body></html>

@@ -105,9 +105,11 @@
             {% endif %}
             {% set nav_polls = (user.can('polls') or 'polls' in shared_nav) and 'polls' in modules %}
             {% set nav_bookings = (user.can('bookings') or 'bookings' in shared_nav) and 'bookings' in modules %}
-            {% if nav_polls or nav_bookings %}
-            <li class="nav-section">Termine</li>
+            {% set nav_votes = (user.can('votes') or 'votes' in shared_nav) and 'polls' in modules %}
+            {% if nav_polls or nav_bookings or nav_votes %}
+            <li class="nav-section">Termine & Abstimmungen</li>
             {% if nav_polls %}{{ m.nav_item('/polls', 'fa-calendar-check', 'Terminumfragen', path.startswith('/polls')) }}{% endif %}
+            {% if nav_votes %}{{ m.nav_item('/votes', 'fa-check-to-slot', 'Abstimmungen', path.startswith('/votes')) }}{% endif %}
             {% if nav_bookings %}{{ m.nav_item('/bookings', 'fa-calendar-plus', 'Terminbuchung', path.startswith('/bookings')) }}{% endif %}
             {% endif %}
             {% if 'forms' in modules %}
@@ -124,7 +126,15 @@
             {% if 'dms' in modules and (user.is_admin or user.can('dms_admin') or dms_nav) %}
             <li class="nav-section">Ablage</li>
             {{ m.nav_item('/dms', 'fa-box-archive', 'Recherche', path == '/dms' or path.startswith('/dms/r/') or path.startswith('/dms/new')) }}
+            {{ m.nav_item('/dms/persons', 'fa-address-book', 'Personen', path.startswith('/dms/persons')) }}
             {% if user.is_admin or user.can('dms_admin') %}{{ m.nav_item('/dms/areas', 'fa-sitemap', 'Aktenplan', path.startswith('/dms/areas') or path.startswith('/dms/retention')) }}{% endif %}
+            {% endif %}
+            {% if res_nav %}
+            <li class="nav-section">Ressourcen</li>
+            {{ m.nav_item('/resources', 'fa-building', 'Ressourcen & Belegung', path == '/resources' or (path.startswith('/resources/') and not path.startswith('/resources/bookings') and not path.startswith('/resources/calendars') and not path.startswith('/resources/holidays'))) }}
+            {{ m.nav_item('/resources/bookings', 'fa-calendar-check', 'Buchungen', path.startswith('/resources/bookings')) }}
+            {{ m.nav_item('/resources/calendars', 'fa-calendar-week', 'Kalender teilen', path.startswith('/resources/calendars')) }}
+            {% if user.can('resources') %}{{ m.nav_item('/resources/holidays', 'fa-champagne-glasses', 'Feiertage', path.startswith('/resources/holidays')) }}{% endif %}
             {% endif %}
             {% if 'maps' in modules %}
             <li class="nav-section">Karten</li>
@@ -136,15 +146,17 @@
             {{ m.nav_item('/recht', 'fa-scale-balanced', 'Ortsrecht ansehen', path.startswith('/recht')) }}
             {% if user.can('laws') %}{{ m.nav_item('/laws', 'fa-pen-to-square', 'Rechtstexte pflegen', path.startswith('/laws')) }}{% endif %}
             {% endif %}
-            {% if user.is_admin or user.can('users') or user.can('maps_admin') %}
+            {% if user.is_admin or user.can('users') or user.can('maps_admin') or user.can('payments') %}
             <li class="nav-section">Verwaltung</li>
             {% if user.is_admin %}{{ m.nav_item('/admin/recordings', 'fa-file-audio', 'Aufnahmen', path == '/admin/recordings' or path.startswith('/recordings')) }}{% endif %}
             {% if user.can('users') %}{{ m.nav_item('/admin/users', 'fa-users', 'Benutzer &amp; Gruppen'|safe, path == '/admin/users') }}{% endif %}
             {% if user.can('maps_admin') %}{{ m.nav_item('/admin/maps', 'fa-layer-group', 'Kartenlayer', path.startswith('/admin/maps')) }}{% endif %}
+            {% if user.can('payments') %}{{ m.nav_item('/payments', 'fa-euro-sign', 'Zahlungen', path.startswith('/payments')) }}{% endif %}
             {% if user.is_admin %}
             {{ m.nav_item('/admin/modules', 'fa-puzzle-piece', 'Module', path == '/admin/modules') }}
             {{ m.nav_item('/admin/sessions', 'fa-user-clock', 'Sitzungen &amp; Cookies'|safe, path == '/admin/sessions') }}
             {{ m.nav_item('/admin/notifications', 'fa-envelope', 'Benachrichtigungen', path.startswith('/admin/notifications')) }}
+            {{ m.nav_item('/admin/payments', 'fa-credit-card', 'PayPal &amp; Bankverbindung'|safe, path == '/admin/payments') }}
             {{ m.nav_item('/admin/templates', 'fa-envelope-open-text', 'E-Mail-Vorlagen', path == '/admin/templates') }}
             {{ m.nav_item('/admin/speechmind', 'fa-wand-magic-sparkles', 'SpeechMind', path == '/admin/speechmind') }}
             {{ m.nav_item('/admin/https', 'fa-shield-halved', 'HTTPS &amp; Zertifikat'|safe, path.startswith('/admin/https')) }}

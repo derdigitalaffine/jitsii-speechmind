@@ -254,3 +254,12 @@ a.dash-num:hover > span { text-decoration: underline; }
 .dash-tile.is-hidden .card { opacity: .5; }
 #dash-tiles:not(.dash-editing) .dash-tile.is-hidden { display: none; }
 .dash-handle { cursor: grab; }
+
+/* Abstimmung: Live-Modus (Beamer) */
+.vote-live:fullscreen { background: var(--bs-body-bg); padding: 2rem; overflow: auto; }
+
+/* Ressourcen: Belegung */
+.res-ev.res-tentative { background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.35) 0 6px, transparent 6px 12px); opacity: .85; }
+.res-ev.res-closure { background-color: var(--bs-secondary) !important; border-color: var(--bs-secondary) !important; }
+.res-photo { aspect-ratio: 4 / 3; object-fit: cover; width: 100%; border-radius: var(--bs-border-radius); }
+.res-thumb { aspect-ratio: 16 / 9; object-fit: cover; width: 100%; }

@@ -36,6 +36,8 @@ STEP_TYPES = {
     "auto": ("Automatik", "fa-robot", "Mail senden, Status setzen, Bescheid-PDF erzeugen – ohne Zutun."),
     "confirm": ("E-Mail bestätigen", "fa-envelope-circle-check",
                 "Double-Opt-in: Der Prozess wartet, bis die antragstellende Person den Link in der Mail angeklickt hat."),
+    "payment": ("Zahlung anfordern", "fa-euro-sign",
+                "Gebühr (fest oder aus einem internen Feld) anfordern – der Prozess wartet, bis bezahlt ist."),
 }
 EXPIRE_ACTIONS = {"notify": "Zuständige informieren (Vorgang bleibt offen)", "withdraw": "Vorgang beenden (Status „Zurückgezogen“)"}
 ASSIGN_MODES = {"case": "Zuständigkeit des Vorgangs", "user": "Bestimmte Person", "group": "Gruppe",
@@ -194,6 +196,20 @@ def clean_definition(raw) -> dict:
             step["status"] = step["status"] or "query"
         elif kind == "auto":
             step["actions"] = _clean_actions(src.get("actions"))
+        elif kind == "payment":
+            from . import payments as pay
+            step["label"] = _s(src.get("label"), 120) or "Gebühr"
+            raw_amount = src.get("amount", "")
+            step["amount"] = raw_amount if isinstance(raw_amount, int) else (pay.parse_amount(raw_amount) or 0)   # Cent
+            step["field"] = _s(src.get("field"), 40)
+            step["due_days"] = _days(src.get("due_days"), 90) or 14
+            raw_methods = src.get("methods") or ["paypal", "transfer"]
+            if isinstance(raw_methods, str):
+                raw_methods = raw_methods.split(",")
+            step["methods"] = [m for m in raw_methods if m in ("paypal", "transfer", "cash")] or ["transfer"]
+            step["on_expire"] = src.get("on_expire") if src.get("on_expire") in EXPIRE_ACTIONS else "notify"
+            step["cost_center"] = _s(src.get("cost_center"), 120)
+            step["message"] = _s(src.get("message"), 5000)
         elif kind == "confirm":
             step["message"] = _s(src.get("message"), 5000)
             step["due_days"] = _days(src.get("due_days"), 60) or 7
@@ -552,9 +568,24 @@ def _advance(db, resp: FormResponse, index: int, actor_name: str) -> None:
             task.comment = "\n".join(notes)
             index += 1
             continue
+        if step["type"] == "payment" and step_amount(resp, step) <= 0:
+            resp.tasks.append(ApplicationTask(step_id=step["id"], name=step["name"], kind="payment", state="done",
+                                              outcome="done", completed_at=utcnow(), completed_by="Prozess",
+                                              comment="Keine Gebühr fällig (Betrag 0)"))
+            index += 1
+            continue
         _create_task(db, resp, step)
         return
     _finish(db, resp)
+
+
+def step_amount(resp: FormResponse, step: dict) -> int:
+    from . import payments as pay
+    if step.get("field"):
+        cents = pay.parse_amount(str(resp.fields.get(step["field"], "")).replace("€", "").strip())
+        if cents is not None:
+            return cents
+    return int(step.get("amount") or 0)
 
 
 def _finish(db, resp: FormResponse) -> None:
@@ -577,6 +608,27 @@ def _create_task(db, resp: FormResponse, step: dict) -> ApplicationTask:
         db.flush()
         sent = send_confirm(db, resp, task, step)
         _event(resp, "task", f"{step['name']}: Bestätigungslink " + ("per E-Mail verschickt" if sent else "konnte nicht verschickt werden (keine Adresse)"))
+        return task
+    if step["type"] == "payment":
+        from . import payments as pay
+        task.state = "waiting"
+        task.assignee_id, task.group_id = resp.assignee_id, resp.group_id
+        cents = step_amount(resp, step)
+        p = pay.create(db, kind="step", subject_id=None, purpose=f"{step.get('label') or 'Gebühr'}: {resp.form.title} ({resp.ref_no})",
+                       lines=[{"label": step.get("label") or "Gebühr", "qty": 1, "unit_cents": cents}],
+                       payer_name=resp.name or "", payer_email=apps.applicant_email(resp.form, resp) or "",
+                       methods=",".join(step.get("methods") or ["transfer"]), cost_center=step.get("cost_center", ""),
+                       due_days=step.get("due_days") or 14, back_url=f"/a/{resp.track_token}")
+        task.due_at = p.due_at
+        resp.tasks.append(task)
+        db.flush()
+        p.subject_id = task.id
+        task.data_json = json.dumps({"payment_id": p.id})
+        sent = pay.request_payment(db, p)
+        _event(resp, "task", f"{step['name']}: {pay.money(cents)} angefordert" + (" – Zahlungsaufforderung per E-Mail" if sent else ""),
+               public=True)
+        if step.get("message"):
+            _event(resp, "message", fill(step["message"], resp), public=True)
         return task
     if step["type"] == "request" and step.get("compose") == "clerk":
         # Die Sachbearbeitung stellt die Nachforderung zusammen (Vorschlag aus dem Prozess), erst dann wartet der Prozess
@@ -1095,6 +1147,15 @@ def usage(db, process: Process) -> dict:
     return {"forms": forms, "running": running}
 
 
+def responses_of(db, process: Process) -> list[FormResponse]:
+    """Alle Anträge, die nach diesem Prozess laufen oder liefen (bzw. deren Formular ihn nutzt)."""
+    version_ids = [v.id for v in process.versions] or [-1]
+    form_ids = [f.id for f in db.scalars(select(Form).where(Form.process_id == process.id))] or [-1]
+    return db.scalars(select(FormResponse).where(FormResponse.ref_no.is_not(None), or_(
+        FormResponse.process_version_id.in_(version_ids),
+        (FormResponse.process_version_id.is_(None)) & FormResponse.form_id.in_(form_ids)))).all()
+
+
 def question_titles(db, process: Process) -> list[str]:
     """Fragen aller Antragsformulare, die den Prozess nutzen (für Bedingungen und Platzhalter im Editor)."""
     titles: list[str] = []
@@ -1169,3 +1230,60 @@ def send_reminders() -> int:
             req.reminded_at = now
         db.commit()
     return count
+
+
+
+# --- Zahlungsschritt ---------------------------------------------------------------------------
+
+def payment_of_task(db, task: ApplicationTask):
+    from .db import Payment
+    pid = task.data.get("payment_id") if task.data else None
+    return db.get(Payment, pid) if pid else None
+
+
+def _on_step_payment(db, p, event: str) -> None:
+    task = db.get(ApplicationTask, p.subject_id) if p.subject_id else None
+    if task is None or task.kind != "payment" or task.state != "waiting":
+        return
+    resp = task.response
+    step = step_of(task) or {}
+    if event == "paid":
+        from . import payments as pay
+        task.state, task.outcome, task.completed_at = "done", "done", utcnow()
+        task.completed_by = f"Zahlung ({pay.METHODS.get(p.method, ('',))[0]})"
+        _event(resp, "task", f"{task.name}: bezahlt ({pay.money(p.amount_cents)})", public=True, actor_name="Zahlung")
+        steps = steps_of(resp)
+        index = next((n for n, s in enumerate(steps) if s["id"] == task.step_id), len(steps) - 1)
+        _advance(db, resp, index + 1, "")
+    elif event == "overdue":
+        if step.get("on_expire") == "withdraw":
+            from . import payments as pay
+            pay.cancel(db, p, "Prozess", "Zahlfrist abgelaufen", fire=False)
+            task.state, task.completed_at, task.comment = "cancelled", utcnow(), "nicht bezahlt"
+            _set_status(db, resp, "withdrawn", "Die Gebühr wurde nicht rechtzeitig bezahlt; der Antrag wird nicht weiter bearbeitet.",
+                        inform=True)
+            cancel_open(resp, "nicht bezahlt")
+        else:
+            _notify_task(db, resp, task, step, "app_task_overdue",
+                         {"eskalation": "Die Gebühr ist nicht innerhalb der Frist eingegangen."},
+                         targets=apps._staff_addresses(db, resp.form, resp))
+            _event(resp, "task", f"{task.name}: Zahlfrist abgelaufen – Zuständige informiert")
+
+
+def _can_manage_step_payment(db, user, p) -> bool:
+    task = db.get(ApplicationTask, p.subject_id) if p.subject_id else None
+    return task is not None and apps.access(db, user, task.response) >= 2
+
+
+def _step_payment_link(p) -> str:
+    with SessionLocal() as db:
+        task = db.get(ApplicationTask, p.subject_id) if p.subject_id else None
+        return f"/forms/{task.response.form_id}/applications/{task.response_id}#schritt" if task else ""
+
+
+def _register_payments() -> None:
+    from . import payments as pay
+    pay.register("step", event=_on_step_payment, can_manage=_can_manage_step_payment, link=_step_payment_link)
+
+
+_register_payments()

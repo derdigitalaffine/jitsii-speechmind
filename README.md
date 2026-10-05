@@ -1,6 +1,6 @@
 # Videokonferenzserver der Verbandsgemeinde Otterbach-Otterberg
 
-**Selbst gehostetes Portal für Verwaltungen:** Videokonferenzen mit [Jitsi Meet](https://jitsi.org/), Aufnahme und Transkription über [SpeechMind](https://www.speechmind.com/), Besprechungsplanung mit Outlook-Einladungen, Terminumfragen wie Doodle, Terminbuchung wie Calendly, Kurzlinks mit QR-Codes, ein Formularserver mit Online-Anträgen, ein Kartenbrowser und Rechtstexte (Ortsrecht online) – alles auf dem eigenen Server, ohne Daten an große Plattformen.
+**Selbst gehostetes Portal für Verwaltungen:** Videokonferenzen mit [Jitsi Meet](https://jitsi.org/), Aufnahme und Transkription über [SpeechMind](https://www.speechmind.com/), Besprechungsplanung mit Outlook-Einladungen, Terminumfragen wie Doodle, Abstimmungen und Wahlen, Terminbuchung wie Calendly, Buchung von Bürgerhäusern, Räumen, Grillplätzen und Geräten, Kurzlinks mit QR-Codes, ein Formularserver mit Online-Anträgen, Bezahlung per PayPal oder Überweisung, eine Ablage (DMS), ein Kartenbrowser und Rechtstexte (Ortsrecht online) – alles auf dem eigenen Server, ohne Daten an große Plattformen.
 
 Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Software (MIT-Lizenz)** ausdrücklich für alle anderen Verwaltungen gedacht: Verbandsgemeinden, Städte, Kreise, Zweckverbände. Nutzen Sie es, passen Sie es an Ihr Haus an, und teilen Sie Verbesserungen, damit alle davon profitieren. Name, Farben und Logo stellen Sie in der Oberfläche um (Design & Branding), voreingestellt über `BRAND_NAME` und `BRAND_PRODUCT` in `.env`.
 
@@ -40,6 +40,14 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - Optionen: nur ein Termin, **Plätze je Termin** (Terminbuchung, z. B. Sprechstunden), verdeckte Umfrage, E-Mail-Pflicht.
 - Ergebnis-Raster mit besten Terminen, CSV-Export; **Termin festlegen** mit Mail und Kalenderdatei an alle oder **direkt als Besprechung mit Outlook-Einladungen**.
 - **Im Portal teilen** mit Personen oder Gruppen in drei Stufen: Ergebnisse einsehen · zusätzlich einladen · zusätzlich bearbeiten und löschen.
+
+### Abstimmungen und Wahlen (im Modul „Umfragen & Abstimmungen“)
+
+- Mehrere Fragen je Abstimmung: **eine Antwort**, **mehrere Antworten** (mindestens/höchstens), **Rangfolge** (Borda-Wertung) und **Punkte verteilen** (z. B. Bürgerhaushalt) – jeweils mit Enthaltung.
+- **Offen, geheim oder anonym:** Bei geheimen Abstimmungen sind Wählerverzeichnis und Stimmzettel getrennt gespeichert (zufällige Stimmzettel-ID, kein Zeitstempel); jede Person bekommt eine **Quittung** zum Nachprüfen.
+- **Zugang:** persönliche Einladung (Benutzer, Gruppen, Gäste), **öffentlicher Link mit E-Mail-Bestätigung** (eine Stimme je Adresse) und **Zugangscodes zum Ausdrucken** mit QR-Code.
+- Ergebnis sichtbar live, nach der eigenen Stimme, nach dem Ende oder nur intern. **Live-Modus** für Sitzungen (Beamer, QR-Code, Balken in Echtzeit, starten/anhalten/beenden).
+- Beim Beenden wird das Ergebnis mit **SHA-256-Prüfsumme** festgeschrieben; **Ergebnisprotokoll als PDF** (auch direkt in die Ablage), Stimmzettel als CSV. Eigenes Recht „Abstimmungen“, Teilen in drei Stufen.
 
 ### Terminbuchung wie Calendly (abschaltbares Modul)
 
@@ -85,10 +93,26 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - **Fortschritt für Antragsteller:innen:** öffentliche Schrittnamen als Fortschrittsleiste auf der Statusseite, Bescheide zum Herunterladen.
 - **Öffentlicher Antragskatalog** unter `/antraege` mit Kategorien, Suche, Gebühren, Unterlagen und Bearbeitungsdauer – auch per iframe in die Homepage einbettbar.
 
+### Ressourcenbuchung (abschaltbares Modul)
+
+- **Bürgerhäuser, Veranstaltungsräume, Grillplätze, Spülmobile, Geräte** mit Fotos, Ausstattung, Nutzungsordnung (PDF) und Standort; öffentlicher **Katalog mit Karte und Verfügbarkeitssuche** („Was ist am 14.06. frei?“), auch per iframe.
+- Buchen **tageweise (auch mehrere Tage), in Zeitblöcken oder stundenweise**; **Teilräume** einzeln, die ganze Ressource belegt alle. Buchungszeiten je Wochentag, Sperrzeiten, Vorlauf, Rüst- und Reinigungszeiten.
+- **Preise** je Ressource bzw. Teilraum mit eigenen **Wochenend- und Feiertagspreisen** (gesetzliche Feiertage je Bundesland automatisch, eigene Tage wie die Kerwe), **Tarifgruppen** (Einheimische, Auswärtige, Vereine – optional mit Nachweis), **Zusatzleistungen** (pauschal, je Tag/Stunde/Stück, mit Bestand, auch Pflicht wie Endreinigung) und **Kaution**. Der Preis wird beim Buchen live berechnet.
+- Ablauf: **E-Mail-Bestätigung**, dann je Ressource **Sofortbuchung** oder **Anfrage mit Freigabe** (Zeitraum vorgemerkt); Bezahlen mit Frist, sonst verfällt die Reservierung. **Stornieren** nach Regeln (kostenlos bis X Tage, danach Gebühr) mit automatischer Erstattung. **Übergabe und Abnahme** mit Kautionserstattung, **interne und Serienbuchungen** (z. B. Verein jeden Dienstag), Bestätigung als PDF, Ablage im DMS.
+- **Belegungskalender teilen** in drei Stufen – nur frei/belegt, mit Anlass/Veranstalter, vollständig mit Kontaktdaten – als **iCal-Abo**, Web-Ansicht oder iframe, auch als Sammelkalender; im Portal über Freigaben (z. B. Hausmeisterei).
+
+### Zahlungen
+
+- **PayPal Checkout** (Orders API v2) serverseitig: Weiterleitung zu PayPal und zurück, keine PayPal-Skripte im Portal, Webhook mit Signaturprüfung, Sandbox zum Testen. Dazu **Überweisung** (Bankverbindung und Verwendungszweck) und **Barzahlung**.
+- Für **Ressourcenbuchungen**, **Gebühren in Formularen und Online-Anträgen** (Grundbetrag und Zuschläge nach Antworten, z. B. je Hund; auf Wunsch gilt ein Antrag erst nach Zahlung als eingegangen) und den Prozessschritt **„Zahlung anfordern“** (Betrag fest oder aus einem internen Feld).
+- **Zahlungsübersicht** mit Filtern, Summen und CSV-Export für die Kasse (Kostenstelle je Ressource/Formular), Erstattungen (PayPal automatisch), Zahlungserinnerung und Fristablauf. Eigenes Recht „Zahlungen“.
+
 ### Ablage (DMS, abschaltbares Modul)
 
 - **Aktenplan** als Baum (z. B. `1 Ordnung › 1.2 Hundesteuer`) mit **Lese- und Schreibrechten** für Personen und Gruppen, die nach unten vererbt werden. Jede:r sieht nur die eigenen Bereiche, Admins alles.
-- **Online-Anträge** landen automatisch im Bereich ihres Formulars – laufend und abgeschlossen; beim Abschluss wird das **Antrags-PDF mit Anlagen** samt erzeugten Bescheiden als Abschlussstand abgelegt. Dazu **manuelle Ablage** von Vorgängen mit Dateien.
+- **Online-Anträge** landen ab Eingang automatisch im Bereich ihres **Prozesses** (sonst ihres Formulars, sonst unter **„Nicht einsortiert“**) – laufend und abgeschlossen; beim Abschluss wird das **Antrags-PDF mit Anlagen** samt erzeugten Bescheiden als Abschlussstand abgelegt. Dazu Ressourcenbuchungen, Ergebnisprotokolle von Abstimmungen und **manuelle Ablage** von Vorgängen mit Dateien.
+- Einträge einzeln oder gesammelt **verschieben**, Bereiche im Aktenplan umhängen.
+- **Personenbezug:** Jeder Eintrag gehört zu einer Bürgerin bzw. einem Bürger (automatisch über E-Mail, sonst Name und PLZ); Personenseite mit allen Vorgängen, Kontaktdaten, Doppelungen zusammenführen.
 - **Recherche** nach Volltext, Antragsteller:in, Aktenzeichen, Ort/PLZ/Straße, Antragsart, Status, Art und Eingangsdatum; **gespeicherte Suchen**, CSV-Export.
 - **Löschfristen** je Bereich (vererbbar): Ablauf am Jahresende nach Abschluss + N Jahre; Löschen mit Begründung und Protokoll. Eigenes Recht „Aktenplan verwalten“.
 
@@ -114,10 +138,10 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 
 ### Verwaltung und Sicherheit
 
-- **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Formularbausteine, Online-Anträge einrichten, Prozesse, Aktenplan verwalten, Terminumfragen, Terminbuchung, Karten, Kartenlayer & Geocoding, Rechtstexte, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
+- **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Formularbausteine, Online-Anträge einrichten, Prozesse, Aktenplan verwalten, Terminumfragen, Abstimmungen, Terminbuchung, Ressourcen, Zahlungen, Karten, Kartenlayer & Geocoding, Rechtstexte, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
 - **Gehärtet:** Content-Security-Policy und weitere Sicherheits-Header, CSRF-Schutz für alle Formulare, Bremse gegen Passwort-Raten je IP und je Konto, keine Kontenermittlung über Antwortzeiten, Uploads nur als Download, aktuelle Bibliotheken ohne bekannte Sicherheitslücken.
 - **Zwei-Faktor-Anmeldung** per **Authenticator-App (TOTP)** oder **Code per E-Mail**, mit Notfallcodes; freiwillig oder Pflicht für Admins/alle. „Passwort vergessen“ per Mail-Link.
-- **Module** Kurzlinks, Formulare, Online-Anträge, Ablage (DMS), Terminumfragen, Terminbuchung, Kartenbrowser und Rechtstexte komplett abschaltbar.
+- **Module** Kurzlinks, Formulare, Online-Anträge, Ablage (DMS), Umfragen & Abstimmungen, Terminbuchung, Ressourcenbuchung, Kartenbrowser und Rechtstexte komplett abschaltbar.
 - **Sitzungen & Cookies:** technische Übersicht, wer angemeldet ist (Gerät, IP, letzte Aktivität), Inhalt und Eigenschaften der Session-Cookies; Sitzungen einzeln, je Person oder alle anderen beenden. Jede:r sieht unter Profil › Sicherheit die eigenen angemeldeten Geräte; ein neues Passwort meldet alle anderen Geräte ab.
 - **E-Mail** über SMTP mit Warteschlange, Wiederholungen und Protokoll; optional Ablage in „Gesendet“ per IMAP. **Alle Mails als Vorlagen bearbeitbar**, mit Platzhaltern und Live-Vorschau.
 - **HTTPS** mit Caddy: Start mit selbst signiertem Zertifikat, **Let's Encrypt** per Klick in der Oberfläche.
@@ -369,6 +393,15 @@ portal/app/
 ├── routes_polls.py      Terminumfragen: Verwaltung und öffentliche Abstimmung
 ├── bookings.py          Terminbuchung: Zeitfenster, Buchen/Verschieben/Absagen, Erinnerungen, Export
 ├── routes_bookings.py   Terminbuchung: Kalender, Terminliste, öffentliche Buchung, Kalender-Abo
+├── votes.py             Abstimmungen: Fragearten, Geheimhaltung, Wählerverzeichnis, Codes, Auszählung, Protokoll
+├── routes_votes.py      Abstimmungen: Verwaltung, Live-Modus, öffentliches Abstimmen
+├── resources.py         Ressourcenbuchung: Zeitraum, Belegung, Preise, Status, PDF, Kalender, Ablage
+├── holidays.py          Feiertage je Bundesland (für Wochenend-/Feiertagspreise)
+├── routes_resources.py  Ressourcen: Verwaltung, Buchungen, Übergabe, Serien, Kalender teilen, Feiertage
+├── routes_resources_public.py  Ressourcen: Katalog, Buchen, Buchung verwalten, iCal/Web-Kalender
+├── payments.py          Zahlungen: PayPal Checkout (Orders v2, Webhook), Überweisung, bar, Erstattung, Fristen
+├── routes_payments.py   Zahlungen: Zahlseite, PayPal-Rückkehr/Webhook, Übersicht, Einstellungen
+├── fees.py              Gebühren in Formularen und Online-Anträgen
 ├── cli.py               Notfall-Werkzeug (Passwort setzen, Admin machen, Zwei-Faktor zurücksetzen)
 ├── speechmind.py        Client für die SpeechMind GraphQL API v2
 ├── security.py          Passwörter, Verschlüsselung, CSRF, Jitsi-JWT

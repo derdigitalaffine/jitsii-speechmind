@@ -5,21 +5,22 @@
 <nav aria-label="Pfad" class="small mb-2"><a href="/dms">Ablage</a> › Vorgang ablegen</nav>
 {% call m.page_head('Vorgang ablegen', 'Schriftverkehr, Scans oder Papieranträge in den Aktenplan aufnehmen – recherchierbar wie Online-Anträge.') %}{% endcall %}
 <form method="post" enctype="multipart/form-data" class="card" style="max-width: 52rem"><input type="hidden" name="csrf" value="{{ csrf }}">
+  {% if person %}<input type="hidden" name="person_id" value="{{ person.id }}"><div class="alert alert-info small m-3 mb-0"><i class="fa-regular fa-circle-user me-1"></i>Wird <a href="/dms/persons/{{ person.id }}">{{ person.name }}</a> zugeordnet.</div>{% endif %}
   <div class="card-body"><div class="row g-3">
     <div class="col-12"><label class="form-label" for="n-area">Bereich <span class="req">*</span></label>
       <select class="form-select" id="n-area" name="area_id" required>{% for a, d in write_areas %}<option value="{{ a.id }}" {% if selected == a.id | string %}selected{% endif %}>{{ '  ' * d }}{{ a.code ~ ' ' if a.code }}{{ a.name }}</option>{% endfor %}</select></div>
     <div class="col-md-8"><label class="form-label" for="n-title">Titel <span class="req">*</span></label><input class="form-control" id="n-title" name="title" required maxlength="300" placeholder="z. B. Widerspruch gegen Hundesteuerbescheid"></div>
     <div class="col-md-4"><label class="form-label" for="n-ref">Aktenzeichen</label><input class="form-control" id="n-ref" name="ref_no" maxlength="60"></div>
-    <div class="col-md-6"><label class="form-label" for="n-app">Antragsteller:in / Absender:in</label><input class="form-control" id="n-app" name="applicant" maxlength="255"></div>
-    <div class="col-md-6"><label class="form-label" for="n-mail">E-Mail</label><input class="form-control" id="n-mail" name="applicant_email" type="email" maxlength="255"></div>
+    <div class="col-md-6"><label class="form-label" for="n-app">Antragsteller:in / Absender:in</label><input class="form-control" id="n-app" name="applicant" maxlength="255" value="{{ person.name if person else '' }}"></div>
+    <div class="col-md-6"><label class="form-label" for="n-mail">E-Mail</label><input class="form-control" id="n-mail" name="applicant_email" type="email" maxlength="255" value="{{ person.email if person else '' }}"></div>
     <div class="col-12">
       <div class="js-address" data-name="n" data-full="1" data-district="1">
         <div class="position-relative mb-2"><div class="input-group input-group-sm"><span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span><input class="form-control js-addr-search" type="search" autocomplete="off" placeholder="Adresse suchen (optional)" aria-label="Adresse suchen"></div><div class="list-group addr-results js-addr-results d-none"></div></div>
         <div class="row g-2">
-          <div class="col-md-8"><label class="form-label small mb-0" for="n__street">Straße und Nr.</label><input class="form-control" id="n__street" name="n__street"></div>
+          <div class="col-md-8"><label class="form-label small mb-0" for="n__street">Straße und Nr.</label><input class="form-control" id="n__street" name="n__street" value="{{ person.street if person else '' }}"></div>
           <div class="col-md-4 d-none"><input name="n__house_no"></div>
-          <div class="col-4 col-md-2"><label class="form-label small mb-0" for="n__zip">PLZ</label><input class="form-control js-addr-zip" id="n__zip" name="n__zip" maxlength="5" inputmode="numeric"></div>
-          <div class="col-8 col-md-6"><label class="form-label small mb-0" for="n__city">Ort</label><input class="form-control js-addr-city" id="n__city" name="n__city" list="n__cities"><datalist id="n__cities"></datalist></div>
+          <div class="col-4 col-md-2"><label class="form-label small mb-0" for="n__zip">PLZ</label><input class="form-control js-addr-zip" id="n__zip" name="n__zip" maxlength="5" inputmode="numeric" value="{{ person.zip if person else '' }}"></div>
+          <div class="col-8 col-md-6"><label class="form-label small mb-0" for="n__city">Ort</label><input class="form-control js-addr-city" id="n__city" name="n__city" list="n__cities" value="{{ person.city if person else '' }}"><datalist id="n__cities"></datalist></div>
           <div class="col-md-6"><label class="form-label small mb-0" for="n__district">Ortsteil</label><input class="form-control" id="n__district" name="n__district"></div>
         </div>
         <input type="hidden" name="n__lat"><input type="hidden" name="n__lon"><div class="form-text js-addr-info"></div>

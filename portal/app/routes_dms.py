@@ -8,14 +8,14 @@ from urllib.parse import urlencode
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import FileResponse, Response
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from . import applications as apps, dms, forms as fm
 from .db import (
-    LOCAL_TZ, DmsAccess, DmsArea, DmsLog, DmsRecord, DmsSearch, Group, User, utcnow,
+    LOCAL_TZ, DmsAccess, DmsArea, DmsLog, DmsRecord, DmsSearch, Group, Person, User, utcnow,
 )
-from .main import app, check_csrf, current_user, enabled_modules, flash, get_db, redirect, render
+from .main import app, check_csrf, current_user, enabled_modules, flash, get_db, redirect, render, safe_next
 from .routes_forms import SAFE_MIME
 
 MAX_UPLOAD = 50 * 1024 * 1024
@@ -61,7 +61,16 @@ def dms_search(request: Request, page: int = 1, user: User = Depends(current_use
                   active=active, qs=qs, tree=tree, by_id=by_id, label=dms.label, levels=lv, form_titles=forms_titles,
                   statuses=apps.STATUSES, searches=db.scalars(select(DmsSearch).where(DmsSearch.user_id == user.id)
                                                               .order_by(DmsSearch.name)).all(),
-                  can_write=any(v >= dms.WRITE for v in lv.values()), manager=user.is_admin or user.can("dms_admin"))
+                  can_write=any(v >= dms.WRITE for v in lv.values()), manager=user.is_admin or user.can("dms_admin"),
+                  write_areas=[(a, d) for a, d in dms.tree(db) if lv.get(a.id, 0) >= dms.WRITE],
+                  person_name=_person_name(db, user, f.get("person", "")))
+
+
+def _person_name(db, user: User, pid: str) -> str:
+    if not pid.isdigit():
+        return ""
+    person = db.scalar(dms.visible_persons_query(db, user).where(Person.id == int(pid)))
+    return (person.name or person.email) if person else pid
 
 
 @app.get("/dms/export.csv")
@@ -131,6 +140,15 @@ def dms_record(request: Request, record_id: int, user: User = Depends(current_us
                "field_labels": {f["key"]: f["label"] for s in workflow.steps_of(resp) for f in s.get("fields", [])}}
     lv = dms.levels(db, user)
     by_id = {a.id: a for a in dms.areas(db)}
+    person_q = request.query_params.get("person_q", "").strip()[:100]
+    candidates = []
+    if person_q and level >= dms.WRITE:
+        q = dms.visible_persons_query(db, user)
+        for word in person_q.split()[:5]:
+            like = f"%{word}%"
+            q = q.where(or_(Person.name.ilike(like), Person.email.ilike(like), Person.city.ilike(like), Person.zip.ilike(like)))
+        candidates = db.scalars(q.order_by(Person.name).limit(15)).all()
+    ctx.update(person_q=person_q, candidates=candidates)
     return render(request, "dms_record.html", user, record=record, level=level, by_id=by_id, label=dms.label,
                   statuses=apps.STATUSES, write_areas=[(a, d) for a, d in dms.tree(db) if lv.get(a.id, 0) >= dms.WRITE],
                   **ctx)
@@ -247,11 +265,7 @@ async def dms_record_edit(request: Request, record_id: int, user: User = Depends
     if target.isdigit() and int(target) != record.area_id:
         if lv.get(int(target), 0) < dms.WRITE:
             raise HTTPException(403, "In diesem Bereich dürfen Sie nicht ablegen.")
-        old = record.area.name
-        record.area_id = int(target)
-        db.flush()
-        db.refresh(record)
-        dms.log(db, user, "verschoben", f"{record.ref_no or record.title}: {old} → {record.area.name}")
+        dms.move_record(db, record, db.get(DmsArea, int(target)), user)
     record.note = str(data.get("note", "")).replace("\r\n", "\n").strip()[:10000]
     if record.kind == "manuell":
         record.title = " ".join(str(data.get("title", "")).split())[:300] or record.title
@@ -284,7 +298,12 @@ def dms_new(request: Request, area: str = "", user: User = Depends(current_user)
             return redirect("/dms/areas")
         flash(request, "Sie haben in keinem Ablagebereich Schreibrechte.", "error")
         return redirect("/dms")
-    return render(request, "dms_new.html", user, write_areas=write, selected=area, today=datetime.now(LOCAL_TZ).date().isoformat())
+    person = None
+    pid = request.query_params.get("person", "")
+    if pid.isdigit():
+        person = db.scalar(dms.visible_persons_query(db, user).where(Person.id == int(pid)))
+    return render(request, "dms_new.html", user, write_areas=write, selected=area, person=person,
+                  today=datetime.now(LOCAL_TZ).date().isoformat())
 
 
 @app.post("/dms/new", dependencies=[Depends(check_csrf)])
@@ -325,6 +344,12 @@ async def dms_new_save(request: Request, user: User = Depends(current_user), db:
     record.retention_until = dms.retention_date(record.closed_at, dms.retention_years(by_id[area_id], by_id))
     record.text = " ".join([title, record.ref_no, record.applicant, record.applicant_email, record.street, record.zip,
                             record.city, record.district, record.note, *[x.name for x in record.files]]).lower()
+    pid = str(data.get("person_id", ""))
+    chosen = db.get(Person, int(pid)) if pid.isdigit() else None
+    if chosen is not None and db.scalar(dms.visible_persons_query(db, user).where(Person.id == chosen.id)) is not None:
+        record.person = chosen
+    else:
+        record.person = dms.match_person(db, record.applicant, record.applicant_email, record.street, record.zip, record.city)
     dms.log(db, user, "abgelegt", f"„{title}“ mit {n} Datei(en) in {by_id[area_id].name}")
     db.commit()
     flash(request, "Vorgang abgelegt.")
@@ -336,6 +361,8 @@ async def dms_new_save(request: Request, user: User = Depends(current_user), db:
 @app.get("/dms/areas")
 def dms_areas(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
     _manager(user)
+    dms.unsorted(db)
+    db.commit()
     tree = dms.tree(db)
     counts = {a.id: 0 for a, _ in tree}
     for (aid,) in db.execute(select(DmsRecord.area_id)):
@@ -389,6 +416,9 @@ def dms_area_delete(request: Request, area_id: int, user: User = Depends(current
     area = db.get(DmsArea, area_id)
     if area is None:
         raise HTTPException(404)
+    if area.system_key:
+        flash(request, "„Nicht einsortiert“ ist fest eingerichtet und lässt sich nicht löschen.", "error")
+        return redirect("/dms/areas")
     if db.scalar(select(DmsRecord.id).where(DmsRecord.area_id == area_id).limit(1)) or \
             db.scalar(select(DmsArea.id).where(DmsArea.parent_id == area_id).limit(1)):
         flash(request, "Der Bereich enthält noch Einträge oder Unterbereiche.", "error")
@@ -462,3 +492,132 @@ async def dms_retention_delete(request: Request, user: User = Depends(current_us
     db.commit()
     flash(request, f"{n} Eintrag/Einträge nach Ablauf der Aufbewahrungsfrist gelöscht und protokolliert.")
     return redirect("/dms/retention")
+
+
+# --- Verschieben (Sammelaktion) -------------------------------------------------------------------
+
+@app.post("/dms/move", dependencies=[Depends(check_csrf)])
+async def dms_move(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    lv = _user(db, user)
+    data = await request.form()
+    target = db.get(DmsArea, int(data["area_id"])) if str(data.get("area_id", "")).isdigit() else None
+    if target is None or lv.get(target.id, 0) < dms.WRITE:
+        flash(request, "Bitte einen Zielbereich wählen, in dem Sie ablegen dürfen.", "error")
+        return redirect(safe_next(str(data.get("next", ""))) if data.get("next") else "/dms")
+    moved = skipped = 0
+    for rid in data.getlist("ids"):
+        record = db.get(DmsRecord, int(rid)) if str(rid).isdigit() else None
+        if record is None or lv.get(record.area_id, 0) < dms.WRITE:
+            skipped += 1
+            continue
+        moved += dms.move_record(db, record, target, user)
+    db.commit()
+    flash(request, f"{moved} Eintrag/Einträge nach „{target.name}“ verschoben."
+          + (f" {skipped} übersprungen (keine Schreibrechte)." if skipped else ""), "error" if skipped and not moved else "ok")
+    return redirect(safe_next(str(data.get("next", ""))) if data.get("next") else "/dms")
+
+
+# --- Personen (Bürger:innen / Antragsteller:innen) ----------------------------------------------
+
+def _person(db, user: User, person_id: int) -> Person:
+    _user(db, user)
+    person = db.scalar(dms.visible_persons_query(db, user).where(Person.id == person_id))
+    if person is None:
+        raise HTTPException(404, "Person nicht gefunden.")
+    return person
+
+
+def _person_write(db, user: User, person: Person) -> bool:
+    """Ändern darf, wer den Aktenplan verwaltet oder in einem Bereich mit Einträgen der Person ablegen darf."""
+    if user.is_admin or user.can("dms_admin"):
+        return True
+    lv = dms.levels(db, user)
+    return any(lv.get(r.area_id, 0) >= dms.WRITE for r in db.scalars(select(DmsRecord).where(DmsRecord.person_id == person.id)))
+
+
+@app.get("/dms/persons")
+def dms_persons(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    _user(db, user)
+    term = request.query_params.get("q", "").strip()[:100]
+    q = dms.visible_persons_query(db, user)
+    for word in term.split()[:5]:
+        like = f"%{word}%"
+        q = q.where(or_(Person.name.ilike(like), Person.email.ilike(like), Person.city.ilike(like), Person.zip.ilike(like),
+                        Person.street.ilike(like), Person.phone.ilike(like)))
+    rows = db.scalars(q.order_by(Person.name).limit(300)).all()
+    counts = dict(db.execute(select(DmsRecord.person_id, func.count(DmsRecord.id))
+                             .where(DmsRecord.person_id.in_([p.id for p in rows] or [-1])).group_by(DmsRecord.person_id)).all())
+    return render(request, "dms_persons.html", user, rows=rows, q=term, counts=counts)
+
+
+@app.get("/dms/persons/{person_id:int}")
+def dms_person(request: Request, person_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    person = _person(db, user, person_id)
+    records, total = dms.search(db, user, {"person": str(person.id)}, limit=500)
+    by_id = {a.id: a for a in dms.areas(db)}
+    merge = []
+    if user.is_admin or user.can("dms_admin"):
+        like_name = " ".join(person.name.split()[-1:])
+        cands = select(Person).where(Person.id != person.id)
+        conds = [Person.email == person.email] if person.email else []
+        if like_name:
+            conds.append(Person.name.ilike(f"%{like_name}%"))
+        merge = db.scalars(cands.where(or_(*conds)).order_by(Person.name).limit(20)).all() if conds else []
+    return render(request, "dms_person.html", user, person=person, records=records, total=total, by_id=by_id,
+                  label=dms.label, statuses=apps.STATUSES, can_edit=_person_write(db, user, person), merge=merge,
+                  hidden=db.scalar(select(func.count(DmsRecord.id)).where(DmsRecord.person_id == person.id)) - total)
+
+
+@app.post("/dms/persons/{person_id:int}", dependencies=[Depends(check_csrf)])
+async def dms_person_save(request: Request, person_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    person = _person(db, user, person_id)
+    if not _person_write(db, user, person):
+        raise HTTPException(403, "Für diese Person haben Sie nur Leserechte.")
+    data = await request.form()
+    name = " ".join(str(data.get("name", "")).split())[:255]
+    if not name:
+        flash(request, "Bitte einen Namen angeben.", "error")
+        return redirect(f"/dms/persons/{person.id}")
+    person.name = name
+    person.email = str(data.get("email", "")).strip().lower()[:255]
+    for key, size in (("phone", 60), ("street", 255), ("zip", 10), ("city", 200)):
+        setattr(person, key, " ".join(str(data.get(key, "")).split())[:size])
+    person.note = str(data.get("note", "")).replace("\r\n", "\n").strip()[:5000]
+    person.updated_at = utcnow()
+    db.commit()
+    flash(request, "Angaben zur Person gespeichert.")
+    return redirect(f"/dms/persons/{person.id}")
+
+
+@app.post("/dms/persons/{person_id:int}/merge", dependencies=[Depends(check_csrf)])
+async def dms_person_merge(request: Request, person_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    _manager(user)
+    keep = db.get(Person, person_id)
+    data = await request.form()
+    drop = db.get(Person, int(data["other_id"])) if str(data.get("other_id", "")).isdigit() else None
+    if keep is None or drop is None or keep.id == drop.id:
+        raise HTTPException(404)
+    n = dms.merge_persons(db, keep, drop, user)
+    db.commit()
+    flash(request, f"„{drop.name}“ mit {n} Eintrag/Einträgen übernommen.")
+    return redirect(f"/dms/persons/{keep.id}")
+
+
+@app.post("/dms/r/{record_id:int}/person", dependencies=[Depends(check_csrf)])
+async def dms_record_person(request: Request, record_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    record, _ = _record(db, user, record_id, dms.WRITE)
+    data = await request.form()
+    pid = str(data.get("person_id", ""))
+    if pid == "new":
+        person = Person(name=record.applicant or "Unbekannt", email="", street=record.street, zip=record.zip[:10], city=record.city)
+        db.add(person)
+        db.flush()
+    else:
+        person = db.scalar(dms.visible_persons_query(db, user).where(Person.id == int(pid))) if pid.isdigit() else None
+    if person is None:
+        raise HTTPException(404, "Person nicht gefunden.")
+    record.person = person
+    dms.log(db, user, "Person zugeordnet", f"{record.ref_no or record.title} → #{person.id} {person.name}")
+    db.commit()
+    flash(request, f"Eintrag „{person.name}“ zugeordnet.")
+    return redirect(f"/dms/r/{record.id}")

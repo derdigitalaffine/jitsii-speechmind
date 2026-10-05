@@ -481,8 +481,35 @@ def process_editor(request: Request, process_id: int, user: User = Depends(proce
                   "mailTargets": list(wf.MAIL_TARGETS), "statuses": list(apps.STATUSES), "expireActions": list(wf.EXPIRE_ACTIONS),
                   "requestTypes": list(wf.REQUEST_TYPES), "subtypes": list(fm.SUBTYPES)},
     }
+    dms_areas = []
+    if "dms" in enabled_modules():
+        from . import dms
+        by_id = {a.id: a for a in dms.areas(db)}
+        dms_areas = [(a, d, dms.label(a, by_id)) for a, d in dms.tree(db)]
     return render(request, "process_editor.html", user, process=process, editor=editor, usage=use,
-                  hints=wf.check(definition, db))
+                  hints=wf.check(definition, db), dms_areas=dms_areas)
+
+
+@app.post("/processes/{process_id:int}/filing", dependencies=[Depends(check_csrf)])
+async def process_filing(request: Request, process_id: int, user: User = Depends(process_user),
+                         db: Session = Depends(get_db)):
+    from . import dms
+    from .db import DmsArea, DmsRecord
+    _module_on()
+    process = _process(db, process_id)
+    data = await request.form()
+    aid = str(data.get("dms_area_id", ""))
+    process.dms_area_id = int(aid) if aid.isdigit() and db.get(DmsArea, int(aid)) else None
+    db.flush()
+    # laufende und abgeschlossene Vorgänge dieses Prozesses gleich umsortieren (außer von Hand verschobene)
+    n = 0
+    for resp in wf.responses_of(db, process):
+        before = db.scalar(select(DmsRecord.area_id).where(DmsRecord.response_id == resp.id))
+        record = dms.sync(db, resp)
+        n += bool(record is not None and record.area_id != before)
+    db.commit()
+    flash(request, "Ablage gespeichert." + (f" {n} Vorgang/Vorgänge einsortiert." if n else ""))
+    return redirect(f"/processes/{process.id}#ablage")
 
 
 @app.post("/processes/{process_id:int}/save", dependencies=[Depends(check_csrf)])

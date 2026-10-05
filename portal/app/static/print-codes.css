@@ -1,0 +1,6 @@
+body { background: #fff; color: #000; }
+.codes { display: grid; grid-template-columns: repeat(auto-fill, minmax(88mm, 1fr)); gap: 4mm; padding: 6mm; }
+.code-card { border: 1px dashed #888; border-radius: 4px; padding: 4mm; break-inside: avoid; }
+.code-card.used { opacity: .45; }
+.code { font-size: 1.6rem; letter-spacing: .08em; font-weight: 700; }
+@media print { .no-print { display: none !important; } .codes { padding: 0; } @page { margin: 10mm; } }

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Belegungskalender teilen{% endblock %}
+{% block content %}
+{{ m.page_head('Belegungskalender teilen', 'Geheime Links für Kalender-Abos (Outlook, Google, Handy) und eine Web-Ansicht – in drei Detailstufen. Ein Link lässt sich jederzeit widerrufen.') }}
+<form method="post" action="/resources/calendars" class="card mb-4"><div class="card-body row g-3"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="col-md-4"><label class="form-label" for="k-name">Name</label><input class="form-control" id="k-name" name="name" placeholder="z. B. Hausmeisterei Bürgerhäuser" required></div>
+  <div class="col-md-8"><label class="form-label" for="k-res">Ressourcen <span class="small text-secondary">(mehrere = Sammelkalender)</span></label><select class="form-select js-select" id="k-res" name="resources" multiple required>{% for r, lvl in items %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></div>
+  <div class="col-12"><span class="form-label d-block">Detailstufe</span>
+    <div class="form-check"><input class="form-check-input" type="radio" name="level" value="busy" id="lv-b" checked><label class="form-check-label" for="lv-b"><strong>Nur frei/belegt</strong> – z. B. für die Homepage</label></div>
+    <div class="form-check"><input class="form-check-input" type="radio" name="level" value="title" id="lv-t"><label class="form-check-label" for="lv-t"><strong>Mit Anlass und Veranstalter</strong> – ohne Kontaktdaten</label></div>
+    <div class="form-check"><input class="form-check-input" type="radio" name="level" value="full" id="lv-f"><label class="form-check-label" for="lv-f"><strong>Vollständig</strong> – mit Namen, Telefon, E-Mail, Anschrift, Zusatzleistungen (z. B. Hausmeisterei, Reinigung). Nur mit Freigabe „Mit Kontaktdaten“.</label></div></div>
+  <div class="col-12 d-flex flex-wrap gap-4">
+    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="tentative" value="1" id="k-tent" checked><label class="form-check-label" for="k-tent">Anfragen als „vorgemerkt“ zeigen</label></div>
+    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="embed" value="1" id="k-emb"><label class="form-check-label" for="k-emb">Web-Ansicht per iframe einbettbar</label></div></div>
+  <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-link me-1"></i>Link erstellen</button></div>
+</div></form>
+
+{% for c in calendars %}
+<div class="card mb-3" id="cal-{{ c.id }}"><div class="card-body small">
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-2"><strong class="flex-grow-1">{{ c.name }}</strong>
+    <span class="badge text-bg-light border">{{ {'busy': 'frei/belegt', 'title': 'mit Anlass', 'full': 'vollständig'}[c.level] }}</span>
+    {% if c.tentative %}<span class="badge text-bg-light border">mit Anfragen</span>{% endif %}
+    <span class="text-secondary">{{ c.access_count }} Abrufe{% if c.last_access_at %}, zuletzt {{ c.last_access_at | local }}{% endif %}</span>
+    <form method="post" action="/resources/calendars/{{ c.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" type="submit" data-confirm-title="Link widerrufen?" data-confirm="Abos und Web-Ansicht funktionieren danach nicht mehr." data-confirm-button="Widerrufen">Widerrufen</button></form></div>
+  <div class="text-secondary mb-2">{% for rid in c.resource_ids.split(',') if rid | int in names %}{{ names[rid | int] }}{{ ', ' if not loop.last }}{% endfor %}</div>
+  <div class="row g-2">
+    <div class="col-md-6"><label class="form-label mb-1" for="ics-{{ c.id }}">iCal-Abo</label><div class="input-group input-group-sm"><input class="form-control" id="ics-{{ c.id }}" value="{{ base }}/r/cal/{{ c.token }}.ics" readonly><button class="btn btn-outline-secondary" type="button" data-copy="#ics-{{ c.id }}" aria-label="Kopieren"><i class="fa-regular fa-copy"></i></button></div></div>
+    <div class="col-md-6"><label class="form-label mb-1" for="web-{{ c.id }}">Web-Ansicht</label><div class="input-group input-group-sm"><input class="form-control" id="web-{{ c.id }}" value="{{ base }}/r/cal/{{ c.token }}" readonly><a class="btn btn-outline-secondary" href="/r/cal/{{ c.token }}" target="_blank" aria-label="Öffnen"><i class="fa-solid fa-arrow-up-right-from-square"></i></a></div></div>
+    {% if c.embed %}<div class="col-12"><label class="form-label mb-1" for="emb-{{ c.id }}">Einbetten</label><input class="form-control form-control-sm font-monospace" id="emb-{{ c.id }}" readonly value='<iframe src="{{ base }}/r-embed/cal/{{ c.token }}" style="width:100%;height:720px;border:0" title="{{ c.name }}"></iframe>'></div>{% endif %}
+  </div>
+</div></div>
+{% else %}<p class="text-secondary">Noch keine geteilten Kalender.</p>{% endfor %}
+<div class="alert alert-light border small mt-4"><i class="fa-solid fa-circle-info me-1"></i>Im Portal sehen Kolleg:innen die Belegung über Freigaben auf der jeweiligen Ressource (Belegung · mit Kontaktdaten · verwalten). Der öffentliche Katalog lässt sich mit <code>&lt;iframe src="{{ base }}/r-embed"&gt;</code> in die Homepage einbinden.</div>
+{% endblock %}

@@ -5,6 +5,13 @@
   {% if kind == 'thanks' %}
     <i class="fa-solid fa-circle-check fa-3x text-success mb-3"></i>
     <h1 class="h4">{{ form.title }}</h1>
+    {% if payment and payment.status == 'open' %}
+    <div class="alert {{ 'alert-warning' if payment_required else 'alert-info' }} text-start my-3">
+      <div class="fw-semibold mb-1"><i class="fa-solid fa-euro-sign me-1"></i>Gebühr: {{ money(payment.amount_cents) }}</div>
+      <div class="small mb-2">{% if payment_required %}Ihr Antrag wird bearbeitet, sobald die Gebühr bezahlt ist{% else %}Bitte bezahlen Sie{% endif %}{% if payment.due_at %} – bis {{ payment.due_at | local('%d.%m.%Y') }}{% endif %}.</div>
+      <a class="btn btn-primary" href="/pay/{{ payment.token }}"><i class="fa-solid fa-credit-card me-1"></i>Jetzt bezahlen</a>
+    </div>
+    {% endif %}
     {% if application %}
     <p>{{ (form.submit_message or 'Vielen Dank, Ihr Antrag ist eingegangen.') | richtext }}</p>
     <div class="d-inline-block border rounded-3 px-4 py-3 my-2 bg-body-tertiary">

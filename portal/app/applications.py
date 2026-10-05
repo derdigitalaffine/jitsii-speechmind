@@ -30,6 +30,7 @@ STATUSES = {
     "received": ("Eingegangen", "secondary", "fa-inbox"),
     "in_progress": ("In Bearbeitung", "primary", "fa-gears"),
     "query": ("Rückfrage", "warning", "fa-circle-question"),
+    "payment": ("Zahlung offen", "warning", "fa-euro-sign"),
     "approved": ("Genehmigt", "success", "fa-circle-check"),
     "rejected": ("Abgelehnt", "danger", "fa-circle-xmark"),
     "done": ("Erledigt", "success", "fa-flag-checkered"),
@@ -239,14 +240,25 @@ def on_submit(db, form: Form, resp: FormResponse) -> None:
            actor_name=resp.name or resp.email or "Antragsteller:in")
     db.flush()
     db.refresh(resp)
-    info = "\n".join(x for x in (form.app_info, f"Gebühr: {form.app_fee}" if form.app_fee else "",
+    from . import dms, fees, payments, workflow
+    payment = fees.on_submit(db, form, resp, back_url=f"/a/{resp.track_token}")
+    hold = payment is not None and payment.status == "open" and fees.config(form)["require"]
+    pay_info = ""
+    if payment is not None and payment.status == "open":
+        pay_info = (f"Gebühr {payments.money(payment.amount_cents)} – bitte bis "
+                    f"{to_local(payment.due_at).strftime('%d.%m.%Y')} bezahlen: {payments.link(payment)}"
+                    + (" (erst danach wird Ihr Antrag bearbeitet)" if hold else ""))
+    if hold:
+        resp.status = "payment"
+        _event(resp, "status", "Gebühr offen – der Antrag wird nach der Zahlung bearbeitet", status="payment", public=True)
+    info = "\n".join(x for x in (pay_info, form.app_info, f"Gebühr: {form.app_fee}" if form.app_fee and not pay_info else "",
                                  f"Übliche Bearbeitungsdauer: {form.app_duration}" if form.app_duration else "") if x)
     notify_applicant(db, form, resp, "app_received", {"antworten": fm.answers_text(form, resp), "hinweise": info},
                      attach_pdf=True)
-    notify_staff(db, form, resp, "app_new", {"antworten": fm.answers_text(form, resp) if form.notify_answers else ""},
-                 attach_pdf=True)
-    from . import dms, workflow
-    workflow.start(db, resp)
+    if not hold:
+        notify_staff(db, form, resp, "app_new", {"antworten": fm.answers_text(form, resp) if form.notify_answers else ""},
+                     attach_pdf=True)
+        workflow.start(db, resp)
     dms.sync(db, resp)
 
 

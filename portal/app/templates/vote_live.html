@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Live: {{ vote.title }}{% endblock %}
+{% block content %}
+<div id="vote-live" class="vote-live" data-src="/votes/{{ vote.id }}/results.json">
+  <div class="d-flex flex-wrap align-items-start gap-3 mb-3">
+    <div class="flex-grow-1"><div class="small text-secondary"><a href="/votes/{{ vote.id }}"><i class="fa-solid fa-arrow-left me-1"></i>zurück</a></div>
+      <h1 class="display-6 fw-semibold mb-1">{{ vote.title }}</h1>
+      <div class="fs-5"><span class="badge text-bg-secondary" id="live-status">{{ statuses[vote.status][0] }}</span> <span class="ms-2"><i class="fa-solid fa-check-to-slot me-1"></i><span id="live-count">0</span> Stimmzettel</span><span class="ms-3 text-secondary" id="live-turnout"></span></div></div>
+    <div class="d-flex flex-wrap gap-2">
+      {% if vote.status != 'open' %}<form method="post" action="/votes/{{ vote.id }}/state?next=/votes/{{ vote.id }}/live"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="start"><button class="btn btn-success btn-lg" type="submit"><i class="fa-solid fa-play me-1"></i>Starten</button></form>
+      {% else %}<form method="post" action="/votes/{{ vote.id }}/state?next=/votes/{{ vote.id }}/live"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="pause"><button class="btn btn-outline-secondary btn-lg" type="submit"><i class="fa-solid fa-pause me-1"></i>Anhalten</button></form>{% endif %}
+      {% if level >= 3 and vote.opened_at %}<form method="post" action="/votes/{{ vote.id }}/state?next=/votes/{{ vote.id }}/live"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="close"><button class="btn btn-danger btn-lg" type="submit" data-confirm-title="Abstimmung beenden?" data-confirm="Ergebnis wird festgeschrieben." data-confirm-button="Beenden"><i class="fa-solid fa-flag-checkered me-1"></i>Beenden</button></form>{% endif %}
+      <button class="btn btn-outline-secondary btn-lg" type="button" id="live-full" title="Vollbild" aria-label="Vollbild"><i class="fa-solid fa-expand"></i></button>
+      <div class="form-check form-switch align-self-center ms-2"><input class="form-check-input" type="checkbox" role="switch" id="live-hide"><label class="form-check-label" for="live-hide">Ergebnis verdecken</label></div>
+    </div>
+  </div>
+  <div class="row g-4">
+    {% if 'public' in modes or 'codes' in modes %}
+    <div class="col-12 col-lg-4"><div class="card text-center"><div class="card-body">
+      <img src="/votes/{{ vote.id }}/qr/public.svg" alt="QR-Code zur Abstimmung" class="img-fluid" style="max-width: 18rem">
+      <div class="fs-5 fw-semibold text-break mt-2">{{ public_link.split('//', 1)[-1] }}</div>
+      {% if 'codes' in modes %}<div class="text-secondary">Zugangscode vom Zettel eingeben</div>{% endif %}
+    </div></div></div>
+    {% endif %}
+    <div class="col"><div id="live-results" aria-live="polite"></div>
+      <div id="live-hidden" class="d-none text-center text-secondary py-5 fs-4"><i class="fa-solid fa-eye-slash fa-2x d-block mb-2"></i>Ergebnis wird nach der Abstimmung gezeigt.</div></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/chartjs/chart.umd.min.js"></script>
+<script src="/static/vote-live.js"></script>
+{% endblock %}

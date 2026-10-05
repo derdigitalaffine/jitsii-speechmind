@@ -1,0 +1,14 @@
+{% extends "base_embed.html" if embed else "base.html" %}
+{% block title %}{{ cal.name }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap align-items-end gap-2 mb-3"><div class="flex-grow-1"><h1 class="h4 mb-0">{{ cal.name }}</h1>
+  <div class="small text-secondary">{{ resources | map(attribute='name') | join(', ') }}</div></div>
+  {% if not embed %}<a class="btn btn-sm btn-outline-secondary" href="{{ base }}/r/cal/{{ cal.token }}.ics"><i class="fa-regular fa-calendar-plus me-1"></i>Als Kalender abonnieren (iCal)</a>{% endif %}</div>
+<div class="js-res-cal" data-src="/r/cal/{{ cal.token }}.json"></div>
+{% if cal.tentative %}<div class="small text-secondary mt-2"><span class="badge text-bg-primary res-ev res-tentative">schraffiert</span> = vorgemerkt (noch nicht bestätigt)</div>{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/fullcalendar/index.global.min.js"></script>
+<script src="/static/vendor/fullcalendar/de.global.min.js"></script>
+<script src="/static/resource-cal.js"></script>
+{% endblock %}

@@ -46,6 +46,26 @@
       <div class="form-text mt-2"><i class="fa-solid fa-shield-halved me-1"></i>Anhänge enthalten personenbezogene Daten. Hochgeladene Dateien werden nicht angehängt, sondern bleiben im Portal.</div>
     </div>
   </div></div>
+  <div class="col-12" id="gebuehr"><div class="card">
+    <div class="card-header d-flex align-items-center"><i class="fa-solid fa-euro-sign me-2"></i><span class="flex-grow-1">Gebühr / Bezahlung</span>
+      <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" id="fee-on" {% if fee.enabled %}checked{% endif %}><label class="form-check-label" for="fee-on">beim Absenden bezahlen</label></div></div>
+    <div class="card-body" id="fee-body">
+      <div class="row g-2 mb-3">
+        <div class="col-md-4"><label class="form-label small mb-1" for="fee-label">Bezeichnung</label><input class="form-control form-control-sm" id="fee-label" value="{{ fee.label }}"></div>
+        <div class="col-6 col-md-2"><label class="form-label small mb-1" for="fee-base">Grundbetrag</label><div class="input-group input-group-sm"><input class="form-control" id="fee-base" value="{{ '%.2f' | format(fee.base / 100) | replace('.', ',') if fee.base else '' }}" inputmode="decimal"><span class="input-group-text">€</span></div></div>
+        <div class="col-6 col-md-2"><label class="form-label small mb-1" for="fee-days">Zahlfrist (Tage)</label><input class="form-control form-control-sm" type="number" min="1" max="90" id="fee-days" value="{{ fee.days }}"></div>
+        <div class="col-md-4"><label class="form-label small mb-1" for="fee-cc">Kostenstelle</label><input class="form-control form-control-sm" id="fee-cc" value="{{ fee.cost_center }}"></div>
+        <div class="col-12"><span class="form-label small d-block mb-1">Zahlarten</span>{% for k, lbl in [('paypal', 'PayPal'), ('transfer', 'Überweisung'), ('cash', 'bar')] %}<div class="form-check form-check-inline"><input class="form-check-input fee-method" type="checkbox" value="{{ k }}" id="fee-m-{{ k }}" {% if k in fee.methods.split(',') %}checked{% endif %}><label class="form-check-label small" for="fee-m-{{ k }}">{{ lbl }}</label></div>{% endfor %}</div>
+        {% if form.kind == 'application' %}<div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="fee-req" {% if fee.require %}checked{% endif %}><label class="form-check-label" for="fee-req">Antrag gilt erst nach der Zahlung als eingegangen (Status „Zahlung offen“; Zuständige und Prozess starten erst danach, ohne Zahlung wird er nach der Frist beendet)</label></div></div>{% endif %}
+      </div>
+      <div class="small fw-semibold mb-1">Zuschläge nach Antworten</div>
+      <div id="fee-rules"></div>
+      <div class="form-text">Beispiele: „Anzahl Hunde“ <em>je Anzahl</em> 60 € · „Gefährlicher Hund?“ <em>ist gleich</em> „Ja“ + 500 €. Bei Auswahlfragen genau den Text der Antwort eintragen. Für Gebühren, die die Sachbearbeitung festlegt, gibt es im Prozess den Schritt „Zahlung anfordern“.</div>
+    </div>
+    <input type="hidden" name="fee_json" id="fee-json">
+  </div></div>
   <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div>
 </form>
+<script type="application/json" id="fee-data">{{ {"rules": fee.rules, "questions": fee_questions} | tojson }}</script>
 {% endblock %}
+{% block scripts %}<script src="/static/fee-editor.js"></script>{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Personen · Ablage{% endblock %}
+{% block content %}
+{% call m.page_head('Bürger:innen & Antragsteller:innen', 'Alle Personen mit Vorgängen in Bereichen, für die Sie berechtigt sind. Neue Anträge werden automatisch zugeordnet – über die E-Mail-Adresse, sonst über Name und PLZ.') %}
+<a class="btn btn-outline-secondary" href="/dms"><i class="fa-solid fa-magnifying-glass me-1"></i>Recherche</a>
+{% endcall %}
+<form method="get" class="mb-3" role="search"><div class="input-group"><span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+  <input class="form-control" name="q" value="{{ q }}" type="search" placeholder="Name, E-Mail, Telefon, Straße, PLZ oder Ort" aria-label="Personen suchen" autofocus>
+  <button class="btn btn-primary" type="submit">Suchen</button></div></form>
+<div class="card"><div class="table-responsive"><table class="table table-hover align-middle mb-0 js-table w-100" data-order='[[0,"asc"]]'>
+  <thead><tr><th>Name</th><th>Kontakt</th><th>Anschrift</th><th class="text-end">Vorgänge</th></tr></thead>
+  <tbody>{% for p in rows %}
+    <tr><td><a class="fw-semibold" href="/dms/persons/{{ p.id }}">{{ p.name or '(ohne Namen)' }}</a></td>
+      <td class="small">{{ p.email }}{% if p.phone %}<div class="text-secondary">{{ p.phone }}</div>{% endif %}</td>
+      <td class="small">{{ p.street }}{% if p.zip or p.city %}<div>{{ p.zip }} {{ p.city }}</div>{% endif %}</td>
+      <td class="text-end" data-order="{{ counts.get(p.id, 0) }}"><a href="/dms?person={{ p.id }}">{{ counts.get(p.id, 0) }}</a></td></tr>
+  {% endfor %}</tbody>
+</table></div></div>
+{% if rows | length >= 300 %}<p class="small text-secondary mt-2">Es werden die ersten 300 Treffer gezeigt – bitte die Suche eingrenzen.</p>{% endif %}
+{% endblock %}

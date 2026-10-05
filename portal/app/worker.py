@@ -418,6 +418,13 @@ async def run_forever() -> None:
                     await asyncio.to_thread(notify.process_queue)
                 from . import dms
                 await asyncio.to_thread(dms.reconcile)
+                from . import votes
+                await asyncio.to_thread(votes.finish_due)
+                from . import resources
+                await asyncio.to_thread(resources.expire_unconfirmed)
+                from . import payments
+                if await asyncio.to_thread(payments.send_reminders):
+                    await asyncio.to_thread(notify.process_queue)
             if time.monotonic() - _last_chat_prune[0] >= 3600:
                 _last_chat_prune[0] = time.monotonic()
                 await asyncio.to_thread(chat.prune)

@@ -119,7 +119,7 @@ templates.env.filters["geocenter"] = lambda v: _forms_mod().geo_center(v)
 templates.env.filters["geoinput"] = lambda v: _forms_mod().geo_input(v)
 templates.env.globals["geo_position"] = lambda v, raw="": _forms_mod().geo_position(v, raw)
 templates.env.globals["perm_modules"] = {"processes": "applications", "app_create": "applications", "formblocks": "forms",
-                                         "dms_admin": "dms"}
+                                         "dms_admin": "dms", "votes": "polls", "resources": "resources"}
 templates.env.globals.update(planning_when=planning.when, cancel_recipients=planning.cancel_recipients, local_input=planning.local_input,
                              is_upcoming=planning.is_upcoming, rsvp_labels=planning.RSVP_LABELS,
                              rsvp_summary=planning.rsvp_summary)
@@ -147,12 +147,13 @@ templates.env.filters["local"] = lambda dt, fmt="%d.%m.%Y, %H:%M": to_local(dt).
 MODULES = {
     "shortlinks": ("Kurzlinks & QR-Codes", "module_shortlinks", ("/shortlinks", "/s/", "/s")),
     "forms": ("Formulare", "module_forms", ("/forms", "/f/")),
-    "polls": ("Terminumfragen", "module_polls", ("/polls", "/t/")),
+    "polls": ("Umfragen & Abstimmungen", "module_polls", ("/polls", "/t/", "/votes", "/v/")),
     "bookings": ("Terminbuchung", "module_bookings", ("/bookings", "/b/")),
     "laws": ("Rechtstexte", "module_laws", ("/laws", "/recht")),
     "maps": ("Kartenbrowser", "module_maps", ("/karte", "/maps")),
     "applications": ("Online-Anträge", "module_applications", ("/antraege", "/a/", "/tasks", "/processes")),
     "dms": ("Ablage (DMS)", "module_dms", ("/dms",)),
+    "resources": ("Ressourcenbuchung", "module_resources", ("/resources", "/r/", "/r", "/r-embed")),
 }
 _module_cache: dict = {"at": 0.0, "enabled": set(MODULES)}
 
@@ -197,7 +198,8 @@ def build_csp(frame_ancestors: str = "'none'", hosts: list[str] | tuple = ()) ->
 # Seiten, die sich in fremde Webseiten einbetten lassen: Pfad-Präfix → (Schalter, erlaubte Herkünfte)
 EMBED_PREFIXES = {"/recht-embed": ("laws_embed", "laws_embed_origins"),
                   "/karte-embed": ("maps_embed", "maps_embed_origins"),
-                  "/antraege-embed": ("apps_embed", "apps_embed_origins")}
+                  "/antraege-embed": ("apps_embed", "apps_embed_origins"),
+                  "/r-embed": ("resources_embed", "resources_embed_origins")}
 EMBED_ORIGIN_RE = re.compile(r"^https?://[a-z0-9.-]+(:\d+)?$|^https?://\*\.[a-z0-9.-]+$", re.I)
 
 
@@ -374,12 +376,12 @@ def flash(request: Request, message: str, kind: str = "ok") -> None:
 
 def _shared_nav(user: User | None) -> set[str]:
     """Bereiche, die im Menü erscheinen, weil etwas mit der Person geteilt wurde (ohne eigenes Recht)."""
-    if user is None or user.is_admin or (user.can("polls") and user.can("bookings")):
+    kinds = (("polls", "poll"), ("bookings", "booking"), ("votes", "vote"))
+    if user is None or user.is_admin or all(user.can(k) for k, _ in kinds):
         return set()
     from . import shares
     with SessionLocal() as db:
-        return {kind for kind, perm in (("polls", "poll"), ("bookings", "booking"))
-                if not user.can(kind) and shares.has_any(db, perm, user)}
+        return {kind for kind, perm in kinds if not user.can(kind) and shares.has_any(db, perm, user)}
 
 
 def _task_badge(user: User | None) -> int:
@@ -401,6 +403,17 @@ def _dms_nav(user: User | None) -> bool:
         return db.scalar(select(DmsAccess.id).where((DmsAccess.user_id == user.id) | DmsAccess.group_id.in_(groups)).limit(1)) is not None
 
 
+def _res_nav(user: User | None) -> bool:
+    """Ressourcen in der Navigation: mit Recht, Freigabe oder Zuständigkeit für eine Ressource."""
+    if user is None or "resources" not in enabled_modules():
+        return False
+    if user.can("resources"):
+        return True
+    from . import resources
+    with SessionLocal() as db:
+        return bool(resources.visible(db, user))
+
+
 def render(request: Request, name: str, user: User | None = None, **ctx) -> HTMLResponse:
     messages = request.session.pop("flash", [])
     ui = branding.load()
@@ -417,6 +430,7 @@ def render(request: Request, name: str, user: User | None = None, **ctx) -> HTML
         "shared_nav": _shared_nav(user),
         "task_badge": _task_badge(user),
         "dms_nav": _dms_nav(user),
+        "res_nav": _res_nav(user),
         **ctx,
     })
 
@@ -2258,3 +2272,7 @@ from . import routes_bookings  # noqa: E402,F401
 from . import routes_sessions  # noqa: E402,F401
 from . import routes_laws  # noqa: E402,F401
 from . import routes_maps  # noqa: E402,F401
+from . import routes_payments  # noqa: E402,F401
+from . import routes_votes  # noqa: E402,F401
+from . import routes_resources  # noqa: E402,F401
+from . import routes_resources_public  # noqa: E402,F401

@@ -17,6 +17,9 @@ Für alle, die im Portal der Verbandsgemeinde Otterbach-Otterberg arbeiten: Vide
 6c. [Terminumfragen und Buchungsseiten teilen](#6c-terminumfragen-und-buchungsseiten-teilen)
 6d. [Rechtstexte (Ortsrecht online)](#6d-rechtstexte-ortsrecht-online)
 6e. [Kartenbrowser](#6e-kartenbrowser)
+6f. [Abstimmungen und Wahlen](#6f-abstimmungen-und-wahlen)
+6g. [Räume, Plätze und Geräte buchen (Ressourcen)](#6g-räume-plätze-und-geräte-buchen-ressourcen)
+6h. [Bezahlen und Zahlungen](#6h-bezahlen-und-zahlungen)
 7. [Kurzlinks und QR-Codes](#7-kurzlinks-und-qr-codes)
 8. [Formulare erstellen](#8-formulare-erstellen)
 9. [Formulare verteilen](#9-formulare-verteilen)
@@ -380,6 +383,63 @@ Menü **Kartenbrowser** (oder `/karte`, auch ohne Anmeldung).
 
 ---
 
+## 6f. Abstimmungen und Wahlen
+
+Menü **Abstimmungen** (Recht „Abstimmungen“) – im selben Bereich wie die Terminumfragen; oben wechseln Reiter zwischen beiden.
+
+### Abstimmung anlegen
+
+1. **Neue Abstimmung**, Titel und Beschreibung.
+2. **Fragen** hinzufügen. Je Frage die Art: *Eine Antwort* (z. B. Ja/Nein), *Mehrere Antworten* (mindestens/höchstens), *Rangfolge* (Plätze vergeben – Platz 1 zählt am meisten) oder *Punkte verteilen* (z. B. 10 Punkte auf Projekte des Bürgerhaushalts). „Enthaltung anbieten“ ist voreingestellt. Lange Listen fügen Sie mit **Liste einfügen** ein (eine Antwort je Zeile).
+3. **Regeln:** *Geheim* (Vorgabe – Sie sehen, wer abgestimmt hat, aber nicht wie), *Offen* (Stimmen mit Namen, z. B. Gremienbeschluss) oder *Anonym* (auch die Beteiligung bleibt verborgen). Wer darf abstimmen: persönliche Einladung, öffentlicher Link mit E-Mail-Bestätigung, Zugangscodes. Wann sehen Abstimmende das Ergebnis. Optional ein Ende (danach wird automatisch beendet).
+4. Auf der Seite der Abstimmung: **Wählerverzeichnis** (Benutzer:innen, Gruppen, E-Mail-Adressen), **Zugangscodes erzeugen** und **drucken** (je Code ein Abschnitt mit QR-Code), dann **Abstimmung starten** – jetzt gehen die Einladungen raus.
+
+### Während der Abstimmung
+
+- Oben stehen Stand, Stimmzettel und Beteiligung, darunter der Zwischenstand als Diagramm.
+- **Offene erinnern** schickt allen Eingeladenen ohne Stimme eine Erinnerung.
+- **Live-Modus** für Sitzungen: Beamer-Ansicht mit großem QR-Code, Stimmenzahl und Balken, die sich alle drei Sekunden aktualisieren. „Ergebnis verdecken“, bis alle abgestimmt haben; **Anhalten** und **Beenden** direkt dort.
+- **Beenden** schreibt das Ergebnis fest (mit Prüfsumme). Danach: **Ergebnisprotokoll (PDF)**, Stimmzettel als CSV und auf Wunsch **Protokoll in die Ablage**.
+
+### Abstimmen (Sicht der Abstimmenden)
+
+Über den persönlichen Link aus der Mail, nach Eingabe der E-Mail-Adresse (der Link kommt per Mail und bestätigt zugleich die Adresse) oder mit dem Code vom Zettel. Stimmzettel ausfüllen, **Stimme abgeben** – danach erscheint eine **Quittung** (10 Zeichen). Bei geheimen Abstimmungen wird die Stimme nicht mit dem Namen gespeichert.
+
+---
+
+## 6g. Räume, Plätze und Geräte buchen (Ressourcen)
+
+### Für Bürger:innen
+
+Unter `/r` (oder über die Homepage) stehen alle buchbaren Ressourcen – mit Fotos, Karte und Suche „Frei am …“ für einen bestimmten Tag.
+
+1. Ressource öffnen: Beschreibung, Ausstattung, Preise (werktags und Wochenende/Feiertag), Nutzungsordnung und der **Belegungskalender** (schraffiert = vorgemerkt). Ein Klick auf einen Tag übernimmt ihn ins Formular.
+2. Buchungsart wählen (ganze Tage, Zeitblöcke oder stundenweise), bei Häusern mit mehreren Räumen die **Räume** ankreuzen (nichts = alles), Tarif, **Zusatzleistungen** (z. B. WC-Wagen, Biertischgarnituren), Anlass und Kontaktdaten. Der **Preis** wird sofort berechnet und zeigt, ob der Zeitraum frei ist.
+3. Absenden – eine Mail mit **Bestätigungslink** kommt; bitte innerhalb von 24 Stunden anklicken. Danach ist die Buchung fest (Sofortbuchung) oder die Verwaltung prüft die Anfrage.
+4. Mit der Bestätigung kommt die **Zahlungsaufforderung** (PayPal oder Überweisung) und die Buchungsbestätigung als PDF. Ohne Zahlung bis zur Frist verfällt die Reservierung.
+5. Über den Link in den Mails: Stand ansehen, bezahlen, PDF herunterladen, **stornieren** (Regeln stehen auf der Seite; Bezahltes wird erstattet, ggf. abzüglich Stornogebühr).
+
+### Für die Verwaltung
+
+- **Ressourcen & Belegung**: Kacheln mit offenen Anfragen, heutigen Übergaben/Rücknahmen und Unbezahltem; je Ressource der **Kalender** (Monat, Woche, Liste – Klick öffnet die Buchung).
+- **Bearbeiten** (Recht „Ressourcen“ oder als Zuständige:r): Reiter Allgemein, Zeiten & Regeln, Räume & Preise, Tarife & Zusatzleistungen, Angaben, Zahlung & Storno, Zuständig & Ablage, Sperrzeiten, Fotos & Nutzungsordnung. „Aktiv“ und „im öffentlichen Katalog“ schalten die Ressource frei.
+- **Buchungen**: Anfragen **bestätigen** (mit Mitteilung, z. B. zur Schlüsselübergabe) oder **ablehnen**; Zahlung als bezahlt markieren; **Übergabe** (Schlüssel, Zustand) und **Abnahme** (Schäden, einbehaltener Teil der Kaution – der Rest wird erstattet); stornieren.
+- **Intern eintragen**: ohne Bestätigung und Vorlauf, auf Wunsch kostenlos und als **Serie** (z. B. Chorprobe jeden Freitag bis Jahresende).
+- **Kalender teilen**: geheime Links als iCal-Abo (Outlook, Google, Handy) oder Webseite – *nur frei/belegt* (Homepage), *mit Anlass* oder *vollständig mit Kontaktdaten* (Hausmeisterei, Reinigung). Im Portal geben Sie die Ressource auf ihrer Seite frei.
+- **Feiertage**: gesetzliche Feiertage werden berechnet; eigene Tage (Kerwe) hier ergänzen – dafür gilt der Wochenend-/Feiertagspreis.
+
+---
+
+## 6h. Bezahlen und Zahlungen
+
+- **Zahlseite**: Wer zahlen soll, bekommt einen Link. Dort stehen Posten und Betrag; bezahlt wird mit **PayPal** (Weiterleitung und zurück) oder per **Überweisung** mit dem angegebenen Verwendungszweck (Zahlungsnummer). Nach dem Zahlungseingang kommt eine Bestätigung per Mail.
+- **Gebühr im Formular** (Reiter Einstellungen › „Gebühr / Bezahlung“): Grundbetrag und Zuschläge nach Antworten, z. B. „Anzahl Hunde“ *je Anzahl* 60 € oder „Gefährlicher Hund?“ *ist gleich* „Ja“ + 500 €. Nach dem Absenden sieht die Person „Jetzt bezahlen“. Bei Online-Anträgen optional: **„gilt erst nach der Zahlung als eingegangen“** – bis dahin steht der Antrag auf „Zahlung offen“ und wird nicht bearbeitet.
+- **Im Prozess**: Schritt **„Zahlung anfordern“** – z. B. nach der Prüfung, wenn die Sachbearbeitung die Gebühr in einem internen Feld „gebuehr“ eingetragen hat. Der Antrag wartet, bis bezahlt ist.
+- **Im Vorgang** (Antrag oder Buchung) steht rechts die **Zahlung**: Status, Betrag, „Als bezahlt“ (Überweisung eingegangen, bar erhalten), Zahlungsaufforderung erneut senden, **Erstatten**.
+- **Zahlungen** (Recht „Zahlungen“): alle Zahlungen mit Filtern, Summen und **CSV-Export** für die Kasse.
+
+---
+
 ## 7. Kurzlinks und QR-Codes
 
 Menü **Kurzlinks** (Recht „Kurzlinks“). Aus einer langen Adresse wird eine kurze, z. B. `https://…/s/sommerfest` – ideal für Aushänge, Flyer, Amtsblatt und Mails.
@@ -661,6 +721,10 @@ Menü **Ablage › Recherche**. Hier finden Sie Online-Anträge und manuell abge
 **Suchen:** Links die Filter – **Volltext** (findet Begriffe in allen Angaben, Notizen und Dateinamen), Bereich (mit Unterbereichen), **Antragsteller:in**, **Aktenzeichen**, **Ort / PLZ / Straße**, Antragsart, Status (laufend, abgeschlossen oder ein bestimmter Status), Art (Online-Antrag oder manuell) und **Eingang von–bis**. Rechts die Treffer, sortierbar (neueste, älteste, Aktenzeichen, Antragsteller:in), als **CSV** exportierbar. Eine Suche, die Sie öfter brauchen (z. B. „Hundesteuer 2026, Otterberg“), unter **Gespeicherte Suchen** mit Namen speichern – ein Klick ruft sie wieder auf.
 
 **Ein Vorgang** zeigt Aktenzeichen, Antragsteller:in, Anschrift, Status, Bereich und Löschfrist, alle Dateien (Antrags-PDF mit Anlagen, Uploads, Bescheide, beim Abschluss der **Abschlussstand**) und den Verlauf. Bei Online-Anträgen führt ein Link zum Vorgang im Antragseingang (wenn Sie dort berechtigt sind).
+
+**Personen:** Jeder Eintrag gehört zu einer Bürgerin bzw. einem Bürger (automatisch über die E-Mail-Adresse, sonst über Name und PLZ). Im Eintrag führt der Name zur **Personenseite** mit allen Vorgängen dieser Person; „Alle Vorgänge dieser Person“ filtert die Recherche. Unter **Ablage › Personen** suchen Sie nach Name, E-Mail, Telefon oder Anschrift. Mit Schreibrecht ordnen Sie einen Eintrag einer anderen Person zu oder legen eine neue an; doppelte Personen führt die Aktenplan-Verwaltung zusammen.
+
+**Verschieben:** Im Eintrag „Im Aktenplan verschieben“ – oder in der Trefferliste Einträge ankreuzen (oder „alle“) und „Markierte verschieben nach …“. Vorgänge ohne festgelegten Bereich stehen unter **„Nicht einsortiert“** und werden von dort einsortiert.
 
 **Ablegen** (mit Schreibrecht): **Vorgang ablegen**, Bereich wählen, Titel, Aktenzeichen, Antragsteller:in, Anschrift (mit Adresssuche), Datum, Notiz und Dateien. Nachträglich lassen sich Angaben ändern, Dateien hinzufügen und löschen.
 

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}{{ vote.title }}{% endblock %}
+{% block content %}
+{% set d = draft or {} %}
+<div class="form-fill" style="max-width: 50rem">
+  <div class="card mb-3 border-top border-primary border-4"><div class="card-body">
+    <div class="small text-secondary mb-1"><i class="fa-solid fa-check-to-slot me-1"></i>Abstimmung</div>
+    <h1 class="h3 mb-2">{{ vote.title }}</h1>
+    {% if vote.description %}<div class="mb-3" style="white-space: pre-line">{{ vote.description }}</div>{% endif %}
+    <div class="d-flex flex-wrap gap-3 small">
+      <span><i class="fa-solid {{ 'fa-user-secret' if vote.secrecy != 'open' else 'fa-users' }} me-1"></i><strong>{{ secrecy[vote.secrecy][0] }}</strong> – {{ secrecy[vote.secrecy][1] }}</span>
+      {% if vote.ends_at %}<span><i class="fa-regular fa-clock me-1"></i>bis {{ vote.ends_at | local }} Uhr</span>{% endif %}
+    </div>
+  </div></div>
+
+  {% if notice %}<div class="alert alert-info" role="status"><i class="fa-solid fa-circle-info me-1"></i>{{ notice }}</div>{% endif %}
+
+  {% if receipt %}
+  <div class="card mb-3 border-success border-2" id="danke"><div class="card-body d-flex gap-3">
+    <span class="text-success fs-2"><i class="fa-solid fa-circle-check"></i></span>
+    <div><h2 class="h5 mb-1">Danke – Ihre Stimme ist abgegeben.</h2>
+      <p class="mb-1">Ihre Quittung: <span class="font-monospace fw-semibold fs-5">{{ receipt }}</span></p>
+      <p class="small text-secondary mb-0">Mit der Quittung können Sie später prüfen, ob Ihr Stimmzettel gezählt wurde{% if vote.secrecy != 'open' %} – Ihre Stimme selbst bleibt geheim und ist nicht mit Ihrem Namen gespeichert{% endif %}.</p></div>
+  </div></div>
+  {% endif %}
+
+  {% if can_vote %}
+  <form method="post" class="card mb-3" id="stimmzettel" novalidate><input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="card-header fw-semibold"><i class="fa-solid fa-pen-to-square me-2"></i>Stimmzettel{% if voter.voted %} <span class="badge text-bg-info ms-2">Sie haben schon abgestimmt – Sie können Ihre Stimme ändern</span>{% endif %}</div>
+    <div class="card-body">
+      {% for q in vote.questions %}{% set opts = options(q) %}{% set key = 'q' ~ q.id %}{% set prev = previous.get(q.id | string) %}
+      <fieldset class="mb-4 vote-q" data-kind="{{ q.kind }}" data-points="{{ q.points_total }}">
+        <legend class="h6 mb-1">{{ loop.index }}. {{ q.title }}</legend>
+        {% if q.description %}<div class="small text-secondary mb-2" style="white-space: pre-line">{{ q.description }}</div>{% endif %}
+        <div class="small text-secondary mb-2">{% if q.kind == 'single' %}Bitte eine Antwort wählen.{% elif q.kind == 'multi' %}{% if q.min_choices == q.max_choices %}Genau {{ q.max_choices }}{% else %}{{ [q.min_choices, 1] | max }} bis {{ q.max_choices }}{% endif %} Antworten wählen.{% elif q.kind == 'rank' %}Plätze vergeben: 1 = am liebsten{% if q.max_choices < opts | length %}, höchstens {{ q.max_choices }} Plätze{% endif %}.{% else %}Bis zu {{ q.points_total }} Punkte verteilen – <span class="vote-left fw-semibold">{{ q.points_total }}</span> übrig.{% endif %}</div>
+        <div class="vote-opts">
+        {% for o in opts %}
+          {% if q.kind == 'single' %}
+          <div class="form-check vote-opt"><input class="form-check-input" type="radio" name="{{ key }}" id="{{ key }}-{{ o.id }}" value="{{ o.id }}" {% if d.get(key) == o.id or (prev and prev != 'abstain' and o.id in prev) %}checked{% endif %}><label class="form-check-label" for="{{ key }}-{{ o.id }}">{{ o.label }}{% if o.info %}<span class="d-block small text-secondary">{{ o.info }}</span>{% endif %}</label></div>
+          {% elif q.kind == 'multi' %}
+          <div class="form-check vote-opt"><input class="form-check-input" type="checkbox" name="{{ key }}" id="{{ key }}-{{ o.id }}" value="{{ o.id }}" {% if (d.getlist and o.id in d.getlist(key)) or (prev and prev != 'abstain' and o.id in prev) %}checked{% endif %}><label class="form-check-label" for="{{ key }}-{{ o.id }}">{{ o.label }}{% if o.info %}<span class="d-block small text-secondary">{{ o.info }}</span>{% endif %}</label></div>
+          {% elif q.kind == 'rank' %}{% set pv = (prev.index(o.id) + 1) if prev and prev != 'abstain' and o.id in prev else '' %}
+          <div class="d-flex gap-2 align-items-center mb-2 vote-opt"><select class="form-select form-select-sm w-auto" name="{{ key }}_{{ o.id }}" id="{{ key }}-{{ o.id }}" aria-label="Platz für {{ o.label }}"><option value="">–</option>{% for n in range(1, opts | length + 1) %}<option value="{{ n }}" {% if (d.get(key ~ '_' ~ o.id) or pv | string) == n | string %}selected{% endif %}>Platz {{ n }}</option>{% endfor %}</select>
+            <label for="{{ key }}-{{ o.id }}">{{ o.label }}{% if o.info %}<span class="d-block small text-secondary">{{ o.info }}</span>{% endif %}</label></div>
+          {% else %}{% set pv = prev.get(o.id, '') if prev is mapping else '' %}
+          <div class="d-flex gap-2 align-items-center mb-2 vote-opt"><input class="form-control form-control-sm vote-pts" style="width: 5.5rem" type="number" min="0" max="{{ q.points_total }}" name="{{ key }}_{{ o.id }}" id="{{ key }}-{{ o.id }}" value="{{ d.get(key ~ '_' ~ o.id) or pv }}" inputmode="numeric" aria-label="Punkte für {{ o.label }}">
+            <label for="{{ key }}-{{ o.id }}">{{ o.label }}{% if o.info %}<span class="d-block small text-secondary">{{ o.info }}</span>{% endif %}</label></div>
+          {% endif %}
+        {% endfor %}
+        </div>
+        {% if q.abstain %}<div class="form-check mt-1 border-top pt-2"><input class="form-check-input vote-abstain" type="checkbox" name="{{ key }}_abstain" value="1" id="{{ key }}-abstain" {% if d.get(key ~ '_abstain') or prev == 'abstain' %}checked{% endif %}><label class="form-check-label text-secondary" for="{{ key }}-abstain">Enthaltung</label></div>{% endif %}
+      </fieldset>
+      {% endfor %}
+    </div>
+    <div class="card-footer"><button class="btn btn-primary btn-lg" type="submit" data-confirm-title="Stimme abgeben?" data-confirm="{{ 'Sie können Ihre Stimme bis zum Ende noch ändern.' if vote.allow_change else 'Danach lässt sich die Stimme nicht mehr ändern.' }}" data-confirm-button="Abgeben"><i class="fa-solid fa-check-to-slot me-1"></i>Stimme abgeben</button></div>
+  </form>
+  {% elif voter and voter.voted and not receipt %}
+  <div class="alert alert-success"><i class="fa-solid fa-circle-check me-1"></i>Sie haben bereits abgestimmt. Vielen Dank!{% if vote.status == 'closed' %} Die Abstimmung ist beendet.{% endif %}</div>
+  {% elif not is_open %}
+  <div class="alert alert-secondary"><i class="fa-solid fa-lock me-1"></i>{% if vote.status == 'closed' %}Die Abstimmung ist beendet.{% else %}Die Abstimmung ist gerade nicht geöffnet.{% endif %}</div>
+  {% elif public %}
+    {% if 'public' in modes %}
+    <form method="post" action="/v/{{ vote.public_token }}/signup" class="card mb-3"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="card-body"><h2 class="h5">Teilnehmen</h2>
+        <p class="small text-secondary">Sie bekommen einen persönlichen Link per E-Mail. Damit bestätigen Sie Ihre Adresse und geben Ihre Stimme ab – eine Stimme je E-Mail-Adresse.{% if vote.secrecy != 'open' %} Ihre Stimme wird getrennt von Ihrer Adresse gespeichert.{% endif %}</p>
+        <div class="row g-2">
+          {% if vote.secrecy == 'open' %}<div class="col-md-5"><label class="form-label small mb-1" for="s-name">Name</label><input class="form-control" id="s-name" name="name" required maxlength="255" autocomplete="name"></div>{% endif %}
+          <div class="col-md-7"><label class="form-label small mb-1" for="s-mail">E-Mail-Adresse</label><input class="form-control" id="s-mail" name="email" type="email" required autocomplete="email"></div>
+          <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-regular fa-envelope me-1"></i>Link anfordern</button></div>
+        </div></div></form>
+    {% endif %}
+    {% if 'codes' in modes %}
+    <form method="post" action="/v/{{ vote.public_token }}/code" class="card mb-3"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="card-body"><h2 class="h5">Mit Zugangscode abstimmen</h2>
+        <div class="input-group" style="max-width: 24rem"><input class="form-control font-monospace text-uppercase" name="code" placeholder="XXXX-XXXX" autocomplete="off" required aria-label="Zugangscode"><button class="btn btn-primary" type="submit">Weiter</button></div></div></form>
+    {% endif %}
+    {% if 'public' not in modes and 'codes' not in modes %}
+    <div class="alert alert-light border"><i class="fa-solid fa-envelope-open-text me-1"></i>Abstimmen geht nur über den persönlichen Link aus Ihrer Einladung.</div>
+    {% endif %}
+  {% endif %}
+
+  {% if results %}
+  <h2 class="h5 mt-4 mb-3"><i class="fa-solid fa-chart-column me-2"></i>{{ 'Ergebnis' if vote.status == 'closed' else 'Zwischenstand' }}{% if turnout and turnout.eligible %} <span class="small text-secondary fw-normal">· Beteiligung {{ turnout.voted }} von {{ turnout.eligible }}</span>{% endif %}</h2>
+  {% include "_vote_results.html" %}
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+{% if results %}<script src="/static/vendor/chartjs/chart.umd.min.js"></script><script src="/static/charts.js"></script>{% endif %}
+<script src="/static/vote-ballot.js"></script>
+{% endblock %}

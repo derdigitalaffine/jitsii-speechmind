@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ res.name }} bearbeiten{% endblock %}
+{% block content %}
+<nav aria-label="Pfad" class="small mb-2"><a href="/resources">Ressourcen</a> › <a href="/resources/{{ res.id }}">{{ res.name }}</a> › Bearbeiten</nav>
+{% call m.page_head(res.name, 'Einstellungen der Ressource') %}
+  <a class="btn btn-outline-secondary" href="/resources/{{ res.id }}"><i class="fa-solid fa-calendar-days me-1"></i>Belegung</a>
+{% endcall %}
+<ul class="nav nav-tabs mb-3 flex-nowrap overflow-auto" role="tablist" id="res-tabs">
+  {% for id, label, icon in [('allgemein', 'Allgemein', 'fa-circle-info'), ('zeiten', 'Zeiten & Regeln', 'fa-clock'), ('preise', 'Räume & Preise', 'fa-euro-sign'),
+     ('extras', 'Tarife & Zusatzleistungen', 'fa-plus'), ('formular', 'Angaben', 'fa-list-check'), ('zahlung', 'Zahlung & Storno', 'fa-credit-card'),
+     ('zustaendig', 'Zuständig & Ablage', 'fa-user-tie'), ('sperren', 'Sperrzeiten', 'fa-ban'), ('fotos', 'Fotos & Nutzungsordnung', 'fa-image')] %}
+  <li class="nav-item" role="presentation"><button class="nav-link text-nowrap {{ 'active' if loop.first }}" data-bs-toggle="tab" data-bs-target="#{{ id }}" type="button" role="tab"><i class="fa-solid {{ icon }} me-1"></i>{{ label }}</button></li>
+  {% endfor %}
+</ul>
+<div class="tab-content">
+<form method="post" action="/resources/{{ res.id }}/edit" id="res-main"><input type="hidden" name="csrf" value="{{ csrf }}">
+  {% for k in ('units_json', 'tariffs_json', 'extras_json', 'blocks_json', 'hours_json', 'fields_json') %}<input type="hidden" name="{{ k }}" id="h-{{ k }}">{% endfor %}
+  <input type="hidden" name="tab" id="h-tab" value="">
+
+  <div class="tab-pane fade show active" id="allgemein" role="tabpanel"><div class="card"><div class="card-body row g-3">
+    <div class="col-md-6"><label class="form-label" for="e-name">Name</label><input class="form-control" id="e-name" name="name" value="{{ res.name }}" required maxlength="200"></div>
+    <div class="col-md-3"><label class="form-label" for="e-cat">Art</label><input class="form-control" id="e-cat" name="category" value="{{ res.category }}" list="cats"><datalist id="cats"><option>Bürgerhaus</option><option>Veranstaltungsraum</option><option>Grillplatz</option><option>Spülmobil</option><option>Sporthalle</option><option>Gerät</option></datalist></div>
+    <div class="col-md-3"><label class="form-label" for="e-slug">Adresse der Seite</label><div class="input-group"><span class="input-group-text small">/r/</span><input class="form-control" id="e-slug" name="slug" value="{{ res.slug }}"></div></div>
+    <div class="col-12"><label class="form-label" for="e-desc">Beschreibung</label><textarea class="form-control" id="e-desc" name="description" rows="4">{{ res.description }}</textarea></div>
+    <div class="col-md-6"><label class="form-label" for="e-eq">Ausstattung <span class="small text-secondary">(eine Zeile je Merkmal)</span></label><textarea class="form-control" id="e-eq" name="equipment" rows="4" placeholder="Küche mit Spülmaschine&#10;Bühne&#10;barrierefrei">{{ res.equipment }}</textarea></div>
+    <div class="col-md-6"><div class="row g-2">
+      <div class="col-12"><label class="form-label" for="e-loc">Ort / Anschrift</label><input class="form-control" id="e-loc" name="location" value="{{ res.location }}"></div>
+      <div class="col-4"><label class="form-label" for="e-cap">Personen</label><input class="form-control" type="number" min="0" id="e-cap" name="capacity" value="{{ res.capacity or '' }}"></div>
+      <div class="col-4"><label class="form-label" for="e-lat">Breite</label><input class="form-control" id="e-lat" name="lat" value="{{ res.lat if res.lat is not none else '' }}" inputmode="decimal"></div>
+      <div class="col-4"><label class="form-label" for="e-lon">Länge</label><input class="form-control" id="e-lon" name="lon" value="{{ res.lon if res.lon is not none else '' }}" inputmode="decimal"></div>
+      <div class="col-12"><button class="btn btn-sm btn-outline-secondary" type="button" id="e-geocode"><i class="fa-solid fa-location-crosshairs me-1"></i>Koordinaten aus der Anschrift ermitteln</button> <span class="small text-secondary" id="e-geocode-msg"></span></div>
+    </div></div>
+    <div class="col-12 d-flex flex-wrap gap-4">
+      <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="active" value="1" id="e-active" {% if res.active %}checked{% endif %}><label class="form-check-label" for="e-active"><strong>aktiv</strong> – kann gebucht werden</label></div>
+      <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="public" value="1" id="e-public" {% if res.public %}checked{% endif %}><label class="form-check-label" for="e-public">im öffentlichen Katalog (Bürger:innen buchen selbst)</label></div>
+    </div>
+  </div></div></div>
+
+  <div class="tab-pane fade" id="zeiten" role="tabpanel"><div class="row g-3">
+    <div class="col-lg-6"><div class="card h-100"><div class="card-body">
+      <span class="form-label d-block fw-semibold">Gebucht wird …</span>
+      {% for k, mm in modes.items() %}<div class="form-check"><input class="form-check-input" type="checkbox" name="units" value="{{ k }}" id="u-{{ k }}" {% if k in res.units.split(',') %}checked{% endif %}><label class="form-check-label" for="u-{{ k }}"><i class="fa-solid {{ mm[1] }} me-1"></i>{{ mm[0] }}</label></div>{% endfor %}
+      <div class="row g-2 mt-2">
+        <div class="col-6"><label class="form-label small mb-1" for="e-maxd">Tage am Stück (höchstens)</label><input class="form-control form-control-sm" type="number" min="1" max="60" id="e-maxd" name="max_days" value="{{ res.max_days }}"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="e-slot">Stunden-Raster (Min.)</label><input class="form-control form-control-sm" type="number" min="5" max="1440" step="5" id="e-slot" name="slot_minutes" value="{{ res.slot_minutes }}"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="e-minm">Mindestdauer (Min.)</label><input class="form-control form-control-sm" type="number" min="0" id="e-minm" name="min_minutes" value="{{ res.min_minutes }}"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="e-maxm">Höchstdauer (Min., 0 = egal)</label><input class="form-control form-control-sm" type="number" min="0" id="e-maxm" name="max_minutes" value="{{ res.max_minutes }}"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="e-notice">Vorlauf mindestens (Std.)</label><input class="form-control form-control-sm" type="number" min="0" id="e-notice" name="min_notice_hours" value="{{ res.min_notice_hours }}"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="e-adv">höchstens im Voraus (Tage)</label><input class="form-control form-control-sm" type="number" min="1" id="e-adv" name="max_advance_days" value="{{ res.max_advance_days }}"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="e-bb">Rüstzeit davor (Min.)</label><input class="form-control form-control-sm" type="number" min="0" id="e-bb" name="buffer_before" value="{{ res.buffer_before }}"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="e-ba">Reinigung danach (Min.)</label><input class="form-control form-control-sm" type="number" min="0" id="e-ba" name="buffer_after" value="{{ res.buffer_after }}"></div>
+      </div>
+      <div class="mt-3"><span class="form-label d-block fw-semibold">Freigabe</span>
+        <div class="form-check"><input class="form-check-input" type="radio" name="mode" value="request" id="m-req" {% if res.mode != 'instant' %}checked{% endif %}><label class="form-check-label" for="m-req">Anfrage – die Verwaltung bestätigt oder lehnt ab (Zeitraum bis dahin vorgemerkt)</label></div>
+        <div class="form-check"><input class="form-check-input" type="radio" name="mode" value="instant" id="m-inst" {% if res.mode == 'instant' %}checked{% endif %}><label class="form-check-label" for="m-inst">Sofortbuchung – nach Bestätigung der E-Mail-Adresse verbindlich</label></div></div>
+    </div></div></div>
+    <div class="col-lg-6"><div class="card mb-3"><div class="card-header small fw-semibold">Zeitblöcke <span class="fw-normal text-secondary">(für „Zeitblöcke“, z. B. Vormittag 8–13 Uhr)</span></div><div class="card-body" id="ed-blocks"></div></div>
+      <div class="card"><div class="card-header small fw-semibold">Buchungszeiten je Wochentag <span class="fw-normal text-secondary">(stundenweise; „geschlossen“ gilt für alle Arten)</span></div><div class="card-body" id="ed-hours"></div></div></div>
+  </div></div>
+
+  <div class="tab-pane fade" id="preise" role="tabpanel">
+    <div class="card mb-3"><div class="card-header small fw-semibold">Preise {{ 'für die ganze Ressource' if res.parts else '' }} <span class="fw-normal text-secondary">– leer = kostenlos, Wochenende/Feiertag leer = wie werktags</span></div><div class="card-body"><div class="row g-2">
+      {% for k, label in [('price_day', 'je Tag'), ('price_block', 'je Block'), ('price_hour', 'je Stunde'), ('wkd_day', 'Tag Wochenende/Feiertag'), ('wkd_block', 'Block Wochenende/Feiertag'), ('wkd_hour', 'Stunde Wochenende/Feiertag')] %}
+      <div class="col-6 col-md-4 col-xl-2"><label class="form-label small mb-1" for="p-{{ k }}">{{ label }}</label><div class="input-group input-group-sm"><input class="form-control" id="p-{{ k }}" name="{{ k }}" value="{{ price(res[k]) }}" inputmode="decimal"><span class="input-group-text">€</span></div></div>{% endfor %}
+    </div><div class="form-text">Feiertage: <a href="/resources/holidays">gesetzliche Feiertage und eigene Tage</a>.</div></div></div>
+    <div class="card"><div class="card-header small fw-semibold d-flex"><span class="flex-grow-1">Teilräume <span class="fw-normal text-secondary">(einzeln buchbar; die ganze Ressource belegt alle)</span></span></div><div class="card-body" id="ed-units"></div></div>
+  </div>
+
+  <div class="tab-pane fade" id="extras" role="tabpanel">
+    <div class="card mb-3"><div class="card-header small fw-semibold">Tarifgruppen <span class="fw-normal text-secondary">(Prozent der Miete; z. B. Einheimische 100, Auswärtige 150, Vereine 50)</span></div><div class="card-body" id="ed-tariffs"></div></div>
+    <div class="card"><div class="card-header small fw-semibold">Zusatzleistungen <span class="fw-normal text-secondary">(WC-Wagen, Endreinigung, Besteck …; Bestand = gleichzeitig verfügbar)</span></div><div class="card-body" id="ed-extras"></div></div>
+  </div>
+
+  <div class="tab-pane fade" id="formular" role="tabpanel"><div class="card"><div class="card-body">
+    <p class="small text-secondary">Anlass, Verein, Personenzahl, Name, Anschrift, Telefon und E-Mail fragt das Portal immer ab. Hier ergänzen Sie weitere Angaben, z. B. „Wird Musik gespielt?“ oder einen Upload.</p>
+    <div id="ed-fields"></div>
+  </div></div></div>
+
+  <div class="tab-pane fade" id="zahlung" role="tabpanel"><div class="row g-3">
+    <div class="col-lg-6"><div class="card h-100"><div class="card-body row g-2">
+      <div class="col-6"><label class="form-label small mb-1" for="z-dep">Kaution</label><div class="input-group input-group-sm"><input class="form-control" id="z-dep" name="deposit_cents" value="{{ price(res.deposit_cents) }}"><span class="input-group-text">€</span></div></div>
+      <div class="col-6"><label class="form-label small mb-1" for="z-days">Zahlfrist (Tage)</label><input class="form-control form-control-sm" type="number" min="1" max="90" id="z-days" name="pay_days" value="{{ res.pay_days }}"></div>
+      <div class="col-12"><span class="form-label small d-block mb-1">Zahlarten</span>{% for k in ('paypal', 'transfer', 'cash') %}<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="pay_methods" value="{{ k }}" id="pm-{{ k }}" {% if k in res.pay_methods.split(',') %}checked{% endif %}><label class="form-check-label" for="pm-{{ k }}">{{ pay_methods[k][0] }}</label></div>{% endfor %}
+        <div class="form-text">PayPal und Bankverbindung richten Admins unter Verwaltung › PayPal &amp; Bankverbindung ein. Ohne Zahlung bis zur Frist verfällt die Reservierung.</div></div>
+      <div class="col-12"><label class="form-label small mb-1" for="z-cc">Kostenstelle / Haushaltsstelle</label><input class="form-control form-control-sm" id="z-cc" name="cost_center" value="{{ res.cost_center }}"></div>
+    </div></div></div>
+    <div class="col-lg-6"><div class="card h-100"><div class="card-body row g-2">
+      <div class="col-12 form-check form-switch ms-2"><input class="form-check-input" type="checkbox" role="switch" name="self_cancel" value="1" id="z-sc" {% if res.self_cancel %}checked{% endif %}><label class="form-check-label" for="z-sc">Buchende dürfen selbst stornieren</label></div>
+      <div class="col-6"><label class="form-label small mb-1" for="z-free">kostenlos bis … Tage vorher</label><input class="form-control form-control-sm" type="number" min="0" id="z-free" name="cancel_free_days" value="{{ res.cancel_free_days }}"></div>
+      <div class="col-6"><label class="form-label small mb-1" for="z-fee">danach Stornogebühr (%)</label><input class="form-control form-control-sm" type="number" min="0" max="100" id="z-fee" name="cancel_fee_percent" value="{{ res.cancel_fee_percent }}"></div>
+      <div class="col-12 form-text">Bezahltes wird bei Stornierung automatisch erstattet (PayPal) bzw. als Erstattung vermerkt – abzüglich Gebühr; die Kaution immer voll.</div>
+    </div></div></div>
+  </div></div>
+
+  <div class="tab-pane fade" id="zustaendig" role="tabpanel"><div class="card"><div class="card-body row g-3">
+    <div class="col-md-4"><label class="form-label" for="r-mu">Zuständige Person</label><select class="form-select js-select" data-search="1" id="r-mu" name="manager_user_id"><option value="">–</option>{% for u in users %}<option value="{{ u.id }}" {% if res.manager_user_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label" for="r-mg">Zuständige Gruppe</label><select class="form-select" id="r-mg" name="manager_group_id"><option value="">–</option>{% for g in groups %}<option value="{{ g.id }}" {% if res.manager_group_id == g.id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label" for="r-mb">Funktionspostfach</label><input class="form-control" type="email" id="r-mb" name="mailbox" value="{{ res.mailbox }}"></div>
+    <div class="col-12 form-text">Zuständige bekommen Anfragen per Mail und dürfen alles verwalten. Weitere Personen (z. B. Hausmeisterei) geben Sie auf der Belegungsseite frei.</div>
+    {% if dms_areas %}<div class="col-md-6"><label class="form-label" for="r-dms">Ablagebereich (DMS)</label><select class="form-select" id="r-dms" name="dms_area_id"><option value="">– „Nicht einsortiert“ –</option>{% for a, lbl in dms_areas %}<option value="{{ a.id }}" {% if res.dms_area_id == a.id %}selected{% endif %}>{{ lbl }}</option>{% endfor %}</select><div class="form-text">Bestätigte Buchungen mit PDF und der Person werden dort abgelegt.</div></div>{% endif %}
+  </div></div></div>
+
+  <div class="card mt-3 sticky-bottom shadow-sm" id="res-savebar"><div class="card-body py-2 d-flex gap-2 align-items-center">
+    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
+    <span class="small text-secondary">Speichert alle Reiter bis auf Sperrzeiten und Fotos.</span>
+  </div></div>
+</form>
+
+<div class="tab-pane fade" id="sperren" role="tabpanel"><div class="card"><div class="card-body">
+  <form method="post" action="/resources/{{ res.id }}/closures" class="row g-2 align-items-end mb-3"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="col-6 col-md-2"><label class="form-label small mb-1" for="c-from">von</label><input class="form-control form-control-sm" type="date" id="c-from" name="date_from" required></div>
+    <div class="col-6 col-md-2"><label class="form-label small mb-1" for="c-to">bis</label><input class="form-control form-control-sm" type="date" id="c-to" name="date_to"></div>
+    {% if res.parts %}<div class="col-md-3"><label class="form-label small mb-1" for="c-unit">für</label><select class="form-select form-select-sm" id="c-unit" name="unit_id"><option value="">ganze Ressource</option>{% for u in res.parts %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</select></div>{% endif %}
+    <div class="col-md-3"><label class="form-label small mb-1" for="c-reason">Grund</label><input class="form-control form-control-sm" id="c-reason" name="reason" placeholder="z. B. Sanierung, Sommerferien"></div>
+    <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100" type="submit">Sperren</button></div></form>
+  <ul class="list-group small">{% for c, last in closures %}<li class="list-group-item d-flex gap-2 align-items-center"><span class="flex-grow-1">{{ c.starts_at | local('%d.%m.%Y') }} – {{ last.strftime('%d.%m.%Y') }}{% if c.reason %} · {{ c.reason }}{% endif %}{% if c.unit_id %} · {% for u in res.parts if u.id == c.unit_id %}{{ u.name }}{% endfor %}{% endif %}</span>
+    <form method="post" action="/resources/{{ res.id }}/closures/{{ c.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger p-0" type="submit" aria-label="Sperre entfernen"><i class="fa-solid fa-xmark"></i></button></form></li>
+  {% else %}<li class="list-group-item text-secondary">Keine Sperrzeiten.</li>{% endfor %}</ul>
+</div></div></div>
+
+<div class="tab-pane fade" id="fotos" role="tabpanel"><div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="card-body">
+    <div class="row g-2 mb-3">{% for p in res.photos %}<div class="col-6 col-md-4"><img class="res-photo" src="/r/{{ res.slug }}/photo/{{ p.id }}" alt="{{ p.name }}">
+      <form method="post" action="/resources/{{ res.id }}/photos/{{ p.id }}/delete" class="mt-1"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger p-0" type="submit"><i class="fa-regular fa-trash-can me-1"></i>entfernen</button></form></div>{% endfor %}</div>
+    <form method="post" action="/resources/{{ res.id }}/photos" enctype="multipart/form-data" class="d-flex gap-2"><input type="hidden" name="csrf" value="{{ csrf }}"><input class="form-control" type="file" name="photos" accept="image/jpeg,image/png,image/webp" multiple required aria-label="Fotos"><button class="btn btn-outline-primary text-nowrap" type="submit">Hochladen</button></form>
+  </div></div></div>
+  <div class="col-lg-5"><div class="card" id="bedingungen"><div class="card-body">
+    <label class="form-label fw-semibold" for="e-terms">Nutzungsbedingungen (Text)</label>
+    <textarea class="form-control mb-2" id="e-terms" name="terms_text" rows="6" form="res-main" placeholder="Wird bei der Buchung zum Bestätigen angezeigt und steht im PDF.">{{ res.terms_text }}</textarea>
+    <div class="form-text mb-3">Wird mit „Speichern“ gespeichert.</div>
+    <form method="post" action="/resources/{{ res.id }}/terms" enctype="multipart/form-data"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="form-label fw-semibold" for="e-tfile">Nutzungsordnung (PDF)</label>
+      {% if res.terms_file %}<div class="mb-2 small"><a href="/r/{{ res.slug }}/nutzungsordnung.pdf" target="_blank"><i class="fa-regular fa-file-pdf me-1"></i>aktuelle Datei</a> <button class="btn btn-sm btn-link text-danger" name="remove" value="1" type="submit">entfernen</button></div>{% endif %}
+      <div class="d-flex gap-2"><input class="form-control" type="file" id="e-tfile" name="file" accept="application/pdf"><button class="btn btn-outline-primary" type="submit">Hochladen</button></div></form>
+  </div></div>
+  {% if level == 4 %}<form method="post" action="/resources/{{ res.id }}/delete" class="mt-3"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" type="submit" data-confirm-title="Ressource löschen?" data-confirm="Mit allen vergangenen Buchungen. Anstehende Buchungen verhindern das Löschen." data-confirm-button="Löschen"><i class="fa-regular fa-trash-can me-1"></i>Ressource löschen</button></form>{% endif %}
+  </div>
+</div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script type="application/json" id="res-editor">{{ editor | tojson }}</script>
+<script src="/static/field-list.js"></script>
+<script src="/static/resource-edit.js"></script>
+{% endblock %}

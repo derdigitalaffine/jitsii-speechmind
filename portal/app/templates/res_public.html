@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ res.name }} buchen{% endblock %}
+{% block content %}
+<nav aria-label="Pfad" class="small mb-2"><a href="/r">Räume & Plätze</a> › {{ res.name }}</nav>
+<div class="row g-4">
+  <div class="col-12 col-xl-5">
+    <h1 class="h3 mb-1">{{ res.name }}</h1>
+    <div class="text-secondary mb-3">{% if res.category %}{{ res.category }} · {% endif %}{% if res.location %}<i class="fa-solid fa-location-dot me-1"></i>{{ res.location }}{% endif %}{% if res.capacity %} · bis {{ res.capacity }} Personen{% endif %}</div>
+    {% if res.photos %}
+    <div id="res-photos" class="carousel slide mb-3" data-bs-ride="false"><div class="carousel-inner">
+      {% for p in res.photos %}<div class="carousel-item {{ 'active' if loop.first }}"><img src="/r/{{ res.slug }}/photo/{{ p.id }}" class="res-photo" alt="{{ p.name or res.name }}"></div>{% endfor %}</div>
+      {% if res.photos | length > 1 %}<button class="carousel-control-prev" type="button" data-bs-target="#res-photos" data-bs-slide="prev" aria-label="Vorheriges Foto"><span class="carousel-control-prev-icon"></span></button>
+      <button class="carousel-control-next" type="button" data-bs-target="#res-photos" data-bs-slide="next" aria-label="Nächstes Foto"><span class="carousel-control-next-icon"></span></button>{% endif %}</div>
+    {% endif %}
+    {% if res.description %}<div class="mb-3" style="white-space: pre-line">{{ res.description }}</div>{% endif %}
+    {% if res.equipment %}<h2 class="h6">Ausstattung</h2><ul class="small">{% for line in res.equipment.split('\n') if line.strip() %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
+    {% if res.parts %}<h2 class="h6">Räume</h2><ul class="small">{% for u in res.parts %}<li><strong>{{ u.name }}</strong>{% if u.capacity %} – bis {{ u.capacity }} Personen{% endif %}{% if u.description %}: {{ u.description }}{% endif %}</li>{% endfor %}</ul>{% endif %}
+    <h2 class="h6">Preise</h2>
+    <table class="table table-sm small"><thead><tr><th></th>{% for m in res_modes %}<th class="text-end">{{ {'day': 'je Tag', 'block': 'je Block', 'hour': 'je Std.'}[m] }}</th>{% endfor %}</tr></thead><tbody>
+      {% for t in ([res] + res.parts) %}<tr><td>{{ (res.name ~ (' (gesamt)' if res.parts else '')) if loop.first else t.name }}</td>{% for m in res_modes %}{% set base = t['price_' ~ m] %}{% set wk = t['wkd_' ~ m] %}<td class="text-end text-nowrap">{{ money(base) if base else 'frei' }}{% if wk and wk != base %}<div class="text-secondary">Wochenende/Feiertag {{ money(wk) }}</div>{% endif %}</td>{% endfor %}</tr>{% endfor %}
+    </tbody></table>
+    {% if res.tariffs | length > 1 %}<p class="small text-secondary">Tarife: {% for t in res.tariffs %}{{ t.name }} {{ t.percent }} %{{ ', ' if not loop.last }}{% endfor %}.</p>{% endif %}
+    {% if res.deposit_cents %}<p class="small">Kaution: {{ money(res.deposit_cents) }} (wird nach der Rückgabe erstattet).</p>{% endif %}
+    {% if res.terms_file %}<p><a href="/r/{{ res.slug }}/nutzungsordnung.pdf" target="_blank"><i class="fa-regular fa-file-pdf me-1"></i>Nutzungsordnung</a></p>{% endif %}
+    <h2 class="h6 mt-4">Belegung</h2>
+    <div class="js-res-cal small" data-src="/r/{{ res.slug }}/busy.json" data-views="0" data-pick="{{ '#r-from' if res_modes[0] == 'day' else ('#r-bdate' if res_modes[0] == 'block' else '#r-hdate') }}"></div>
+    <div class="small text-secondary mt-1"><span class="badge text-bg-primary">belegt</span> <span class="badge text-bg-primary res-ev res-tentative">vorgemerkt</span> · Klick auf einen Tag übernimmt ihn ins Formular.</div>
+  </div>
+  <div class="col-12 col-xl-7">{% include "_res_booking_form.html" %}</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/fullcalendar/index.global.min.js"></script>
+<script src="/static/vendor/fullcalendar/de.global.min.js"></script>
+<script src="/static/resource-cal.js"></script>
+<script src="/static/form-fill.js"></script>
+<script src="/static/resource-book.js"></script>
+{% endblock %}

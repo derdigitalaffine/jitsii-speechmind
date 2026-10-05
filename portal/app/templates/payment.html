@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Zahlung {{ p.ref }}{% endblock %}
+{% block content %}
+{% call m.page_head('Zahlung ' ~ p.ref, p.purpose) %}
+{% if subject %}<a class="btn btn-outline-secondary" href="{{ subject }}"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Zum Vorgang</a>{% endif %}
+{% if user.can('payments') %}<a class="btn btn-outline-secondary" href="/payments"><i class="fa-solid fa-list me-1"></i>Alle Zahlungen</a>{% endif %}
+{% endcall %}
+<div class="row g-4">
+  <div class="col-lg-7">
+    {% set pay_p = p %}{% set pay_money = money %}{% set pay_statuses = statuses %}{% set pay_methods = methods %}{% set pay_manage = True %}{% set pay_next = '/payments/' ~ p.id %}
+    {% include "_payment_box.html" %}
+    <div class="card mb-3"><div class="card-header"><i class="fa-solid fa-receipt me-2"></i>Posten</div>
+      <div class="table-responsive"><table class="table table-sm mb-0">
+        <thead><tr><th>Posten</th><th class="text-end">Menge</th><th class="text-end">Einzeln</th><th class="text-end">Betrag</th></tr></thead>
+        <tbody>{% for i in items %}<tr><td>{{ i.label }}</td><td class="text-end">{{ i.qty }}</td><td class="text-end">{{ money(i.unit_cents) }}</td><td class="text-end">{{ money(i.cents) }}</td></tr>{% endfor %}</tbody>
+        <tfoot><tr class="fw-semibold"><td colspan="3">Summe</td><td class="text-end">{{ money(p.amount_cents) }}</td></tr></tfoot>
+      </table></div></div>
+    <div class="card"><div class="card-header"><i class="fa-solid fa-clock-rotate-left me-2"></i>Verlauf</div>
+      <ul class="list-group list-group-flush small">{% for e in log | reverse %}<li class="list-group-item d-flex gap-2"><span class="text-secondary text-nowrap">{{ e.at | isodate | local('%d.%m.%Y %H:%M') }}</span><span class="flex-grow-1">{{ e.text }}</span>{% if e.who %}<span class="text-secondary">{{ e.who }}</span>{% endif %}</li>{% endfor %}</ul></div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-body small">
+      <dl class="row mb-0">
+        <dt class="col-5">Art</dt><dd class="col-7">{{ kinds.get(p.kind, p.kind) }}</dd>
+        <dt class="col-5">Zahlende Person</dt><dd class="col-7">{{ p.payer_name or '–' }}{% if p.payer_email %}<br><a href="mailto:{{ p.payer_email }}">{{ p.payer_email }}</a>{% endif %}</dd>
+        <dt class="col-5">Kostenstelle</dt><dd class="col-7">{{ p.cost_center or '–' }}</dd>
+        <dt class="col-5">Angelegt</dt><dd class="col-7">{{ p.created_at | local }}</dd>
+        <dt class="col-5">Zahlarten</dt><dd class="col-7">{% for k in p.methods.split(',') if k in methods %}{{ methods[k][0] }}{{ ', ' if not loop.last }}{% endfor %}</dd>
+        {% if p.paypal_order_id %}<dt class="col-5">PayPal-Bestellung</dt><dd class="col-7 font-monospace">{{ p.paypal_order_id }}</dd>{% endif %}
+        {% if p.paypal_capture_id %}<dt class="col-5">PayPal-Transaktion</dt><dd class="col-7 font-monospace">{{ p.paypal_capture_id }}</dd>{% endif %}
+      </dl>
+    </div></div>
+    <div class="card mb-3"><div class="card-body small">
+      <label class="form-label fw-semibold" for="pay-link">Link zur Zahlseite</label>
+      <div class="input-group input-group-sm"><input class="form-control" id="pay-link" value="{{ link }}" readonly><button class="btn btn-outline-secondary" type="button" data-copy="#pay-link"><i class="fa-regular fa-copy"></i></button></div>
+    </div></div>
+    {% if p.status in ('open', 'pending') %}
+    <form method="post" action="/payments/{{ p.id }}/cancel" class="card border-danger-subtle"><div class="card-body small">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="form-label fw-semibold" for="pay-cancel">Stornieren</label>
+      <div class="input-group input-group-sm"><input class="form-control" id="pay-cancel" name="note" placeholder="Grund (optional)"><button class="btn btn-outline-danger" type="submit" data-confirm="Zahlung wirklich stornieren? Der Vorgang wird informiert (z. B. verfällt eine Reservierung)."><i class="fa-solid fa-ban me-1"></i>Stornieren</button></div>
+    </div></form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

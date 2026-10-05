@@ -1,10 +1,10 @@
 import os
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import (
-    Boolean, DateTime, Float, ForeignKey, Integer, String, Text, create_engine, event, inspect, select, text,
+    Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, create_engine, event, inspect, select, text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
@@ -100,6 +100,7 @@ PERMISSIONS = {
     "shortlinks": ("Kurzlinks", "fa-link", "Kurzlinks anlegen und auswerten"),
     "forms": ("Formulare", "fa-clipboard-list", "Formulare erstellen, verteilen und auswerten"),
     "polls": ("Terminumfragen", "fa-calendar-check", "Terminumfragen (wie Doodle) erstellen und auswerten"),
+    "votes": ("Abstimmungen", "fa-check-to-slot", "Abstimmungen und Wahlen anlegen (offen, geheim, anonym), Wahlberechtigte einladen, Codes drucken, auswerten"),
     "bookings": ("Terminbuchung", "fa-calendar-plus", "Buchungsseiten mit freien Zeitfenstern anbieten (z. B. Vorstellungsgespräche)"),
     "laws": ("Rechtstexte", "fa-scale-balanced", "Gesetze, Satzungen und Verordnungen einstellen, gliedern und veröffentlichen"),
     "formblocks": ("Formularbausteine", "fa-cubes", "Datenblöcke (z. B. Antragsteller:in, Hund) in der zentralen Bibliothek anlegen und ändern"),
@@ -108,6 +109,8 @@ PERMISSIONS = {
     "app_create": ("Online-Anträge einrichten", "fa-file-signature", "Formulare zu Online-Anträgen machen (Aktenzeichen, Frist, Zuständigkeit) und wieder zurückstellen"),
     "maps_admin": ("Kartenlayer & Geocoding", "fa-layer-group", "Kartenlayer, Kartenstandard und die Adresssuche (Nominatim) einrichten"),
     "maps": ("Karten", "fa-map-location-dot", "Im Kartenbrowser eigene WMS/WFS-Layer hinzufügen, Karten speichern und teilen"),
+    "payments": ("Zahlungen", "fa-euro-sign", "Zahlungsübersicht und Export, Zahlungen als bezahlt markieren, erstatten und stornieren"),
+    "resources": ("Ressourcen", "fa-building", "Bürgerhäuser, Räume, Grillplätze, Geräte anlegen, Buchungen bearbeiten, Belegungskalender teilen"),
     "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
 }
 
@@ -407,6 +410,7 @@ class Form(Base):
     app_seq: Mapped[int] = mapped_column(Integer, default=0)
     process_id: Mapped[int | None] = mapped_column(ForeignKey("processes.id", ondelete="SET NULL"), nullable=True)
     dms_area_id: Mapped[int | None] = mapped_column(ForeignKey("dms_areas.id", ondelete="SET NULL"), nullable=True)
+    fee_json: Mapped[str] = mapped_column(Text, default="{}")        # Gebühr beim Absenden (siehe fees.py)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -548,6 +552,7 @@ class Process(Base):
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     draft_json: Mapped[str] = mapped_column(Text, default="{}")      # {steps: [...], end_status: ...}
     draft_changed: Mapped[bool] = mapped_column(Boolean, default=True)
+    dms_area_id: Mapped[int | None] = mapped_column(ForeignKey("dms_areas.id", ondelete="SET NULL"), nullable=True)   # Ablage der Vorgänge
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -779,6 +784,7 @@ class DmsArea(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     retention_years: Mapped[int] = mapped_column(Integer, default=0)   # 0 = unbegrenzt / vom übergeordneten Bereich
     position: Mapped[int] = mapped_column(Integer, default=0)
+    system_key: Mapped[str] = mapped_column(String(20), default="")   # "unsorted" = „Nicht einsortiert“ (nicht löschbar)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     access: Mapped[list["DmsAccess"]] = relationship(back_populates="area", cascade="all, delete-orphan",
@@ -799,6 +805,23 @@ class DmsAccess(Base):
     group: Mapped[Group | None] = relationship()
 
 
+class Person(Base):
+    """Bürger:in bzw. Antragsteller:in: verbindet Ablage-Einträge (Anträge, Buchungen, manuell Abgelegtes) mit
+    einer Person. Zuordnung automatisch über die E-Mail-Adresse, sonst Name und PLZ (siehe dms.match_person)."""
+    __tablename__ = "persons"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), default="", index=True)
+    email: Mapped[str] = mapped_column(String(255), default="", index=True)
+    phone: Mapped[str] = mapped_column(String(60), default="")
+    street: Mapped[str] = mapped_column(String(255), default="")
+    zip: Mapped[str] = mapped_column(String(10), default="")
+    city: Mapped[str] = mapped_column(String(200), default="")
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class DmsRecord(Base):
     """Eintrag in der Ablage: ein Online-Antrag (laufend oder abgeschlossen) oder ein manuell abgelegter Vorgang."""
     __tablename__ = "dms_records"
@@ -807,7 +830,7 @@ class DmsRecord(Base):
     area_id: Mapped[int] = mapped_column(ForeignKey("dms_areas.id", ondelete="RESTRICT"), index=True)
     response_id: Mapped[int | None] = mapped_column(ForeignKey("form_responses.id", ondelete="SET NULL"), nullable=True,
                                                     unique=True)
-    kind: Mapped[str] = mapped_column(String(12), default="antrag")     # antrag | manuell
+    kind: Mapped[str] = mapped_column(String(12), default="antrag")     # antrag | manuell | buchung
     title: Mapped[str] = mapped_column(String(300), default="")
     ref_no: Mapped[str] = mapped_column(String(60), default="", index=True)
     form_title: Mapped[str] = mapped_column(String(255), default="")
@@ -824,6 +847,10 @@ class DmsRecord(Base):
     note: Mapped[str] = mapped_column(Text, default="")
     received_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    person_id: Mapped[int | None] = mapped_column(ForeignKey("persons.id", ondelete="SET NULL"), nullable=True, index=True)
+    booking_id: Mapped[int | None] = mapped_column(ForeignKey("resource_bookings.id", ondelete="SET NULL"), nullable=True,
+                                                   index=True)
+    area_manual: Mapped[bool] = mapped_column(Boolean, default=False)   # von Hand verschoben: nicht mehr automatisch umsortieren
     retention_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     text: Mapped[str] = mapped_column(Text, default="")               # Volltext (klein geschrieben)
     created_by: Mapped[str] = mapped_column(String(255), default="")
@@ -831,6 +858,7 @@ class DmsRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     area: Mapped[DmsArea] = relationship()
+    person: Mapped[Person | None] = relationship()
     response: Mapped["FormResponse | None"] = relationship()
     files: Mapped[list["DmsFile"]] = relationship(back_populates="record", cascade="all, delete-orphan",
                                                   order_by="DmsFile.id", passive_deletes=True)
@@ -873,6 +901,384 @@ class DmsLog(Base):
     user_name: Mapped[str] = mapped_column(String(255), default="")
     action: Mapped[str] = mapped_column(String(40))
     text: Mapped[str] = mapped_column(Text, default="")
+
+
+class Payment(Base):
+    """Zahlung zu einer Buchung, einem Antrag, einem Formular oder einem Prozessschritt (siehe payments.py).
+    Beträge in Cent. Über token erreicht die zahlende Person ihre Zahlseite (/pay/<token>)."""
+    __tablename__ = "payments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ref: Mapped[str] = mapped_column(String(40), unique=True, index=True)   # Verwendungszweck, z. B. Z-2026-00012
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    kind: Mapped[str] = mapped_column(String(20), default="other", index=True)   # resource | application | form | step | other
+    subject_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)   # Buchung, Antwort …
+    purpose: Mapped[str] = mapped_column(String(255), default="")
+    items_json: Mapped[str] = mapped_column(Text, default="[]")   # [{label, qty, unit_cents, cents}]
+    amount_cents: Mapped[int] = mapped_column(Integer, default=0)
+    deposit_cents: Mapped[int] = mapped_column(Integer, default=0)   # enthaltene Kaution (erstattbar)
+    currency: Mapped[str] = mapped_column(String(3), default="EUR")
+    methods: Mapped[str] = mapped_column(String(60), default="paypal,transfer")   # erlaubte Zahlarten
+    method: Mapped[str] = mapped_column(String(20), default="")      # tatsächlich: paypal | transfer | cash | free
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)
+    refunded_cents: Mapped[int] = mapped_column(Integer, default=0)
+    cost_center: Mapped[str] = mapped_column(String(120), default="")   # Kostenstelle / Haushaltsstelle
+    payer_name: Mapped[str] = mapped_column(String(255), default="")
+    payer_email: Mapped[str] = mapped_column(String(255), default="")
+    paypal_order_id: Mapped[str] = mapped_column(String(64), default="", index=True)
+    paypal_capture_id: Mapped[str] = mapped_column(String(64), default="", index=True)
+    back_url: Mapped[str] = mapped_column(String(500), default="")   # Rücksprung nach der Zahlung (z. B. Statusseite)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    overdue_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # Frist abgelaufen (gemeldet)
+    log_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class Vote(Base):
+    """Abstimmung/Wahl (siehe votes.py): mehrere Fragen, offen, geheim oder anonym, Zugang per Einladung,
+    öffentlichem Link mit E-Mail-Bestätigung und/oder ausgedruckten Codes."""
+    __tablename__ = "votes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(Text, default="")
+    secrecy: Mapped[str] = mapped_column(String(12), default="secret")       # open | secret | anonymous
+    access: Mapped[str] = mapped_column(String(40), default="invite")        # invite,public,codes
+    results: Mapped[str] = mapped_column(String(12), default="after_end")    # live | after_vote | after_end | owner
+    status: Mapped[str] = mapped_column(String(10), default="draft")         # draft | open | closed
+    allow_change: Mapped[bool] = mapped_column(Boolean, default=False)       # Stimme bis zum Ende änderbar (nur offen)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    public_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    result_json: Mapped[str] = mapped_column(Text, default="")              # eingefrorenes Ergebnis beim Beenden
+    result_hash: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    owner: Mapped[User | None] = relationship()
+    questions: Mapped[list["VoteQuestion"]] = relationship(back_populates="vote", cascade="all, delete-orphan",
+                                                           order_by="VoteQuestion.position", passive_deletes=True)
+    voters: Mapped[list["VoteVoter"]] = relationship(back_populates="vote", cascade="all, delete-orphan",
+                                                     order_by="VoteVoter.id", passive_deletes=True)
+    shares: Mapped[list["VoteShare"]] = relationship(back_populates="vote", cascade="all, delete-orphan",
+                                                     passive_deletes=True)
+
+
+class VoteQuestion(Base):
+    __tablename__ = "vote_questions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    vote_id: Mapped[int] = mapped_column(ForeignKey("votes.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    title: Mapped[str] = mapped_column(String(500))
+    description: Mapped[str] = mapped_column(Text, default="")
+    kind: Mapped[str] = mapped_column(String(10), default="single")          # single | multi | rank | points
+    options_json: Mapped[str] = mapped_column(Text, default="[]")           # [{"id": "a1", "label", "info"}]
+    min_choices: Mapped[int] = mapped_column(Integer, default=0)
+    max_choices: Mapped[int] = mapped_column(Integer, default=1)              # Mehrfach: höchstens; Rangfolge: Plätze
+    points_total: Mapped[int] = mapped_column(Integer, default=10)
+    abstain: Mapped[bool] = mapped_column(Boolean, default=True)              # „Enthaltung“ anbieten
+
+    vote: Mapped[Vote] = relationship(back_populates="questions")
+
+
+class VoteVoter(Base):
+    """Wählerverzeichnis: wer abstimmen darf und ob schon abgestimmt wurde (bei geheimen Abstimmungen getrennt
+    von der Stimme gespeichert)."""
+    __tablename__ = "vote_voters"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    vote_id: Mapped[int] = mapped_column(ForeignKey("votes.id", ondelete="CASCADE"), index=True)
+    source: Mapped[str] = mapped_column(String(10), default="invite")        # invite | public | code
+    name: Mapped[str] = mapped_column(String(255), default="")
+    email: Mapped[str] = mapped_column(String(255), default="")
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)  # persönlicher Link /v/p/<token>
+    code: Mapped[str] = mapped_column(String(12), default="", index=True)     # Zugangscode (Ausdruck)
+    confirmed: Mapped[bool] = mapped_column(Boolean, default=True)           # öffentlich: erst nach Mail-Bestätigung
+    voted: Mapped[bool] = mapped_column(Boolean, default=False)
+    voted_on: Mapped[date | None] = mapped_column(Date, nullable=True)      # nur der Tag (kein Rückschluss auf die Stimme)
+    invited_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    vote: Mapped[Vote] = relationship(back_populates="voters")
+
+
+class VoteBallot(Base):
+    """Stimmzettel. Zufällige ID und keine Uhrzeit: Bei geheimen und anonymen Abstimmungen lässt sich die Stimme
+    nicht über Reihenfolge oder Zeitpunkt einer Person zuordnen. voter_id nur bei offenen Abstimmungen."""
+    __tablename__ = "vote_ballots"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    vote_id: Mapped[int] = mapped_column(ForeignKey("votes.id", ondelete="CASCADE"), index=True)
+    voter_id: Mapped[int | None] = mapped_column(ForeignKey("vote_voters.id", ondelete="SET NULL"), nullable=True)
+    answers_json: Mapped[str] = mapped_column(Text, default="{}")
+    receipt: Mapped[str] = mapped_column(String(16), default="", index=True)   # Quittung für die abstimmende Person
+
+
+class VoteShare(Base):
+    """Freigabe einer Abstimmung im Portal (Stufen wie bei Formularen, siehe shares.py)."""
+    __tablename__ = "vote_shares"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    vote_id: Mapped[int] = mapped_column(ForeignKey("votes.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=True, index=True)
+    level: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    vote: Mapped[Vote] = relationship(back_populates="shares")
+    user: Mapped[User | None] = relationship()
+    group: Mapped[Group | None] = relationship()
+
+
+class Resource(Base):
+    """Buchbare Ressource (Bürgerhaus, Veranstaltungsraum, Grillplatz, Spülmobil …), siehe resources.py."""
+    __tablename__ = "resources"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    slug: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    category: Mapped[str] = mapped_column(String(80), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    location: Mapped[str] = mapped_column(String(255), default="")
+    lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lon: Mapped[float | None] = mapped_column(Float, nullable=True)
+    capacity: Mapped[int] = mapped_column(Integer, default=0)
+    equipment: Mapped[str] = mapped_column(Text, default="")          # eine Zeile je Ausstattungsmerkmal
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    public: Mapped[bool] = mapped_column(Boolean, default=True)      # im öffentlichen Katalog buchbar
+    mode: Mapped[str] = mapped_column(String(10), default="request")  # request (mit Freigabe) | instant (sofort)
+    units: Mapped[str] = mapped_column(String(30), default="day")     # day,block,hour
+    blocks_json: Mapped[str] = mapped_column(Text, default="[]")      # [{"id","label","start":"08:00","end":"13:00"}]
+    hours_json: Mapped[str] = mapped_column(Text, default="{}")       # {"0": [["08:00","22:00"]], …} – fehlt = ganztags
+    slot_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    min_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    max_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    max_days: Mapped[int] = mapped_column(Integer, default=3)
+    min_notice_hours: Mapped[int] = mapped_column(Integer, default=48)
+    max_advance_days: Mapped[int] = mapped_column(Integer, default=365)
+    buffer_before: Mapped[int] = mapped_column(Integer, default=0)    # Minuten Rüstzeit vor/nach jeder Buchung
+    buffer_after: Mapped[int] = mapped_column(Integer, default=0)
+    price_day: Mapped[int] = mapped_column(Integer, default=0)        # Cent; wkd_* = Wochenende/Feiertag (0 = wie werktags)
+    price_block: Mapped[int] = mapped_column(Integer, default=0)
+    price_hour: Mapped[int] = mapped_column(Integer, default=0)
+    wkd_day: Mapped[int] = mapped_column(Integer, default=0)
+    wkd_block: Mapped[int] = mapped_column(Integer, default=0)
+    wkd_hour: Mapped[int] = mapped_column(Integer, default=0)
+    deposit_cents: Mapped[int] = mapped_column(Integer, default=0)
+    pay_methods: Mapped[str] = mapped_column(String(60), default="paypal,transfer,cash")
+    pay_days: Mapped[int] = mapped_column(Integer, default=7)
+    cost_center: Mapped[str] = mapped_column(String(120), default="")
+    self_cancel: Mapped[bool] = mapped_column(Boolean, default=True)
+    cancel_free_days: Mapped[int] = mapped_column(Integer, default=14)
+    cancel_fee_percent: Mapped[int] = mapped_column(Integer, default=0)
+    fields_json: Mapped[str] = mapped_column(Text, default="[]")      # zusätzliche Angaben (Feld-Editor)
+    terms_text: Mapped[str] = mapped_column(Text, default="")        # Nutzungsbedingungen (bestätigen lassen)
+    terms_file: Mapped[str] = mapped_column(String(80), default="")  # Nutzungsordnung als PDF
+    manager_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    manager_group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
+    mailbox: Mapped[str] = mapped_column(String(255), default="")
+    dms_area_id: Mapped[int | None] = mapped_column(ForeignKey("dms_areas.id", ondelete="SET NULL"), nullable=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    owner: Mapped[User | None] = relationship(foreign_keys=[owner_id])
+    manager_user: Mapped[User | None] = relationship(foreign_keys=[manager_user_id])
+    manager_group: Mapped[Group | None] = relationship()
+    parts: Mapped[list["ResourceUnit"]] = relationship(back_populates="resource", cascade="all, delete-orphan",
+                                                      order_by="ResourceUnit.position", passive_deletes=True)
+    tariffs: Mapped[list["ResourceTariff"]] = relationship(back_populates="resource", cascade="all, delete-orphan",
+                                                          order_by="ResourceTariff.position", passive_deletes=True)
+    extras: Mapped[list["ResourceExtra"]] = relationship(back_populates="resource", cascade="all, delete-orphan",
+                                                        order_by="ResourceExtra.position", passive_deletes=True)
+    photos: Mapped[list["ResourcePhoto"]] = relationship(back_populates="resource", cascade="all, delete-orphan",
+                                                        order_by="ResourcePhoto.position", passive_deletes=True)
+    closures: Mapped[list["ResourceClosure"]] = relationship(back_populates="resource", cascade="all, delete-orphan",
+                                                            order_by="ResourceClosure.starts_at", passive_deletes=True)
+    shares: Mapped[list["ResourceShare"]] = relationship(back_populates="resource", cascade="all, delete-orphan",
+                                                        passive_deletes=True)
+
+
+class ResourceUnit(Base):
+    """Teilraum (z. B. Saal, Foyer, Küche). Buchung der ganzen Ressource belegt alle Teilräume."""
+    __tablename__ = "resource_units"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    capacity: Mapped[int] = mapped_column(Integer, default=0)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    price_day: Mapped[int] = mapped_column(Integer, default=0)
+    price_block: Mapped[int] = mapped_column(Integer, default=0)
+    price_hour: Mapped[int] = mapped_column(Integer, default=0)
+    wkd_day: Mapped[int] = mapped_column(Integer, default=0)
+    wkd_block: Mapped[int] = mapped_column(Integer, default=0)
+    wkd_hour: Mapped[int] = mapped_column(Integer, default=0)
+
+    resource: Mapped[Resource] = relationship(back_populates="parts")
+
+
+class ResourceTariff(Base):
+    """Tarifgruppe (z. B. Einheimische 100 %, Auswärtige 150 %, Vereine 50 %) – gilt für die Miete."""
+    __tablename__ = "resource_tariffs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    percent: Mapped[int] = mapped_column(Integer, default=100)
+    description: Mapped[str] = mapped_column(String(500), default="")
+    needs_proof: Mapped[bool] = mapped_column(Boolean, default=False)   # Nachweis hochladen (z. B. Vereinsregister)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+    resource: Mapped[Resource] = relationship(back_populates="tariffs")
+
+
+class ResourceExtra(Base):
+    """Zusatzleistung (WC-Wagen, Endreinigung, Besteck, Biertischgarnituren …), optional mit Bestand."""
+    __tablename__ = "resource_extras"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(String(500), default="")
+    price_cents: Mapped[int] = mapped_column(Integer, default=0)
+    per: Mapped[str] = mapped_column(String(8), default="once")        # once | day | hour | piece
+    stock: Mapped[int | None] = mapped_column(Integer, nullable=True)   # gleichzeitig verfügbar (leer = unbegrenzt)
+    max_qty: Mapped[int] = mapped_column(Integer, default=1)
+    mandatory: Mapped[bool] = mapped_column(Boolean, default=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+    resource: Mapped[Resource] = relationship(back_populates="extras")
+
+
+class ResourcePhoto(Base):
+    __tablename__ = "resource_photos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    file: Mapped[str] = mapped_column(String(80))
+    name: Mapped[str] = mapped_column(String(200), default="")
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+    resource: Mapped[Resource] = relationship(back_populates="photos")
+
+
+class ResourceClosure(Base):
+    """Sperrzeit (Ferien, Wartung) – ganz oder für einen Teilraum."""
+    __tablename__ = "resource_closures"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    unit_id: Mapped[int | None] = mapped_column(ForeignKey("resource_units.id", ondelete="CASCADE"), nullable=True)
+    starts_at: Mapped[datetime] = mapped_column(DateTime)
+    ends_at: Mapped[datetime] = mapped_column(DateTime)
+    reason: Mapped[str] = mapped_column(String(255), default="")
+
+    resource: Mapped[Resource] = relationship(back_populates="closures")
+
+
+class ResourceBooking(Base):
+    """Buchung einer Ressource. Status: unconfirmed (E-Mail noch nicht bestätigt), requested (wartet auf Freigabe),
+    confirmed, rejected, cancelled, expired (nicht bestätigt bzw. nicht bezahlt)."""
+    __tablename__ = "resource_bookings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ref: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    unit_ids: Mapped[str] = mapped_column(String(200), default="")      # Komma-Liste, leer = ganze Ressource
+    mode: Mapped[str] = mapped_column(String(8), default="day")
+    starts_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    ends_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    status: Mapped[str] = mapped_column(String(16), default="unconfirmed", index=True)
+    title: Mapped[str] = mapped_column(String(255), default="")          # Anlass
+    organizer: Mapped[str] = mapped_column(String(255), default="")      # Verein / Veranstalter
+    persons: Mapped[int] = mapped_column(Integer, default=0)
+    name: Mapped[str] = mapped_column(String(255), default="")
+    email: Mapped[str] = mapped_column(String(255), default="", index=True)
+    phone: Mapped[str] = mapped_column(String(60), default="")
+    street: Mapped[str] = mapped_column(String(255), default="")
+    zip: Mapped[str] = mapped_column(String(10), default="")
+    city: Mapped[str] = mapped_column(String(200), default="")
+    tariff_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tariff_name: Mapped[str] = mapped_column(String(120), default="")
+    extras_json: Mapped[str] = mapped_column(Text, default="[]")         # [{"id","name","qty"}]
+    answers_json: Mapped[str] = mapped_column(Text, default="{}")
+    lines_json: Mapped[str] = mapped_column(Text, default="[]")          # Preisposten zum Zeitpunkt der Buchung
+    total_cents: Mapped[int] = mapped_column(Integer, default=0)
+    deposit_cents: Mapped[int] = mapped_column(Integer, default=0)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    confirm_code: Mapped[str] = mapped_column(String(32), default="")
+    payment_id: Mapped[int | None] = mapped_column(ForeignKey("payments.id", ondelete="SET NULL"), nullable=True)
+    person_id: Mapped[int | None] = mapped_column(ForeignKey("persons.id", ondelete="SET NULL"), nullable=True)
+    internal: Mapped[bool] = mapped_column(Boolean, default=False)
+    series_id: Mapped[str] = mapped_column(String(16), default="", index=True)
+    created_by: Mapped[str] = mapped_column(String(255), default="")
+    note: Mapped[str] = mapped_column(Text, default="")                  # intern
+    message: Mapped[str] = mapped_column(Text, default="")               # Mitteilung an die buchende Person
+    handover_json: Mapped[str] = mapped_column(Text, default="{}")       # Übergabe und Abnahme
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    decided_by: Mapped[str] = mapped_column(String(255), default="")
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    resource: Mapped[Resource] = relationship()
+    payment: Mapped["Payment | None"] = relationship()
+
+
+class ResourceCalendar(Base):
+    """Geteilter Belegungskalender (iCal-Abo und Web-Ansicht) über einen geheimen Link.
+    level: busy (nur belegt), title (mit Anlass/Veranstalter), full (mit Kontaktdaten)."""
+    __tablename__ = "resource_calendars"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    level: Mapped[str] = mapped_column(String(8), default="busy")
+    tentative: Mapped[bool] = mapped_column(Boolean, default=True)      # unbestätigte Anfragen als „vorgemerkt“
+    resource_ids: Mapped[str] = mapped_column(String(500), default="")  # Komma-Liste
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_access_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    access_count: Mapped[int] = mapped_column(Integer, default=0)
+    embed: Mapped[bool] = mapped_column(Boolean, default=False)          # Web-Ansicht per iframe einbettbar
+
+    created_by: Mapped[User | None] = relationship()
+
+
+class ResourceShare(Base):
+    """Freigabe einer Ressource im Portal (Stufen siehe shares.py: Belegung · mit Kontaktdaten · verwalten)."""
+    __tablename__ = "resource_shares"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=True, index=True)
+    level: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    resource: Mapped[Resource] = relationship(back_populates="shares")
+    user: Mapped[User | None] = relationship()
+    group: Mapped[Group | None] = relationship()
+
+
+class CustomHoliday(Base):
+    """Eigener Feiertag für Wochenend-/Feiertagspreise (z. B. Kerwe)."""
+    __tablename__ = "custom_holidays"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    day: Mapped[date] = mapped_column(Date, index=True)
+    name: Mapped[str] = mapped_column(String(120))
 
 
 class Poll(Base):
@@ -1365,6 +1771,23 @@ DEFAULT_SETTINGS = {
     # Online-Anträge (Teil des Formularservers) und öffentlicher Antragskatalog
     "module_applications": "1",
     "module_dms": "1",
+    "module_resources": "1",
+    "holiday_state": "RP",            # Bundesland für Feiertagspreise
+    "resources_embed": "1",
+    "resources_embed_origins": "",
+    # Zahlungen (PayPal Checkout, Überweisung, bar) – siehe payments.py
+    "paypal_enabled": "0",
+    "paypal_mode": "sandbox",          # sandbox | live
+    "paypal_client_id": "",
+    "paypal_secret_enc": "",
+    "paypal_webhook_id": "",
+    "pay_transfer": "1",              # Überweisung anbieten
+    "pay_recipient": "",              # Empfänger, IBAN, BIC, Bank für Überweisungen
+    "pay_iban": "",
+    "pay_bic": "",
+    "pay_bank": "",
+    "pay_prefix": "Z",                # Verwendungszweck: Z-2026-00001
+    "pay_days": "14",                 # Zahlfrist in Tagen
     "apps_embed": "1",
     "apps_embed_origins": "",
     # Kurzlinks
@@ -1402,7 +1825,8 @@ _NEW_COLUMNS = {
               "app_seq": "INTEGER NOT NULL DEFAULT 0",
               "process_id": "INTEGER REFERENCES processes(id) ON DELETE SET NULL",
               "review": "BOOLEAN NOT NULL DEFAULT 1",
-              "dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL"},
+              "dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL",
+              "fee_json": "TEXT NOT NULL DEFAULT '{}'"},
     "form_responses": {"ref_no": "VARCHAR(40)", "status": "VARCHAR(16) NOT NULL DEFAULT ''", "status_at": "DATETIME",
                        "assignee_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
                        "group_id": "INTEGER REFERENCES groups(id) ON DELETE SET NULL",
@@ -1411,6 +1835,11 @@ _NEW_COLUMNS = {
                        "checksum": "VARCHAR(64) NOT NULL DEFAULT ''",
                        "process_version_id": "INTEGER REFERENCES process_versions(id) ON DELETE SET NULL",
                        "fields_json": "TEXT NOT NULL DEFAULT '{}'"},
+    "dms_areas": {"system_key": "VARCHAR(20) NOT NULL DEFAULT ''"},
+    "dms_records": {"person_id": "INTEGER REFERENCES persons(id) ON DELETE SET NULL",
+                    "area_manual": "BOOLEAN NOT NULL DEFAULT 0",
+                    "booking_id": "INTEGER REFERENCES resource_bookings(id) ON DELETE SET NULL"},
+    "processes": {"dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL"},
     "invitees": {"rsvp_status": "VARCHAR(16)", "rsvp_at": "DATETIME", "rsvp_comment": "TEXT",
                  "join_token": "VARCHAR(64)"},
 }

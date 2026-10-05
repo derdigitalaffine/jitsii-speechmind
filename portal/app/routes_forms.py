@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
-from . import applications as apps, forms as fm, shortlinks as sl, worker
+from . import applications as apps, fees, forms as fm, payments, shortlinks as sl, worker
 from .db import LOCAL_TZ, SessionLocal, Form, FormInvite, FormResponse, FormShare, Group, User, get_settings, to_local, utcnow
 from .main import (
     app, check_csrf, current_user, flash, get_db, rate_limit, redirect, render, require, session_user,
@@ -150,7 +150,12 @@ def form_preview(request: Request, form_id: int, user: User = Depends(current_us
 def form_settings(request: Request, form_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     form, level = _form(db, form_id, user, fm.EDIT)
     expires = to_local(form.expires_at).strftime("%Y-%m-%dT%H:%M") if form.expires_at else ""
-    return render(request, "form_settings.html", user, **_ctx(db, form, "settings", level), expires=expires)
+    fee = fees.config(form)
+    fee_questions = [{"id": q["id"], "title": q.get("title") or q["type"], "type": q["type"],
+                      "options": [o.get("label", "") for o in q.get("options") or []]}
+                     for q in fm.questions(fm.schema(form)) if q["type"] in ("radio", "checkbox", "dropdown", "short", "scale")]
+    return render(request, "form_settings.html", user, **_ctx(db, form, "settings", level), expires=expires, fee=fee,
+                  fee_questions=fee_questions)
 
 
 @app.post("/forms/{form_id}/settings", dependencies=[Depends(check_csrf)])
@@ -173,6 +178,11 @@ async def form_settings_save(request: Request, form_id: int, user: User = Depend
     form.notify_csv = flag("notify_csv")
     form.notify_json = flag("notify_json")
     form.notify_scope = "all" if data.get("notify_scope") == "all" else "single"
+    if data.get("fee_json"):
+        try:
+            form.fee_json = json.dumps(fees.clean(json.loads(str(data.get("fee_json"))), form), ensure_ascii=False)
+        except ValueError:
+            pass
     db.commit()
     if bad:
         flash(request, "Ungültige Adresse(n) ignoriert: " + ", ".join(bad), "error")
@@ -521,14 +531,19 @@ async def _submit(request: Request, db: Session, form: Form, invite: FormInvite 
         apps.on_submit(db, form, resp)
         db.commit()
         worker.wake()
+        payment = fees.payment_of(db, resp)
         return _message(request, form, "thanks", application=resp, track_link=apps.track_link(resp),
-                        mail_sent=bool(resp.email) and apps.mail_ready(db))
+                        mail_sent=bool(resp.email) and apps.mail_ready(db), payment=payment,
+                        payment_required=resp.status == "payment", money=payments.money)
     fm.notify_new_response(db, form, resp)
     email = (invite.email if invite else member.email if member else "") or fm.respondent_email(form, answers)
     fm.confirm_to_respondent(db, form, resp, email, invite.name if invite else member.name if member else "")
+    payment = fees.on_submit(db, form, resp)
+    if payment is not None and payment.status == "open":
+        payments.request_payment(db, payment)
     db.commit()
     worker.wake()
-    return _message(request, form, "thanks")
+    return _message(request, form, "thanks", payment=payment, money=payments.money)
 
 
 def _guess_name(form: Form, answers: dict) -> str:

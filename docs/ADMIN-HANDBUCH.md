@@ -15,8 +15,10 @@ Für alle, die das Portal der Verbandsgemeinde Otterbach-Otterberg betreuen: Vid
 8e. [Online-Anträge](#online-anträge) (mit [Prozesse und Workflow](#prozesse-und-workflow))
 8g. [Ablage (DMS)](#ablage-dms)
 8f. [Kartenlayer und Kartenbrowser](#kartenlayer-und-kartenbrowser) (mit [Adresssuche (Nominatim)](#adresssuche-nominatim))
-8a. [Terminumfragen](#terminumfragen)
+8a. [Terminumfragen](#terminumfragen) und [Abstimmungen](#abstimmungen-und-wahlen)
 8b. [Terminbuchung](#terminbuchung)
+8h. [Ressourcenbuchung](#ressourcenbuchung)
+8i. [Zahlungen (PayPal, Überweisung, bar)](#zahlungen-paypal-überweisung-bar)
 8c. [Rechtstexte (Ortsrecht online)](#rechtstexte-ortsrecht-online)
 8d. [Sitzungen & Cookies](#sitzungen--cookies)
 9. [E-Mail-Vorlagen](#e-mail-vorlagen)
@@ -79,6 +81,9 @@ Jede Person bekommt einzeln die Bereiche freigeschaltet, die sie braucht:
 | **Online-Anträge einrichten** | Ein Formular zum Online-Antrag machen oder zurückstellen (Schalter im Reiter „Antrag“). Die übrigen Antragseinstellungen darf ändern, wer das Formular bearbeiten darf. *Bei der Aktualisierung bekommen alle, die bisher „Formulare“ hatten, dieses Recht einmalig dazu* |
 | **Terminbuchung** | Buchungsseiten anlegen, in denen andere selbst freie Zeitfenster buchen (z. B. Vorstellungsgespräche). Online-Termine mit eigener Videokonferenz brauchen zusätzlich „Videokonferenzen“ |
 | **Terminumfragen** | Terminumfragen wie Doodle anlegen, verteilen und auswerten. Aus dem festgelegten Termin eine Besprechung anlegen geht nur mit zusätzlichem Recht „Videokonferenzen“ |
+| **Abstimmungen** | Abstimmungen und Wahlen anlegen (offen, geheim, anonym), Wahlberechtigte einladen, Zugangscodes drucken, Live-Modus, auswerten |
+| **Ressourcen** | Ressourcen (Bürgerhäuser, Räume, Grillplätze, Geräte) anlegen, Feiertage pflegen. Verwalten dürfen außerdem die bei der Ressource eingetragenen Zuständigen und Freigaben ab Stufe „Verwalten“ |
+| **Zahlungen** | Zahlungsübersicht und CSV-Export, Zahlungen als bezahlt markieren, erstatten, stornieren – für alle Vorgänge. Im eigenen Vorgang (Buchung, Antrag) dürfen das auch die Zuständigen. PayPal und Bankverbindung richten nur Admins ein |
 | **Prozesse** | Bearbeitungsprozesse für Online-Anträge im Prozesseditor anlegen, ändern, veröffentlichen, exportieren und Vorlagen für Nachforderungen pflegen. Arbeitsschritte erledigen kann jede:r, dem ein Schritt zugewiesen ist – dafür braucht es kein Recht |
 | **Aktenplan verwalten** | Ablagebereiche (DMS) anlegen, Lese-/Schreibrechte und Löschfristen festlegen, abgelaufene Vorgänge löschen. Wer was in der Ablage **sieht**, steuern die Rechte am Bereich, nicht dieses Recht |
 | **Kartenlayer & Geocoding** | Verwaltung › Kartenlayer: Layer, Startausschnitt, Zwischenspeicher, Einbetten und die Adresssuche (Nominatim) einrichten – ohne Admin zu sein |
@@ -181,7 +186,7 @@ Weitere Schutzmechanismen, die immer aktiv sind:
 
 ## Module ein- und ausschalten
 
-Menü **Module** (nur Admins). **Kurzlinks & QR-Codes**, **Formulare**, **Online-Anträge** (nur zusammen mit Formularen), **Terminumfragen**, **Terminbuchung**, **Kartenbrowser** und **Rechtstexte** lassen sich komplett abschalten. Videokonferenzen sind die Kernfunktion und immer aktiv.
+Menü **Module** (nur Admins). **Kurzlinks & QR-Codes**, **Formulare**, **Online-Anträge** (nur zusammen mit Formularen), **Ablage (DMS)**, **Umfragen & Abstimmungen**, **Terminbuchung**, **Ressourcenbuchung**, **Kartenbrowser** und **Rechtstexte** lassen sich komplett abschalten. Videokonferenzen sind die Kernfunktion und immer aktiv.
 
 Ein abgeschaltetes Modul
 
@@ -363,7 +368,7 @@ Modul **Online-Anträge** (Verwaltung › Module, setzt „Formulare“ voraus).
 | Kürzel | Präfix des Aktenzeichens, z. B. `GEW` → `GEW-2026-00001`. Der Zähler beginnt jedes Jahr neu. Ohne Kürzel: `A<Formularnummer>` |
 | Bearbeitungsfrist | Tage ab Eingang; bei Überschreitung bekommen die Zuständigen einmal eine Erinnerung (Prüfung alle 5 Minuten) |
 | PDF anhängen | Antrag als PDF (A4, mit Prüfsumme) an Eingangsbestätigung und Hinweis an die Zuständigen bzw. das Funktionspostfach. Hochgeladene **PDFs und Bilder** (JPG, PNG, GIF, WebP) werden angehängt – mit Anlagenverzeichnis, Seitenzahlen und Fußzeile „Anlage n zu …“. Verschlüsselte oder beschädigte PDFs und andere Dateitypen stehen nur im Verzeichnis. Wird das PDF größer als 15 MB, geht die Mail ohne Anhang raus (der Link zur Statusseite bleibt) |
-| Ablagebereich | Bereich im Aktenplan, in dem die Anträge dieses Formulars abgelegt werden (siehe [Ablage](#ablage-dms)) |
+| Ablagebereich | Bereich im Aktenplan, in dem die Anträge dieses Formulars abgelegt werden, wenn der Prozess keinen festlegt (siehe [Ablage](#ablage-dms)) |
 | Zuständig | Vorgabe: Person, Gruppe (alle Mitglieder) und/oder Funktionspostfach (z. B. für die E-Akte) |
 | Weiterleitung | Regeln: Antwort auf Frage X lautet Y → Person/Gruppe/Postfach. Die erste passende Regel gilt, sonst die Vorgabe |
 | Antragskatalog | Eintrag im öffentlichen Katalog `/antraege` mit Kategorie, Gebühr, Bearbeitungsdauer und Hinweisen (Unterlagen, Rechtsgrundlage). Einschalten erzeugt automatisch den öffentlichen Link |
@@ -397,6 +402,7 @@ Menü **Formulare › Prozesse** (Recht „Prozesse“). Ein Prozess beschreibt,
 | **Freigabe** | Genehmigen oder ablehnen (Ablehnung nur mit Begründung) | **Vier-Augen-Prinzip** (wer den vorigen Schritt erledigt hat, darf nicht freigeben), bei Ablehnung: Vorgang beenden (Status wählbar) oder **zurück** zu einem früheren Schritt |
 | **Nachforderung** | Die antragstellende Person bekommt eine Mail mit Link und reicht Angaben/Dateien über ihre Statusseite nach; der Prozess wartet so lange (Status „Rückfrage“) | **Wer legt fest, was nachgefordert wird:** „Fest im Prozess“ (wird automatisch verschickt) oder „**Sachbearbeitung wählt**“ – dann hält der Prozess an, die zuständige Person (mit Frist zum Zusammenstellen) bekommt die vorgeschlagenen Felder, kann sie ändern, eine **Vorlage** wählen und das Ergebnis als neue Vorlage speichern. Nachricht, Felder (wie im Formular-Baukasten, auch Datei-Upload, Adresse und Kartenfragen), Antragsfragen zur Korrektur, Frist (danach einmal Erinnerung) |
 | **E-Mail bestätigen** (Double-Opt-in) | Die antragstellende Person bekommt eine Mail mit Bestätigungslink; der Prozess hält an, bis sie klickt (Status „Rückfrage“ bleibt unberührt) | Zusätzlicher Hinweis, Frist (Tage), einmal erinnern nach der Hälfte der Frist, bei Ablauf: Zuständige informieren oder Vorgang beenden („Zurückgezogen“). Im Vorgang: Link erneut senden oder ohne Bestätigung fortfahren. Mail-Vorlage „E-Mail-Adresse bestätigen (Double-Opt-in)“ |
+| **Zahlung anfordern** | Die antragstellende Person bekommt eine Zahlungsaufforderung mit Link; der Prozess wartet, bis bezahlt ist | Bezeichnung, fester Betrag oder internes Feld (z. B. `gebuehr`), Frist, Zahlarten, bei Ablauf: Zuständige informieren oder Vorgang beenden. Siehe [Zahlungen](#zahlungen-paypal-überweisung-bar) |
 | **Automatik** | Läuft sofort ohne Zutun | Aktionen: E-Mail (an Antragsteller:in, Zuständige oder feste Adresse; optional mit Antrag oder Dokumenten als Anhang), Status setzen, **Dokument als PDF** erzeugen (z. B. Bescheid; Briefkopf, Anschrift, Datum und Aktenzeichen setzt das Portal), Zuständigkeit ändern |
 
 **Für jeden Schritt:** interner Name und – optional – **Name für Antragsteller:in** (erscheint als Fortschrittsleiste auf der Statusseite; leer = Schritt bleibt unsichtbar), Status beim Start, **Bedingung** (Schritt nur ausführen, wenn eine Antwort, ein internes Feld oder das Ergebnis eines früheren Schritts passt – sonst wird er übersprungen). Aufgaben und Freigaben haben eine **Zuständigkeit** (Zuständige des Vorgangs, bestimmte Person, Gruppe, wer den vorigen Schritt erledigt hat), eine **Frist** in Tagen und optional eine **Eskalation** (nach X Tagen Überschreitung Vertretung bzw. Leitung informieren oder die Aufgabe übertragen). Am **Ende** setzt der Prozess den Abschluss-Status (z. B. Genehmigt) und informiert auf Wunsch die antragstellende Person.
@@ -423,11 +429,17 @@ Modul **Ablage (DMS)** (Verwaltung › Module). Menü **Ablage › Recherche** u
 
 1. **Aktenplan** anlegen: Bereiche mit Aktenplankennzeichen und Namen, beliebig verschachtelt (z. B. `1 Ordnung` › `1.2 Hundesteuer`). Unterbereiche erben Rechte und Löschfrist, solange sie keine eigene haben.
 2. **Rechte** je Bereich: Personen oder Gruppen mit **Lesen** (recherchieren, öffnen, herunterladen) oder **Schreiben** (zusätzlich ablegen, Dateien hochladen und löschen, Angaben ändern). Rechte gelten für den Bereich und alle Unterbereiche. Jede:r sieht nur Vorgänge aus den eigenen Bereichen; **Admins sehen alles**.
-3. Im Reiter **Antrag** eines Antragsformulars den **Ablagebereich** wählen.
+3. Festlegen, wohin Vorgänge kommen: im **Prozesseditor** oben unter „Ablage der Vorgänge“ (gilt sofort für neue, laufende und abgeschlossene Vorgänge des Prozesses), sonst im Reiter **Antrag** des Formulars. Ist nirgends etwas eingestellt, landen Vorgänge im fest eingerichteten Bereich **„Nicht einsortiert“** – wer den Aktenplan verwaltet, darf dort ablegen und einsortieren.
 
-**Was abgelegt wird:** Jeder Online-Antrag des Formulars erscheint sofort nach dem Eingang in der Ablage und wird bei jeder Statusänderung aktualisiert (Antragsteller:in, Anschrift, Status, Volltext der Angaben). Beim **Abschluss** legt das Portal den Abschlussstand ab: das Antrags-PDF mit allen Anlagen und Kopien der erzeugten Dokumente (Bescheide). Zusätzlich lassen sich Vorgänge **manuell ablegen** (Titel, Aktenzeichen, Antragsteller:in, Anschrift mit Adresssuche, Datum, Dateien bis 50 MB je Datei). Ein Abgleich im Hintergrund (alle 5 Minuten) holt Anträge nach, falls einmal etwas nicht übertragen wurde.
+**Was abgelegt wird:** Jeder Online-Antrag erscheint sofort nach dem Eingang in der Ablage und wird bei jeder Statusänderung aktualisiert (Antragsteller:in, Anschrift, Status, Volltext der Angaben). Beim **Abschluss** legt das Portal den Abschlussstand ab: das Antrags-PDF mit allen Anlagen und Kopien der erzeugten Dokumente (Bescheide). Zusätzlich lassen sich Vorgänge **manuell ablegen** (Titel, Aktenzeichen, Antragsteller:in, Anschrift mit Adresssuche, Datum, Dateien bis 50 MB je Datei). Ein Abgleich im Hintergrund (alle 5 Minuten) holt Anträge nach, falls einmal etwas nicht übertragen wurde.
 
-**Recherche:** Volltext (Angaben, Notizen, Dateinamen), Antragsteller:in, Aktenzeichen, Ort/PLZ/Straße, Bereich mit Unterbereichen, Antragsart, Status, Art (Online-Antrag/manuell), Eingangsdatum. Suchen lassen sich unter einem Namen **speichern** (je Person). Export der Treffer als CSV.
+Außerdem landen **Ressourcenbuchungen** (bestätigt, mit Buchungsbestätigung als PDF; im Bereich der Ressource) und auf Wunsch **Ergebnisprotokolle von Abstimmungen** in der Ablage.
+
+**Verschieben:** Im Eintrag „Im Aktenplan verschieben“ oder in der Recherche Einträge ankreuzen und gesammelt verschieben (Schreibrecht in Quelle und Ziel nötig). Von Hand verschobene Einträge bleiben, wo sie sind, auch wenn der Prozess später anders ablegt; die Löschfrist richtet sich nach dem neuen Bereich. Bereiche selbst verschieben Sie im Aktenplan über „Einordnen unter“. Jede Verschiebung steht im Protokoll.
+
+**Personen (Bürger:innen):** Jeder Eintrag wird einer Person zugeordnet – automatisch über die E-Mail-Adresse, sonst über Name und PLZ; fehlende Kontaktdaten werden ergänzt, vorhandene nie überschrieben. Menü **Ablage › Personen**: Suche, Personenseite mit allen Vorgängen (nur aus Bereichen mit Leserecht), Kontaktdaten bearbeiten (wer in einem der Bereiche schreiben darf) und **Doppelungen zusammenführen** (Aktenplan-Verwaltung). Im Eintrag lässt sich die Person ändern oder neu anlegen.
+
+**Recherche:** Volltext (Angaben, Notizen, Dateinamen), Antragsteller:in, Person, Aktenzeichen, Ort/PLZ/Straße, Bereich mit Unterbereichen, Antragsart, Status, Art (Online-Antrag/Buchung/manuell), Eingangsdatum. Suchen lassen sich unter einem Namen **speichern** (je Person). Export der Treffer als CSV.
 
 **Löschfristen:** je Bereich in Jahren (vererbbar). Die Frist läuft am Ende des Jahres ab, in dem der Vorgang abgeschlossen wurde, plus N Jahre (laufende Vorgänge haben keine Frist). Unter **Löschfristen** stehen abgelaufene Vorgänge; Löschen geht nur mit Begründung, löscht bei Online-Anträgen auch den Antrag mit allen Uploads und wird protokolliert (Protokoll auf derselben Seite). Automatisch gelöscht wird nichts.
 
@@ -476,6 +488,18 @@ Menü **Terminumfragen** (Recht „Terminumfragen“). Ein Doodle-Pendant auf de
 - **Teilen im Portal** (Abschnitt „Im Portal freigeben“ unten auf der Umfrage, nur Besitzer:in/Admins): 1 Ergebnisse einsehen (Raster, Teilnehmende, Export) · 2 zusätzlich einladen, erinnern, Link verwalten · 3 zusätzlich Vorschläge/Einstellungen ändern, Termin festlegen, Teilnehmende entfernen, löschen.
 - Jede Person sieht ihre eigenen und die mit ihr geteilten Umfragen, Admins über „Alle anzeigen“ alle. Gehört eine Umfrage einer gelöschten Person, sehen sie nur noch Admins.
 
+## Abstimmungen und Wahlen
+
+Menü **Abstimmungen** (Recht „Abstimmungen“; Teil des Moduls „Umfragen & Abstimmungen“). Bedienung im [Benutzerhandbuch](BENUTZERHANDBUCH.md#6f-abstimmungen-und-wahlen).
+
+- **Fragearten:** eine Antwort, mehrere Antworten (mindestens/höchstens), Rangfolge (Borda: Platz 1 bekommt so viele Punkte wie es Antworten gibt, jeder weitere einen weniger) und Punkte verteilen – jeweils mit „Enthaltung“.
+- **Geheimhaltung:** *offen* (Stimmen mit Namen), *geheim* (das Wählerverzeichnis zeigt, wer abgestimmt hat; die Stimmzettel sind getrennt gespeichert, mit zufälliger ID und ohne Uhrzeit, im Verzeichnis steht nur der Tag), *anonym* (auch die Beteiligung einzelner Personen ist nicht sichtbar). Die Geheimhaltung ist nach dem Start nicht mehr änderbar, die Fragen nach der ersten Stimme nicht mehr.
+- **Zugang** (kombinierbar): persönliche Einladung per Mail (geht beim Start raus), öffentlicher Link mit E-Mail-Bestätigung (der persönliche Link aus der Mail ist zugleich die Bestätigung; eine Stimme je Adresse; Bremse gegen Massenanmeldungen) und Zugangscodes (8 Zeichen ohne verwechselbare Zeichen, Druckbogen mit QR-Code).
+- **Ergebnis:** live, nach der eigenen Stimme, nach dem Ende oder nur intern. Beim Beenden (von Hand oder zur eingestellten Frist, Prüfung alle 5 Minuten) wird das Ergebnis mit einer **SHA-256-Prüfsumme** über alle Stimmzettel festgeschrieben. Jede abstimmende Person bekommt eine **Quittung**, mit der sich prüfen lässt, dass ihr Stimmzettel gezählt wurde (ohne den Inhalt zu zeigen).
+- **Ergebnisprotokoll** als PDF (Einstellungen, Zeitraum, Beteiligung, Ergebnis je Frage, Prüfsumme), auf Knopfdruck auch in die **Ablage**; Stimmzettel als CSV nach dem Ende.
+- **Live-Modus** (`/votes/<nr>/live`) für den Beamer: QR-Code zum öffentlichen Link, Stimmenzahl und Balken aktualisieren sich alle 3 Sekunden, Ergebnis verdecken, starten/anhalten/beenden.
+- Mail-Vorlagen in der Gruppe „Abstimmungen“; Freigaben in drei Stufen wie bei Terminumfragen.
+
 ## Terminbuchung
 
 Menü **Terminbuchung** (Recht „Terminbuchung“). Vergleichbar mit Microsoft Bookings oder Calendly; Bedienung im [Benutzerhandbuch](BENUTZERHANDBUCH.md#6b-terminbuchung-z-b-vorstellungsgespräche).
@@ -489,6 +513,54 @@ Menü **Terminbuchung** (Recht „Terminbuchung“). Vergleichbar mit Microsoft 
 - Mail-Vorlagen in der Gruppe „Terminbuchung“: Bestätigung, Verschiebung, Absage, Erinnerung, Hinweis an die anbietende Person, Einladung und Erinnerung zur Buchung.
 - **Teilen im Portal** (z. B. mit der Personalstelle oder dem Auswahlgremium): 1 Buchungen einsehen (Kalender nur lesend, Terminliste, Exporte) · 2 zusätzlich Personen einladen, Buchungslink verwalten · 3 zusätzlich Zeitbereiche, Einstellungen, Kalender-Abo, Termine verschieben/absagen, Seite löschen. Bestätigungen und Hinweise laufen weiter über die anbietende Person.
 - Datenschutz: Gespeichert werden Name, E-Mail, optional Telefon und Nachricht. Löschen Sie Buchungsseiten nach Abschluss (z. B. des Auswahlverfahrens); damit werden alle Buchungen gelöscht.
+
+## Ressourcenbuchung
+
+Modul **Ressourcenbuchung**, Menü **Ressourcen** (Recht „Ressourcen“ zum Anlegen). Bürger:innen buchen über den öffentlichen Katalog `/r` (einbettbar mit `/r-embed`).
+
+**Ressource einrichten** (Reiter im Bearbeiten-Dialog):
+
+| Reiter | Inhalt |
+|---|---|
+| Allgemein | Name, Art, Beschreibung, Ausstattung, Anschrift mit Koordinaten (für die Karte, per Klick aus der Anschrift), Personenzahl, **aktiv** und **im öffentlichen Katalog** |
+| Zeiten & Regeln | Buchungsarten (ganze Tage mit Höchstzahl am Stück, Zeitblöcke, stundenweise mit Raster und Mindest-/Höchstdauer), Buchungszeiten je Wochentag (ganztags, von–bis, geschlossen), Vorlauf, höchstens im Voraus, Rüstzeit davor und Reinigung danach, **Anfrage mit Freigabe** oder **Sofortbuchung** |
+| Räume & Preise | Preise je Tag/Block/Stunde, jeweils mit eigenem Wochenend-/Feiertagspreis; **Teilräume** mit eigenen Preisen und Personenzahl (die ganze Ressource belegt alle Teilräume) |
+| Tarife & Zusatzleistungen | Tarifgruppen in Prozent der Miete, optional mit Nachweis-Upload; Zusatzleistungen pauschal, je Tag, je Stunde oder je Stück, mit Höchstanzahl, **Bestand** (gleichzeitig verfügbar über alle Buchungen) und **Pflicht** |
+| Angaben | zusätzliche Felder (Feld-Editor wie bei Nachforderungen) |
+| Zahlung & Storno | Kaution, Zahlfrist, Zahlarten, Kostenstelle; Selbststornierung, kostenlos bis X Tage vorher, danach Gebühr in % (Kaution immer voll zurück) |
+| Zuständig & Ablage | zuständige Person, Gruppe, Funktionspostfach (Mails bei Anfragen), **Ablagebereich** |
+| Sperrzeiten | gesperrte Tage (ganz oder je Teilraum) |
+| Fotos & Nutzungsordnung | Fotos (JPG/PNG/WebP bis 8 MB), Nutzungsbedingungen als Text (müssen bestätigt werden) und/oder PDF |
+
+**Feiertage** (Menü „Feiertage“): gesetzliche Feiertage des eingestellten Bundeslands werden berechnet (Bundesland stellen Admins ein, Vorgabe Rheinland-Pfalz), eigene Tage wie die Kerwe lassen sich ergänzen. Samstag, Sonntag und diese Tage gelten als „Wochenende/Feiertag“.
+
+**Ablauf einer Buchung:** Formular mit Live-Preis → E-Mail-Bestätigung innerhalb von 24 Stunden (sonst verfällt die Vormerkung) → bei Sofortbuchung sofort fest, sonst **Anfrage** (Zeitraum vorgemerkt, Zuständige bekommen eine Mail) → Bestätigung mit PDF und **Zahlungsaufforderung** (Frist laut Einstellung, höchstens bis einen Tag vor Beginn) → ohne Zahlung verfällt die Reservierung automatisch. Stornieren durch Buchende nach den Regeln (Erstattung bei PayPal automatisch, sonst als Erstattung vermerkt), durch die Verwaltung immer voll.
+
+**Verwaltung:** **Buchungen** (Filter, offene Anfragen zuerst), Buchung mit Bestätigen/Ablehnen samt Mitteilung, Zahlung (als bezahlt markieren, erstatten), **Übergabe** (Schlüssel, Zustand) und **Abnahme** (Schäden, einbehaltener Teil der Kaution; der Rest wird erstattet), Notizen, Stornieren. **Intern eintragen** ohne Vorlauf und Bestätigung, auf Wunsch kostenlos und als **Serie** (wöchentlich, alle 2 oder 4 Wochen bis zu einem Datum; belegte Termine werden übersprungen und genannt). Die Übersicht und die Startseiten-Kachel zeigen offene Anfragen, Übergaben und Rücknahmen des Tages und Unbezahltes.
+
+**Belegung teilen:** im Portal auf der Belegungsseite (Freigabe: *Belegung einsehen* – Anlass und Veranstalter; *Mit Kontaktdaten*; *Verwalten*) und als geheimer Link unter **Kalender teilen** (iCal-Abo für Outlook/Google/Handy, Web-Ansicht, optional per iframe) in den Stufen *nur frei/belegt*, *mit Anlass/Veranstalter*, *vollständig* (nur mit Freigabe „Mit Kontaktdaten“), mit oder ohne vorgemerkte Anfragen, für eine oder mehrere Ressourcen (Sammelkalender). Links lassen sich widerrufen; Abrufe werden gezählt.
+
+**Mail-Vorlagen:** Gruppe „Ressourcen“ (Bestätigungslink, Anfrage eingegangen, bestätigt mit PDF, abgelehnt, storniert, verfallen, Hinweis an Zuständige). **Speicherort:** Fotos, Nutzungsordnungen und Uploads der Buchenden unter `data/portal/resources/`.
+
+## Zahlungen (PayPal, Überweisung, bar)
+
+**Einrichten** (Verwaltung › PayPal & Bankverbindung, nur Admins):
+
+1. Bei developer.paypal.com eine App anlegen, **Client-ID** und **Secret** eintragen (Secret wird verschlüsselt gespeichert), Modus **Sandbox**, aktivieren, „PayPal-Verbindung testen“.
+2. In der PayPal-App einen **Webhook** auf `https://<portal>/paypal/webhook` anlegen (Ereignisse *Payment capture completed/denied/refunded/reversed*, *Checkout order approved*) und die Webhook-ID eintragen. Die Signatur jedes Webhooks lässt das Portal von PayPal prüfen.
+3. Mit Sandbox-Konten testen, dann auf **Live** umstellen und die Live-Zugangsdaten eintragen.
+4. Für Überweisungen Empfänger, IBAN, BIC und Bank eintragen; Kürzel der Zahlungsnummer (z. B. `Z-2026-00001`) und Vorgabe-Zahlfrist.
+
+**So läuft eine Zahlung:** Die zahlende Person öffnet die Zahlseite (Link in der Mail bzw. nach dem Absenden), wählt PayPal (Weiterleitung zu PayPal, dort auch Lastschrift/Karte je nach PayPal-Konto, danach zurück; das Portal bucht serverseitig ab und prüft den Betrag) oder sieht die Bankverbindung mit Verwendungszweck. Überweisungen und Barzahlungen markiert die Verwaltung im Vorgang oder unter **Zahlungen** als bezahlt. Zwei Tage vor Fristende geht einmal eine Erinnerung raus; nach Fristablauf reagiert der Vorgang (Buchung verfällt, Antrag wird beendet bzw. Zuständige werden informiert).
+
+**Zahlungen** (Recht „Zahlungen“): alle Zahlungen mit Filtern (Status, Art, Zahlart, Zeitraum), Summen, **CSV-Export** für die Kasse (mit Kostenstelle, Kaution, PayPal-Transaktion), Detailseite mit Verlauf, Erstatten (PayPal automatisch, sonst als ausgezahlt vermerkt), Stornieren, Aufforderung erneut senden.
+
+**Wo wird bezahlt:**
+- Ressourcenbuchungen (siehe oben).
+- **Formulare und Online-Anträge** – Formular › Einstellungen › „Gebühr / Bezahlung“: Grundbetrag und Zuschläge nach Antworten (*ist gleich* „Ja“ → + Betrag, *je Anzahl* → Zahl × Betrag, z. B. je Hund). Bei Anträgen auf Wunsch „gilt erst nach Zahlung als eingegangen“: Status **Zahlung offen**, Zuständige und Prozess starten erst nach der Zahlung; ohne Zahlung wird der Antrag nach der Frist beendet.
+- Prozessschritt **„Zahlung anfordern“**: Betrag fest oder aus einem internen Feld einer früheren Aufgabe (Art „Betrag“, z. B. `gebuehr`), Frist, Zahlarten, Verhalten bei Fristablauf. Der Prozess wartet, bis bezahlt ist (auch bei manueller Markierung); Betrag 0 = Schritt wird übersprungen.
+
+**Datenschutz:** PayPal erfährt Betrag, Zweck und Zahlungsnummer; PayPal gehört als Empfänger in die Datenschutzerklärung. Mail-Vorlagen in der Gruppe „Zahlungen“.
 
 ## Rechtstexte (Ortsrecht online)
 
@@ -803,7 +875,7 @@ Die Datenbank wird beim Start automatisch auf das neue Format gebracht. Vorher b
 docker compose exec portal python -c "import sqlite3; s=sqlite3.connect('/data/portal.db'); d=sqlite3.connect('/data/backup.db'); s.backup(d)"
 ```
 
-Danach `data/portal/backup.db` sowie die Ordner `data/portal/audio/`, `data/portal/forms/`, `data/portal/dms/` und `data/portal/branding/` wegkopieren, am einfachsten alles mit `rsync -a data/portal/ /pfad/zur/sicherung/`.
+Danach `data/portal/backup.db` sowie die Ordner `data/portal/audio/`, `data/portal/forms/`, `data/portal/dms/`, `data/portal/resources/` und `data/portal/branding/` wegkopieren, am einfachsten alles mit `rsync -a data/portal/ /pfad/zur/sicherung/`.
 
 **Wiederherstellen:** `docker compose down`, gesicherten Ordner `data/portal/` zurückkopieren (`backup.db` als `portal.db`), dieselbe `.env` verwenden, `docker compose up -d`.
 

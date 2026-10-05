@@ -21,6 +21,18 @@
   {% if usage.running %}<span class="text-secondary">· {{ usage.running }} laufende Vorgänge</span>{% endif %}
 </div>
 
+<form method="post" action="/processes/{{ process.id }}/filing" class="card mb-3" id="ablage"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="card-body py-2 d-flex flex-wrap align-items-center gap-2 small">
+    <span class="fw-semibold"><i class="fa-solid fa-box-archive me-1 text-primary"></i>Ablage der Vorgänge</span>
+    <select class="form-select form-select-sm w-auto" name="dms_area_id" aria-label="Ablagebereich" {% if not dms_areas %}disabled{% endif %}>
+      <option value="">– wie im Formular, sonst „Nicht einsortiert“ –</option>
+      {% for a, d, lbl in dms_areas %}<option value="{{ a.id }}" {% if a.id == process.dms_area_id %}selected{% endif %}>{{ '  ' * d }}{{ a.code ~ ' ' if a.code }}{{ a.name }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-sm btn-outline-primary" type="submit" {% if not dms_areas %}disabled{% endif %}>Übernehmen</button>
+    <span class="text-secondary flex-grow-1">Gilt sofort für neue und laufende Vorgänge (ab Eingang). Abgeschlossene werden mit Antrags-PDF und Bescheiden abgelegt; von Hand verschobene bleiben, wo sie sind.{% if not dms_areas %} Noch kein Aktenplan – <a href="/dms/areas">anlegen</a>.{% endif %}</span>
+  </div>
+</form>
+
 <div id="pe-hints" class="alert alert-warning small py-2 {{ 'd-none' if not hints }}" role="status"><div class="fw-semibold mb-1"><i class="fa-solid fa-lightbulb me-1"></i>Hinweise</div><ul class="mb-0 ps-3" id="pe-hint-list">{% for h in hints %}<li>{{ h }}</li>{% endfor %}</ul></div>
 
 <div class="row g-4">

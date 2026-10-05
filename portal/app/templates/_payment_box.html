@@ -1,0 +1,34 @@
+{# Zahlungsstand in einer Vorgangsansicht. Erwartet: pay_p (Payment), pay_money, pay_statuses, pay_methods, pay_manage (bool), pay_next (Rücksprung). #}
+{% if pay_p %}{% set st = pay_statuses.get(pay_p.status, (pay_p.status, 'secondary', 'fa-circle')) %}
+<div class="card mb-3" id="zahlung"><div class="card-header d-flex align-items-center gap-2"><i class="fa-solid fa-euro-sign"></i><strong class="flex-grow-1">Zahlung</strong>
+  <span class="badge text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span></div>
+  <div class="card-body small">
+    <div class="d-flex flex-wrap gap-3 mb-2">
+      <div><div class="text-secondary">Betrag</div><div class="fw-semibold fs-6">{{ pay_money(pay_p.amount_cents) }}</div></div>
+      <div><div class="text-secondary">Zahlungsnummer</div><a class="font-monospace" href="/payments/{{ pay_p.id }}">{{ pay_p.ref }}</a></div>
+      {% if pay_p.method %}<div><div class="text-secondary">Zahlart</div>{{ pay_methods.get(pay_p.method, (pay_p.method,))[0] }}</div>{% endif %}
+      {% if pay_p.paid_at %}<div><div class="text-secondary">Bezahlt</div>{{ pay_p.paid_at | local('%d.%m.%Y') }}</div>
+      {% elif pay_p.due_at and pay_p.status in ('open', 'pending') %}<div><div class="text-secondary">Fällig</div><span class="{{ 'text-danger fw-semibold' if pay_p.overdue_at }}">{{ pay_p.due_at | local('%d.%m.%Y') }}</span></div>{% endif %}
+      {% if pay_p.deposit_cents %}<div><div class="text-secondary">Kaution</div>{{ pay_money(pay_p.deposit_cents) }}</div>{% endif %}
+      {% if pay_p.refunded_cents %}<div><div class="text-secondary">Erstattet</div>{{ pay_money(pay_p.refunded_cents) }}</div>{% endif %}
+    </div>
+    {% if pay_manage %}
+    <div class="d-flex flex-wrap gap-2">
+      {% if pay_p.status in ('open', 'pending') %}
+      <form method="post" action="/payments/{{ pay_p.id }}/paid" class="d-flex gap-1"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="{{ pay_next }}">
+        <select class="form-select form-select-sm w-auto" name="method" aria-label="Zahlart"><option value="transfer">Überweisung eingegangen</option><option value="cash">bar erhalten</option></select>
+        <button class="btn btn-sm btn-outline-success" type="submit"><i class="fa-solid fa-check me-1"></i>Als bezahlt</button></form>
+      <form method="post" action="/payments/{{ pay_p.id }}/remind"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="{{ pay_next }}"><button class="btn btn-sm btn-outline-secondary" type="submit"><i class="fa-regular fa-envelope me-1"></i>Zahlungsaufforderung senden</button></form>
+      {% endif %}
+      {% if pay_p.status in ('paid', 'partially_refunded') and pay_p.amount_cents > pay_p.refunded_cents %}
+      <form method="post" action="/payments/{{ pay_p.id }}/refund" class="d-flex gap-1"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="{{ pay_next }}">
+        <input class="form-control form-control-sm" style="width: 7rem" name="amount" value="{{ '%.2f' | format(((pay_p.deposit_cents if pay_p.deposit_cents and not pay_p.refunded_cents else pay_p.amount_cents - pay_p.refunded_cents)) / 100) | replace('.', ',') }}" aria-label="Betrag in Euro" inputmode="decimal">
+        <input class="form-control form-control-sm" style="width: 12rem" name="note" placeholder="Grund (optional)" aria-label="Grund der Erstattung">
+        <button class="btn btn-sm btn-outline-secondary" type="submit"><i class="fa-solid fa-rotate-left me-1"></i>Erstatten</button></form>
+      {% endif %}
+      <a class="btn btn-sm btn-link" href="/payments/{{ pay_p.id }}">Details</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
