@@ -102,6 +102,7 @@ PERMISSIONS = {
     "bookings": ("Terminbuchung", "fa-calendar-plus", "Buchungsseiten mit freien Zeitfenstern anbieten (z. B. Vorstellungsgespräche)"),
     "laws": ("Rechtstexte", "fa-scale-balanced", "Gesetze, Satzungen und Verordnungen einstellen, gliedern und veröffentlichen"),
     "formblocks": ("Formularbausteine", "fa-cubes", "Datenblöcke (z. B. Antragsteller:in, Hund) in der zentralen Bibliothek anlegen und ändern"),
+    "dms_admin": ("Aktenplan verwalten", "fa-sitemap", "Ablagebereiche (DMS) anlegen, Lese-/Schreibrechte und Löschfristen festlegen, abgelaufene Vorgänge löschen"),
     "processes": ("Prozesse", "fa-diagram-project", "Bearbeitungsprozesse für Online-Anträge im Prozesseditor gestalten und veröffentlichen"),
     "maps": ("Karten", "fa-map-location-dot", "Im Kartenbrowser eigene WMS/WFS-Layer hinzufügen, Karten speichern und teilen"),
     "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
@@ -402,6 +403,7 @@ class Form(Base):
     app_seq_year: Mapped[int] = mapped_column(Integer, default=0)
     app_seq: Mapped[int] = mapped_column(Integer, default=0)
     process_id: Mapped[int | None] = mapped_column(ForeignKey("processes.id", ondelete="SET NULL"), nullable=True)
+    dms_area_id: Mapped[int | None] = mapped_column(ForeignKey("dms_areas.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -761,6 +763,113 @@ def seed_form_blocks(db) -> None:
         return
     for name, icon, description, items in DEFAULT_BLOCKS:
         db.add(FormBlock(name=name, icon=icon, description=description, schema_json=_json.dumps(items, ensure_ascii=False)))
+
+
+class DmsArea(Base):
+    """Ablagebereich im Aktenplan (verschachtelbar). Rechte gelten auch für alle Unterbereiche."""
+    __tablename__ = "dms_areas"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("dms_areas.id", ondelete="RESTRICT"), nullable=True, index=True)
+    code: Mapped[str] = mapped_column(String(40), default="")          # Aktenplan-Nummer, z. B. 1.2.3
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    retention_years: Mapped[int] = mapped_column(Integer, default=0)   # 0 = unbegrenzt / vom übergeordneten Bereich
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    access: Mapped[list["DmsAccess"]] = relationship(back_populates="area", cascade="all, delete-orphan",
+                                                     passive_deletes=True)
+
+
+class DmsAccess(Base):
+    __tablename__ = "dms_access"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    area_id: Mapped[int] = mapped_column(ForeignKey("dms_areas.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=True)
+    level: Mapped[int] = mapped_column(Integer, default=1)             # 1 lesen, 2 lesen und schreiben
+
+    area: Mapped[DmsArea] = relationship(back_populates="access")
+    user: Mapped[User | None] = relationship()
+    group: Mapped[Group | None] = relationship()
+
+
+class DmsRecord(Base):
+    """Eintrag in der Ablage: ein Online-Antrag (laufend oder abgeschlossen) oder ein manuell abgelegter Vorgang."""
+    __tablename__ = "dms_records"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    area_id: Mapped[int] = mapped_column(ForeignKey("dms_areas.id", ondelete="RESTRICT"), index=True)
+    response_id: Mapped[int | None] = mapped_column(ForeignKey("form_responses.id", ondelete="SET NULL"), nullable=True,
+                                                    unique=True)
+    kind: Mapped[str] = mapped_column(String(12), default="antrag")     # antrag | manuell
+    title: Mapped[str] = mapped_column(String(300), default="")
+    ref_no: Mapped[str] = mapped_column(String(60), default="", index=True)
+    form_title: Mapped[str] = mapped_column(String(255), default="")
+    applicant: Mapped[str] = mapped_column(String(255), default="")
+    applicant_email: Mapped[str] = mapped_column(String(255), default="")
+    status: Mapped[str] = mapped_column(String(16), default="")
+    street: Mapped[str] = mapped_column(String(255), default="")
+    zip: Mapped[str] = mapped_column(String(10), default="")
+    city: Mapped[str] = mapped_column(String(200), default="")
+    district: Mapped[str] = mapped_column(String(200), default="")
+    lat: Mapped[float | None] = mapped_column(nullable=True)
+    lon: Mapped[float | None] = mapped_column(nullable=True)
+    assignee: Mapped[str] = mapped_column(String(255), default="")
+    note: Mapped[str] = mapped_column(Text, default="")
+    received_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    retention_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    text: Mapped[str] = mapped_column(Text, default="")               # Volltext (klein geschrieben)
+    created_by: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    area: Mapped[DmsArea] = relationship()
+    response: Mapped["FormResponse | None"] = relationship()
+    files: Mapped[list["DmsFile"]] = relationship(back_populates="record", cascade="all, delete-orphan",
+                                                  order_by="DmsFile.id", passive_deletes=True)
+
+
+class DmsFile(Base):
+    __tablename__ = "dms_files"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    record_id: Mapped[int] = mapped_column(ForeignKey("dms_records.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    file: Mapped[str] = mapped_column(String(80))
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    mime: Mapped[str] = mapped_column(String(100), default="")
+    kind: Mapped[str] = mapped_column(String(16), default="upload")    # upload | abschluss | dokument
+    sha256: Mapped[str] = mapped_column(String(64), default="")
+    note: Mapped[str] = mapped_column(String(500), default="")
+    uploaded_by: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    record: Mapped[DmsRecord] = relationship(back_populates="files")
+
+
+class DmsSearch(Base):
+    """Gespeicherte Suche einer Person."""
+    __tablename__ = "dms_searches"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    query: Mapped[str] = mapped_column(Text, default="")
+
+
+class DmsLog(Base):
+    """Protokoll für Löschungen und Verschiebungen (Nachweis bei Löschfristen)."""
+    __tablename__ = "dms_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    user_name: Mapped[str] = mapped_column(String(255), default="")
+    action: Mapped[str] = mapped_column(String(40))
+    text: Mapped[str] = mapped_column(Text, default="")
 
 
 class Poll(Base):
@@ -1252,6 +1361,7 @@ DEFAULT_SETTINGS = {
     "geocoder_contact": "",
     # Online-Anträge (Teil des Formularservers) und öffentlicher Antragskatalog
     "module_applications": "1",
+    "module_dms": "1",
     "apps_embed": "1",
     "apps_embed_origins": "",
     # Kurzlinks
@@ -1288,7 +1398,8 @@ _NEW_COLUMNS = {
               "app_pdf": "BOOLEAN NOT NULL DEFAULT 1", "app_seq_year": "INTEGER NOT NULL DEFAULT 0",
               "app_seq": "INTEGER NOT NULL DEFAULT 0",
               "process_id": "INTEGER REFERENCES processes(id) ON DELETE SET NULL",
-              "review": "BOOLEAN NOT NULL DEFAULT 1"},
+              "review": "BOOLEAN NOT NULL DEFAULT 1",
+              "dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL"},
     "form_responses": {"ref_no": "VARCHAR(40)", "status": "VARCHAR(16) NOT NULL DEFAULT ''", "status_at": "DATETIME",
                        "assignee_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
                        "group_id": "INTEGER REFERENCES groups(id) ON DELETE SET NULL",

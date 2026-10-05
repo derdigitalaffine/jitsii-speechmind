@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Aktenplan · Ablage{% endblock %}
+{% block content %}
+<nav aria-label="Pfad" class="small mb-2"><a href="/dms">Ablage</a> › Aktenplan</nav>
+{% call m.page_head('Aktenplan', 'Ablagebereiche mit Lese- und Schreibrechten für Gruppen und Personen. Rechte und Löschfristen gelten auch für alle Unterbereiche. Admins sehen immer alles.') %}
+<a class="btn btn-outline-secondary" href="/dms/retention"><i class="fa-regular fa-calendar-xmark me-1"></i>Löschfristen</a>
+<button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#neu"><i class="fa-solid fa-plus me-1"></i>Bereich anlegen</button>
+{% endcall %}
+
+<form method="post" action="/dms/areas/save" class="card mb-4 collapse {{ 'show' if not tree }}" id="neu"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="card-header fw-semibold">Neuer Bereich</div>
+  <div class="card-body"><div class="row g-2">
+    <div class="col-md-2"><label class="form-label small mb-1" for="n-code">Aktenplan-Nr.</label><input class="form-control form-control-sm" id="n-code" name="code" placeholder="z. B. 1.2"></div>
+    <div class="col-md-4"><label class="form-label small mb-1" for="n-name">Name</label><input class="form-control form-control-sm" id="n-name" name="name" required placeholder="z. B. Hundesteuer"></div>
+    <div class="col-md-4"><label class="form-label small mb-1" for="n-parent">Unter</label><select class="form-select form-select-sm" id="n-parent" name="parent_id"><option value="">– oberste Ebene –</option>{% for a, d in tree %}<option value="{{ a.id }}">{{ '  ' * d }}{{ a.code ~ ' ' if a.code }}{{ a.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label small mb-1" for="n-ret">Aufbewahrung (Jahre)</label><input class="form-control form-control-sm" id="n-ret" name="retention_years" type="number" min="0" max="100" placeholder="0 = erben/unbegrenzt"></div>
+  </div></div>
+  <div class="card-footer"><button class="btn btn-sm btn-primary" type="submit">Anlegen</button></div>
+</form>
+
+{% if tree %}
+<div class="d-flex flex-column gap-2">
+{% for a, d in tree %}
+<div class="card" id="bereich-{{ a.id }}" style="margin-left: {{ d * 1.5 }}rem">
+  <div class="card-body py-2">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <i class="fa-solid {{ 'fa-folder-tree' if d == 0 else 'fa-folder' }} text-primary"></i>
+      <strong>{{ a.code ~ ' ' if a.code }}{{ a.name }}</strong>
+      <span class="badge text-bg-light border fw-normal">{{ counts.get(a.id, 0) }} Einträge</span>
+      <span class="badge text-bg-light border fw-normal"><i class="fa-regular fa-calendar me-1"></i>{% if a.retention_years %}{{ a.retention_years }} Jahre{% elif inherited[a.id] %}{{ inherited[a.id] }} Jahre (geerbt){% else %}unbegrenzt{% endif %}</span>
+      {% for acc in a.access %}<span class="badge {{ 'text-bg-primary' if acc.level == 2 else 'text-bg-secondary' }} fw-normal d-inline-flex align-items-center gap-1"><i class="fa-solid {{ 'fa-users' if acc.group else 'fa-user' }}"></i>{{ acc.group.name if acc.group else acc.user.name }} · {{ levels[acc.level] }}
+        <form method="post" action="/dms/access/{{ acc.id }}/delete" class="d-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-link btn-sm p-0 text-white" type="submit" title="Recht entfernen" aria-label="Recht entfernen"><i class="fa-solid fa-xmark"></i></button></form></span>{% endfor %}
+      <button class="btn btn-sm btn-link ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#edit-{{ a.id }}">Bearbeiten &amp; Rechte</button>
+    </div>
+    <div class="collapse mt-2" id="edit-{{ a.id }}">
+      <div class="row g-3">
+        <form method="post" action="/dms/areas/save" class="col-lg-6"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ a.id }}">
+          <div class="row g-2">
+            <div class="col-4"><label class="form-label small mb-1">Nr.</label><input class="form-control form-control-sm" name="code" value="{{ a.code }}"></div>
+            <div class="col-8"><label class="form-label small mb-1">Name</label><input class="form-control form-control-sm" name="name" value="{{ a.name }}" required></div>
+            <div class="col-8"><label class="form-label small mb-1">Unter</label><select class="form-select form-select-sm" name="parent_id"><option value="">– oberste Ebene –</option>{% for b, e in tree if b.id != a.id %}<option value="{{ b.id }}" {% if b.id == a.parent_id %}selected{% endif %}>{{ '  ' * e }}{{ b.code ~ ' ' if b.code }}{{ b.name }}</option>{% endfor %}</select></div>
+            <div class="col-4"><label class="form-label small mb-1">Jahre</label><input class="form-control form-control-sm" name="retention_years" type="number" min="0" max="100" value="{{ a.retention_years }}"></div>
+            <div class="col-12"><textarea class="form-control form-control-sm" name="description" rows="2" placeholder="Beschreibung (optional)">{{ a.description }}</textarea></div>
+            <div class="col-12 d-flex gap-2"><button class="btn btn-sm btn-primary" type="submit">Speichern</button></div>
+          </div>
+        </form>
+        <div class="col-lg-6">
+          <form method="post" action="/dms/areas/{{ a.id }}/access"><input type="hidden" name="csrf" value="{{ csrf }}">
+            <label class="form-label small mb-1">Zugriff geben</label>
+            <select class="form-select form-select-sm mb-2 js-select" data-search="1" name="who" multiple data-placeholder="Gruppen oder Personen wählen …">
+              <optgroup label="Gruppen">{% for g in groups %}<option value="g:{{ g.id }}">{{ g.name }}</option>{% endfor %}</optgroup>
+              <optgroup label="Personen">{% for u in users %}<option value="u:{{ u.id }}">{{ u.name }} ({{ u.email }})</option>{% endfor %}</optgroup>
+            </select>
+            <div class="d-flex gap-2"><select class="form-select form-select-sm w-auto" name="level"><option value="1">lesen</option><option value="2">lesen und ablegen</option></select><button class="btn btn-sm btn-outline-primary" type="submit">Hinzufügen</button></div>
+          </form>
+          <form method="post" action="/dms/areas/{{ a.id }}/delete" class="mt-3"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" type="submit" {% if counts.get(a.id, 0) %}disabled title="Enthält Einträge"{% endif %} data-confirm-title="Bereich löschen?" data-confirm="Nur leere Bereiche ohne Unterbereiche lassen sich löschen." data-confirm-button="Löschen">Bereich löschen</button></form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+</div>
+{% else %}
+<p class="text-secondary">Noch kein Aktenplan. Legen Sie oben den ersten Bereich an, z. B. „1 Ordnung und Sicherheit“ mit Unterbereich „1.2 Hundesteuer“.</p>
+{% endif %}
+{% endblock %}

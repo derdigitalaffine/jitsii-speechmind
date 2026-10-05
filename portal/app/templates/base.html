@@ -120,6 +120,11 @@
             {% if user.can('processes') %}{{ m.nav_item('/processes', 'fa-diagram-project', 'Prozesse', path.startswith('/processes')) }}{% endif %}
             {% endif %}
             {% endif %}
+            {% if 'dms' in modules and (user.is_admin or user.can('dms_admin') or dms_nav) %}
+            <li class="nav-section">Ablage</li>
+            {{ m.nav_item('/dms', 'fa-box-archive', 'Recherche', path == '/dms' or path.startswith('/dms/r/') or path.startswith('/dms/new')) }}
+            {% if user.is_admin or user.can('dms_admin') %}{{ m.nav_item('/dms/areas', 'fa-sitemap', 'Aktenplan', path.startswith('/dms/areas') or path.startswith('/dms/retention')) }}{% endif %}
+            {% endif %}
             {% if 'maps' in modules %}
             <li class="nav-section">Karten</li>
             {{ m.nav_item('/karte', 'fa-map-location-dot', 'Kartenbrowser', path.startswith('/karte')) }}

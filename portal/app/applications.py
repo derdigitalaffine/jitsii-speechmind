@@ -245,8 +245,9 @@ def on_submit(db, form: Form, resp: FormResponse) -> None:
                      attach_pdf=True)
     notify_staff(db, form, resp, "app_new", {"antworten": fm.answers_text(form, resp) if form.notify_answers else ""},
                  attach_pdf=True)
-    from . import workflow
+    from . import dms, workflow
     workflow.start(db, resp)
+    dms.sync(db, resp)
 
 
 def set_status(db, resp: FormResponse, status: str, message: str, actor: User, inform: bool) -> None:
@@ -258,6 +259,8 @@ def set_status(db, resp: FormResponse, status: str, message: str, actor: User, i
     if status in CLOSED:
         from . import workflow
         workflow.cancel_open(resp, f"Vorgang abgeschlossen ({status_label(status)})")
+    from . import dms
+    dms.sync(db, resp)
     if inform:
         notify_applicant(db, resp.form, resp, "app_status", {"nachricht": message},
                          attach_pdf=False)
@@ -301,8 +304,9 @@ def withdraw(db, resp: FormResponse) -> None:
     resp.status, resp.status_at, resp.closed_at = "withdrawn", utcnow(), utcnow()
     _event(resp, "status", "Antrag von der antragstellenden Person zurückgezogen", status="withdrawn", public=True,
            actor_name=resp.name or resp.email or "Antragsteller:in")
-    from . import workflow
+    from . import dms, workflow
     workflow.cancel_open(resp, "Antrag zurückgezogen")
+    dms.sync(db, resp)
     notify_staff(db, resp.form, resp, "app_reply", {"nachricht": "Der Antrag wurde zurückgezogen."})
 
 

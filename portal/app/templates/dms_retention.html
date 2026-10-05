@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Löschfristen · Ablage{% endblock %}
+{% block content %}
+<nav aria-label="Pfad" class="small mb-2"><a href="/dms">Ablage</a> › Löschfristen</nav>
+{% call m.page_head('Löschfristen', 'Einträge, deren Aufbewahrungsfrist abgelaufen ist. Löschen entfernt den Eintrag, alle Dateien und bei Online-Anträgen auch den Vorgang mit allen Angaben – unwiderruflich und protokolliert.') %}
+<a class="btn btn-outline-secondary" href="/dms/areas"><i class="fa-solid fa-sitemap me-1"></i>Aktenplan</a>
+{% endcall %}
+<form method="post" action="/dms/retention/delete" class="card mb-4"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="card-header fw-semibold"><i class="fa-regular fa-calendar-xmark me-2"></i>Frist abgelaufen ({{ records | length }})</div>
+  {% if records %}
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead class="small"><tr><th><input class="form-check-input" type="checkbox" onclick="document.querySelectorAll('[name=ids]').forEach(function(x){x.checked=this.checked}.bind(this))" aria-label="Alle auswählen"></th><th>Aktenzeichen / Titel</th><th>Antragsteller:in</th><th>Bereich</th><th>Abschluss</th><th>Frist bis</th></tr></thead>
+    <tbody>{% for r in records %}<tr><td><input class="form-check-input" type="checkbox" name="ids" value="{{ r.id }}" aria-label="Auswählen"></td>
+      <td><span class="font-monospace">{{ r.ref_no }}</span> {{ r.title }}</td><td class="small">{{ r.applicant }}</td><td class="small">{{ label(r.area, by_id) }}</td>
+      <td class="small">{{ r.closed_at | local('%d.%m.%Y') if r.closed_at else '–' }}</td><td class="small text-danger">{{ r.retention_until | local('%d.%m.%Y') }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="card-footer"><button class="btn btn-sm btn-danger" type="submit" data-confirm-title="Ausgewählte Einträge löschen?" data-confirm="Einträge, Dateien und zugehörige Vorgänge werden unwiderruflich gelöscht. Die Löschung wird protokolliert." data-confirm-button="Endgültig löschen"><i class="fa-regular fa-trash-can me-1"></i>Ausgewählte löschen</button></div>
+  {% else %}<div class="card-body text-secondary">Keine Einträge mit abgelaufener Frist.</div>{% endif %}
+</form>
+<div class="card"><div class="card-header fw-semibold"><i class="fa-solid fa-list-ul me-2"></i>Protokoll</div>
+  <ul class="list-group list-group-flush small">{% for l in log %}<li class="list-group-item"><span class="text-secondary">{{ l.at | local }} · {{ l.user_name }} · {{ l.action }}</span><div>{{ l.text }}</div></li>{% else %}<li class="list-group-item text-secondary">Noch keine Einträge.</li>{% endfor %}</ul>
+</div>
+{% endblock %}

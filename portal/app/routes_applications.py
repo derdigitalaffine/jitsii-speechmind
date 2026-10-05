@@ -45,7 +45,14 @@ def form_application(request: Request, form_id: int, user: User = Depends(curren
                   groups=db.scalars(select(Group).order_by(Group.name)).all(),
                   has_email=any(q["type"] == "short" and q.get("subtype") == "email" for q in fm.questions(items)),
                   catalog_url=f"{request.base_url}antraege", mail_ready=apps.mail_ready(db),
-                  processes=workflow.processes_for_select(db), can_processes=user.can("processes"))
+                  processes=workflow.processes_for_select(db), can_processes=user.can("processes"),
+                  dms_areas=_dms_areas(db) if "dms" in enabled_modules() else [])
+
+
+def _dms_areas(db) -> list:
+    from . import dms
+    by_id = {a.id: a for a in dms.areas(db)}
+    return [(a, dms.label(a, by_id)) for a, _d in dms.tree(db)]
 
 
 @app.post("/forms/{form_id:int}/application", dependencies=[Depends(check_csrf)])
@@ -69,6 +76,10 @@ async def form_application_save(request: Request, form_id: int, user: User = Dep
         form.app_deadline_days = max(0, min(365, int(data.get("app_deadline_days", 14) or 0)))
     except ValueError:
         form.app_deadline_days = 14
+    if "dms_area_id" in data:
+        aid = str(data.get("dms_area_id", ""))
+        from .db import DmsArea
+        form.dms_area_id = int(aid) if aid.isdigit() and db.get(DmsArea, int(aid)) else None
     if "process_id" in data:
         pid = str(data.get("process_id", ""))
         form.process_id = int(pid) if pid.isdigit() and db.get(Process, int(pid)) else None

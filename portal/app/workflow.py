@@ -520,6 +520,8 @@ def _set_status(db, resp: FormResponse, status: str, text: str = "", inform: boo
     resp.status, resp.status_at = status, utcnow()
     resp.closed_at = utcnow() if status in CLOSED else None
     _event(resp, "status", text, status=status, public=True, actor_name=actor_name)
+    from . import dms
+    dms.sync(db, resp)
     if inform:
         apps.notify_applicant(db, resp.form, resp, "app_status", {"nachricht": text})
 

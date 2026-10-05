@@ -118,7 +118,7 @@ def _forms_mod():
 templates.env.filters["geocenter"] = lambda v: _forms_mod().geo_center(v)
 templates.env.filters["geoinput"] = lambda v: _forms_mod().geo_input(v)
 templates.env.globals["geo_position"] = lambda v, raw="": _forms_mod().geo_position(v, raw)
-templates.env.globals["perm_modules"] = {"processes": "applications", "formblocks": "forms"}
+templates.env.globals["perm_modules"] = {"processes": "applications", "formblocks": "forms", "dms_admin": "dms"}
 templates.env.globals.update(planning_when=planning.when, cancel_recipients=planning.cancel_recipients, local_input=planning.local_input,
                              is_upcoming=planning.is_upcoming, rsvp_labels=planning.RSVP_LABELS,
                              rsvp_summary=planning.rsvp_summary)
@@ -151,6 +151,7 @@ MODULES = {
     "laws": ("Rechtstexte", "module_laws", ("/laws", "/recht")),
     "maps": ("Kartenbrowser", "module_maps", ("/karte", "/maps")),
     "applications": ("Online-Anträge", "module_applications", ("/antraege", "/a/", "/tasks", "/processes")),
+    "dms": ("Ablage (DMS)", "module_dms", ("/dms",)),
 }
 _module_cache: dict = {"at": 0.0, "enabled": set(MODULES)}
 
@@ -406,6 +407,16 @@ def _task_badge(user: User | None) -> int:
         return workflow.task_count(db, user)
 
 
+def _dms_nav(user: User | None) -> bool:
+    """Ablage in der Navigation zeigen: nur mit Zugriff auf mindestens einen Bereich."""
+    if user is None or "dms" not in enabled_modules():
+        return False
+    from .db import DmsAccess, GroupMember
+    with SessionLocal() as db:
+        groups = select(GroupMember.group_id).where(GroupMember.user_id == user.id)
+        return db.scalar(select(DmsAccess.id).where((DmsAccess.user_id == user.id) | DmsAccess.group_id.in_(groups)).limit(1)) is not None
+
+
 def render(request: Request, name: str, user: User | None = None, **ctx) -> HTMLResponse:
     messages = request.session.pop("flash", [])
     ui = branding.load()
@@ -421,6 +432,7 @@ def render(request: Request, name: str, user: User | None = None, **ctx) -> HTML
         "modules": enabled_modules(),
         "shared_nav": _shared_nav(user),
         "task_badge": _task_badge(user),
+        "dms_nav": _dms_nav(user),
         **ctx,
     })
 
@@ -1808,8 +1820,9 @@ async def admin_groups_update(request: Request, gid: int, action: str = Form("sa
 
 @app.get("/admin/modules")
 def admin_modules(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
-    from .db import BookingPage, Form as FormModel, FormResponse, LawText, Poll, ShortLink, UserMap
+    from .db import BookingPage, DmsRecord, Form as FormModel, FormResponse, LawText, Poll, ShortLink, UserMap
     stats = {"bookings": db.scalar(select(func.count(BookingPage.id))),
+             "dms": db.scalar(select(func.count(DmsRecord.id))),
              "maps": db.scalar(select(func.count(UserMap.id))),
              "applications": db.scalar(select(func.count(FormResponse.id)).where(FormResponse.ref_no.is_not(None))),
              "laws": db.scalar(select(func.count(LawText.id))),
@@ -2238,6 +2251,7 @@ from . import routes_applications  # noqa: E402,F401  (vor routes_forms: /forms/
 from . import routes_forms  # noqa: E402,F401
 from . import routes_workflow  # noqa: E402,F401
 from . import routes_geo  # noqa: E402,F401
+from . import routes_dms  # noqa: E402,F401
 from . import routes_polls  # noqa: E402,F401
 from . import routes_bookings  # noqa: E402,F401
 from . import routes_sessions  # noqa: E402,F401

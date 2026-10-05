@@ -46,6 +46,16 @@
       </div>
     </div></div></div>
 
+    {% if dms_areas %}
+    <div class="col-12"><div class="card" id="ablage"><div class="card-header"><i class="fa-solid fa-box-archive me-2"></i>Ablage (DMS)</div><div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-6"><label class="form-label" for="a-dms">Ablagebereich</label>
+          <select class="form-select" id="a-dms" name="dms_area_id"><option value="">– nicht ablegen –</option>{% for a, lbl in dms_areas %}<option value="{{ a.id }}" {% if form.dms_area_id == a.id %}selected{% endif %}>{{ lbl }}</option>{% endfor %}</select></div>
+        <div class="col-md-6 small text-secondary">Anträge erscheinen ab Eingang in der Ablage – recherchierbar für alle mit Leserecht auf den Bereich. Beim Abschluss wird ein unveränderlicher Stand (PDF mit Anlagen und Bescheiden) abgelegt; die Löschfrist richtet sich nach dem Bereich.</div>
+      </div>
+    </div></div></div>
+    {% endif %}
+
     <div class="col-12"><div class="card"><div class="card-header"><i class="fa-solid fa-route me-2"></i>Weiterleitung nach Antworten <span class="small text-secondary fw-normal">– die erste passende Regel bestimmt die Zuständigkeit</span></div>
       <div class="card-body">
         {% if questions %}
