@@ -20,6 +20,7 @@ TILES = {
     "inbox": ("Zum Ausfüllen", "fa-inbox"),
     "responses": ("Neue Antworten", "fa-clipboard-list"),
     "dms": ("Ablage", "fa-box-archive"),
+    "resources": ("Ressourcen", "fa-building"),
     "quick": ("Schnellzugriff", "fa-bolt"),
 }
 
@@ -110,6 +111,12 @@ def _dms(db, user):
     return {"items": db.scalars(q).all(), "can_write": any(v >= 2 for v in lv.values())}
 
 
+def _resources(db, user):
+    from . import resources as rs
+    managed = [r.id for r, lvl in rs.visible(db, user) if lvl >= 3]
+    return rs.booking_counts(db, managed) | {"when": rs.when_text}
+
+
 def _quick(user, modules):
     links = []
     add = lambda cond, href, icon, label: cond and links.append((href, icon, label))  # noqa: E731
@@ -151,12 +158,17 @@ def tiles(db, user: User, modules: set) -> list[dict]:
             available.append("responses")
     if "dms" in modules and (user.is_admin or dms.levels(db, user)):
         available.append("dms")
+    if "resources" in modules:
+        from . import resources as rs
+        if any(lvl >= 3 for _, lvl in rs.visible(db, user)):
+            available.append("resources")
     available.append("quick")
     p = prefs(user)
     order = [k for k in p.get("order", []) if k in available] + [k for k in available if k not in p.get("order", [])]
     hidden = set(p.get("hidden", []))
     loaders = {"tasks": _tasks, "applications": _applications, "meetings": _meetings, "polls": _polls,
-               "bookings": _bookings, "inbox": _inbox, "responses": _responses, "dms": _dms}
+               "bookings": _bookings, "inbox": _inbox, "responses": _responses, "dms": _dms,
+               "resources": _resources}
     out = []
     for key in order:
         title, icon = TILES[key]

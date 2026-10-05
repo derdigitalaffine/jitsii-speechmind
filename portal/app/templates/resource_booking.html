@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Buchung {{ b.ref }}{% endblock %}
+{% block content %}
+{% set st = statuses[b.status] %}
+<nav aria-label="Pfad" class="small mb-2"><a href="/resources/bookings">Buchungen</a> › <a href="/resources/{{ res.id }}">{{ res.name }}</a> › {{ b.ref }}</nav>
+{% call m.page_head(res.name ~ (' – ' ~ units if units else ''), when(b) ~ ' · ' ~ b.title) %}
+  {% if level >= 2 %}<a class="btn btn-outline-secondary" href="/resources/bookings/{{ b.id }}/pdf" target="_blank"><i class="fa-regular fa-file-pdf me-1"></i>Bestätigung (PDF)</a>{% endif %}
+{% endcall %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3"><span class="badge fs-6 text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>
+  <span class="font-monospace text-secondary">{{ b.ref }}</span>{% if b.internal %}<span class="badge text-bg-light border">intern eingetragen von {{ b.created_by }}</span>{% endif %}
+  {% if b.decided_by %}<span class="small text-secondary">entschieden von {{ b.decided_by }} am {{ b.decided_at | local }}</span>{% endif %}</div>
+
+{% if b.status == 'requested' and level >= 3 %}
+<div class="card border-warning border-2 mb-4"><div class="card-body">
+  <h2 class="h5"><i class="fa-solid fa-hourglass-half me-1"></i>Anfrage entscheiden</h2>
+  <form method="post" action="/resources/bookings/{{ b.id }}/decide"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <textarea class="form-control mb-2" name="message" rows="2" placeholder="Mitteilung an {{ b.name }} (optional, z. B. Schlüsselübergabe am Freitag 16 Uhr)"></textarea>
+    <div class="d-flex gap-2"><button class="btn btn-success" name="accept" value="1" type="submit"><i class="fa-solid fa-check me-1"></i>Bestätigen{% if b.total_cents %} und Zahlung anfordern{% endif %}</button>
+      <button class="btn btn-outline-danger" name="accept" value="0" type="submit" data-confirm-title="Anfrage ablehnen?" data-confirm="{{ b.name }} bekommt eine Mail mit Ihrer Mitteilung." data-confirm-button="Ablehnen"><i class="fa-solid fa-xmark me-1"></i>Ablehnen</button></div>
+  </form></div></div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-12 col-xxl-7">
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-circle-info me-2"></i>Buchung</div><div class="card-body"><dl class="row mb-0 small">
+      <dt class="col-sm-4">Zeitraum</dt><dd class="col-sm-8">{{ when(b) }}</dd>
+      {% if units %}<dt class="col-sm-4">Räume</dt><dd class="col-sm-8">{{ units }}</dd>{% endif %}
+      <dt class="col-sm-4">Anlass</dt><dd class="col-sm-8">{{ b.title }}{% if b.organizer %} – {{ b.organizer }}{% endif %}{% if b.persons %} · {{ b.persons }} Personen{% endif %}</dd>
+      {% if b.tariff_name %}<dt class="col-sm-4">Tarif</dt><dd class="col-sm-8">{{ b.tariff_name }}</dd>{% endif %}
+      {% if extras %}<dt class="col-sm-4">Zusatzleistungen</dt><dd class="col-sm-8">{% for e in extras %}{{ e.qty }}× {{ e.name }}{{ ', ' if not loop.last }}{% endfor %}</dd>{% endif %}
+      {% if level >= 2 %}
+      <dt class="col-sm-4">Gebucht von</dt><dd class="col-sm-8">{{ b.name }}{% if b.email %} · <a href="mailto:{{ b.email }}">{{ b.email }}</a>{% endif %}{% if b.phone %} · <a href="tel:{{ b.phone }}">{{ b.phone }}</a>{% endif %}{% if b.street %}<br>{{ b.street }}, {{ b.zip }} {{ b.city }}{% endif %}
+        {% if b.person_id %}<br><a href="/dms/persons/{{ b.person_id }}"><i class="fa-regular fa-circle-user me-1"></i>Personenseite</a>{% endif %}</dd>
+      {% for q in questions %}<dt class="col-sm-4">{{ q.title }}</dt><dd class="col-sm-8">{% set v = answers.get(q.id) %}{% if q.type == 'file' and v %}{% for f in v %}<a href="/resources/bookings/{{ b.id }}/files/{{ f.file }}"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a><br>{% endfor %}{% else %}{{ display(q, v) or '–' }}{% endif %}</dd>{% endfor %}
+      {% if answers.proof %}<dt class="col-sm-4">Nachweis</dt><dd class="col-sm-8">{% for f in answers.proof %}<a href="/resources/bookings/{{ b.id }}/files/{{ f.file }}"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a><br>{% endfor %}</dd>{% endif %}
+      {% endif %}
+    </dl></div>
+      {% if lines %}<table class="table table-sm small mb-0"><tbody>{% for l in lines %}<tr><td class="ps-3">{{ l.label }}</td><td class="text-end pe-3">{{ money(l.cents) }}</td></tr>{% endfor %}</tbody><tfoot><tr class="fw-semibold"><td class="ps-3">Summe</td><td class="text-end pe-3">{{ money(b.total_cents) }}</td></tr></tfoot></table>{% endif %}
+    </div>
+
+    {% if level >= 3 and b.status == 'confirmed' %}
+    {% set out = handover.get('out') %}{% set back = handover.get('back') %}
+    <div class="card mb-4" id="uebergabe"><div class="card-header"><i class="fa-solid fa-key me-2"></i>Übergabe und Abnahme</div><div class="card-body row g-3 small">
+      <div class="col-md-6">
+        <h3 class="h6">Übergabe</h3>
+        {% if out %}<p class="mb-1"><i class="fa-solid fa-check text-success me-1"></i>{{ out.at | isodate | local }} durch {{ out.by }}{% if out['keys'] %} · {{ out['keys'] }}{% endif %}</p>{% if out.note %}<p class="text-secondary">{{ out.note }}</p>{% endif %}{% endif %}
+        <form method="post" action="/resources/bookings/{{ b.id }}/handover"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="part" value="out">
+          <input class="form-control form-control-sm mb-1" name="keys" placeholder="Schlüssel, z. B. 2× Haupteingang Nr. 14">
+          <textarea class="form-control form-control-sm mb-1" name="note" rows="2" placeholder="Zustand, Zählerstände …"></textarea>
+          <button class="btn btn-sm btn-outline-primary" type="submit">{{ 'Übergabe ergänzen' if out else 'Übergabe festhalten' }}</button></form>
+      </div>
+      <div class="col-md-6">
+        <h3 class="h6">Abnahme / Rückgabe</h3>
+        {% if back %}<p class="mb-1"><i class="fa-solid fa-check text-success me-1"></i>{{ back.at | isodate | local }} durch {{ back.by }}{% if back.keep_cents %} · einbehalten {{ money(back.keep_cents) }}{% endif %}</p>{% if back.damages %}<p class="text-danger mb-1">Schäden: {{ back.damages }}</p>{% endif %}{% if back.note %}<p class="text-secondary">{{ back.note }}</p>{% endif %}{% endif %}
+        <form method="post" action="/resources/bookings/{{ b.id }}/handover"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="part" value="back">
+          <textarea class="form-control form-control-sm mb-1" name="damages" rows="2" placeholder="Schäden / Mängel (leer = keine)"></textarea>
+          <input class="form-control form-control-sm mb-1" name="note" placeholder="Notiz">
+          {% if b.deposit_cents %}<div class="input-group input-group-sm mb-1"><span class="input-group-text">Von {{ money(b.deposit_cents) }} Kaution einbehalten</span><input class="form-control" name="keep" value="0,00" inputmode="decimal" aria-label="Einbehalten in Euro"><span class="input-group-text">€</span></div>
+          <div class="form-text mb-1">Der Rest wird erstattet (bei PayPal automatisch).</div>{% endif %}
+          <button class="btn btn-sm btn-outline-primary" type="submit" {% if handover.get('deposit_done') %}data-confirm="Die Kaution wurde schon erstattet. Abnahme trotzdem erneut speichern?"{% endif %}>Abnahme festhalten</button></form>
+      </div>
+    </div></div>
+    {% endif %}
+
+    {% if series %}<div class="card mb-4"><div class="card-header small"><i class="fa-solid fa-repeat me-2"></i>Weitere Termine dieser Serie</div><ul class="list-group list-group-flush small">{% for s in series %}<li class="list-group-item"><a href="/resources/bookings/{{ s.id }}">{{ when(s) }}</a> <span class="badge text-bg-{{ statuses[s.status][1] }}">{{ statuses[s.status][0] }}</span></li>{% endfor %}</ul></div>{% endif %}
+  </div>
+
+  <div class="col-12 col-xxl-5">
+    {% include "_payment_box.html" %}
+    {% if level >= 3 %}
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-note-sticky me-2"></i>Verlauf und Notizen</div><div class="card-body small">
+      {% if b.note %}<div class="mb-2" style="white-space: pre-line">{{ b.note }}</div>{% endif %}
+      <form method="post" action="/resources/bookings/{{ b.id }}/note" class="d-flex gap-2"><input type="hidden" name="csrf" value="{{ csrf }}"><input class="form-control form-control-sm" name="note" placeholder="Interne Notiz"><button class="btn btn-sm btn-outline-secondary" type="submit">Hinzufügen</button></form>
+    </div></div>
+    <div class="card mb-4"><div class="card-body small"><label class="form-label fw-semibold" for="mlink">Link der buchenden Person</label>
+      <div class="input-group input-group-sm"><input class="form-control" id="mlink" value="{{ manage_link }}" readonly><button class="btn btn-outline-secondary" type="button" data-copy="#mlink" aria-label="Kopieren"><i class="fa-regular fa-copy"></i></button></div></div></div>
+    {% if b.status in ('unconfirmed', 'requested', 'confirmed') %}
+    <form method="post" action="/resources/bookings/{{ b.id }}/cancel" class="card border-danger-subtle"><div class="card-body small"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="form-label fw-semibold" for="c-reason">Stornieren</label>
+      <textarea class="form-control form-control-sm mb-2" id="c-reason" name="reason" rows="2" placeholder="Grund (geht per Mail an {{ b.name }})"></textarea>
+      <button class="btn btn-sm btn-outline-danger" type="submit" data-confirm-title="Buchung stornieren?" data-confirm="Bezahltes wird vollständig erstattet (PayPal automatisch), offene Zahlungen werden storniert." data-confirm-button="Stornieren"><i class="fa-solid fa-ban me-1"></i>Buchung stornieren</button></div></form>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

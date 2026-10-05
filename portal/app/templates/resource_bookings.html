@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Buchungen{% endblock %}
+{% block content %}
+{{ m.page_head('Buchungen', 'Anfragen und Buchungen aller Ressourcen, die Sie sehen dürfen.') }}
+<form method="get" class="card mb-3"><div class="card-body row g-2 align-items-end">
+  <div class="col-md-3"><label class="form-label small mb-1" for="b-q">Suche</label><input class="form-control form-control-sm" id="b-q" name="q" value="{{ f.q }}" placeholder="Nummer, Name, Anlass" type="search"></div>
+  <div class="col-6 col-md-3"><label class="form-label small mb-1" for="b-r">Ressource</label><select class="form-select form-select-sm" id="b-r" name="resource"><option value="">alle</option>{% for rid, (r, lvl) in items.items() %}<option value="{{ rid }}" {% if f.resource == rid | string %}selected{% endif %}>{{ r.name }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-2"><label class="form-label small mb-1" for="b-s">Status</label><select class="form-select form-select-sm" id="b-s" name="status"><option value="">aktuell (offen + bestätigt)</option>{% for k, s in statuses.items() %}<option value="{{ k }}" {% if f.status == k %}selected{% endif %}>{{ s[0] }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-2"><label class="form-label small mb-1" for="b-w">Zeitraum</label><select class="form-select form-select-sm" id="b-w" name="when"><option value="">anstehend</option><option value="past" {% if f.when == 'past' %}selected{% endif %}>vergangen</option></select></div>
+  <div class="col-6 col-md-2"><button class="btn btn-sm btn-primary w-100" type="submit">Filtern</button></div>
+</div></form>
+<div class="card"><div class="table-responsive"><table class="table table-hover align-middle mb-0 small">
+  <thead><tr><th>Zeitraum</th><th>Ressource</th><th>Anlass</th><th>Gebucht von</th><th class="text-end">Betrag</th><th>Zahlung</th><th>Status</th></tr></thead>
+  <tbody>{% for b in rows %}{% set r, lvl = items[b.resource_id] %}{% set st = statuses[b.status] %}
+    <tr><td class="text-nowrap"><a href="/resources/bookings/{{ b.id }}">{{ when(b) }}</a><div class="text-secondary font-monospace">{{ b.ref }}</div></td>
+      <td>{{ r.name }}{% if r.parts %}<div class="text-secondary">{{ unit_label(r, unit_ids(b)) }}</div>{% endif %}</td>
+      <td>{{ b.title }}{% if b.organizer %}<div class="text-secondary">{{ b.organizer }}</div>{% endif %}</td>
+      <td>{% if lvl >= 2 %}{{ b.name }}<div class="text-secondary">{{ b.email }}</div>{% else %}<span class="text-secondary">–</span>{% endif %}</td>
+      <td class="text-end text-nowrap">{{ money(b.total_cents) }}</td>
+      <td>{% if b.payment %}{% set ps = pay_statuses[b.payment.status] %}<span class="badge text-bg-{{ ps[1] }}">{{ ps[0] }}</span>{% elif b.internal %}<span class="text-secondary">intern</span>{% endif %}</td>
+      <td><span class="badge text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>{% if b.series_id %} <span class="badge text-bg-light border" title="Serie">Serie</span>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="7" class="text-secondary text-center py-4">Keine Buchungen.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

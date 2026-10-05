@@ -3,6 +3,7 @@
 {% block title %}Ablage{% endblock %}
 {% macro status_badge(r) -%}
 {% if r.kind == 'manuell' %}<span class="badge text-bg-light border"><i class="fa-solid fa-box-archive me-1"></i>abgelegt</span>
+{% elif r.kind == 'buchung' %}<span class="badge text-bg-info"><i class="fa-solid fa-building me-1"></i>Buchung · {{ r.status }}</span>
 {% else %}{% set st = statuses.get(r.status, (r.status, 'secondary', 'fa-circle')) %}<span class="badge text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>{% endif %}
 {%- endmacro %}
 {% block content %}
@@ -33,7 +34,7 @@
           <select class="form-select form-select-sm" id="d-status" name="status"><option value="">alle</option><option value="open" {% if f.status == 'open' %}selected{% endif %}>laufend</option><option value="closed" {% if f.status == 'closed' %}selected{% endif %}>abgeschlossen</option>
             <optgroup label="Status">{% for k, st in statuses.items() %}<option value="{{ k }}" {% if f.status == k %}selected{% endif %}>{{ st[0] }}</option>{% endfor %}</optgroup></select></div>
         <div class="col-6"><label class="form-label small mb-1" for="d-kind">Art</label>
-          <select class="form-select form-select-sm" id="d-kind" name="kind"><option value="">alle</option><option value="antrag" {% if f.kind == 'antrag' %}selected{% endif %}>Online-Anträge</option><option value="manuell" {% if f.kind == 'manuell' %}selected{% endif %}>manuell abgelegt</option></select></div>
+          <select class="form-select form-select-sm" id="d-kind" name="kind"><option value="">alle</option><option value="antrag" {% if f.kind == 'antrag' %}selected{% endif %}>Online-Anträge</option><option value="manuell" {% if f.kind == 'manuell' %}selected{% endif %}>manuell abgelegt</option><option value="buchung" {% if f.kind == 'buchung' %}selected{% endif %}>Ressourcenbuchungen</option></select></div>
       </div>
       <div class="row g-2 mb-3">
         <div class="col-6"><label class="form-label small mb-1" for="d-from">Eingang ab</label><input class="form-control form-control-sm" type="date" id="d-from" name="from" value="{{ f['from'] }}"></div>

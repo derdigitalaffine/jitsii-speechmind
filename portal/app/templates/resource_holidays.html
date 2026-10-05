@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Feiertage{% endblock %}
+{% block content %}
+{{ m.page_head('Feiertage', 'Für Wochenend-/Feiertagspreise: gesetzliche Feiertage des Bundeslands (automatisch berechnet) und eigene Tage wie die Kerwe.') }}
+<div class="row g-4">
+  <div class="col-lg-6"><div class="card"><div class="card-header d-flex align-items-center"><span class="flex-grow-1">Feiertage {{ year }}</span>
+    <a class="btn btn-sm btn-outline-secondary me-1" href="?year={{ year - 1 }}" aria-label="Vorjahr"><i class="fa-solid fa-chevron-left"></i></a><a class="btn btn-sm btn-outline-secondary" href="?year={{ year + 1 }}" aria-label="Folgejahr"><i class="fa-solid fa-chevron-right"></i></a></div>
+    <ul class="list-group list-group-flush small">{% for d, name in days.items() %}<li class="list-group-item d-flex"><span class="flex-grow-1">{{ name }}</span><span class="text-secondary">{{ d.strftime('%a %d.%m.%Y') | replace('Mon', 'Mo') | replace('Tue', 'Di') | replace('Wed', 'Mi') | replace('Thu', 'Do') | replace('Fri', 'Fr') | replace('Sat', 'Sa') | replace('Sun', 'So') }}</span></li>{% endfor %}</ul></div></div>
+  <div class="col-lg-6">
+    <form method="post" action="/resources/holidays" class="card mb-3"><div class="card-body row g-2 align-items-end"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="col-12"><label class="form-label" for="h-state">Bundesland</label><select class="form-select" id="h-state" name="state" {% if not user.is_admin %}disabled{% endif %}>{% for k, n in states.items() %}<option value="{{ k }}" {% if k == state %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+      <div class="col-5"><label class="form-label small mb-1" for="h-day">Eigener Tag</label><input class="form-control form-control-sm" type="date" id="h-day" name="day"></div>
+      <div class="col-5"><label class="form-label small mb-1" for="h-name">Bezeichnung</label><input class="form-control form-control-sm" id="h-name" name="name" placeholder="z. B. Kerwe Otterberg"></div>
+      <div class="col-2"><button class="btn btn-sm btn-primary w-100" type="submit">OK</button></div>
+    </div></form>
+    <div class="card"><div class="card-header small">Eigene Tage</div><ul class="list-group list-group-flush small">{% for h in custom %}<li class="list-group-item d-flex gap-2"><span class="flex-grow-1">{{ h.day.strftime('%d.%m.%Y') }} – {{ h.name }}</span>
+      <form method="post" action="/resources/holidays/{{ h.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger p-0" type="submit" aria-label="Entfernen"><i class="fa-solid fa-xmark"></i></button></form></li>{% else %}<li class="list-group-item text-secondary">Keine.</li>{% endfor %}</ul></div>
+  </div>
+</div>
+{% endblock %}

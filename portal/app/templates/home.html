@@ -62,6 +62,14 @@
       <form class="card-body pb-2" method="get" action="/dms"><div class="input-group input-group-sm"><input class="form-control" name="q" type="search" placeholder="Ablage durchsuchen …" aria-label="Ablage durchsuchen"><button class="btn btn-outline-secondary" type="submit" aria-label="Suchen"><i class="fa-solid fa-magnifying-glass"></i></button></div></form>
       <ul class="list-group list-group-flush small">{% for r in d['items'] %}<li class="list-group-item d-flex gap-2"><a class="flex-grow-1 text-truncate" href="/dms/r/{{ r.id }}">{% if r.ref_no %}<span class="font-monospace">{{ r.ref_no }}</span> {% endif %}{{ r.title }}</a><span class="text-secondary text-nowrap">{{ r.updated_at | local('%d.%m.') }}</span></li>{% else %}<li class="list-group-item text-secondary">Noch nichts abgelegt.</li>{% endfor %}</ul>
       <div class="card-footer small d-flex gap-3">{% if d.can_write %}<a href="/dms/new"><i class="fa-solid fa-plus me-1"></i>Ablegen</a>{% endif %}<a href="/dms">Recherche <i class="fa-solid fa-arrow-right"></i></a></div>
+    {% elif t.key == 'resources' %}
+      <div class="card-body pb-2"><div class="d-flex gap-3 mb-2">
+        <a class="dash-num {{ 'text-warning' if d.requested }}" href="/resources/bookings?status=requested"><span>{{ d.requested | length }}</span>Anfragen</a>
+        <a class="dash-num" href="/resources"><span>{{ d.today_out | length }}</span>Übergaben heute</a>
+        <a class="dash-num" href="/resources"><span>{{ d.today_back | length }}</span>Rücknahmen heute</a>
+        <a class="dash-num" href="/resources/bookings?status=confirmed"><span>{{ d.unpaid }}</span>unbezahlt</a></div></div>
+      <ul class="list-group list-group-flush small">{% for b in d.requested[:5] %}<li class="list-group-item"><a href="/resources/bookings/{{ b.id }}">{{ b.resource.name }}: {{ d.when(b) }}</a> <span class="text-secondary">{{ b.title }}</span></li>{% else %}<li class="list-group-item text-secondary">Keine offenen Anfragen.</li>{% endfor %}</ul>
+      <div class="card-footer small"><a href="/resources/bookings">Alle Buchungen <i class="fa-solid fa-arrow-right"></i></a></div>
     {% elif t.key == 'quick' %}
       <div class="card-body"><div class="row row-cols-2 g-2">{% for href, icon, label in d['items'] %}<div class="col"><a class="btn btn-outline-secondary w-100 text-start btn-sm" href="{{ href }}"><i class="fa-solid {{ icon }} fa-fw me-1"></i>{{ label }}</a></div>{% endfor %}</div></div>
     {% endif %}

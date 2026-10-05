@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Buchung {{ b.ref }}{% endblock %}
+{% block content %}
+{% set st = statuses[b.status] %}
+<div class="form-fill" style="max-width: 48rem">
+  {% if fresh and b.status == 'unconfirmed' %}
+  <div class="card mb-3 border-primary border-2"><div class="card-body d-flex gap-3">
+    <span class="text-primary fs-2"><i class="fa-solid fa-envelope-circle-check"></i></span>
+    <div><h2 class="h5 mb-1">Fast geschafft – bitte bestätigen Sie Ihre E-Mail-Adresse.</h2>
+      <p class="mb-0">Wir haben Ihnen an <strong>{{ b.email }}</strong> einen Link geschickt. Bitte innerhalb von 24 Stunden anklicken, sonst wird der Zeitraum wieder freigegeben. Bitte auch im Spam-Ordner nachsehen.</p></div>
+  </div></div>
+  {% endif %}
+  <div class="card mb-3 border-top border-primary border-4"><div class="card-body">
+    <div class="small text-secondary mb-1"><i class="fa-solid fa-building me-1"></i>Buchung</div>
+    <h1 class="h3 mb-2">{{ res.name }}{% if units %} <span class="text-secondary fs-5">– {{ units }}</span>{% endif %}</h1>
+    <div class="d-flex flex-wrap gap-4 align-items-center">
+      <div><div class="small text-secondary">Zeitraum</div><div class="fw-semibold">{{ when }}</div></div>
+      <div><div class="small text-secondary">Stand</div><span class="badge fs-6 text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span></div>
+      <div><div class="small text-secondary">Buchungsnummer</div><div class="font-monospace">{{ b.ref }}</div></div>
+    </div>
+    {% if b.message %}<div class="alert alert-light border mt-3 mb-0"><i class="fa-solid fa-comment me-1"></i>{{ b.message }}</div>{% endif %}
+  </div></div>
+  {% if b.status == 'requested' %}<div class="alert alert-info"><i class="fa-solid fa-hourglass-half me-1"></i>Ihre Anfrage wird geprüft – der Zeitraum ist für Sie vorgemerkt. Sie bekommen eine E-Mail, sobald entschieden ist.</div>{% endif %}
+  {% if b.payment and b.status == 'confirmed' %}{% set p = b.payment %}
+  <div class="card mb-3 {{ 'border-warning border-2' if p.status in ('open', 'pending') }}"><div class="card-body d-flex flex-wrap gap-3 align-items-center">
+    <div class="flex-grow-1"><div class="fw-semibold"><i class="fa-solid fa-euro-sign me-1"></i>{{ money(p.amount_cents) }} – {{ pay_statuses[p.status][0] }}</div>
+      {% if p.status in ('open', 'pending') and p.due_at %}<div class="small text-secondary">Bitte bis {{ p.due_at | local('%d.%m.%Y') }} bezahlen – sonst verfällt die Reservierung.</div>{% endif %}</div>
+    {% if p.status in ('open', 'pending') %}<a class="btn btn-primary" href="/pay/{{ p.token }}">Jetzt bezahlen</a>{% else %}<a class="btn btn-outline-secondary btn-sm" href="/pay/{{ p.token }}">Zahlung ansehen</a>{% endif %}
+  </div></div>
+  {% endif %}
+  <div class="card mb-3"><div class="card-body">
+    <dl class="row mb-0 small">
+      <dt class="col-sm-4">Anlass</dt><dd class="col-sm-8">{{ b.title }}{% if b.organizer %} ({{ b.organizer }}){% endif %}</dd>
+      <dt class="col-sm-4">Gebucht von</dt><dd class="col-sm-8">{{ b.name }} · {{ b.email }}</dd>
+      {% if res.location %}<dt class="col-sm-4">Ort</dt><dd class="col-sm-8">{{ res.location }}</dd>{% endif %}
+    </dl>
+    {% if lines %}<table class="table table-sm small mt-3 mb-0"><tbody>{% for l in lines %}<tr><td>{{ l.label }}</td><td class="text-end text-nowrap">{{ money(l.cents) }}</td></tr>{% endfor %}</tbody>
+      <tfoot><tr class="fw-semibold"><td>Summe</td><td class="text-end">{{ money(b.total_cents) }}</td></tr></tfoot></table>{% endif %}
+  </div>
+  <div class="card-footer d-flex flex-wrap gap-2">
+    {% if b.status != 'unconfirmed' %}<a class="btn btn-sm btn-outline-secondary" href="/r/b/{{ b.token }}/pdf" target="_blank"><i class="fa-regular fa-file-pdf me-1"></i>Bestätigung (PDF)</a>{% endif %}
+    {% if can_cancel %}
+    <form method="post" action="/r/b/{{ b.token }}/cancel" class="ms-auto"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn btn-sm btn-outline-danger" type="submit" data-confirm-title="Buchung stornieren?" data-confirm="{{ ('Es fällt eine Stornogebühr von ' ~ money(fee) ~ ' an. ') if fee else '' }}{{ rules }}" data-confirm-button="Stornieren"><i class="fa-solid fa-ban me-1"></i>Stornieren</button></form>
+    {% endif %}
+  </div></div>
+  <p class="small text-secondary">{{ rules }} Fragen? Antworten Sie einfach auf eine unserer E-Mails.</p>
+</div>
+{% endblock %}

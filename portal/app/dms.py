@@ -318,7 +318,7 @@ def search(db, user: User, f: dict, limit: int = 50, offset: int = 0) -> tuple[l
         q = q.where(DmsRecord.ref_no.ilike(f"%{f['ref'].strip()}%"))
     if f.get("form"):
         q = q.where(DmsRecord.form_title == f["form"])
-    if f.get("kind") in ("antrag", "manuell"):
+    if f.get("kind") in ("antrag", "manuell", "buchung"):
         q = q.where(DmsRecord.kind == f["kind"])
     status = f.get("status", "")
     if status == "open":

@@ -110,6 +110,7 @@ PERMISSIONS = {
     "maps_admin": ("Kartenlayer & Geocoding", "fa-layer-group", "Kartenlayer, Kartenstandard und die Adresssuche (Nominatim) einrichten"),
     "maps": ("Karten", "fa-map-location-dot", "Im Kartenbrowser eigene WMS/WFS-Layer hinzufügen, Karten speichern und teilen"),
     "payments": ("Zahlungen", "fa-euro-sign", "Zahlungsübersicht und Export, Zahlungen als bezahlt markieren, erstatten und stornieren"),
+    "resources": ("Ressourcen", "fa-building", "Bürgerhäuser, Räume, Grillplätze, Geräte anlegen, Buchungen bearbeiten, Belegungskalender teilen"),
     "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
 }
 
@@ -828,7 +829,7 @@ class DmsRecord(Base):
     area_id: Mapped[int] = mapped_column(ForeignKey("dms_areas.id", ondelete="RESTRICT"), index=True)
     response_id: Mapped[int | None] = mapped_column(ForeignKey("form_responses.id", ondelete="SET NULL"), nullable=True,
                                                     unique=True)
-    kind: Mapped[str] = mapped_column(String(12), default="antrag")     # antrag | manuell
+    kind: Mapped[str] = mapped_column(String(12), default="antrag")     # antrag | manuell | buchung
     title: Mapped[str] = mapped_column(String(300), default="")
     ref_no: Mapped[str] = mapped_column(String(60), default="", index=True)
     form_title: Mapped[str] = mapped_column(String(255), default="")
@@ -846,6 +847,8 @@ class DmsRecord(Base):
     received_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     person_id: Mapped[int | None] = mapped_column(ForeignKey("persons.id", ondelete="SET NULL"), nullable=True, index=True)
+    booking_id: Mapped[int | None] = mapped_column(ForeignKey("resource_bookings.id", ondelete="SET NULL"), nullable=True,
+                                                   index=True)
     area_manual: Mapped[bool] = mapped_column(Boolean, default=False)   # von Hand verschoben: nicht mehr automatisch umsortieren
     retention_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     text: Mapped[str] = mapped_column(Text, default="")               # Volltext (klein geschrieben)
@@ -1031,6 +1034,250 @@ class VoteShare(Base):
     vote: Mapped[Vote] = relationship(back_populates="shares")
     user: Mapped[User | None] = relationship()
     group: Mapped[Group | None] = relationship()
+
+
+class Resource(Base):
+    """Buchbare Ressource (Bürgerhaus, Veranstaltungsraum, Grillplatz, Spülmobil …), siehe resources.py."""
+    __tablename__ = "resources"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    slug: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    category: Mapped[str] = mapped_column(String(80), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    location: Mapped[str] = mapped_column(String(255), default="")
+    lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lon: Mapped[float | None] = mapped_column(Float, nullable=True)
+    capacity: Mapped[int] = mapped_column(Integer, default=0)
+    equipment: Mapped[str] = mapped_column(Text, default="")          # eine Zeile je Ausstattungsmerkmal
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    public: Mapped[bool] = mapped_column(Boolean, default=True)      # im öffentlichen Katalog buchbar
+    mode: Mapped[str] = mapped_column(String(10), default="request")  # request (mit Freigabe) | instant (sofort)
+    units: Mapped[str] = mapped_column(String(30), default="day")     # day,block,hour
+    blocks_json: Mapped[str] = mapped_column(Text, default="[]")      # [{"id","label","start":"08:00","end":"13:00"}]
+    hours_json: Mapped[str] = mapped_column(Text, default="{}")       # {"0": [["08:00","22:00"]], …} – fehlt = ganztags
+    slot_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    min_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    max_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    max_days: Mapped[int] = mapped_column(Integer, default=3)
+    min_notice_hours: Mapped[int] = mapped_column(Integer, default=48)
+    max_advance_days: Mapped[int] = mapped_column(Integer, default=365)
+    buffer_before: Mapped[int] = mapped_column(Integer, default=0)    # Minuten Rüstzeit vor/nach jeder Buchung
+    buffer_after: Mapped[int] = mapped_column(Integer, default=0)
+    price_day: Mapped[int] = mapped_column(Integer, default=0)        # Cent; wkd_* = Wochenende/Feiertag (0 = wie werktags)
+    price_block: Mapped[int] = mapped_column(Integer, default=0)
+    price_hour: Mapped[int] = mapped_column(Integer, default=0)
+    wkd_day: Mapped[int] = mapped_column(Integer, default=0)
+    wkd_block: Mapped[int] = mapped_column(Integer, default=0)
+    wkd_hour: Mapped[int] = mapped_column(Integer, default=0)
+    deposit_cents: Mapped[int] = mapped_column(Integer, default=0)
+    pay_methods: Mapped[str] = mapped_column(String(60), default="paypal,transfer,cash")
+    pay_days: Mapped[int] = mapped_column(Integer, default=7)
+    cost_center: Mapped[str] = mapped_column(String(120), default="")
+    self_cancel: Mapped[bool] = mapped_column(Boolean, default=True)
+    cancel_free_days: Mapped[int] = mapped_column(Integer, default=14)
+    cancel_fee_percent: Mapped[int] = mapped_column(Integer, default=0)
+    fields_json: Mapped[str] = mapped_column(Text, default="[]")      # zusätzliche Angaben (Feld-Editor)
+    terms_text: Mapped[str] = mapped_column(Text, default="")        # Nutzungsbedingungen (bestätigen lassen)
+    terms_file: Mapped[str] = mapped_column(String(80), default="")  # Nutzungsordnung als PDF
+    manager_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    manager_group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
+    mailbox: Mapped[str] = mapped_column(String(255), default="")
+    dms_area_id: Mapped[int | None] = mapped_column(ForeignKey("dms_areas.id", ondelete="SET NULL"), nullable=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    owner: Mapped[User | None] = relationship(foreign_keys=[owner_id])
+    manager_user: Mapped[User | None] = relationship(foreign_keys=[manager_user_id])
+    manager_group: Mapped[Group | None] = relationship()
+    parts: Mapped[list["ResourceUnit"]] = relationship(back_populates="resource", cascade="all, delete-orphan",
+                                                      order_by="ResourceUnit.position", passive_deletes=True)
+    tariffs: Mapped[list["ResourceTariff"]] = relationship(back_populates="resource", cascade="all, delete-orphan",
+                                                          order_by="ResourceTariff.position", passive_deletes=True)
+    extras: Mapped[list["ResourceExtra"]] = relationship(back_populates="resource", cascade="all, delete-orphan",
+                                                        order_by="ResourceExtra.position", passive_deletes=True)
+    photos: Mapped[list["ResourcePhoto"]] = relationship(back_populates="resource", cascade="all, delete-orphan",
+                                                        order_by="ResourcePhoto.position", passive_deletes=True)
+    closures: Mapped[list["ResourceClosure"]] = relationship(back_populates="resource", cascade="all, delete-orphan",
+                                                            order_by="ResourceClosure.starts_at", passive_deletes=True)
+    shares: Mapped[list["ResourceShare"]] = relationship(back_populates="resource", cascade="all, delete-orphan",
+                                                        passive_deletes=True)
+
+
+class ResourceUnit(Base):
+    """Teilraum (z. B. Saal, Foyer, Küche). Buchung der ganzen Ressource belegt alle Teilräume."""
+    __tablename__ = "resource_units"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    capacity: Mapped[int] = mapped_column(Integer, default=0)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    price_day: Mapped[int] = mapped_column(Integer, default=0)
+    price_block: Mapped[int] = mapped_column(Integer, default=0)
+    price_hour: Mapped[int] = mapped_column(Integer, default=0)
+    wkd_day: Mapped[int] = mapped_column(Integer, default=0)
+    wkd_block: Mapped[int] = mapped_column(Integer, default=0)
+    wkd_hour: Mapped[int] = mapped_column(Integer, default=0)
+
+    resource: Mapped[Resource] = relationship(back_populates="parts")
+
+
+class ResourceTariff(Base):
+    """Tarifgruppe (z. B. Einheimische 100 %, Auswärtige 150 %, Vereine 50 %) – gilt für die Miete."""
+    __tablename__ = "resource_tariffs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    percent: Mapped[int] = mapped_column(Integer, default=100)
+    description: Mapped[str] = mapped_column(String(500), default="")
+    needs_proof: Mapped[bool] = mapped_column(Boolean, default=False)   # Nachweis hochladen (z. B. Vereinsregister)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+    resource: Mapped[Resource] = relationship(back_populates="tariffs")
+
+
+class ResourceExtra(Base):
+    """Zusatzleistung (WC-Wagen, Endreinigung, Besteck, Biertischgarnituren …), optional mit Bestand."""
+    __tablename__ = "resource_extras"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(String(500), default="")
+    price_cents: Mapped[int] = mapped_column(Integer, default=0)
+    per: Mapped[str] = mapped_column(String(8), default="once")        # once | day | hour | piece
+    stock: Mapped[int | None] = mapped_column(Integer, nullable=True)   # gleichzeitig verfügbar (leer = unbegrenzt)
+    max_qty: Mapped[int] = mapped_column(Integer, default=1)
+    mandatory: Mapped[bool] = mapped_column(Boolean, default=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+    resource: Mapped[Resource] = relationship(back_populates="extras")
+
+
+class ResourcePhoto(Base):
+    __tablename__ = "resource_photos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    file: Mapped[str] = mapped_column(String(80))
+    name: Mapped[str] = mapped_column(String(200), default="")
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+    resource: Mapped[Resource] = relationship(back_populates="photos")
+
+
+class ResourceClosure(Base):
+    """Sperrzeit (Ferien, Wartung) – ganz oder für einen Teilraum."""
+    __tablename__ = "resource_closures"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    unit_id: Mapped[int | None] = mapped_column(ForeignKey("resource_units.id", ondelete="CASCADE"), nullable=True)
+    starts_at: Mapped[datetime] = mapped_column(DateTime)
+    ends_at: Mapped[datetime] = mapped_column(DateTime)
+    reason: Mapped[str] = mapped_column(String(255), default="")
+
+    resource: Mapped[Resource] = relationship(back_populates="closures")
+
+
+class ResourceBooking(Base):
+    """Buchung einer Ressource. Status: unconfirmed (E-Mail noch nicht bestätigt), requested (wartet auf Freigabe),
+    confirmed, rejected, cancelled, expired (nicht bestätigt bzw. nicht bezahlt)."""
+    __tablename__ = "resource_bookings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ref: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    unit_ids: Mapped[str] = mapped_column(String(200), default="")      # Komma-Liste, leer = ganze Ressource
+    mode: Mapped[str] = mapped_column(String(8), default="day")
+    starts_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    ends_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    status: Mapped[str] = mapped_column(String(16), default="unconfirmed", index=True)
+    title: Mapped[str] = mapped_column(String(255), default="")          # Anlass
+    organizer: Mapped[str] = mapped_column(String(255), default="")      # Verein / Veranstalter
+    persons: Mapped[int] = mapped_column(Integer, default=0)
+    name: Mapped[str] = mapped_column(String(255), default="")
+    email: Mapped[str] = mapped_column(String(255), default="", index=True)
+    phone: Mapped[str] = mapped_column(String(60), default="")
+    street: Mapped[str] = mapped_column(String(255), default="")
+    zip: Mapped[str] = mapped_column(String(10), default="")
+    city: Mapped[str] = mapped_column(String(200), default="")
+    tariff_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tariff_name: Mapped[str] = mapped_column(String(120), default="")
+    extras_json: Mapped[str] = mapped_column(Text, default="[]")         # [{"id","name","qty"}]
+    answers_json: Mapped[str] = mapped_column(Text, default="{}")
+    lines_json: Mapped[str] = mapped_column(Text, default="[]")          # Preisposten zum Zeitpunkt der Buchung
+    total_cents: Mapped[int] = mapped_column(Integer, default=0)
+    deposit_cents: Mapped[int] = mapped_column(Integer, default=0)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    confirm_code: Mapped[str] = mapped_column(String(32), default="")
+    payment_id: Mapped[int | None] = mapped_column(ForeignKey("payments.id", ondelete="SET NULL"), nullable=True)
+    person_id: Mapped[int | None] = mapped_column(ForeignKey("persons.id", ondelete="SET NULL"), nullable=True)
+    internal: Mapped[bool] = mapped_column(Boolean, default=False)
+    series_id: Mapped[str] = mapped_column(String(16), default="", index=True)
+    created_by: Mapped[str] = mapped_column(String(255), default="")
+    note: Mapped[str] = mapped_column(Text, default="")                  # intern
+    message: Mapped[str] = mapped_column(Text, default="")               # Mitteilung an die buchende Person
+    handover_json: Mapped[str] = mapped_column(Text, default="{}")       # Übergabe und Abnahme
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    decided_by: Mapped[str] = mapped_column(String(255), default="")
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    resource: Mapped[Resource] = relationship()
+    payment: Mapped["Payment | None"] = relationship()
+
+
+class ResourceCalendar(Base):
+    """Geteilter Belegungskalender (iCal-Abo und Web-Ansicht) über einen geheimen Link.
+    level: busy (nur belegt), title (mit Anlass/Veranstalter), full (mit Kontaktdaten)."""
+    __tablename__ = "resource_calendars"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    level: Mapped[str] = mapped_column(String(8), default="busy")
+    tentative: Mapped[bool] = mapped_column(Boolean, default=True)      # unbestätigte Anfragen als „vorgemerkt“
+    resource_ids: Mapped[str] = mapped_column(String(500), default="")  # Komma-Liste
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_access_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    access_count: Mapped[int] = mapped_column(Integer, default=0)
+    embed: Mapped[bool] = mapped_column(Boolean, default=False)          # Web-Ansicht per iframe einbettbar
+
+    created_by: Mapped[User | None] = relationship()
+
+
+class ResourceShare(Base):
+    """Freigabe einer Ressource im Portal (Stufen siehe shares.py: Belegung · mit Kontaktdaten · verwalten)."""
+    __tablename__ = "resource_shares"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=True, index=True)
+    level: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    resource: Mapped[Resource] = relationship(back_populates="shares")
+    user: Mapped[User | None] = relationship()
+    group: Mapped[Group | None] = relationship()
+
+
+class CustomHoliday(Base):
+    """Eigener Feiertag für Wochenend-/Feiertagspreise (z. B. Kerwe)."""
+    __tablename__ = "custom_holidays"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    day: Mapped[date] = mapped_column(Date, index=True)
+    name: Mapped[str] = mapped_column(String(120))
 
 
 class Poll(Base):
@@ -1523,6 +1770,10 @@ DEFAULT_SETTINGS = {
     # Online-Anträge (Teil des Formularservers) und öffentlicher Antragskatalog
     "module_applications": "1",
     "module_dms": "1",
+    "module_resources": "1",
+    "holiday_state": "RP",            # Bundesland für Feiertagspreise
+    "resources_embed": "1",
+    "resources_embed_origins": "",
     # Zahlungen (PayPal Checkout, Überweisung, bar) – siehe payments.py
     "paypal_enabled": "0",
     "paypal_mode": "sandbox",          # sandbox | live
@@ -1584,7 +1835,8 @@ _NEW_COLUMNS = {
                        "fields_json": "TEXT NOT NULL DEFAULT '{}'"},
     "dms_areas": {"system_key": "VARCHAR(20) NOT NULL DEFAULT ''"},
     "dms_records": {"person_id": "INTEGER REFERENCES persons(id) ON DELETE SET NULL",
-                    "area_manual": "BOOLEAN NOT NULL DEFAULT 0"},
+                    "area_manual": "BOOLEAN NOT NULL DEFAULT 0",
+                    "booking_id": "INTEGER REFERENCES resource_bookings(id) ON DELETE SET NULL"},
     "processes": {"dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL"},
     "invitees": {"rsvp_status": "VARCHAR(16)", "rsvp_at": "DATETIME", "rsvp_comment": "TEXT",
                  "join_token": "VARCHAR(64)"},

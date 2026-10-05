@@ -5,6 +5,7 @@
 {% set base = '/dms/r/' ~ record.id %}
 <nav aria-label="Pfad" class="small mb-2"><a href="/dms">Ablage</a> › {% for a in label(record.area, by_id).split(' › ') %}{{ a }}{{ ' › ' if not loop.last }}{% endfor %}</nav>
 {% call m.page_head((record.ref_no ~ ' · ' if record.ref_no else '') ~ record.title, ((record.person.name if record.person else '') or record.applicant or record.applicant_email or '') ) %}
+{% if record.booking_id %}<a class="btn btn-outline-primary" href="/resources/bookings/{{ record.booking_id }}"><i class="fa-solid fa-building me-1"></i>Zur Buchung</a>{% endif %}
 {% if resp %}<a class="btn btn-outline-secondary" href="{{ base }}/pdf"><i class="fa-regular fa-file-pdf me-1"></i>Antrags-PDF mit Anlagen</a>
 {% if case_access %}<a class="btn btn-outline-primary" href="/forms/{{ resp.form_id }}/applications/{{ resp.id }}"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Zum Vorgang</a>{% endif %}{% endif %}
 {% endcall %}

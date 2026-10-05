@@ -129,6 +129,13 @@
             {{ m.nav_item('/dms/persons', 'fa-address-book', 'Personen', path.startswith('/dms/persons')) }}
             {% if user.is_admin or user.can('dms_admin') %}{{ m.nav_item('/dms/areas', 'fa-sitemap', 'Aktenplan', path.startswith('/dms/areas') or path.startswith('/dms/retention')) }}{% endif %}
             {% endif %}
+            {% if res_nav %}
+            <li class="nav-section">Ressourcen</li>
+            {{ m.nav_item('/resources', 'fa-building', 'Ressourcen & Belegung', path == '/resources' or (path.startswith('/resources/') and not path.startswith('/resources/bookings') and not path.startswith('/resources/calendars') and not path.startswith('/resources/holidays'))) }}
+            {{ m.nav_item('/resources/bookings', 'fa-calendar-check', 'Buchungen', path.startswith('/resources/bookings')) }}
+            {{ m.nav_item('/resources/calendars', 'fa-calendar-week', 'Kalender teilen', path.startswith('/resources/calendars')) }}
+            {% if user.can('resources') %}{{ m.nav_item('/resources/holidays', 'fa-champagne-glasses', 'Feiertage', path.startswith('/resources/holidays')) }}{% endif %}
+            {% endif %}
             {% if 'maps' in modules %}
             <li class="nav-section">Karten</li>
             {{ m.nav_item('/karte', 'fa-map-location-dot', 'Kartenbrowser', path.startswith('/karte')) }}
