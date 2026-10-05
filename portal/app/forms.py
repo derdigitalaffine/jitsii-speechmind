@@ -22,7 +22,7 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from . import mailtpl, notify
+from . import links, mailtpl, notify
 from .config import settings
 from .db import Form, FormInvite, FormResponse, FormShare, Group, GroupMember, User, get_settings, to_local, utcnow
 from .planning import EMAIL_RE
@@ -988,11 +988,11 @@ def deadline_text(form: Form) -> str:
 
 
 def invite_link(inv: FormInvite) -> str:
-    return f"{settings.portal_base_url}/f/i/{inv.token}"
+    return f"{links.base('forms')}/f/i/{inv.token}"
 
 
 def public_link(form: Form) -> str | None:
-    return f"{settings.portal_base_url}/f/{form.public_token}" if form.public_token else None
+    return f"{links.base('forms')}/f/{form.public_token}" if form.public_token else None
 
 
 def _send_invite(db, form: Form, inv: FormInvite, actor: User, key: str, cfg) -> bool:

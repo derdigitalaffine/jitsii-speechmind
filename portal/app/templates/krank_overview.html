@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% import "_krank_macros.html" as k with context %}
+{% block title %}Krankmeldungen{% endblock %}
+{% block content %}
+{% call m.page_head('Krankmeldungen', 'BlueOtter Krankmelder – eingegangene Meldungen Ihrer Arbeitgeber.') %}
+<a class="btn btn-outline-secondary" href="/krankmelder/export.csv?status=open"><i class="fa-solid fa-file-csv me-1"></i>Offene als CSV</a>
+{% endcall %}
+{% include "_krank_tabs.html" %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3"><a class="text-decoration-none" href="/krankmelder/liste?status=new">{{ m.stat('fa-circle-dot', stats.by_status.new, 'neu') }}</a></div>
+  <div class="col-6 col-lg-3"><a class="text-decoration-none" href="/krankmelder/liste?status=eau_open">{{ m.stat('fa-cloud-arrow-down', stats.by_status.eau_open, 'eAU-Abruf offen') }}</a></div>
+  <div class="col-6 col-lg-3"><a class="text-decoration-none" href="/krankmelder/liste?status=proof_missing">{{ m.stat('fa-file-circle-exclamation', stats.proof_missing, 'Nachweis fehlt') }}</a></div>
+  <div class="col-6 col-lg-3">{{ m.stat('fa-calendar-day', stats.today, 'heute eingegangen') }}</div>
+</div>
+<div class="card mb-4"><div class="card-header fw-semibold"><i class="fa-solid fa-calendar-day me-1"></i>Heute ({{ today | length }})</div>{{ k.table(today, 'Heute ist noch keine Meldung eingegangen.') }}</div>
+<div class="card"><div class="card-header d-flex"><span class="fw-semibold flex-grow-1"><i class="fa-solid fa-inbox me-1"></i>Offen (neueste 15)</span><a class="small" href="/krankmelder/liste?status=open">Alle offenen <i class="fa-solid fa-arrow-right"></i></a></div>{{ k.table(open_reports, 'Keine offenen Meldungen.') }}</div>
+<div class="row g-3 mt-2">
+  <div class="col-6 col-lg-3">{{ m.stat('fa-calendar-week', stats.week, 'diese Woche') }}</div>
+  <div class="col-6 col-lg-3">{{ m.stat('fa-calendar', stats.month, 'diesen Monat') }}</div>
+  <div class="col-6 col-lg-3">{{ m.stat('fa-calendar-days', stats.year, 'dieses Jahr') }}</div>
+  <div class="col-6 col-lg-3">{{ m.stat('fa-star', (stats.feedback_avg | string).replace('.', ',') if stats.feedback_avg is not none else '–', 'Ø Bewertung (' ~ stats.feedback_count ~ ')') }}</div>
+</div>
+{% endblock %}

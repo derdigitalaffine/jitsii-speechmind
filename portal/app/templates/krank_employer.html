@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ emp.name }}{% endblock %}
+{% block content %}
+{{ m.page_head(emp.name, 'Arbeitgeber im Krankmelder: Empfänger, Zuständige, Mails und Ablage.') }}
+{% include "_krank_tabs.html" %}
+<a class="small" href="/krankmelder/verwaltung#arbeitgeber"><i class="fa-solid fa-arrow-left me-1"></i>Alle Arbeitgeber</a>
+<form method="post" action="/krankmelder/arbeitgeber/{{ emp.id }}" class="card mt-2"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="card-body"><div class="row g-3">
+    <div class="col-md-6"><label class="form-label" for="ke-name">Name</label><input class="form-control" id="ke-name" name="name" value="{{ emp.name }}" maxlength="200" required></div>
+    <div class="col-md-3"><label class="form-label" for="ke-color">Farbe</label><input class="form-control js-color" id="ke-color" name="color" value="{{ emp.color }}"></div>
+    <div class="col-md-3 d-flex align-items-end"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="ke-active" name="active" value="1" {% if emp.active %}checked{% endif %}><label class="form-check-label" for="ke-active">Aktiv (wählbar)</label></div></div>
+
+    <div class="col-12"><h2 class="h6 mt-2">Zuständig in der Personalverwaltung</h2>
+      <p class="small text-secondary mb-2">Diese Personen und Mitglieder dieser Gruppen sehen und bearbeiten die Meldungen des Arbeitgebers (zusätzlich nötig: Recht „Krankmeldungen“) und erhalten die Benachrichtigungen. Admins und „Krankmelder verwalten“ sehen alle.</p></div>
+    <div class="col-md-6"><label class="form-label" for="ke-users">Personen</label>
+      <select class="form-select js-select" id="ke-users" name="users" multiple data-search="1">{% for u in users %}<option value="{{ u.id }}" {% if u.id in sel_users %}selected{% endif %}>{{ u.name }} &lt;{{ u.email }}&gt;</option>{% endfor %}</select></div>
+    <div class="col-md-6"><label class="form-label" for="ke-groups">Gruppen</label>
+      <select class="form-select js-select" id="ke-groups" name="groups" multiple data-search="1">{% for g in groups %}<option value="{{ g.id }}" {% if g.id in sel_groups %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select></div>
+    {% if without_right %}<div class="col-12"><div class="alert alert-warning small mb-0">Ohne Recht „Krankmeldungen“ (bekommen Mails, sehen die Meldungen aber nicht): {{ without_right | map(attribute='name') | join(', ') }}. Rechte vergeben Sie unter <a href="/admin/users">Benutzer &amp; Gruppen</a>.</div></div>{% endif %}
+
+    <div class="col-12"><h2 class="h6 mt-2">E-Mail-Benachrichtigung</h2></div>
+    <div class="col-md-6"><label class="form-label" for="ke-emails">Weitere Empfänger (z. B. Funktionspostfach), eine Adresse je Zeile</label>
+      <textarea class="form-control" id="ke-emails" name="emails" rows="3">{{ emp.emails }}</textarea></div>
+    <div class="col-md-6"><label class="form-label" for="ke-prefix">Betreff-Präfix (optional)</label><input class="form-control" id="ke-prefix" name="subject_prefix" value="{{ emp.subject_prefix }}" maxlength="100">
+      <div class="form-check form-switch mt-3"><input class="form-check-input" type="checkbox" role="switch" id="ke-copy" name="send_global_copy" value="1" {% if emp.send_global_copy %}checked{% endif %}><label class="form-check-label" for="ke-copy">Kopie an die Personalverwaltung (Einstellungen)</label></div>
+      <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="ke-rem" name="allow_remarks" value="1" {% if emp.allow_remarks %}checked{% endif %}><label class="form-check-label" for="ke-rem">Bemerkungsfeld im Formular anbieten</label></div>
+      <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="ke-att" name="attach_files" value="1" {% if emp.attach_files %}checked{% endif %}><label class="form-check-label" for="ke-att">Angaben und PDF (mit Nachweis) in die Mail</label></div>
+      <div class="form-text">Aus: Die Mail enthält nur Aktenzeichen, Art und einen Link ins Portal – empfohlen, weil Mails unverschlüsselt durch Postfächer laufen.</div></div>
+    <div class="col-12 small text-secondary">Derzeitige Empfänger: {{ recipients | join(', ') or '– niemand (bitte Personen, Gruppen, Adressen oder die Adresse der Personalverwaltung hinterlegen) –' }}</div>
+
+    <div class="col-12"><h2 class="h6 mt-2">Ablage (DMS)</h2></div>
+    {% if dms_on %}
+    <div class="col-md-6"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="ke-dms" name="dms_enabled" value="1" {% if emp.dms_enabled %}checked{% endif %}><label class="form-check-label" for="ke-dms">Meldungen in der Ablage führen</label></div>
+      <div class="form-text">Eintrag ab Eingang, bei „Bearbeitet“ zusätzlich das PDF mit Nachweisen. In der Ablage gelten deren Lese-/Schreibrechte und Löschfristen; die Dateien dort sind nicht zusätzlich verschlüsselt.</div></div>
+    <div class="col-md-6"><label class="form-label" for="ke-area">Bereich im Aktenplan</label>
+      <select class="form-select" id="ke-area" name="dms_area_id"><option value="">„Nicht einsortiert“</option>{% for a, depth in areas %}<option value="{{ a.id }}" {% if emp.dms_area_id == a.id %}selected{% endif %}>{{ '  ' * depth }}{{ a.code }} {{ a.name }}</option>{% endfor %}</select></div>
+    {% else %}<div class="col-12 small text-secondary">Das Modul „Ablage (DMS)“ ist abgeschaltet.</div>{% endif %}
+  </div></div>
+  <div class="card-footer d-flex gap-2"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div>
+</form>
+<form method="post" action="/krankmelder/arbeitgeber/{{ emp.id }}/loeschen" class="mt-3"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <button class="btn btn-sm btn-outline-danger" type="submit" data-confirm-title="Arbeitgeber löschen?" data-confirm="„{{ emp.name }}“ wird gelöscht. Das geht nur, wenn keine Meldungen mehr vorhanden sind."><i class="fa-regular fa-trash-can me-1"></i>Arbeitgeber löschen</button></form>
+{% endblock %}

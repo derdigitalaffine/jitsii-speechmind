@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session, joinedload
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import access, branding, chat, mailtpl, notify, planning, proxy, sessions, twofa, worker
+from . import access, branding, chat, links, mailtpl, modhosts, notify, planning, proxy, sessions, twofa, worker
 from .planning import EMAIL_RE, name_from_email
 from .config import settings
 from .db import (
@@ -119,7 +119,8 @@ templates.env.filters["geocenter"] = lambda v: _forms_mod().geo_center(v)
 templates.env.filters["geoinput"] = lambda v: _forms_mod().geo_input(v)
 templates.env.globals["geo_position"] = lambda v, raw="": _forms_mod().geo_position(v, raw)
 templates.env.globals["perm_modules"] = {"processes": "applications", "app_create": "applications", "formblocks": "forms",
-                                         "dms_admin": "dms", "votes": "polls", "resources": "resources"}
+                                         "dms_admin": "dms", "votes": "polls", "resources": "resources",
+                                         "krank": "krank", "krank_admin": "krank"}
 templates.env.globals.update(planning_when=planning.when, cancel_recipients=planning.cancel_recipients, local_input=planning.local_input,
                              is_upcoming=planning.is_upcoming, rsvp_labels=planning.RSVP_LABELS,
                              rsvp_summary=planning.rsvp_summary)
@@ -154,6 +155,7 @@ MODULES = {
     "applications": ("Online-Anträge", "module_applications", ("/antraege", "/a/", "/tasks", "/processes")),
     "dms": ("Ablage (DMS)", "module_dms", ("/dms",)),
     "resources": ("Ressourcenbuchung", "module_resources", ("/resources", "/r/", "/r", "/r-embed")),
+    "krank": ("BlueOtter Krankmelder", "module_krank", ("/krank", "/krankmelder")),
 }
 _module_cache: dict = {"at": 0.0, "enabled": set(MODULES)}
 
@@ -199,7 +201,8 @@ def build_csp(frame_ancestors: str = "'none'", hosts: list[str] | tuple = ()) ->
 EMBED_PREFIXES = {"/recht-embed": ("laws_embed", "laws_embed_origins"),
                   "/karte-embed": ("maps_embed", "maps_embed_origins"),
                   "/antraege-embed": ("apps_embed", "apps_embed_origins"),
-                  "/r-embed": ("resources_embed", "resources_embed_origins")}
+                  "/r-embed": ("resources_embed", "resources_embed_origins"),
+                  "/krank-embed": ("krank_embed", "krank_embed_origins")}
 EMBED_ORIGIN_RE = re.compile(r"^https?://[a-z0-9.-]+(:\d+)?$|^https?://\*\.[a-z0-9.-]+$", re.I)
 
 
@@ -266,6 +269,40 @@ async def _module_gate(request: Request, call_next):
                             "<p style='font-family:sans-serif;margin:3rem'>Diese Funktion ist auf diesem Server "
                             "nicht eingeschaltet.</p>", status_code=404)
     return await call_next(request)
+
+
+_host_cache: dict = {"at": 0.0, "map": {}}
+
+
+def module_hosts() -> dict[str, str]:
+    """Eigene Domains der Module: Domain → Modul (für einige Sekunden zwischengespeichert)."""
+    if time.monotonic() - _host_cache["at"] > 5:
+        with SessionLocal() as db:
+            _host_cache["map"] = modhosts.host_map(get_settings(db))
+        _host_cache["at"] = time.monotonic()
+    return _host_cache["map"]
+
+
+@app.middleware("http")
+async def _module_host(request: Request, call_next):
+    """Aufruf über die eigene Domain eines Moduls: nur dessen öffentliche Seiten und gemeinsame Hilfspfade;
+    „/“ führt zur Einstiegsseite, alles andere zur gleichen Adresse unter der Portal-Domain."""
+    host = (request.headers.get("host") or "").split(":")[0].strip().lower()
+    key = module_hosts().get(host) if host else None
+    if key is None:
+        return await call_next(request)
+    path = request.url.path
+    if key not in enabled_modules():
+        return HTMLResponse("<!doctype html><meta charset=utf-8><title>Nicht verfügbar</title>"
+                            "<p style='font-family:sans-serif;margin:3rem'>Diese Funktion ist auf diesem Server "
+                            "nicht eingeschaltet.</p>", status_code=404)
+    if path == "/":
+        start = modhosts.start_path(key)
+        return RedirectResponse(start or settings.portal_base_url + "/", status_code=302)
+    if modhosts.allowed(key, path):
+        return await call_next(request)
+    query = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(settings.portal_base_url + path + query, status_code=302 if request.method == "GET" else 307)
 
 
 # --- Hilfsfunktionen ----------------------------------------------------------
@@ -414,6 +451,25 @@ def _res_nav(user: User | None) -> bool:
         return bool(resources.visible(db, user))
 
 
+def _krank_nav(user: User | None) -> dict:
+    """Krankmelder in der Navigation: melden (alle Angemeldeten), bearbeiten (Recht + Zuständigkeit) mit Zähler."""
+    if user is None or "krank" not in enabled_modules():
+        return {}
+    from . import krank
+    with SessionLocal() as db:
+        staff = krank.uses_module(db, user)
+        return {"staff": staff, "manager": krank.manager(user), "badge": krank.open_count(db, user) if staff else 0}
+
+
+def _update_hint(user: User | None) -> str:
+    """Neuere Portal-Version für Admins (sonst leer)."""
+    if user is None or not user.is_admin:
+        return ""
+    from . import updates
+    with SessionLocal() as db:
+        return updates.available(get_settings(db))
+
+
 def render(request: Request, name: str, user: User | None = None, **ctx) -> HTMLResponse:
     messages = request.session.pop("flash", [])
     ui = branding.load()
@@ -431,6 +487,8 @@ def render(request: Request, name: str, user: User | None = None, **ctx) -> HTML
         "task_badge": _task_badge(user),
         "dms_nav": _dms_nav(user),
         "res_nav": _res_nav(user),
+        "krank_nav": _krank_nav(user),
+        "update_hint": _update_hint(user),
         **ctx,
     })
 
@@ -1416,9 +1474,26 @@ def profile_save(request: Request, name: str = Form(...), current_password: str 
 
 @app.get("/about")
 def about_page(request: Request, db: Session = Depends(get_db)):
-    from . import about
+    from . import about, updates
+    cfg = get_settings(db)
     return render(request, "about.html", session_user(request, db), publisher=about.PUBLISHER, license=about.LICENSE,
-                  components=about.COMPONENTS, services=about.SERVICES)
+                  components=about.COMPONENTS, services=about.SERVICES, version=updates.current(),
+                  latest=cfg.get("update_latest", ""), update_new=updates.available(cfg), cfg=cfg)
+
+
+@app.post("/about/updates", dependencies=[Depends(check_csrf)])
+async def about_updates(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    from . import updates
+    form = await request.form()
+    if form.get("action") == "toggle":
+        set_setting(db, "update_check", "1" if form.get("on") == "1" else "0")
+        db.commit()
+        flash(request, "Update-Hinweis " + ("eingeschaltet." if form.get("on") == "1" else "ausgeschaltet – es wird nicht mehr nachgefragt."))
+    else:
+        latest = await asyncio.to_thread(updates.check, True)
+        flash(request, f"Aktuelle Version: {latest}." if latest else "Prüfung nicht möglich (abgeschaltet oder keine Verbindung).",
+              "ok" if latest else "error")
+    return redirect("/about#version")
 
 
 # --- Profil: Sicherheit (Zwei-Faktor-Anmeldung) ---------------------------------
@@ -1835,7 +1910,8 @@ async def admin_groups_update(request: Request, gid: int, action: str = Form("sa
 
 @app.get("/admin/modules")
 def admin_modules(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
-    from .db import BookingPage, DmsRecord, Form as FormModel, FormResponse, LawText, Poll, ShortLink, UserMap
+    from .db import (BookingPage, DmsRecord, Form as FormModel, FormResponse, KrankReport, LawText, Poll,
+                     Resource as ResourceModel, ShortLink, UserMap)
     stats = {"bookings": db.scalar(select(func.count(BookingPage.id))),
              "dms": db.scalar(select(func.count(DmsRecord.id))),
              "maps": db.scalar(select(func.count(UserMap.id))),
@@ -1843,7 +1919,9 @@ def admin_modules(request: Request, user: User = Depends(admin_user), db: Sessio
              "laws": db.scalar(select(func.count(LawText.id))),
              "shortlinks": db.scalar(select(func.count(ShortLink.id))),
              "forms": db.scalar(select(func.count(FormModel.id))),
-             "polls": db.scalar(select(func.count(Poll.id)))}
+             "polls": db.scalar(select(func.count(Poll.id))),
+             "krank": db.scalar(select(func.count(KrankReport.id))),
+             "resources": db.scalar(select(func.count(ResourceModel.id)))}
     return render(request, "admin_modules.html", user, all_modules=MODULES, stats=stats)
 
 
@@ -2035,6 +2113,53 @@ def admin_recordings(request: Request, user: User = Depends(admin_user), db: Ses
 
 
 # --- Admin: HTTPS / Zertifikat ------------------------------------------------
+
+@app.get("/admin/domains")
+async def admin_domains(request: Request, check: str = "", user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    """Eigene Domains je Modul (zusätzlich zur Portal-Domain)."""
+    cfg = get_settings(db)
+    current = modhosts.domains(cfg)
+    short = (cfg.get("short_domain") or "").strip().lower()
+    names = [*current.values(), *([short] if short else [])]
+    dns = await asyncio.gather(*(asyncio.to_thread(proxy.dns_check, d) for d in names))
+    certs = await asyncio.gather(*(asyncio.to_thread(proxy.inspect, d) for d in names)) if check else []
+    return render(request, "admin_domains.html", user, cfg=cfg, modules_public=modhosts.MODULE_PUBLIC, current=current,
+                  short=short, dns=dict(zip(names, dns)), certs=dict(zip(names, certs)), checked=bool(check),
+                  hosts=proxy.hosts(), available=proxy.available(), public_ips=settings.public_ips,
+                  portal=settings.portal_base_url)
+
+
+@app.post("/admin/domains", dependencies=[Depends(check_csrf)])
+async def admin_domains_save(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    form = await request.form()
+    cfg = get_settings(db)
+    new = {key: modhosts.clean(str(form.get(key) or "")) for key in modhosts.MODULE_PUBLIC}
+    reserved = {**{("Konferenz" if k == "meet" else "Portal"): v for k, v in proxy.hosts().items()},
+                "Kurzlinks": (cfg.get("short_domain") or "").strip().lower()}
+    errors = modhosts.validate(new, reserved)
+    if errors:
+        for err in errors:
+            flash(request, err, "error")
+        return redirect("/admin/domains")
+    updated = {**cfg, **{f"domain_{k}": v for k, v in new.items()}}
+    if proxy.available():
+        try:
+            proxy.write(updated)
+        except (ValueError, OSError) as exc:
+            flash(request, f"Proxy-Konfiguration nicht geschrieben: {exc}", "error")
+            return redirect("/admin/domains")
+    for key, value in new.items():
+        set_setting(db, f"domain_{key}", value)
+    db.commit()
+    _host_cache["at"] = 0.0
+    links.invalidate()
+    added = [d for k, d in new.items() if d and d != (cfg.get(f"domain_{k}") or "")]
+    flash(request, "Domains gespeichert." + (
+        f" Neu: {', '.join(added)}. Jede Domain braucht einen DNS-Eintrag (A/AAAA) auf diesen Server; das Zertifikat "
+        "holt der Proxy selbst und erneuert es automatisch." if added else "") +
+        ("" if proxy.available() else " Achtung: Der Proxy ist von hier aus nicht steuerbar – Caddyfile bitte selbst ergänzen."))
+    return redirect("/admin/domains")
+
 
 @app.get("/admin/https")
 async def admin_https(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
@@ -2276,3 +2401,4 @@ from . import routes_payments  # noqa: E402,F401
 from . import routes_votes  # noqa: E402,F401
 from . import routes_resources  # noqa: E402,F401
 from . import routes_resources_public  # noqa: E402,F401
+from . import routes_krank  # noqa: E402,F401

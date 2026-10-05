@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 
-from . import mailtpl, notify
+from . import links, mailtpl, notify
 from .config import settings
 from .db import Group, User, Vote, VoteBallot, VoteQuestion, VoteVoter, get_settings, to_local, utcnow
 from .planning import EMAIL_RE
@@ -131,11 +131,11 @@ def is_open(vote: Vote) -> bool:
 
 
 def public_link(vote: Vote) -> str:
-    return f"{settings.portal_base_url}/v/{vote.public_token}"
+    return f"{links.base('polls')}/v/{vote.public_token}"
 
 
 def personal_link(voter: VoteVoter) -> str:
-    return f"{settings.portal_base_url}/v/p/{voter.token}"
+    return f"{links.base('polls')}/v/p/{voter.token}"
 
 
 # --- Stimmzettel lesen und zählen -------------------------------------------------------------

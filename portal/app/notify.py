@@ -249,11 +249,18 @@ def process_queue() -> int:
                 n.error = str(exc)[:1000]
                 if n.attempts >= MAX_ATTEMPTS or not mail_configured(cfg):
                     n.status = "failed"
+                    if n.kind == "krank":
+                        from . import krank
+                        krank.purge_sent(n)
                 else:
                     n.next_attempt_at = utcnow() + RETRY_DELAYS[min(n.attempts - 1, len(RETRY_DELAYS) - 1)]
                 log.warning("Mail %s an %s: %s", n.id, n.to_addr, exc)
             else:
                 n.status, n.error, n.sent_at = "sent", None, utcnow()
+                if n.kind == "krank":
+                    # Gesundheitsdaten nicht in der Warteschlange aufbewahren (Krankmelder)
+                    from . import krank
+                    krank.purge_sent(n)
                 sent += 1
             db.commit()
     return sent

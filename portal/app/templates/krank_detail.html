@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% import "_krank_macros.html" as k with context %}
+{% block title %}{{ report.ref_no }}{% endblock %}
+{% block content %}
+{% call m.page_head(krank.kind_label(report.kind) ~ ' · ' ~ krank.full_name(report), report.ref_no ~ ' · eingegangen ' ~ (report.created_at | local)) %}
+<a class="btn btn-outline-primary" href="/krankmelder/{{ report.id }}/pdf"><i class="fa-solid fa-file-pdf me-1"></i>PDF</a>
+{% endcall %}
+{% include "_krank_tabs.html" %}
+<div class="row g-3">
+  <div class="col-xl-7">
+    <div class="card mb-3"><div class="card-header d-flex align-items-center gap-2"><span class="fw-semibold flex-grow-1">Angaben</span>{{ k.kind(report.kind) }} {{ k.badge(report.status) }}</div>
+      <div class="card-body"><dl class="row mb-0">{% for a, b in rows %}<dt class="col-sm-5 fw-normal text-secondary">{{ a }}</dt><dd class="col-sm-7" style="white-space: pre-line">{{ b }}</dd>{% endfor %}
+        {% if report.processed_at %}<dt class="col-sm-5 fw-normal text-secondary">Bearbeitet</dt><dd class="col-sm-7">{{ report.processed_at | local }} von {{ report.processed_by }}</dd>{% endif %}
+        {% if report.delete_after %}<dt class="col-sm-5 fw-normal text-secondary">Wird gelöscht am</dt><dd class="col-sm-7">{{ report.delete_after | local('%d.%m.%Y') }} (Löschfrist)</dd>{% endif %}
+        {% if data.by_user %}<dt class="col-sm-5 fw-normal text-secondary">Gemeldet mit Konto</dt><dd class="col-sm-7">{{ data.by_user }}</dd>{% endif %}
+        {% if report.dms_record_id and dms_on %}<dt class="col-sm-5 fw-normal text-secondary">Ablage</dt><dd class="col-sm-7"><a href="/dms/r/{{ report.dms_record_id }}">Eintrag in der Ablage</a></dd>{% endif %}
+      </dl></div></div>
+    {% if data.warnings %}<div class="alert alert-warning"><div class="fw-semibold mb-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>Prüfhinweise</div><ul class="mb-0 small">{% for w in data.warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>{% endif %}
+    {% if report.kind == 'eau' %}<div class="alert alert-info small"><i class="fa-solid fa-cloud-arrow-down me-1"></i>Abruf beim GKV-Kommunikationsserver mit AU-Beginn <strong>{{ krank.de(data['from']) }}</strong>{% if data.personnel_no %} (Personalnr. {{ data.personnel_no }}){% endif %}. Danach „eAU abgerufen“ oder „Abruf erfolglos“ setzen; bei Misserfolg der Person eine Nachricht schreiben.</div>{% endif %}
+    <div class="card mb-3"><div class="card-header fw-semibold"><i class="fa-solid fa-paperclip me-1"></i>Nachweise ({{ files | length }})</div>
+      <ul class="list-group list-group-flush small">{% for f, name in files %}<li class="list-group-item d-flex gap-2 align-items-center"><i class="fa-regular {{ 'fa-file-pdf' if f.mime == 'application/pdf' else 'fa-file-image' }}"></i><a class="flex-grow-1" href="/krankmelder/{{ report.id }}/datei/{{ f.id }}">{{ name }}</a><span class="text-secondary">{{ f.size | filesize }} · {{ {'meldung': 'mit der Meldung', 'nachgereicht': 'nachgereicht', 'verwaltung': 'von der Verwaltung', 'import': 'Import'}.get(f.source, f.source) }} · {{ f.created_at | local('%d.%m.%Y') }}</span></li>{% else %}<li class="list-group-item text-secondary">{{ 'Bei eAU gibt es keinen Nachweis – Abruf bei der Krankenkasse.' if report.kind == 'eau' else 'Kein Nachweis.' }}</li>{% endfor %}</ul>
+      <div class="card-footer"><form method="post" action="/krankmelder/{{ report.id }}/datei" enctype="multipart/form-data" class="d-flex gap-2"><input type="hidden" name="csrf" value="{{ csrf }}"><input class="form-control form-control-sm" type="file" name="file" accept=".pdf,.jpg,.jpeg,.png" aria-label="Datei hinzufügen"><button class="btn btn-sm btn-outline-secondary text-nowrap" type="submit"><i class="fa-solid fa-upload me-1"></i>Hinzufügen</button></form></div></div>
+  </div>
+  <div class="col-xl-5">
+    <div class="card mb-3"><div class="card-header fw-semibold">Stand setzen</div><div class="card-body">
+      <form method="post" action="/krankmelder/{{ report.id }}/status"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="d-flex flex-wrap gap-2 mb-2">{% for s in krank.allowed_statuses(report) %}{% set st = krank.STATUSES[s] %}
+          <button class="btn btn-sm {{ ('btn-' ~ st[1]) if s == report.status else ('btn-outline-' ~ st[1]) }}" type="submit" name="status" value="{{ s }}" {% if s == report.status %}disabled{% endif %}><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</button>{% endfor %}</div>
+        <input class="form-control form-control-sm" name="note" maxlength="2000" placeholder="Hinweis zum Statuswechsel (optional, für die meldende Person sichtbar)">
+      </form></div></div>
+    <div class="card mb-3"><div class="card-header fw-semibold">Nachricht an die meldende Person</div><div class="card-body">
+      <form method="post" action="/krankmelder/{{ report.id }}/nachricht"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <textarea class="form-control form-control-sm mb-2" name="text" rows="3" maxlength="4000" required placeholder="{{ 'z. B. Der Abruf der eAU war nicht erfolgreich. Bitte prüfen Sie das Datum „arbeitsunfähig seit“ …' if report.kind == 'eau' else 'z. B. Bitte reichen Sie die Bescheinigung nach.' }}"></textarea>
+        <div class="d-flex align-items-center gap-2"><button class="btn btn-sm btn-primary" type="submit"><i class="fa-solid fa-paper-plane me-1"></i>Senden</button><span class="small text-secondary">{{ 'per E-Mail und auf der Statusseite' if data.email else 'nur auf der Statusseite (keine E-Mail hinterlegt)' }}</span></div>
+      </form></div></div>
+    <div class="card mb-3"><div class="card-header fw-semibold">Interne Notiz</div><div class="card-body">
+      <form method="post" action="/krankmelder/{{ report.id }}/notiz"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <textarea class="form-control form-control-sm mb-2" name="text" rows="2" maxlength="4000" required placeholder="Nur für die Personalverwaltung sichtbar"></textarea>
+        <button class="btn btn-sm btn-outline-secondary" type="submit"><i class="fa-regular fa-note-sticky me-1"></i>Speichern</button></form></div></div>
+    <div class="card mb-3" id="verlauf"><div class="card-header fw-semibold">Verlauf</div>
+      <ul class="list-group list-group-flush small">{% for e, text in events %}
+        <li class="list-group-item {{ 'bg-warning-subtle' if e.kind in ('message', 'reply') }}"><div class="text-secondary"><i class="fa-solid {{ {'status': 'fa-flag', 'note': 'fa-note-sticky', 'message': 'fa-paper-plane', 'reply': 'fa-reply', 'file': 'fa-paperclip', 'mail': 'fa-envelope', 'system': 'fa-gear'}.get(e.kind, 'fa-circle') }} me-1"></i>{{ e.at | local }} · {{ e.by }}{% if e.kind == 'note' %} · <span class="badge text-bg-light border">intern</span>{% endif %}</div><div style="white-space: pre-line">{{ text }}</div></li>
+      {% endfor %}</ul></div>
+    <details class="card card-body mb-3 small"><summary>Statuslink der meldenden Person</summary>
+      <p class="mt-2 mb-1 text-secondary">Nur weitergeben, wenn die Person ihren Link verloren hat und sich sicher ausgewiesen hat – der Link zeigt alle Angaben.</p>
+      <input class="form-control form-control-sm font-monospace" readonly value="{{ status_link }}" onclick="this.select()"></details>
+    {% if manager %}
+    <form method="post" action="/krankmelder/{{ report.id }}/loeschen" class="card card-body border-danger-subtle"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="form-label small" for="kdel">Meldung endgültig löschen (mit Nachweisen; wird protokolliert)</label>
+      <div class="d-flex gap-2"><input class="form-control form-control-sm" id="kdel" name="reason" maxlength="300" placeholder="Grund"><button class="btn btn-sm btn-outline-danger text-nowrap" type="submit" data-confirm-title="Meldung löschen?" data-confirm="Die Meldung {{ report.ref_no }} wird mit allen Nachweisen endgültig gelöscht."><i class="fa-regular fa-trash-can me-1"></i>Löschen</button></div></form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

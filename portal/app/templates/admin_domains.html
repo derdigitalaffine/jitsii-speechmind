@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Domains{% endblock %}
+{% block content %}
+{% call m.page_head('Domains', 'Jedes Modul kann zusätzlich eine eigene Domain bekommen, z. B. krank.example.de oder antraege.example.de. Es bleibt außerdem wie bisher unter der Portal-Domain erreichbar.') %}
+<a class="btn btn-outline-secondary" href="/admin/domains?check=1"><i class="fa-solid fa-certificate me-1"></i>Zertifikate prüfen</a>
+{% endcall %}
+{% if not available %}<div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i>Der Proxy ist von hier aus nicht steuerbar (Konfigurationsordner nicht eingebunden). Domains werden gespeichert, aber nicht automatisch im Proxy eingetragen.</div>{% endif %}
+<div class="alert alert-light border small">
+  <div class="fw-semibold mb-1"><i class="fa-solid fa-circle-info me-1"></i>So funktioniert es</div>
+  <ol class="mb-0 ps-3">
+    <li>Beim DNS-Anbieter einen Eintrag (A bzw. AAAA, oder CNAME auf <code>{{ hosts.portal }}</code>) für die neue Domain auf diesen Server anlegen{% if public_ips %} (öffentliche IP: <code>{{ public_ips | join(', ') }}</code>){% endif %}.</li>
+    <li>Domain hier eintragen und speichern. Das Portal trägt sie selbst in den Proxy ein.</li>
+    <li>Das Zertifikat holt der Proxy automatisch – {% if cfg.tls_mode == 'letsencrypt' %}bei <strong>Let's Encrypt</strong> (eingeschaltet), erneuert alle ~60 Tage ohne Zutun. Voraussetzung: Ports 80 und 443 sind von außen erreichbar.{% else %}derzeit <strong>selbst signiert</strong>. Für vertrauenswürdige Zertifikate unter <a href="/admin/https">HTTPS &amp; Zertifikat</a> auf Let's Encrypt umstellen; das gilt dann für alle Domains.{% endif %}</li>
+  </ol>
+  <div class="mt-2 text-secondary">Unter der Modul-Domain sind nur die öffentlichen Seiten des Moduls erreichbar (die Startseite führt direkt dorthin). Anmeldung und Verwaltung laufen weiter über <code>{{ portal }}</code> – entsprechende Aufrufe werden dorthin weitergeleitet. Links in Mails, QR-Codes und Einbettungscodes verwenden automatisch die Modul-Domain.</div>
+</div>
+<form method="post" action="/admin/domains" class="card"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="table-responsive"><table class="table align-middle mb-0">
+    <thead><tr><th>Modul</th><th style="min-width: 260px">Eigene Domain</th><th>Erreichbar unter</th><th>DNS{% if checked %} / Zertifikat{% endif %}</th></tr></thead>
+    <tbody>
+    {% for key, (label, start, prefixes) in modules_public.items() %}{% set d = current.get(key, '') %}
+    <tr>
+      <td><div class="fw-semibold">{{ label }}</div>{% if key not in modules %}<span class="badge text-bg-secondary">Modul aus</span>{% endif %}</td>
+      <td><input class="form-control form-control-sm" name="{{ key }}" value="{{ d }}" placeholder="z. B. {{ {'krank': 'krank', 'applications': 'antraege', 'resources': 'buchen', 'laws': 'recht', 'maps': 'karte', 'forms': 'formulare', 'polls': 'umfrage', 'bookings': 'termine'}[key] }}.{{ hosts.portal.split('.', 1)[-1] if '.' in hosts.portal else 'example.de' }}" aria-label="Domain für {{ label }}"></td>
+      <td class="small">{{ portal }}{{ start or prefixes[0] ~ '/…' }}{% if d %}<br><a href="https://{{ d }}{{ '/' if start else '' }}" target="_blank" rel="noopener">https://{{ d }}{{ '/' if start else prefixes[0] ~ '/…' }}</a>{% endif %}</td>
+      <td class="small">{% if d %}{% set r = dns[d] %}
+        {% if not r.resolves %}<span class="badge text-bg-danger">kein DNS-Eintrag</span>
+        {% elif r.matches is false %}<span class="badge text-bg-warning" title="{{ r.ips | join(', ') }}">zeigt woanders hin</span>
+        {% else %}<span class="badge text-bg-success" title="{{ r.ips | join(', ') }}">DNS ok</span>{% endif %}
+        {% if checked %}{% set c = certs[d] %}<br>{% if c.ok %}<span class="badge text-bg-{{ 'success' if c.trusted else 'warning' }}">{{ c.issuer or 'Zertifikat' }}{{ '' if c.trusted else ' (nicht vertrauenswürdig)' }}</span>{% else %}<span class="badge text-bg-danger" title="{{ c.error }}">kein Zertifikat</span>{% endif %}{% endif %}
+      {% else %}<span class="text-secondary">–</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    <tr class="table-light">
+      <td><div class="fw-semibold">Kurzlinks</div><span class="small text-secondary">eigene Weiterleitungslogik</span></td>
+      <td class="small">{{ short or '–' }}</td>
+      <td class="small"><a href="/shortlinks#einstellungen">unter Kurzlinks › Einstellungen ändern</a></td>
+      <td class="small">{% if short %}{% set r = dns[short] %}<span class="badge text-bg-{{ 'success' if r.resolves and r.matches is not false else ('warning' if r.resolves else 'danger') }}">{{ 'DNS ok' if r.resolves and r.matches is not false else ('zeigt woanders hin' if r.resolves else 'kein DNS-Eintrag') }}</span>{% endif %}</td>
+    </tr>
+    </tbody>
+  </table></div>
+  <div class="card-footer"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
+    <span class="small text-secondary ms-2">Domain leeren = Modul nur noch unter der Portal-Domain.</span></div>
+</form>
+<p class="small text-secondary mt-3">Die Ablage (DMS) hat keine öffentlichen Seiten und deshalb keine eigene Domain.</p>
+{% endblock %}

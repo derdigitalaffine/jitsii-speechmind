@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Meine Krankmeldungen{% endblock %}
+{% block content %}
+{% call m.page_head('Meine Krankmeldungen', 'Ihre eigenen Meldungen aus dem Krankmelder – freiwillig und verschlüsselt gespeichert.') %}
+<a class="btn btn-primary" href="/krank"><i class="fa-solid fa-notes-medical me-1"></i>Krank melden</a>
+{% endcall %}
+<div class="card mb-3"><div class="card-body d-flex flex-wrap gap-3 align-items-center">
+  <div class="flex-grow-1 small">
+    {% if user.krank_history %}<strong>Eingeschaltet.</strong> Meldungen, die Sie angemeldet abgeben, erscheinen hier. Die Angaben werden <strong>verschlüsselt gespeichert</strong>; sehen können sie nur Sie und die zuständige Personalverwaltung.
+    {% else %}<strong>Ausgeschaltet.</strong> Auf Wunsch zeigen wir Ihnen hier künftige Meldungen, die Sie angemeldet abgeben – mit Stand, Verlauf und PDF. Die Angaben werden <strong>verschlüsselt gespeichert</strong>.{% endif %}
+  </div>
+  <form method="post" action="/krank/meine/einstellung"><input type="hidden" name="csrf" value="{{ csrf }}">
+    {% if user.krank_history %}<button class="btn btn-outline-secondary" name="on" value="0" type="submit" data-confirm-title="Ausschalten?" data-confirm="Ihre Meldungen werden von Ihrem Konto gelöst und hier nicht mehr angezeigt. Bei der Personalverwaltung bleiben sie unverändert.">Ausschalten</button>
+    {% else %}<button class="btn btn-primary" name="on" value="1" type="submit">Einschalten</button>{% endif %}
+  </form>
+</div></div>
+{% if user.krank_history %}
+<div class="card"><div class="table-responsive"><table class="table align-middle mb-0 small">
+  <thead><tr><th>Eingang</th><th>Aktenzeichen</th><th>Art</th><th>Zeitraum</th><th>Stand</th><th></th></tr></thead>
+  <tbody>{% for r in reports %}{% set st = statuses[r.status] %}<tr>
+    <td class="text-nowrap">{{ r.created_at | local('%d.%m.%Y %H:%M') }}</td><td class="font-monospace">{{ r.ref_no }}</td>
+    <td>{{ krank.kind_label(r.kind) }}</td><td>{{ krank.period(r) }}</td>
+    <td><span class="badge text-bg-{{ st[1] }}">{{ st[0] }}</span></td>
+    <td class="text-nowrap text-end"><a class="btn btn-sm btn-outline-secondary" href="{{ krank.status_link_path(r) }}" title="Statusseite: Nachweis nachreichen, Nachrichten"><i class="fa-solid fa-signal"></i></a> <a class="btn btn-sm btn-outline-primary" href="/krank/meine/{{ r.id }}/pdf" title="PDF"><i class="fa-solid fa-file-pdf"></i></a></td>
+  </tr>{% else %}<tr><td colspan="6" class="text-secondary">Noch keine Meldungen.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endif %}
+{% endblock %}

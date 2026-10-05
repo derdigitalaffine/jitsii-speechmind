@@ -17,7 +17,7 @@ from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import func, or_, select
 
-from . import holidays, mailtpl, notify, payments as pay, shares as sh
+from . import holidays, links, mailtpl, notify, payments as pay, shares as sh
 from .config import settings
 from .db import (
     LOCAL_TZ, Group, GroupMember, Resource, ResourceBooking, ResourceClosure, ResourceExtra, SessionLocal, User,
@@ -453,7 +453,7 @@ def create(db, res: Resource, q: dict, contact: dict, answers: dict, *, internal
 
 
 def manage_link(b: ResourceBooking) -> str:
-    return f"{settings.portal_base_url}/r/b/{b.token}"
+    return f"{links.base('resources')}/r/b/{b.token}"
 
 
 def _values(db, b: ResourceBooking, extra: dict | None = None) -> dict:

@@ -28,6 +28,7 @@ Für alle, die im Portal der Verbandsgemeinde Otterbach-Otterberg arbeiten: Vide
 12. [Formulare ausfüllen („Zum Ausfüllen“)](#12-formulare-ausfüllen-zum-ausfüllen)
 12a. [Online-Anträge erstellen und bearbeiten](#12a-online-anträge-erstellen-und-bearbeiten)
 12b. [Ablage (DMS)](#12b-ablage-dms)
+12c. [Krank melden und Krankmeldungen bearbeiten](#12c-krank-melden-und-krankmeldungen-bearbeiten)
 13. [Profil und Sicherheit (Zwei-Faktor)](#13-profil-und-sicherheit-zwei-faktor)
 14. [Datenschutz in der Praxis](#14-datenschutz-in-der-praxis)
 15. [Hilfe bei Problemen](#15-hilfe-bei-problemen)
@@ -731,6 +732,31 @@ Menü **Ablage › Recherche**. Hier finden Sie Online-Anträge und manuell abge
 **Löschfristen:** Jeder Bereich kann eine Aufbewahrungsfrist haben. Sie läuft am Ende des Jahres ab, in dem der Vorgang abgeschlossen wurde, plus die eingestellten Jahre. Abgelaufene Vorgänge löscht die Aktenplan-Verwaltung bewusst unter **Löschfristen** (mit Begründung und Protokoll) – automatisch wird nichts gelöscht.
 
 ---
+
+## 12c. Krank melden und Krankmeldungen bearbeiten
+
+*Nur wenn das Modul „BlueOtter Krankmelder“ eingeschaltet ist.*
+
+### Krank melden
+
+Menü **Krankmelder › Krank melden** (oder ohne Konto über den Link bzw. QR-Code der Personalverwaltung und das Passwort). Meldeweg wählen:
+
+- **Krankmeldung ohne AU** – nur für heute, Montag bis Freitag. Ab dem 4. Kalendertag ist eine ärztliche Bescheinigung nötig.
+- **eAU** – Sie sind gesetzlich versichert und waren beim Arzt. Übertragen Sie die Daten **genau wie auf Ihrem Ausdruck**: *arbeitsunfähig seit*, *voraussichtlich arbeitsunfähig bis*, *festgestellt am*, Erst- oder Folgebescheinigung. Die Personalverwaltung ruft die eAU damit bei Ihrer Krankenkasse ab. Bei einer Folgebescheinigung steht unter „arbeitsunfähig seit“ weiterhin der erste Tag. Privat versichert? Dann „Meldung mit AU“.
+- **Meldung mit AU** – Bescheinigung als PDF oder Foto hochladen (höchstens 5 MB).
+- **Kind krank** – mit Name und Geburtsdatum des Kindes und der Bescheinigung.
+
+Nach dem Absenden: Aktenzeichen, PDF zum Herunterladen (1 Stunde) und Link zur **Statusseite**. Mit E-Mail-Adresse kommt der Link auch per Mail. Auf der Statusseite sehen Sie den Stand, laden einen fehlenden Nachweis hoch und beantworten Rückfragen.
+
+**Meine Krankmeldungen:** Angemeldet können Sie Ihre Meldungen auf Wunsch gesammelt sehen (Menü „Meine Krankmeldungen“ › Einschalten, oder nach dem Absenden „Einschalten und diese Meldung übernehmen“). Die Daten werden **verschlüsselt gespeichert**; Ausschalten löst die Verknüpfung, bei der Personalverwaltung bleiben die Meldungen unverändert.
+
+### Krankmeldungen bearbeiten (Personalverwaltung)
+
+Mit dem Recht „Krankmeldungen“ und als Zuständige:r eines Arbeitgebers: Menü **Krankmeldungen** (Zahl = neue Meldungen und offene eAU-Abrufe).
+
+- **Übersicht:** heute Eingegangenes, offene Meldungen, Kennzahlen. **Meldungen:** Filter, Suche, CSV-Export. **Statistik:** je Monat, Art, Arbeitgeber, Stand.
+- **Meldung öffnen:** Angaben, Prüfhinweise, Nachweise, Verlauf. **Stand setzen** (*Neu → In Bearbeitung → Bearbeitet*; bei eAU *Abruf offen → eAU abgerufen / Abruf erfolglos*). **Nachricht** an die Person (Statusseite und Mail), **interne Notiz**, Datei hinzufügen, PDF.
+- Jeder Zugriff wird protokolliert. Bearbeitete Meldungen werden nach der eingestellten Frist automatisch gelöscht.
 
 ## 13. Profil und Sicherheit (Zwei-Faktor)
 

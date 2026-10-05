@@ -116,6 +116,20 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - **Recherche** nach Volltext, Antragsteller:in, Aktenzeichen, Ort/PLZ/Straße, Antragsart, Status, Art und Eingangsdatum; **gespeicherte Suchen**, CSV-Export.
 - **Löschfristen** je Bereich (vererbbar): Ablauf am Jahresende nach Abschluss + N Jahre; Löschen mit Begründung und Protokoll. Eigenes Recht „Aktenplan verwalten“.
 
+### BlueOtter Krankmelder (abschaltbares Modul, standardmäßig aus)
+
+- Beschäftigte melden sich **krank**: **ohne AU** (nur heute, Mo–Fr), **mit AU-Upload** (PDF/JPG/PNG), per **eAU** – keine Bescheinigung, die Personalverwaltung ruft sie bei der Krankenkasse ab; erfasst werden die Daten **exakt wie auf dem Ausdruck** (arbeitsunfähig seit, voraussichtlich bis, festgestellt am, Erst-/Folgebescheinigung) mit Prüfregeln; privat Versicherte werden zum Upload geleitet – und **Kind krank (§ 45 SGB V)**. Meldewege einzeln abschaltbar. Übernommen aus dem eigenständigen [BlueOtter Krankmelder](https://github.com/Verbandsgemeinde-Otterbach-Otterberg/blueotter-krankmelder).
+- Zugang **ohne Konto mit Passwort oder geheimem Zugangslink/QR-Code** (`/krank`, per iframe einbettbar) oder **angemeldet** (Angaben vorbefüllt). Angemeldete können ihre Meldungen freiwillig unter **„Meine Krankmeldungen“** führen (verschlüsselt).
+- Bestätigung per Mail, **PDF-Download** und **Statusseite** über geheimen Link: Stand sehen, **Nachweis nachreichen**, Rückfragen beantworten; einmalige **Erinnerung**, wenn der Nachweis fehlt.
+- **Personalverwaltung:** Arbeitgeber mit Empfängern und **Zuständigen (Personen, Gruppen)** – jede:r sieht nur die eigenen Arbeitgeber. Status *Neu, In Bearbeitung, Nachweis fehlt, Bearbeitet*, bei eAU *Abruf offen, eAU abgerufen, Abruf erfolglos*; interne Notizen, Nachrichten an die meldende Person, Verlauf, Heute-Ansicht, Statistik, Filter, **CSV-Export**, Sammellöschen, Zähler im Menü, Kachel auf der Startseite. Optional Ablage im DMS.
+- **Datenschutz:** Gesundheitsdaten und Nachweise **verschlüsselt gespeichert**, **Zugriffsprotokoll**, Mails standardmäßig **nur Hinweis mit Link** (Angaben/PDF je Arbeitgeber zuschaltbar), Mailinhalte nach dem Versand aus der Warteschlange gelöscht, **automatische Löschfrist**. Rechte „Krankmeldungen“ und „Krankmelder verwalten“.
+- **Import** aus dem eigenständigen Krankmelder (ZIP mit `krankmeldungen.db` und `uploads/`, in der Oberfläche oder per `python -m app.cli krank-import`).
+
+### Eigene Domains je Modul
+
+- Jedes Modul mit öffentlichen Seiten kann **zusätzlich eine eigene Domain** bekommen (z. B. `krank.example.de`, `antraege.example.de`) – Verwaltung › Domains. Es bleibt außerdem unter der Portal-Domain erreichbar (`/krank`, `/antraege` …).
+- Das Portal trägt die Domain selbst in den Proxy ein; das **Zertifikat holt Caddy automatisch** (Let's Encrypt, sobald eingeschaltet) und erneuert es selbstständig. Links in Mails, QR-Codes und Einbettungscodes nutzen die Modul-Domain; Anmeldung und Verwaltung bleiben auf der Portal-Domain.
+
 ### Startseite
 
 - Nach der Anmeldung eine **Übersicht** mit allem, was gerade wichtig ist: meine Aufgaben und Fristen, Antragseingang, Termine & Meetings, Terminumfragen, Buchungen, Formulare zum Ausfüllen, neue Antworten, Ablage und Schnellzugriff – jeweils direkt verlinkt, nur was die Person darf. **Kacheln per Ziehen sortieren und ausblenden.**
@@ -138,16 +152,16 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 
 ### Verwaltung und Sicherheit
 
-- **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Formularbausteine, Online-Anträge einrichten, Prozesse, Aktenplan verwalten, Terminumfragen, Abstimmungen, Terminbuchung, Ressourcen, Zahlungen, Karten, Kartenlayer & Geocoding, Rechtstexte, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
+- **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Formularbausteine, Online-Anträge einrichten, Prozesse, Aktenplan verwalten, Terminumfragen, Abstimmungen, Terminbuchung, Ressourcen, Zahlungen, Karten, Kartenlayer & Geocoding, Rechtstexte, Krankmeldungen, Krankmelder verwalten, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
 - **Gehärtet:** Content-Security-Policy und weitere Sicherheits-Header, CSRF-Schutz für alle Formulare, Bremse gegen Passwort-Raten je IP und je Konto, keine Kontenermittlung über Antwortzeiten, Uploads nur als Download, aktuelle Bibliotheken ohne bekannte Sicherheitslücken.
 - **Zwei-Faktor-Anmeldung** per **Authenticator-App (TOTP)** oder **Code per E-Mail**, mit Notfallcodes; freiwillig oder Pflicht für Admins/alle. „Passwort vergessen“ per Mail-Link.
-- **Module** Kurzlinks, Formulare, Online-Anträge, Ablage (DMS), Umfragen & Abstimmungen, Terminbuchung, Ressourcenbuchung, Kartenbrowser und Rechtstexte komplett abschaltbar.
+- **Module** Kurzlinks, Formulare, Online-Anträge, Ablage (DMS), Umfragen & Abstimmungen, Terminbuchung, Ressourcenbuchung, Kartenbrowser, Rechtstexte und Krankmelder komplett abschaltbar; auf Wunsch je Modul mit **eigener Domain**.
 - **Sitzungen & Cookies:** technische Übersicht, wer angemeldet ist (Gerät, IP, letzte Aktivität), Inhalt und Eigenschaften der Session-Cookies; Sitzungen einzeln, je Person oder alle anderen beenden. Jede:r sieht unter Profil › Sicherheit die eigenen angemeldeten Geräte; ein neues Passwort meldet alle anderen Geräte ab.
 - **E-Mail** über SMTP mit Warteschlange, Wiederholungen und Protokoll; optional Ablage in „Gesendet“ per IMAP. **Alle Mails als Vorlagen bearbeitbar**, mit Platzhaltern und Live-Vorschau.
 - **HTTPS** mit Caddy: Start mit selbst signiertem Zertifikat, **Let's Encrypt** per Klick in der Oberfläche.
 - **Design & Branding:** Name, Farben, Logo (auch große Dateien – der Server verkleinert), Favicon (sonst automatisch aus dem Logo), Fußzeile, Impressum/Datenschutz; auf Wunsch auch in der Konferenzoberfläche und damit in den Aufnahmen.
 - **Moderne Oberfläche** mit Bootstrap 5 und Font Awesome 7, hell/dunkel, durchsuchbare Tabellen, Diagramme – alle Bibliotheken liegen lokal, **keine Verbindung zu Drittanbietern** aus dem Browser (die Adresssuche fragt Nominatim über den Server, mit Zwischenspeicher).
-- Seite **„Über dieses Portal“** mit allen verwendeten Komponenten und ihren Lizenzen.
+- Seite **„Über dieses Portal“** mit allen verwendeten Komponenten und ihren Lizenzen, der installierten **Version** und einem **Update-Hinweis** für Admins (täglicher Abgleich der Versionsnummer mit dem Repository, abschaltbar; aktualisiert wird weiter bewusst von Hand).
 
 ## Dokumentation
 
@@ -236,7 +250,7 @@ docker compose up -d --build        # Portal neu bauen; die Datenbank wird autom
 docker compose restart prosody      # nur nötig, wenn sich prosody/*.lua geändert hat (trennt laufende Konferenzen kurz)
 ```
 
-Vorher sichern (siehe [Daten & Sicherung](#daten--sicherung)).
+Vorher sichern (siehe [Daten & Sicherung](#daten--sicherung)). Ob eine neue Version vorliegt, zeigt das Portal Admins auf der Startseite und unter „Über dieses Portal“ (Datei `portal/app/VERSION`). Updates laufen bewusst **nicht** automatisch; Zertifikate dagegen erneuert Caddy selbstständig.
 
 > **Wichtig:** Die Datei `.env` enthält alle Geheimnisse. Niemals weitergeben, nicht in Git einchecken (ist ausgeschlossen) und **`PORTAL_SECRET_KEY` nie nachträglich ändern**, sonst sind gespeicherte Passwörter und Keys unlesbar.
 
@@ -365,6 +379,12 @@ export PORTAL_SECRET_KEY=dev JWT_APP_SECRET=dev \
 uvicorn app.main:app --reload
 ```
 
+Tests (ohne Jitsi, eigene Testdatenbank):
+
+```bash
+cd portal && pip install pytest && python -m pytest -q tests
+```
+
 Eine Jibri-Aufnahme lässt sich simulieren, indem man in `dev-recordings/<name>/` eine MP4-Datei, eine `metadata.json` mit `{"meeting_url": "https://meet.example.com/<raum>"}` und eine leere Datei `.finalized` ablegt.
 
 Projektstruktur:
@@ -386,7 +406,12 @@ portal/app/
 ├── access.py            Liste der Portal-Räume für Prosody
 ├── chat.py              Chatprotokolle und Umfragen aus Portal-Räumen
 ├── branding.py          Design & Branding (Farben, Logo verkleinern, Favicon, Theme-CSS)
-├── proxy.py             Reverse Proxy: Caddyfile erzeugen (inkl. Kurz-Domain), Zertifikate prüfen
+├── proxy.py             Reverse Proxy: Caddyfile erzeugen (inkl. Kurz-Domain und Modul-Domains), Zertifikate prüfen
+├── modhosts.py          Eigene Domains je Modul: öffentliche Pfade, Prüfung
+├── links.py             Öffentliche Links je Modul (Portal- oder Modul-Domain)
+├── krank.py             Krankmelder: Meldewege, Prüfregeln, Verschlüsselung, Mails, PDF, Löschfrist, Import
+├── routes_krank.py      Krankmelder: /krank (öffentlich, einbettbar), Statusseite, /krankmelder (Verwaltung)
+├── updates.py           Update-Hinweis (Versionsabgleich)
 ├── about.py             Angaben für „Über dieses Portal“ (Komponenten und Lizenzen)
 ├── user_import.py       Benutzer per CSV importieren (Vorlage, Prüfung, Übernahme)
 ├── polls.py             Terminumfragen: Vorschläge, Auswertung, Einladungen, Termin festlegen

@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import laws as lx, sessions
+from . import laws as lx, links, sessions
 from .config import settings
 from .db import LawLevel, LawSection, LawText, LawVersion, User, get_settings, set_setting
 from .main import app, check_csrf, flash, get_db, redirect, render, require, session_user
@@ -409,7 +409,7 @@ def laws_embed(request: Request, user: User = Depends(law_user), db: Session = D
     cfg = get_settings(db)
     laws = list(db.scalars(select(LawText).where(LawText.published.is_(True)).order_by(LawText.title)))
     return render(request, "law_embed.html", user, enabled=cfg.get("laws_embed", "1") == "1",
-                  origins=cfg.get("laws_embed_origins", ""), base_url=settings.portal_base_url.rstrip("/"),
+                  origins=cfg.get("laws_embed_origins", ""), base_url=links.base("laws"),
                   level_options=lx.level_options(db), laws=laws, **_common(db, user))
 
 

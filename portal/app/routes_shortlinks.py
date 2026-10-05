@@ -227,8 +227,10 @@ def shortlinks_settings(request: Request, short_domain: str = Form(""), short_fa
         return redirect("/shortlinks#einstellungen")
     cfg = get_settings(db)
     if domain != cfg.get("short_domain", ""):
-        if domain and (not proxy.DOMAIN_RE.match(domain) or domain in proxy.hosts().values()):
-            flash(request, "Die Kurz-Domain ist ungültig oder wird schon für Konferenz bzw. Portal verwendet.", "error")
+        from . import modhosts
+        if domain and (not proxy.DOMAIN_RE.match(domain) or domain in proxy.hosts().values()
+                       or domain in modhosts.host_map(cfg)):
+            flash(request, "Die Kurz-Domain ist ungültig oder wird schon für Konferenz, Portal oder ein Modul verwendet.", "error")
             return redirect("/shortlinks#einstellungen")
         try:
             if proxy.available():

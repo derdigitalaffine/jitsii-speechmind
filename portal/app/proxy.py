@@ -23,6 +23,7 @@ from urllib.parse import urlparse
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 
+from . import modhosts
 from .config import settings
 
 log = logging.getLogger("portal.proxy")
@@ -86,12 +87,36 @@ def render(cfg: dict[str, str]) -> str:
         '\t\tX-Content-Type-Options "nosniff"\n'
         '\t\tReferrer-Policy "same-origin"\n'
         "\t}\n"
-        "\t# Nur die Rechtstexte unter /recht-embed dürfen in fremden Seiten (iframe) erscheinen\n"
-        "\t@noembed not path /recht-embed /recht-embed/*\n"
-        '\theader @noembed ?X-Frame-Options "DENY"\n'
+        "\t# Nur die einbettbaren Seiten (…-embed) dürfen in fremden Seiten (iframe) erscheinen\n"
+        f"{_noembed()}"
         "\treverse_proxy portal:8000\n}\n"
         f"{short_block(cfg, h, tls)}"
+        f"{module_blocks(cfg, h, tls, hsts)}"
     )
+
+
+def _noembed() -> str:
+    paths = " ".join(f"{p} {p}/*" for p in modhosts.EMBED_PATHS)
+    return f"\t@noembed not path {paths}\n" '\theader @noembed ?X-Frame-Options "DENY"\n'
+
+
+def module_blocks(cfg: dict[str, str], h: dict[str, str], tls: str, hsts: str) -> str:
+    """Eigene Domains je Modul (Verwaltung › Domains): wie die Portal-Domain, das Portal beschränkt die Pfade."""
+    out = []
+    short = (cfg.get("short_domain") or "").strip().lower()
+    for key, domain in modhosts.domains(cfg).items():
+        if not DOMAIN_RE.match(domain) or domain in h.values() or domain == short:
+            raise ValueError(f"Ungültige Domain für {key}: {domain!r}")
+        out.append(f"\n# Modul {modhosts.MODULE_PUBLIC[key][0]} (Verwaltung › Domains)\n"
+                   f"{domain} {{\n{tls}\tencode gzip\n\trequest_body {{\n\t\tmax_size 60MB\n\t}}\n"
+                   "\theader {\n"
+                   f"{hsts}"
+                   '\t\tX-Content-Type-Options "nosniff"\n'
+                   '\t\tReferrer-Policy "same-origin"\n'
+                   "\t}\n"
+                   f"{_noembed()}"
+                   "\treverse_proxy portal:8000\n}\n")
+    return "".join(out)
 
 
 def short_block(cfg: dict[str, str], h: dict[str, str], tls: str) -> str:

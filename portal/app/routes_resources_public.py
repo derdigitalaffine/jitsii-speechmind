@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import forms as fm, payments as pay, resources as rs
+from . import forms as fm, links, payments as pay, resources as rs
 from .config import settings
 from .db import Resource, ResourceBooking, ResourceCalendar, ResourcePhoto, to_local, utcnow
 from .main import app, check_csrf, enabled_modules, flash, get_db, rate_limit, redirect, render, session_user
@@ -281,7 +281,7 @@ def calendar_web(request: Request, token: str, db: Session = Depends(get_db)):
     if embed and not cal.embed:
         raise HTTPException(404, "Dieser Kalender darf nicht eingebettet werden.")
     return render(request, "res_calendar.html", None if embed else session_user(request, db), cal=cal,
-                  resources=resources, embed=embed, base=settings.portal_base_url)
+                  resources=resources, embed=embed, base=links.base("resources"))
 
 
 app.add_api_route("/r-embed/cal/{token}", calendar_web, methods=["GET"], include_in_schema=False)

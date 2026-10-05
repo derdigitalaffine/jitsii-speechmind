@@ -1,0 +1,85 @@
+{% extends layout %}
+{% block title %}{{ kinds[kind][0] }}{% endblock %}
+{% macro field(name, label, type='text', required=false, help='', attrs='') -%}
+<label class="form-label" for="kf-{{ name }}">{{ label }}{% if required %} <span class="text-danger">*</span>{% endif %}</label>
+<input class="form-control" type="{{ type }}" id="kf-{{ name }}" name="{{ name }}" value="{{ values.get(name, '') }}" {% if required %}required{% endif %} {{ attrs | safe }}>
+{% if help %}<div class="form-text">{{ help }}</div>{% endif %}
+{%- endmacro %}
+{% block content %}
+<div class="mx-auto" style="max-width: 820px">
+  <a class="small" href="{{ R }}{{ ('?k=' ~ ticket) if embed and ticket }}"><i class="fa-solid fa-arrow-left me-1"></i>Andere Meldung wählen</a>
+  <h1 class="h3 mt-2 mb-1"><i class="fa-solid {{ kinds[kind][1] }} text-primary me-2"></i>{{ kinds[kind][0] }}</h1>
+  <p class="text-secondary">{{ kinds[kind][2] }}</p>
+  {% if error %}<div class="alert alert-danger d-flex gap-2"><i class="fa-solid fa-triangle-exclamation mt-1"></i><div>{{ error }}</div></div>{% endif %}
+  {% if kind == 'simple' and not weekday_ok %}
+  <div class="alert alert-warning">Die einfache Krankmeldung ist nur montags bis freitags für den aktuellen Tag möglich. Bitte nutzen Sie einen anderen Meldeweg oder melden Sie sich am nächsten Arbeitstag.</div>
+  {% endif %}
+  <form method="post" action="{{ R }}/{{ kind }}" enctype="multipart/form-data" class="card" id="krank-form" data-kind="{{ kind }}">
+    {% if user and not embed %}<input type="hidden" name="csrf" value="{{ csrf }}">{% endif %}
+    {% if ticket %}<input type="hidden" name="k" value="{{ ticket }}">{% endif %}
+    <div class="card-body p-4"><div class="row g-3">
+      {% if kind == 'eau' %}
+      <div class="col-12"><fieldset><legend class="form-label fs-6">Wie sind Sie krankenversichert? <span class="text-danger">*</span></legend>
+        <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="insured" id="kf-gkv" value="gkv" {% if values.get('insured', 'gkv') != 'private' %}checked{% endif %}><label class="form-check-label" for="kf-gkv">gesetzlich</label></div>
+        <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="insured" id="kf-pkv" value="private" {% if values.get('insured') == 'private' %}checked{% endif %}><label class="form-check-label" for="kf-pkv">privat</label></div>
+      </fieldset>
+      <div class="alert alert-warning mt-2 mb-0 d-none" id="kf-private-hint">Privat Versicherte erhalten keine eAU, sondern eine Bescheinigung auf Papier. Bitte nutzen Sie die <a href="{{ R }}/au{{ ('?k=' ~ ticket) if embed and ticket }}">Meldung mit AU</a> und laden Sie die Bescheinigung hoch.</div></div>
+      {% endif %}
+      <div class="col-sm-6">{{ field('first_name', 'Vorname', required=true, attrs='autocomplete="given-name" maxlength="100"') }}</div>
+      <div class="col-sm-6">{{ field('last_name', 'Nachname', required=true, attrs='autocomplete="family-name" maxlength="100"') }}</div>
+      <div class="col-sm-6">
+        <label class="form-label" for="kf-employer">Arbeitgeber <span class="text-danger">*</span></label>
+        <select class="form-select" id="kf-employer" name="employer" required>
+          <option value="">– bitte wählen –</option>
+          {% for e in employers %}<option value="{{ e.id }}" data-remarks="{{ '1' if e.allow_remarks else '0' }}" {% if not e.active %}disabled{% endif %} {% if values.get('employer') == e.id | string %}selected{% endif %}>{{ e.name }}{% if not e.active %} (noch nicht freigeschaltet){% endif %}</option>{% endfor %}
+        </select>
+        {% if employers | rejectattr('active') | list %}<div class="form-text">Ausgegraute Arbeitgeber werden später für den digitalen Weg freigeschaltet – bitte dort bis auf Weiteres auf dem bisherigen Weg melden.</div>{% endif %}
+      </div>
+      <div class="col-sm-6">{{ field('email', 'E-Mail für die Bestätigung' + ('' if user else ' (privat, optional)'), 'email', help='Nur mit E-Mail erhalten Sie eine Bestätigung mit dem Link zu Ihrer Statusseite.', attrs='autocomplete="email" maxlength="200"') }}</div>
+      {% if kind == 'eau' %}
+      <div class="col-sm-6">{{ field('personnel_no', 'Personalnummer (optional)', attrs='maxlength="40"') }}</div>
+      {% endif %}
+
+      {% if kind == 'simple' %}
+      <div class="col-12"><div class="form-label">Krank am</div><div class="fw-semibold">Heute, {{ today.strftime('%d.%m.%Y') }}</div>
+        <div class="form-text">Im einfachen Formular ist nur der aktuelle Tag möglich. Bei längerer Abwesenheit (über 3 Kalendertage) ist eine ärztliche Bescheinigung nötig.</div></div>
+      {% else %}
+      <div class="col-12"><hr class="my-1"></div>
+      {% if kind == 'eau' %}
+      <div class="col-12"><div class="alert alert-info small mb-0"><i class="fa-solid fa-circle-info me-1"></i>Übertragen Sie die Angaben <strong>genau wie auf dem Ausdruck</strong> Ihrer Arztpraxis („Ausfertigung für Versicherte“). Die Personalverwaltung ruft die eAU mit diesen Daten bei Ihrer Krankenkasse ab – stimmt z. B. das Datum „arbeitsunfähig seit“ nicht, schlägt der Abruf fehl. Bei einer <strong>Folgebescheinigung</strong> steht dort weiterhin der erste Tag der Arbeitsunfähigkeit.</div></div>
+      {% endif %}
+      <div class="col-sm-6"><label class="form-label" for="kf-first">Bescheinigung <span class="text-danger">*</span></label>
+        <select class="form-select" id="kf-first" name="first"><option value="1">Erstbescheinigung</option><option value="0" {% if values.get('first') == '0' %}selected{% endif %}>Folgebescheinigung</option></select></div>
+      <div class="col-sm-6"></div>
+      {% if kind == 'eau' %}
+      <div class="col-sm-4">{{ field('from', 'Arbeitsunfähig seit', 'date', required=true) }}</div>
+      <div class="col-sm-4">{{ field('to', 'Voraussichtlich arbeitsunfähig bis einschließlich', 'date', required=true) }}</div>
+      <div class="col-sm-4">{{ field('doctor', 'Festgestellt am', 'date', required=true, attrs='max="' ~ today.isoformat() ~ '"') }}</div>
+      {% else %}
+      <div class="col-sm-4">{{ field('from', 'Von', 'date', required=true, help='Bei Folgebescheinigung leer lassen: Beginn ergibt sich aus der vorherigen Meldung.', attrs='data-first-required="1"') }}</div>
+      <div class="col-sm-4">{{ field('to', 'Bis einschließlich', 'date', required=true) }}</div>
+      {% if kind == 'au' %}<div class="col-sm-4">{{ field('doctor', 'Feststellungsdatum (Arzt, optional)', 'date', attrs='max="' ~ today.isoformat() ~ '"') }}</div>{% endif %}
+      {% endif %}
+      {% if kind == 'child' %}
+      <div class="col-12"><hr class="my-1"><h2 class="h6 mt-2">Angaben zum Kind</h2></div>
+      <div class="col-sm-6">{{ field('child_name', 'Name des Kindes', required=true, attrs='maxlength="150"') }}</div>
+      <div class="col-sm-6">{{ field('child_dob', 'Geburtsdatum des Kindes', 'date', required=true, help='Anspruch nach § 45 SGB V grundsätzlich bis zum 12. Geburtstag (bei Behinderung auch darüber).', attrs='max="' ~ today.isoformat() ~ '"') }}</div>
+      {% endif %}
+      {% if kind in ('au', 'child') %}
+      <div class="col-12"><label class="form-label" for="kf-file">{{ 'AU-Bescheinigung' if kind == 'au' else 'Ärztliche Bescheinigung' }} (PDF, JPG oder PNG, höchstens 5 MB)</label>
+        <input class="form-control" type="file" id="kf-file" name="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" {% if kind == 'au' %}capture="environment"{% endif %}>
+        <div class="form-text">Optional – fehlt der Nachweis, können Sie ihn später über Ihre Statusseite nachreichen.</div></div>
+      {% endif %}
+      {% endif %}
+      <div class="col-12 d-none" id="kf-remarks-box"><label class="form-label" for="kf-remarks">Bemerkung (optional)</label>
+        <textarea class="form-control" id="kf-remarks" name="remarks" rows="3" maxlength="2000">{{ values.get('remarks', '') }}</textarea>
+        <div class="form-text">Für diesen Arbeitgeber kann eine zusätzliche Bemerkung mitgesendet werden. Bitte keine Diagnosen angeben.</div></div>
+    </div></div>
+    <div class="card-footer d-flex flex-wrap gap-2 align-items-center">
+      <button class="btn btn-primary" type="submit" {% if kind == 'simple' and not weekday_ok %}disabled{% endif %}><i class="fa-solid fa-paper-plane me-1"></i>Meldung absenden</button>
+      <span class="small text-secondary"><i class="fa-solid fa-lock me-1"></i>verschlüsselt gespeichert</span>
+    </div>
+  </form>
+</div>
+<script src="/static/krank.js"></script>
+{% endblock %}

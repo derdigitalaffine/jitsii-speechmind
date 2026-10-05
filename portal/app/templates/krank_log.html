@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Protokoll Krankmelder{% endblock %}
+{% block content %}
+{{ m.page_head('Protokoll', 'Zugriffe auf Krankmeldungen (Ansehen, PDF, Dateien, Export, Stand, Löschen) und versandte Mails. Das Protokoll enthält keine Gesundheitsdaten und bleibt nach dem Löschen einer Meldung erhalten.') }}
+{% include "_krank_tabs.html" %}
+<form class="d-flex gap-2 mb-3" method="get" style="max-width: 420px"><input class="form-control form-control-sm" name="ref" value="{{ ref }}" placeholder="Aktenzeichen, z. B. KM-2026-00042"><button class="btn btn-sm btn-primary" type="submit">Filtern</button>{% if ref %}<a class="btn btn-sm btn-outline-secondary" href="/krankmelder/protokoll">Alle</a>{% endif %}</form>
+<div class="card mb-4"><div class="table-responsive"><table class="table table-sm align-middle mb-0 small">
+  <thead><tr><th>Zeit</th><th>Aktenzeichen</th><th>Person</th><th>Aktion</th><th>Details</th></tr></thead>
+  <tbody>{% for r in rows %}<tr><td class="text-nowrap">{{ r.at | local('%d.%m.%Y %H:%M:%S') }}</td><td class="font-monospace">{% if r.ref_no.startswith('KM-') %}<a href="?ref={{ r.ref_no }}">{{ r.ref_no }}</a>{% else %}{{ r.ref_no }}{% endif %}</td><td>{{ r.user_name }}</td><td>{{ r.action }}</td><td>{{ r.detail }}</td></tr>{% else %}<tr><td colspan="5" class="text-secondary">Keine Einträge.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% if pages > 1 %}<nav><ul class="pagination pagination-sm">{% for p in range(1, pages + 1) %}<li class="page-item {{ 'active' if p == page }}"><a class="page-link" href="?ref={{ ref }}&page={{ p }}">{{ p }}</a></li>{% endfor %}</ul></nav>{% endif %}
+<h2 class="h5" id="mails">Versandte Mails (letzte 100)</h2>
+<p class="small text-secondary">Text und Anhänge werden nach dem Versand aus Datenschutzgründen entfernt; Empfänger, Betreff und Ergebnis bleiben sichtbar.</p>
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm align-middle mb-0 small">
+  <thead><tr><th>Erstellt</th><th>An</th><th>Betreff</th><th>Stand</th></tr></thead>
+  <tbody>{% for n in mails %}<tr><td class="text-nowrap">{{ n.created_at | local('%d.%m.%Y %H:%M') }}</td><td>{{ n.to_addr }}</td><td>{{ n.subject }}</td><td>{% if n.status == 'sent' %}<span class="badge text-bg-success">gesendet</span>{% elif n.status == 'failed' %}<span class="badge text-bg-danger" title="{{ n.error }}">fehlgeschlagen</span>{% else %}<span class="badge text-bg-secondary">wartet</span>{% endif %}</td></tr>{% else %}<tr><td colspan="4" class="text-secondary">Noch keine Mails.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<form method="post" action="/krankmelder/testmail" class="d-flex gap-2" style="max-width: 520px"><input type="hidden" name="csrf" value="{{ csrf }}"><input class="form-control form-control-sm" type="email" name="to" value="{{ cfg.krank_global_email or user.email }}" required aria-label="Empfänger der Testmail"><button class="btn btn-sm btn-outline-primary text-nowrap" type="submit"><i class="fa-solid fa-paper-plane me-1"></i>Testmail senden</button></form>
+{% endblock %}

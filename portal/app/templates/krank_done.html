@@ -1,0 +1,61 @@
+{% extends layout %}
+{% block title %}Meldung eingegangen{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width: 820px">
+  <div class="card border-success mb-3"><div class="card-body p-4">
+    <h1 class="h4 text-success"><i class="fa-solid fa-circle-check me-2"></i>Meldung eingegangen</h1>
+    <p class="mb-2">Ihre {{ kind_label }} ist bei der Personalverwaltung eingegangen.</p>
+    <p class="mb-0">Aktenzeichen: <strong class="font-monospace">{{ report.ref_no }}</strong> · Stand: {{ statuses[report.status][0] }}</p>
+    {% if data.warnings %}
+    <div class="alert alert-warning mt-3 mb-0"><strong>Bitte beachten:</strong><ul class="mb-0">{% for w in data.warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>
+    {% endif %}
+    {% if report.kind == 'eau' %}<p class="small text-secondary mt-3 mb-0">Die Personalverwaltung ruft Ihre eAU bei der Krankenkasse ab. Gibt es dabei Probleme, meldet sie sich über Ihre Statusseite{% if data.email %} und per E-Mail{% endif %}.</p>{% endif %}
+  </div></div>
+
+  <div class="row g-3">
+    <div class="col-md-6"><div class="card h-100"><div class="card-body">
+      <h2 class="h6"><i class="fa-solid fa-file-pdf me-1"></i>Ihre Meldung als PDF</h2>
+      <p class="small text-secondary">Der Download ist eine Stunde lang möglich.</p>
+      <a class="btn btn-outline-primary" href="{{ R }}/pdf/{{ report.id }}?t={{ d | urlencode }}"><i class="fa-solid fa-download me-1"></i>PDF herunterladen</a>
+    </div></div></div>
+    <div class="col-md-6"><div class="card h-100"><div class="card-body">
+      <h2 class="h6"><i class="fa-solid fa-signal me-1"></i>Ihre Statusseite</h2>
+      {% if status_url %}
+      <p class="small text-secondary">Stand ansehen, Nachweis nachreichen, Rückfragen beantworten. {% if data.email %}Der Link steht auch in Ihrer Bestätigungsmail.{% else %}<strong>Sie haben keine E-Mail-Adresse angegeben – bitte speichern Sie den Link jetzt (Lesezeichen).</strong>{% endif %}</p>
+      <a class="btn btn-outline-primary" href="{{ status_url }}"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Statusseite öffnen</a>
+      {% endif %}
+    </div></div></div>
+  </div>
+
+  {% if not embed %}
+  <div class="card mt-3"><div class="card-body">
+    <h2 class="h6"><i class="fa-solid fa-folder-open me-1"></i>Meine Krankmeldungen</h2>
+    {% if user and user.krank_history and report.user_id == user.id %}
+      <p class="mb-0 small">Diese Meldung steht unter <a href="/krank/meine">Meine Krankmeldungen</a>. Die Daten werden <strong>verschlüsselt gespeichert</strong>; die Liste können Sie dort jederzeit ausschalten.</p>
+    {% elif user %}
+      <p class="small mb-2">Auf Wunsch sehen Sie Ihre Meldungen künftig gesammelt in Ihrem Portal-Konto – mit Stand und PDF. Die Daten werden <strong>verschlüsselt gespeichert</strong>; Sie können die Liste jederzeit wieder ausschalten (die Meldung bleibt dann nur bei der Personalverwaltung).</p>
+      <form method="post" action="/krank/meine/uebernehmen"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="r" value="{{ report.id }}"><input type="hidden" name="d" value="{{ d }}">
+        <button class="btn btn-sm btn-primary" type="submit"><i class="fa-solid fa-plus me-1"></i>Einschalten und diese Meldung übernehmen</button></form>
+    {% else %}
+      <p class="small mb-0">Mit einem Portal-Konto können Sie Ihre Meldungen auf Wunsch gesammelt unter „Meine Krankmeldungen“ sehen – <strong>verschlüsselt gespeichert</strong>. Melden Sie sich dazu vor der nächsten Meldung <a href="/login?next=/krank">im Portal an</a>.</p>
+    {% endif %}
+  </div></div>
+  {% endif %}
+
+  {% if cfg.krank_feedback == '1' %}
+  <div class="card mt-3"><div class="card-body">
+    {% if thanks %}<p class="mb-0 text-success"><i class="fa-solid fa-heart me-1"></i>Danke für Ihre Bewertung!</p>
+    {% else %}
+    <h2 class="h6">Wie zufrieden waren Sie mit der Meldung? <span class="small text-secondary fw-normal">(anonym, freiwillig)</span></h2>
+    <form method="post" action="{{ R }}/feedback" class="d-flex flex-wrap gap-2 align-items-end">
+      <input type="hidden" name="r" value="{{ report.id }}"><input type="hidden" name="d" value="{{ d }}"><input type="hidden" name="s" value="{{ s }}">
+      <div class="btn-group" role="group" aria-label="Bewertung">{% for i in range(1, 6) %}<input type="radio" class="btn-check" name="rating" id="kr{{ i }}" value="{{ i }}" required><label class="btn btn-outline-warning" for="kr{{ i }}" title="{{ i }} von 5">{{ '★' * i }}</label>{% endfor %}</div>
+      <input class="form-control" style="max-width: 320px" name="note" maxlength="1000" placeholder="Anmerkung (optional, ohne persönliche Angaben)">
+      <button class="btn btn-outline-secondary" type="submit">Senden</button>
+    </form>
+    {% endif %}
+  </div></div>
+  {% endif %}
+  <p class="mt-3"><a href="{{ R }}"><i class="fa-solid fa-arrow-left me-1"></i>Zur Übersicht</a></p>
+</div>
+{% endblock %}
