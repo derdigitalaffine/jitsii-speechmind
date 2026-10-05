@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Zahlungen{% endblock %}
+{% block content %}
+{% call m.page_head('Zahlungen', 'Alle Zahlungen aus Ressourcenbuchungen, Anträgen, Formularen und Prozessschritten – für Kasse und Buchhaltung.') %}
+<a class="btn btn-outline-secondary" href="/payments/export.csv{% if qs %}?{{ qs }}{% endif %}"><i class="fa-solid fa-file-csv me-1"></i>CSV-Export</a>
+{% if user.is_admin %}<a class="btn btn-outline-secondary" href="/admin/payments"><i class="fa-solid fa-gear me-1"></i>Einstellungen</a>{% endif %}
+{% endcall %}
+{% if not paypal_ready %}<div class="alert alert-light border small"><i class="fa-brands fa-paypal me-1"></i>PayPal ist noch nicht eingerichtet{% if user.is_admin %} – <a href="/admin/payments">jetzt einrichten</a>{% endif %}. Überweisung und Barzahlung funktionieren trotzdem.</div>{% endif %}
+
+<div class="row g-3 mb-3">
+  <div class="col-sm-4">{{ m.stat('fa-circle-check', money(sums.paid), 'eingegangen (Auswahl)') }}</div>
+  <div class="col-sm-4">{{ m.stat('fa-hourglass-half', money(sums.due), 'offen (Auswahl)') }}</div>
+  <div class="col-sm-4">{{ m.stat('fa-rotate-left', money(sums.refunded), 'erstattet (Auswahl)') }}</div>
+</div>
+
+<form class="card mb-3" method="get"><div class="card-body row g-2 align-items-end">
+  <div class="col-md-3"><label class="form-label small mb-1" for="p-q">Suche</label><input class="form-control form-control-sm" id="p-q" name="q" value="{{ f.q }}" placeholder="Nummer, Zweck, Name, Kostenstelle" type="search"></div>
+  <div class="col-6 col-md-2"><label class="form-label small mb-1" for="p-status">Status</label><select class="form-select form-select-sm" id="p-status" name="status"><option value="">alle</option><option value="due" {% if f.status == 'due' %}selected{% endif %}>offen + bei PayPal</option>{% for k, s in statuses.items() %}<option value="{{ k }}" {% if f.status == k %}selected{% endif %}>{{ s[0] }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-2"><label class="form-label small mb-1" for="p-kind">Art</label><select class="form-select form-select-sm" id="p-kind" name="kind"><option value="">alle</option>{% for k, v in kinds.items() %}<option value="{{ k }}" {% if f.kind == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-1"><label class="form-label small mb-1" for="p-method">Zahlart</label><select class="form-select form-select-sm" id="p-method" name="method"><option value="">alle</option>{% for k, v in methods.items() %}<option value="{{ k }}" {% if f.method == k %}selected{% endif %}>{{ v[0] }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-2"><label class="form-label small mb-1" for="p-from">angelegt ab</label><input class="form-control form-control-sm" type="date" id="p-from" name="from" value="{{ f['from'] }}"></div>
+  <div class="col-6 col-md-2 d-flex gap-1"><div class="flex-grow-1"><label class="form-label small mb-1" for="p-to">bis</label><input class="form-control form-control-sm" type="date" id="p-to" name="to" value="{{ f.to }}"></div><button class="btn btn-sm btn-primary align-self-end" type="submit" aria-label="Filtern"><i class="fa-solid fa-filter"></i></button></div>
+</div></form>
+
+<div class="card"><div class="table-responsive"><table class="table table-hover align-middle mb-0 js-table w-100" data-order='[[1,"desc"]]'>
+  <thead><tr><th>Nummer</th><th>Angelegt</th><th>Zweck</th><th>Zahlende Person</th><th class="text-end">Betrag</th><th>Zahlart</th><th>Status</th></tr></thead>
+  <tbody>{% for p in rows %}{% set st = statuses.get(p.status, (p.status, 'secondary', 'fa-circle')) %}
+    <tr><td class="font-monospace"><a href="/payments/{{ p.id }}">{{ p.ref }}</a></td>
+      <td data-order="{{ p.created_at.isoformat() }}" class="text-nowrap">{{ p.created_at | local('%d.%m.%Y') }}</td>
+      <td><div class="text-truncate" style="max-width: 22rem">{{ p.purpose }}</div><div class="small text-secondary">{{ kinds.get(p.kind, p.kind) }}{% if p.cost_center %} · {{ p.cost_center }}{% endif %}</div></td>
+      <td>{{ p.payer_name }}<div class="small text-secondary">{{ p.payer_email }}</div></td>
+      <td class="text-end text-nowrap" data-order="{{ p.amount_cents }}">{{ money(p.amount_cents) }}{% if p.refunded_cents %}<div class="small text-secondary">−{{ money(p.refunded_cents) }}</div>{% endif %}</td>
+      <td>{{ methods.get(p.method, ('–',))[0] }}</td>
+      <td><span class="badge text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>{% if p.overdue_at and p.status in ('open', 'pending') %} <span class="badge text-bg-danger">überfällig</span>{% endif %}</td></tr>
+  {% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

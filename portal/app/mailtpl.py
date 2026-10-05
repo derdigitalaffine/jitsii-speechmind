@@ -434,6 +434,40 @@ TEMPLATES: dict[str, dict] = {
                  "{bestaetigen_link}\n\n{nachricht}\n\nErst danach wird Ihr Antrag bearbeitet. Wenn Sie keinen Antrag gestellt "
                  "haben, ignorieren Sie diese Nachricht bitte.\n\n{fusszeile}"),
     },
+    "pay_request": {
+        "group": "Zahlungen", "label": "Zahlungsaufforderung",
+        "vars": {"name": "Name der zahlenden Person", "zweck": "Wofür (z. B. Buchung Grillplatz)", "betrag": "Gesamtbetrag",
+                 "positionen": "Einzelposten", "verwendungszweck": "Verwendungszweck / Zahlungsnummer",
+                 "zahl_link": "Link zur Zahlseite", "zahlbar_bis": "Zahlfrist", "ueberweisung": "Bankverbindung (falls angeboten)"},
+        "subject": "Bitte bezahlen: {zweck} ({betrag})",
+        "body": ("Guten Tag {name},\n\nfür „{zweck}“ bitten wir um Zahlung von {betrag} bis zum {zahlbar_bis}.\n\n{positionen}\n\n"
+                 "Bequem online bezahlen:\n{zahl_link}\n\n{ueberweisung}\n\nVerwendungszweck: {verwendungszweck}\n\n{fusszeile}"),
+    },
+    "pay_reminder": {
+        "group": "Zahlungen", "label": "Zahlungserinnerung (kurz vor Ablauf der Frist)",
+        "vars": {"name": "Name der zahlenden Person", "zweck": "Wofür", "betrag": "Betrag", "zahl_link": "Link zur Zahlseite",
+                 "zahlbar_bis": "Zahlfrist", "verwendungszweck": "Verwendungszweck"},
+        "subject": "Erinnerung: Zahlung für {zweck} bis {zahlbar_bis}",
+        "body": ("Guten Tag {name},\n\nwir haben Ihre Zahlung über {betrag} für „{zweck}“ noch nicht erhalten. Bitte bezahlen "
+                 "Sie bis zum {zahlbar_bis}:\n{zahl_link}\n\nVerwendungszweck: {verwendungszweck}\n\nHaben Sie bereits überwiesen, "
+                 "ist diese Mail gegenstandslos.\n\n{fusszeile}"),
+    },
+    "pay_receipt": {
+        "group": "Zahlungen", "label": "Zahlungseingang bestätigt",
+        "vars": {"name": "Name der zahlenden Person", "zweck": "Wofür", "betrag": "Betrag", "zahlart": "Zahlart",
+                 "verwendungszweck": "Verwendungszweck", "positionen": "Einzelposten"},
+        "subject": "Zahlung erhalten: {zweck}",
+        "body": ("Guten Tag {name},\n\nvielen Dank – Ihre Zahlung über {betrag} ({zahlart}) für „{zweck}“ ist eingegangen.\n\n"
+                 "{positionen}\n\nZahlungsnummer: {verwendungszweck}\n\n{fusszeile}"),
+    },
+    "pay_refund": {
+        "group": "Zahlungen", "label": "Erstattung",
+        "vars": {"name": "Name der zahlenden Person", "zweck": "Wofür", "erstattet": "Erstatteter Betrag", "grund": "Hinweis",
+                 "zahlart": "Ursprüngliche Zahlart", "verwendungszweck": "Verwendungszweck"},
+        "subject": "Erstattung: {zweck}",
+        "body": ("Guten Tag {name},\n\nwir haben Ihnen {erstattet} für „{zweck}“ ({verwendungszweck}) erstattet. Bei PayPal-Zahlungen "
+                 "erscheint der Betrag in wenigen Tagen auf Ihrem PayPal-Konto, sonst auf dem angegebenen Konto.\n\n{grund}\n\n{fusszeile}"),
+    },
 }
 
 SAMPLE = {
@@ -462,6 +496,11 @@ SAMPLE = {
     "bearbeiter": "Gruppe Ordnungsamt", "eskalation": "Die Aufgabe wurde an Sie als Vertretung weitergeleitet.",
     "bestaetigen_link": "https://portal.example.org/a/beispiel/confirm/abc", "bestaetigen_bis": "12.10.2026",
     "angefordert": "– Lageplan (Datei)\n– Telefonnummer", "nachreichen_bis": "bis zum 19.10.2026",
+    "zweck": "Buchung Grillplatz Am Weiher, 13.06.2026", "betrag": "85,00 €",
+    "positionen": "– Grillplatz (Einheimische), 1 Tag: 45,00 €\n– Endreinigung: 25,00 €\n– Kaution: 15,00 €",
+    "verwendungszweck": "Z-2026-00012", "zahl_link": "https://portal.example.org/pay/beispiel", "zahlbar_bis": "20.10.2026",
+    "ueberweisung": "Per Überweisung: Verbandsgemeindekasse, IBAN DE12 3456 7890 1234 5678 90, Verwendungszweck Z-2026-00012",
+    "zahlart": "PayPal", "erstattet": "15,00 €",
 }
 
 

@@ -2258,3 +2258,4 @@ from . import routes_bookings  # noqa: E402,F401
 from . import routes_sessions  # noqa: E402,F401
 from . import routes_laws  # noqa: E402,F401
 from . import routes_maps  # noqa: E402,F401
+from . import routes_payments  # noqa: E402,F401

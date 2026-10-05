@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}PayPal & Bankverbindung{% endblock %}
+{% block content %}
+{% call m.page_head('PayPal & Bankverbindung', 'Zahlarten für Ressourcenbuchungen, Antragsgebühren, Formulare und Prozessschritte. PayPal läuft über den Server (Weiterleitung zu PayPal, keine PayPal-Skripte im Portal).') %}
+<a class="btn btn-outline-secondary" href="/payments"><i class="fa-solid fa-list me-1"></i>Zahlungsübersicht</a>
+{% endcall %}
+
+<form method="post" action="/admin/payments" class="row g-4">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="col-12 col-xl-6"><div class="card h-100">
+    <div class="card-header d-flex align-items-center"><i class="fa-brands fa-paypal me-2"></i><span class="flex-grow-1">PayPal Checkout</span>
+      <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" id="pp-on" name="paypal_enabled" value="1" {% if cfg.paypal_enabled == '1' %}checked{% endif %}><label class="form-check-label" for="pp-on">aktiv</label></div></div>
+    <div class="card-body">
+      <div class="mb-3"><span class="form-label d-block">Modus</span>
+        <div class="btn-group" role="group" aria-label="Modus">
+          <input type="radio" class="btn-check" name="paypal_mode" id="pp-sb" value="sandbox" {% if cfg.paypal_mode != 'live' %}checked{% endif %}><label class="btn btn-outline-secondary" for="pp-sb"><i class="fa-solid fa-flask me-1"></i>Sandbox (Test)</label>
+          <input type="radio" class="btn-check" name="paypal_mode" id="pp-live" value="live" {% if cfg.paypal_mode == 'live' %}checked{% endif %}><label class="btn btn-outline-success" for="pp-live"><i class="fa-solid fa-bolt me-1"></i>Live</label>
+        </div>
+        <div class="form-text">Erst mit Sandbox-Zugangsdaten testen (developer.paypal.com › Apps & Credentials), dann auf Live umstellen.</div></div>
+      <div class="mb-3"><label class="form-label" for="pp-id">Client-ID</label><input class="form-control font-monospace" id="pp-id" name="paypal_client_id" value="{{ cfg.paypal_client_id }}" autocomplete="off"></div>
+      <div class="mb-3"><label class="form-label" for="pp-secret">Secret</label>
+        <div class="input-group"><input class="form-control" id="pp-secret" name="paypal_secret" type="password" autocomplete="off" placeholder="{{ '•••••••• (gespeichert)' if has_secret else 'Noch kein Secret hinterlegt' }}"><button class="btn btn-outline-secondary" type="button" data-toggle-password="#pp-secret" aria-label="Anzeigen"><i class="fa-solid fa-eye"></i></button></div>
+        <div class="form-text">Wird verschlüsselt gespeichert. Nur ausfüllen, um es zu ersetzen.</div></div>
+      <div class="mb-3"><label class="form-label" for="pp-wh">Webhook-ID</label><input class="form-control font-monospace" id="pp-wh" name="paypal_webhook_id" value="{{ cfg.paypal_webhook_id }}" autocomplete="off">
+        <div class="form-text">In der PayPal-App einen Webhook auf <code>{{ webhook_url }}</code> anlegen (Ereignisse: Payment capture completed/denied/refunded/reversed, Checkout order approved) und die angezeigte ID hier eintragen. Ohne Webhook funktioniert die Zahlung auch – er sichert nur ab, wenn jemand nach der Zahlung das Fenster schließt.</div></div>
+    </div>
+  </div></div>
+
+  <div class="col-12 col-xl-6"><div class="card h-100">
+    <div class="card-header d-flex align-items-center"><i class="fa-solid fa-building-columns me-2"></i><span class="flex-grow-1">Überweisung</span>
+      <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" id="tr-on" name="pay_transfer" value="1" {% if cfg.pay_transfer == '1' %}checked{% endif %}><label class="form-check-label" for="tr-on">anbieten</label></div></div>
+    <div class="card-body row g-3">
+      <div class="col-12"><label class="form-label" for="tr-rec">Empfänger</label><input class="form-control" id="tr-rec" name="pay_recipient" value="{{ cfg.pay_recipient }}" placeholder="z. B. Verbandsgemeindekasse Otterbach-Otterberg"></div>
+      <div class="col-md-7"><label class="form-label" for="tr-iban">IBAN</label><input class="form-control font-monospace" id="tr-iban" name="pay_iban" value="{{ cfg.pay_iban }}"></div>
+      <div class="col-md-5"><label class="form-label" for="tr-bic">BIC</label><input class="form-control font-monospace" id="tr-bic" name="pay_bic" value="{{ cfg.pay_bic }}"></div>
+      <div class="col-12"><label class="form-label" for="tr-bank">Bank</label><input class="form-control" id="tr-bank" name="pay_bank" value="{{ cfg.pay_bank }}"></div>
+      <div class="col-6"><label class="form-label" for="tr-prefix">Kürzel Zahlungsnummer</label><input class="form-control font-monospace text-uppercase" id="tr-prefix" name="pay_prefix" value="{{ cfg.pay_prefix }}" maxlength="6"><div class="form-text">ergibt z. B. <code>{{ cfg.pay_prefix or 'Z' }}-2026-00001</code></div></div>
+      <div class="col-6"><label class="form-label" for="tr-days">Zahlfrist (Vorgabe)</label><div class="input-group"><input class="form-control" type="number" min="1" max="90" id="tr-days" name="pay_days" value="{{ cfg.pay_days }}"><span class="input-group-text">Tage</span></div></div>
+      <div class="col-12 small text-secondary">Barzahlung ist immer möglich: Die Verwaltung markiert die Zahlung im Vorgang als „bar erhalten“.</div>
+    </div>
+  </div></div>
+  <div class="col-12 d-flex gap-2"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div>
+</form>
+<form method="post" action="/admin/payments/test" class="mt-2"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-secondary" type="submit"><i class="fa-solid fa-plug-circle-check me-1"></i>PayPal-Verbindung testen</button></form>
+
+<div class="card mt-4"><div class="card-header"><i class="fa-solid fa-chart-simple me-2"></i>Bisher</div><div class="card-body d-flex flex-wrap gap-4 small">
+  {% for k, s in statuses.items() if k in stats %}<div><div class="text-secondary">{{ s[0] }}</div><div class="fw-semibold">{{ stats[k].count }} · {{ money(stats[k].cents) }}</div></div>{% else %}<span class="text-secondary">Noch keine Zahlungen.</span>{% endfor %}
+</div></div>
+
+<div class="alert alert-light border small mt-4"><strong>Datenschutz:</strong> Bei PayPal-Zahlungen gehen Betrag, Zweck und Zahlungsnummer an PayPal; die Person meldet sich dort selbst an. PayPal gehört als Empfänger in die Datenschutzerklärung. Kontodaten von Zahlenden speichert das Portal nicht.</div>
+{% endblock %}
