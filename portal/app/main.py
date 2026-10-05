@@ -109,6 +109,8 @@ templates = Jinja2Templates(directory=BASE / "templates")
 templates.env.globals.update(brand=settings.brand_name, product=settings.brand_product)
 templates.env.globals["themes"] = branding.THEMES
 templates.env.globals["permissions"] = PERMISSIONS
+# Rechte, deren Modul anders heißt als das Recht (für die Auswahl in der Benutzerverwaltung)
+templates.env.globals["perm_modules"] = {"processes": "applications"}
 templates.env.globals.update(planning_when=planning.when, cancel_recipients=planning.cancel_recipients, local_input=planning.local_input,
                              is_upcoming=planning.is_upcoming, rsvp_labels=planning.RSVP_LABELS,
                              rsvp_summary=planning.rsvp_summary)
