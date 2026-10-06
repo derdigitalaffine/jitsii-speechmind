@@ -7,12 +7,13 @@ import secrets
 from datetime import date, datetime, timedelta
 
 from fastapi import Depends, Form, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, Response
 from starlette.datastructures import UploadFile  # das liefert request.form() (nicht fastapi.UploadFile)
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from . import forms as fm, holidays, links, payments as pay, res_admin, res_clubs, res_wait, resources as rs, shares as sh
+from . import forms as fm, holidays, links, payments as pay, photos, res_admin, res_clubs, res_wait, resources as rs, shares as sh
 from .config import settings
 from .db import (
     CustomHoliday, Group, Resource, ResourceBooking, ResourceCalendar, ResourceClosure, ResourceClub, ResourceExtra,
@@ -22,7 +23,8 @@ from .main import app, check_csrf, current_user, enabled_modules, flash, get_db,
 
 res_user = require("resources")
 PHOTO_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
-MAX_PHOTO = 8 * 1024 * 1024
+MAX_PHOTO = 25 * 1024 * 1024    # Handyfotos; gespeichert wird eine verkleinerte Fassung
+MAX_PHOTOS = 40
 
 
 def files_dir(resource_id: int):
@@ -211,7 +213,7 @@ def resource_edit(request: Request, rid: int, user: User = Depends(current_user)
         "subtypes": fm.SUBTYPES,
     }
     from . import orgs
-    return render(request, "resource_edit.html", user, res=res, level=lvl, editor=editor, modes=rs.MODES, users=_users(db),
+    return render(request, "resource_edit.html", user, res=res, level=lvl, photo_list=_photo_list(res), editor=editor, modes=rs.MODES, users=_users(db),
                   org_options=orgs.options(db),
                   checklist=res_admin.checklist(res), fresh=request.query_params.get("neu") == "1",
                   groups=_groups(db), dms_areas=dms_areas, price=rs.money_input, pay_methods=pay.METHODS,
@@ -365,28 +367,62 @@ def _extra(x: ResourceExtra, row: dict) -> None:
     x.mandatory, x.active = bool(row.get("mandatory")), row.get("active", True) is not False
 
 
+def _photo_list(res: Resource) -> list[dict]:
+    return [{"id": p.id, "src": f"/r/{res.slug}/photo/{p.id}", "thumb": f"/r/{res.slug}/photo/{p.id}?s=thumb",
+             "caption": p.caption, "name": p.name} for p in sorted(res.photos, key=lambda x: x.position)]
+
+
+def _photo_json(res: Resource, **extra) -> JSONResponse:
+    return JSONResponse({**extra, "photos": _photo_list(res)})
+
+
+def _wants_json(request: Request) -> bool:
+    return "application/json" in request.headers.get("accept", "")
+
+
+def _renumber(res: Resource) -> None:
+    for i, p in enumerate(sorted(res.photos, key=lambda x: x.position)):
+        p.position = i
+
+
 @app.post("/resources/{rid:int}/photos", dependencies=[Depends(check_csrf)])
 async def resource_photo(request: Request, rid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Fotos hochladen (auch mehrere): werden verkleinert (max. 1600 px), richtig gedreht, ohne EXIF/GPS als JPEG
+    gespeichert und bekommen ein Vorschaubild. Aus dem Editor per fetch (JSON), sonst klassisch mit Weiterleitung."""
     res, _ = _res(db, rid, user, 3)
     data = await request.form()
-    n = 0
+    added, skipped = 0, []
+    target = files_dir(res.id)
     for f in data.getlist("photos"):
         if not isinstance(f, UploadFile) or not f.filename:
             continue
-        content = await f.read(MAX_PHOTO + 1)
-        kind = _image_type(content)
-        if len(content) > MAX_PHOTO or kind is None:
-            flash(request, f"„{f.filename}“ übersprungen (nur JPG, PNG, WebP bis 8 MB).", "error")
+        if len(res.photos) >= MAX_PHOTOS:
+            skipped.append(f"„{f.filename}“: höchstens {MAX_PHOTOS} Fotos je Ressource")
             continue
-        target = files_dir(res.id)
+        content = await f.read(MAX_PHOTO + 1)
+        if len(content) > MAX_PHOTO or _image_type(content) is None:
+            skipped.append(f"„{f.filename}“: nur JPG, PNG oder WebP bis {MAX_PHOTO // 1024 // 1024} MB")
+            continue
+        try:
+            full, thumb, _size = await run_in_threadpool(photos.process, content)
+        except ValueError as exc:
+            skipped.append(f"„{f.filename}“: {exc}")
+            continue
         target.mkdir(parents=True, exist_ok=True)
-        name = secrets.token_hex(10) + kind
-        (target / name).write_bytes(content)
-        res.photos.append(ResourcePhoto(file=name, name=f.filename[:200], position=len(res.photos)))
-        n += 1
+        stem = secrets.token_hex(10)
+        (target / f"{stem}.jpg").write_bytes(full)
+        (target / f"{stem}-t.jpg").write_bytes(thumb)
+        res.photos.append(ResourcePhoto(file=f"{stem}.jpg", thumb=f"{stem}-t.jpg", name=f.filename[:200],
+                                        position=len(res.photos)))
+        added += 1
     db.commit()
-    if n:
-        flash(request, f"{n} Foto(s) hinzugefügt.")
+    db.refresh(res)
+    if _wants_json(request):
+        return _photo_json(res, added=added, skipped=skipped)
+    for msg in skipped:
+        flash(request, msg + " – übersprungen.", "error")
+    if added:
+        flash(request, f"{added} Foto(s) hinzugefügt.")
     return redirect(f"/resources/{res.id}/edit#fotos")
 
 
@@ -405,9 +441,45 @@ def resource_photo_delete(request: Request, rid: int, pid: int, user: User = Dep
     res, _ = _res(db, rid, user, 3)
     photo = db.get(ResourcePhoto, pid)
     if photo and photo.resource_id == res.id:
-        (files_dir(res.id) / photo.file).unlink(missing_ok=True)
+        for name in (photo.file, photo.thumb):
+            if name:
+                (files_dir(res.id) / name).unlink(missing_ok=True)
+        res.photos.remove(photo)
         db.delete(photo)
+        _renumber(res)
         db.commit()
+    if _wants_json(request):
+        return _photo_json(res)
+    return redirect(f"/resources/{res.id}/edit#fotos")
+
+
+@app.post("/resources/{rid:int}/photos/order", dependencies=[Depends(check_csrf)])
+async def resource_photo_order(request: Request, rid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Reihenfolge (ids=3,1,2); das erste Foto ist das Titelbild."""
+    res, _ = _res(db, rid, user, 3)
+    ids = [int(x) for x in str((await request.form()).get("ids", "")).split(",") if x.strip().isdigit()]
+    rank = {pid: i for i, pid in enumerate(ids)}
+    for p in res.photos:
+        p.position = rank.get(p.id, len(ids) + p.position)
+    _renumber(res)
+    db.commit()
+    db.refresh(res)
+    if _wants_json(request):
+        return _photo_json(res)
+    return redirect(f"/resources/{res.id}/edit#fotos")
+
+
+@app.post("/resources/{rid:int}/photos/{pid:int}/caption", dependencies=[Depends(check_csrf)])
+async def resource_photo_caption(request: Request, rid: int, pid: int, user: User = Depends(current_user),
+                                 db: Session = Depends(get_db)):
+    res, _ = _res(db, rid, user, 3)
+    photo = db.get(ResourcePhoto, pid)
+    if photo is None or photo.resource_id != res.id:
+        raise HTTPException(404)
+    photo.caption = " ".join(str((await request.form()).get("caption", "")).split())[:300]
+    db.commit()
+    if _wants_json(request):
+        return _photo_json(res)
     return redirect(f"/resources/{res.id}/edit#fotos")
 
 

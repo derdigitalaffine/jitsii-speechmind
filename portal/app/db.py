@@ -1182,8 +1182,10 @@ class ResourcePhoto(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
     file: Mapped[str] = mapped_column(String(80))
-    name: Mapped[str] = mapped_column(String(200), default="")
-    position: Mapped[int] = mapped_column(Integer, default=0)
+    thumb: Mapped[str] = mapped_column(String(80), default="")      # Vorschaubild (480 px), leer bei alten Fotos
+    name: Mapped[str] = mapped_column(String(200), default="")      # ursprünglicher Dateiname
+    caption: Mapped[str] = mapped_column(String(300), default="")   # Bildunterschrift (auch Alternativtext)
+    position: Mapped[int] = mapped_column(Integer, default=0)       # 0 = Titelbild
 
     resource: Mapped[Resource] = relationship(back_populates="photos")
 
@@ -2117,6 +2119,7 @@ DEFAULT_SETTINGS = {
 
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)
 _NEW_COLUMNS = {
+    "resource_photos": {"thumb": "VARCHAR(80) NOT NULL DEFAULT ''", "caption": "VARCHAR(300) NOT NULL DEFAULT ''"},
     "users": {
         "password_set": "BOOLEAN NOT NULL DEFAULT 1",
         "must_change_password": "BOOLEAN NOT NULL DEFAULT 0",

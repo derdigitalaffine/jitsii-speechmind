@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import forms as fm, links, notify, payments as pay, res_clubs, res_wait, resources as rs
+from . import forms as fm, links, notify, payments as pay, photos, res_clubs, res_wait, resources as rs
 from .config import settings
 from .db import (
     Resource, ResourceBooking, ResourceCalendar, ResourceClub, ResourcePhoto, ResourceWait, User, get_settings,
@@ -122,7 +122,7 @@ def catalog(request: Request, db: Session = Depends(get_db)):
                 "category": r.category, "location": r.location, "capacity": r.capacity or "", "rooms": len(r.parts) or "",
                 "price": (f"ab {pay.money(pf)}" + (f" je {unit}" if unit else "")) if pf else "kostenlos",
                 "provider": r.provider.name if r.provider else "", "logo": orgs.logo_url(r.provider) if r.provider else "",
-                "photo": f"/r/{r.slug}/photo/{r.photos[0].id}" if r.photos else "", "free": free.get(r.id, ""),
+                "photo": f"/r/{r.slug}/photo/{r.photos[0].id}?s=thumb" if r.photos else "", "free": free.get(r.id, ""),
                 "teaser": (r.description or "").strip().split("\n")[0][:180]}
     features = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [r.lon, r.lat]}, "properties": props(r)}
                 for r in rows if r.lat is not None and r.lon is not None]
@@ -146,13 +146,31 @@ app.add_api_route("/r-embed", catalog, methods=["GET"], include_in_schema=False)
 
 
 @app.get("/r/{slug}/photo/{pid:int}")
-def resource_photo(slug: str, pid: int, db: Session = Depends(get_db)):
+def resource_photo(slug: str, pid: int, s: str = "", db: Session = Depends(get_db)):
+    """Foto (max. 1600 px) bzw. mit ?s=thumb das Vorschaubild (480 px). Für Fotos aus älteren Versionen wird
+    die Vorschau beim ersten Abruf erzeugt."""
     _module_on()
     res = db.scalar(select(Resource).where(Resource.slug == slug))
     photo = db.get(ResourcePhoto, pid)
     if res is None or photo is None or photo.resource_id != res.id:
         raise HTTPException(404)
-    return FileResponse(files_dir(res.id) / photo.file, headers={"Cache-Control": "public, max-age=86400"})
+    folder = files_dir(res.id)
+    name = photo.file
+    if s == "thumb":
+        if not photo.thumb or not (folder / photo.thumb).is_file():
+            try:
+                thumb = photos.thumbnail((folder / photo.file).read_bytes())
+            except (OSError, ValueError):
+                thumb = None
+            if thumb:
+                photo.thumb = photo.file.rsplit(".", 1)[0] + "-t.jpg"
+                (folder / photo.thumb).write_bytes(thumb)
+                db.commit()
+        name = photo.thumb or photo.file
+    path = folder / name
+    if not path.is_file():
+        raise HTTPException(404)
+    return FileResponse(path, headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/r/{slug}/nutzungsordnung.pdf")
