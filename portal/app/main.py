@@ -1047,7 +1047,10 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         from .routes_public import public_home
         return public_home(request, db)
     user = current_user(request, db)
-    return render(request, "home.html", user, tiles=home.tiles(db, user, enabled_modules()), now=utcnow())
+    modules = enabled_modules()
+    top, cache = home.overview(db, user, modules)
+    return render(request, "home.html", user, tiles=home.tiles(db, user, modules, nav_ctx(request, user), cache),
+                  top=top, quick=home.quick_actions(user, modules), now=utcnow())
 
 
 @app.post("/dashboard/layout", dependencies=[Depends(check_csrf)])
