@@ -2,7 +2,6 @@
 ex- und importieren und Vorlagen für neue Ressourcen."""
 
 import base64
-import csv
 import io
 import json
 import secrets
@@ -11,7 +10,7 @@ from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import select
 
-from . import payments as pay, resources as rs
+from . import csvsafe, payments as pay, resources as rs
 from .config import settings
 from .db import (
     Resource, ResourceBooking, ResourceExtra, ResourcePhoto, ResourceTariff, ResourceUnit, to_local, utcnow,
@@ -129,7 +128,7 @@ def stats(db, resources: list[Resource], year: int) -> dict:
 
 def stats_csv(data: dict, year: int) -> str:
     buf = io.StringIO()
-    w = csv.writer(buf, delimiter=";")
+    w = csvsafe.writer(buf, delimiter=";")
     w.writerow(["Ressource", "Monat", "Buchungen", "Belegungstage", "Auslastung %", "Stunden", "Einnahmen (EUR)", "Stornos"])
     for item in data["items"]:
         for n, m in enumerate(item["months"]):
@@ -141,7 +140,7 @@ def stats_csv(data: dict, year: int) -> str:
 def bookings_csv(rows: list[ResourceBooking], with_contact: dict[int, bool]) -> str:
     """Buchungsliste für Kasse/Buchhaltung (Excel-freundlich: Semikolon, BOM)."""
     buf = io.StringIO()
-    w = csv.writer(buf, delimiter=";")
+    w = csvsafe.writer(buf, delimiter=";")
     w.writerow(["Buchungsnummer", "Ressource", "Räume", "Beginn", "Ende", "Status", "Anlass", "Veranstalter", "Personen",
                 "Name", "E-Mail", "Telefon", "Anschrift", "Tarif", "Betrag (EUR)", "Kaution (EUR)", "Zahlung", "Zahlungsnr.",
                 "Kostenstelle", "Verein", "Abrechnung", "Sammelbuchung", "Serie", "intern", "angelegt"])

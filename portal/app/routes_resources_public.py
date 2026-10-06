@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 from . import forms as fm, links, notify, payments as pay, res_clubs, res_wait, resources as rs
 from .config import settings
 from .db import (
-    Resource, ResourceBooking, ResourceCalendar, ResourceClub, ResourcePhoto, ResourceWait, get_settings, to_local,
-    utcnow,
+    Resource, ResourceBooking, ResourceCalendar, ResourceClub, ResourcePhoto, ResourceWait, User, get_settings,
+    to_local, utcnow,
 )
 from .main import app, check_csrf, enabled_modules, flash, get_db, rate_limit, redirect, render, session_user
 from .routes_resources import _range, files_dir
@@ -398,8 +398,18 @@ async def club_login_submit(request: Request, db: Session = Depends(get_db)):
 
 
 @app.get("/r/login/{token}")
+def club_login_confirm(request: Request, token: str, db: Session = Depends(get_db)):
+    """Nur Anzeige: Mail-Scanner rufen Links automatisch auf und würden den Einmal-Link sonst verbrauchen.
+    Angemeldet wird erst mit dem Knopf (POST)."""
+    _module_on()
+    return render(request, "res_club_login.html", session_user(request, db), club=None, confirm_token=token,
+                  signup=False, sent=False)
+
+
+@app.post("/r/login/{token}", dependencies=[Depends(check_csrf)])
 def club_login_link(request: Request, token: str, db: Session = Depends(get_db)):
     _module_on()
+    rate_limit(request, "res-club-token", limit=20, window=600)
     club = res_clubs.consume(db, token)
     if club is None:
         db.rollback()
@@ -581,7 +591,13 @@ def _calendar(db, token: str) -> tuple[ResourceCalendar, list[Resource]]:
     if cal is None:
         raise HTTPException(404, "Dieser Kalender-Link ist nicht (mehr) gültig.")
     ids = [int(x) for x in cal.resource_ids.split(",") if x.isdigit()]
-    resources = db.scalars(select(Resource).where(Resource.id.in_(ids or [-1]))).all()
+    # Der Link gilt nur, solange die anlegende Person die Ressourcen in dieser Detailstufe noch sehen darf
+    creator = db.get(User, cal.created_by_id) if cal.created_by_id else None
+    if creator is None or not creator.active:
+        raise HTTPException(404, "Dieser Kalender-Link ist nicht (mehr) gültig.")
+    need = 2 if cal.level == "full" else 1
+    allowed = {r.id for r, lvl in rs.visible(db, creator) if lvl >= need}
+    resources = db.scalars(select(Resource).where(Resource.id.in_([i for i in ids if i in allowed] or [-1]))).all()
     cal.last_access_at = utcnow()
     cal.access_count = (cal.access_count or 0) + 1
     db.commit()

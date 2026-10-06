@@ -522,6 +522,11 @@ async def clubs_save(request: Request, user: User = Depends(res_user), db: Sessi
         db.commit()
         flash(request, f"„{club.name}“ freigegeben – der Anmeldelink ist unterwegs.")
         return redirect("/resources/clubs")
+    if action == "logout_all" and club:
+        res_clubs.logout_everywhere(club)
+        db.commit()
+        flash(request, f"„{club.name}“ ist auf allen Geräten abgemeldet.")
+        return redirect("/resources/clubs")
     if action == "login" and club:
         flash(request, "Anmeldelink verschickt." if res_clubs.send_login(db, club.email) else "Nicht möglich (inaktiv oder nicht freigegeben).")
         db.commit()
@@ -538,11 +543,15 @@ async def clubs_save(request: Request, user: User = Depends(res_user), db: Sessi
         club = ResourceClub(**values)
         db.add(club)
     else:
+        if values.get("email") != club.email:
+            res_clubs.logout_everywhere(club)   # neue Adresse: alte Anmeldungen gelten nicht mehr
         for k, v in values.items():
             setattr(club, k, v)
     club.tariff_name = " ".join(str(data.get("tariff_name", "")).split())[:120]
     club.billing = data.get("billing") if data.get("billing") in res_clubs.BILLING else "instant"
     club.note = str(data.get("note", "")).strip()[:5000]
+    if club.active and data.get("active") != "1":
+        res_clubs.logout_everywhere(club)
     club.active = data.get("active") == "1"
     db.commit()
     flash(request, f"„{club.name}“ gespeichert.")

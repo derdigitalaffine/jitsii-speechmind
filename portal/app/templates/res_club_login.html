@@ -5,7 +5,12 @@
   <div class="card"><div class="card-body p-4">
     <h1 class="h4 mb-1"><i class="fa-solid fa-people-group me-2"></i>Vereinszugang</h1>
     <p class="text-secondary small">Für Vereine und regelmäßige Nutzer: ohne Passwort anmelden, ohne erneute Angaben buchen, eigene Buchungen im Blick.</p>
-    {% if club %}
+    {% if confirm_token %}
+    <p>Fast geschafft – bitte bestätigen Sie die Anmeldung auf diesem Gerät.</p>
+    <form method="post" action="/r/login/{{ confirm_token | urlencode }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn btn-primary btn-lg w-100" type="submit" autofocus><i class="fa-solid fa-right-to-bracket me-1"></i>Jetzt anmelden</button>
+    </form>
+    {% elif club %}
     <div class="alert alert-success small">Sie sind angemeldet als <strong>{{ club.name }}</strong>.</div>
     <a class="btn btn-primary w-100" href="/r/mein">Zu meinem Bereich</a>
     {% elif sent %}

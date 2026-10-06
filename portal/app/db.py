@@ -1274,6 +1274,7 @@ class ResourceClub(Base):
     token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     token_expires: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    login_gen: Mapped[int] = mapped_column(Integer, default=0)            # erhöhen = alle Geräte abmelden
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

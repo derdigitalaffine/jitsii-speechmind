@@ -359,9 +359,11 @@ def test_club_login_tariff_and_monthly_bill():
     page = c.get("/r/login")
     c.post("/r/login/send", data={"csrf": csrf_of(page.text), "email": "tsv@example.org"})
     link = re.search(r"/r/login/\S+", mails("tsv@example.org", "res_club_login")[-1].body).group(0)
-    r = c.get(link)
+    confirm = c.get(link)                                          # Aufruf allein (Mail-Scanner) meldet nicht an
+    assert confirm.status_code == 200 and "Jetzt anmelden" in confirm.text and res_clubs.COOKIE not in c.cookies
+    r = c.post(link, data={"csrf": csrf_of(confirm.text)})
     assert r.status_code == 303 and r.headers["location"] == "/r/mein" and res_clubs.COOKIE in r.headers.get("set-cookie", "")
-    assert c.get(link).headers["location"] == "/r/login"          # nur einmal gültig
+    assert c.post(link, data={"csrf": csrf_of(confirm.text)}).headers["location"] == "/r/login"   # nur einmal gültig
     home = c.get("/r/mein")
     assert home.status_code == 200 and "TSV Otterberg" in home.text
     d = day(5)
@@ -387,7 +389,10 @@ def test_club_login_tariff_and_monthly_bill():
         assert p.amount_cents == 5000
         assert db.scalar(select(ResourceBooking.billed_payment_id).where(ResourceBooking.resource_id == rid)) == p.id
     assert mails("tsv@example.org", "res_club_statement")
-    assert c.post("/r/logout", data={"csrf": csrf_of(c.get("/r/mein").text)}).status_code == 303
+    # Verwaltung meldet den Verein auf allen Geräten ab
+    page = admin.get("/resources/clubs")
+    admin.post("/resources/clubs", data={"csrf": csrf_of(page.text), "action": "logout_all", "id": str(cid)})
+    assert c.get("/r/mein").headers["location"] == "/r/login"
 
 
 def test_club_signup_needs_approval():

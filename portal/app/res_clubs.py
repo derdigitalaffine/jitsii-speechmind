@@ -71,7 +71,7 @@ def consume(db, token: str) -> ResourceClub | None:
 
 
 def set_cookie(response, club: ResourceClub) -> None:
-    response.set_cookie(COOKIE, _signer.dumps({"id": club.id}), max_age=LOGIN_DAYS * 86400, httponly=True,
+    response.set_cookie(COOKIE, _signer.dumps({"id": club.id, "g": club.login_gen or 0}), max_age=LOGIN_DAYS * 86400, httponly=True,
                         samesite="lax", secure=settings.secure_cookies)
 
 
@@ -88,7 +88,14 @@ def current(request, db) -> ResourceClub | None:
     except BadSignature:
         return None
     club = db.get(ResourceClub, data.get("id")) if isinstance(data, dict) else None
-    return club if club is not None and club.active and not club.pending else None
+    if club is None or not club.active or club.pending or data.get("g", 0) != (club.login_gen or 0):
+        return None   # gesperrt, gelöscht oder von der Verwaltung auf allen Geräten abgemeldet
+    return club
+
+
+def logout_everywhere(club: ResourceClub) -> None:
+    club.login_gen = (club.login_gen or 0) + 1
+    club.token_hash = club.token_expires = None
 
 
 def contact(club: ResourceClub) -> dict:
