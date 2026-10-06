@@ -47,18 +47,20 @@
         <div class="form-text">Nichts angekreuzt (oder alles) = {{ res.name }} komplett.</div></div>
       {% endif %}
 
+      <div class="col-12"><span class="form-label d-block">Wann?</span>
+        <div id="res-pick" class="res-pick" data-month="/r/{{ res.slug }}/month.json{{ '?staff=1' if staff }}" data-first="{{ d.get('date_from') or d.get('date') or (min_date if not staff else '') or '' }}"></div></div>
       <div class="col-12 res-when" data-mode="day">
-        <div class="row g-2"><div class="col-6 col-md-4"><label class="form-label" for="r-from">Von</label><input class="form-control" type="date" id="r-from" name="date_from" value="{{ d.get('date_from', '') }}" {% if not staff %}min="{{ min_date }}" max="{{ max_date }}"{% endif %}></div>
+        <div class="row g-2 res-native"><div class="col-6 col-md-4"><label class="form-label" for="r-from">Von</label><input class="form-control" type="date" id="r-from" name="date_from" value="{{ d.get('date_from', '') }}" {% if not staff %}min="{{ min_date }}" max="{{ max_date }}"{% endif %}></div>
           <div class="col-6 col-md-4"><label class="form-label" for="r-to">Bis</label><input class="form-control" type="date" id="r-to" name="date_to" value="{{ d.get('date_to', '') }}" {% if not staff %}min="{{ min_date }}" max="{{ max_date }}"{% endif %}></div>
           <div class="col-12 col-md-4 form-text align-self-end">Höchstens {{ res.max_days }} Tag(e) am Stück.</div></div>
       </div>
       <div class="col-12 res-when" data-mode="block">
-        <div class="row g-2"><div class="col-sm-5 col-md-4"><label class="form-label" for="r-bdate">Tag</label><input class="form-control js-day" type="date" id="r-bdate" name="date" value="{{ d.get('date', '') }}" {% if not staff %}min="{{ min_date }}" max="{{ max_date }}"{% endif %}></div>
+        <div class="row g-2"><div class="col-sm-5 col-md-4 res-native"><label class="form-label" for="r-bdate">Tag</label><input class="form-control js-day" type="date" id="r-bdate" name="date" value="{{ d.get('date', '') }}" {% if not staff %}min="{{ min_date }}" max="{{ max_date }}"{% endif %}></div>
           <div class="col-sm-7 col-md-8"><span class="form-label d-block">Zeitblöcke</span>
             {% for b in blocks %}<div class="form-check res-block"><input class="form-check-input" type="checkbox" name="blocks" value="{{ b.id }}" id="blk-{{ b.id }}" {% if d.getlist and b.id in d.getlist('blocks') %}checked{% endif %}><label class="form-check-label" for="blk-{{ b.id }}">{{ b.label }} <span class="text-secondary small">{{ b.start }}–{{ b.end }}</span> <span class="badge text-bg-danger d-none js-busy">belegt</span></label></div>{% endfor %}</div></div>
       </div>
       <div class="col-12 res-when" data-mode="hour">
-        <div class="row g-2"><div class="col-12 col-sm-5 col-md-4"><label class="form-label" for="r-hdate">Tag</label><input class="form-control js-day" type="date" id="r-hdate" name="date" value="{{ d.get('date', '') }}" {% if not staff %}min="{{ min_date }}" max="{{ max_date }}"{% endif %}></div>
+        <div class="row g-2"><div class="col-12 col-sm-5 col-md-4 res-native"><label class="form-label" for="r-hdate">Tag</label><input class="form-control js-day" type="date" id="r-hdate" name="date" value="{{ d.get('date', '') }}" {% if not staff %}min="{{ min_date }}" max="{{ max_date }}"{% endif %}></div>
           <div class="col-6 col-sm-3 col-md-2"><label class="form-label" for="r-t1">Beginn</label><input class="form-control" type="time" id="r-t1" name="time_from" step="{{ res.slot_minutes * 60 }}" value="{{ d.get('time_from', '') }}"></div>
           <div class="col-6 col-sm-3 col-md-2"><label class="form-label" for="r-t2">Ende</label><input class="form-control" type="time" id="r-t2" name="time_to" step="{{ res.slot_minutes * 60 }}" value="{{ d.get('time_to', '') }}"></div>
           <div class="col-12 col-md-4 form-text align-self-end">Raster {{ res.slot_minutes }} Min.{% if res.min_minutes %}, mind. {{ res.min_minutes }} Min.{% endif %}{% if res.max_minutes %}, höchstens {{ res.max_minutes }} Min.{% endif %}</div>

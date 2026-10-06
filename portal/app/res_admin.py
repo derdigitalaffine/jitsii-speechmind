@@ -59,14 +59,17 @@ PRESETS = {
 }
 
 
-def apply_preset(res: Resource, key: str) -> None:
+def apply_preset(res: Resource, key: str, keep_extras: list[int] | None = None) -> None:
+    """Startwerte der Vorlage. keep_extras: Nummern der Zusatzleistungen, die im Assistenten angehakt blieben
+    (None = alle)."""
     preset = PRESETS.get(key) or PRESETS["empty"]
     for k, v in preset["values"].items():
         setattr(res, k, v)
     if preset["category"] and not res.category:
         res.category = preset["category"]
     for pos, (name, per, cents, mandatory) in enumerate(preset.get("extras", [])):
-        res.extras.append(ResourceExtra(name=name, per=per, price_cents=cents, mandatory=mandatory, position=pos))
+        if keep_extras is None or pos in keep_extras:
+            res.extras.append(ResourceExtra(name=name, per=per, price_cents=cents, mandatory=mandatory, position=pos))
 
 
 def checklist(res: Resource) -> list[tuple[str, bool, str]]:

@@ -426,7 +426,7 @@ Menü **Abstimmungen** (Recht „Abstimmungen“) – im selben Bereich wie die 
 
 Unter `/r` (oder über die Homepage) stehen alle buchbaren Ressourcen – mit Fotos, Karte und Suche „Frei am …“ für einen bestimmten Tag. Oben rechts lässt sich zwischen **Karten** und einer kompakten **Tabelle** (Personen, Preis, frei/belegt am gewählten Tag) wechseln.
 
-1. Ressource öffnen: oben Fotos und Eckdaten, darunter gleich das **Buchungsformular**; Beschreibung, Preise und der **Belegungskalender** (schraffiert = vorgemerkt; Tippen auf einen Tag übernimmt ihn) sind aufklappbar.
+1. Ressource öffnen: oben Fotos (antippen für Vollbild) und Eckdaten, daneben bzw. darunter das **Buchungsformular**. Im **Kalender** sehen Sie sofort, welche Tage frei (grün), teilweise frei oder belegt (rot) sind: bei ganzen Tagen ersten und letzten Tag antippen, sonst den Tag und darunter die Uhrzeit – Beginn antippen, dann das Ende. Die Preisvorschau zeigt Gebühren und eine eventuelle **Kaution** getrennt (die Kaution bekommen Sie nach der Rückgabe zurück). Weiter unten: Beschreibung, Ausstattung, Preise, Belegung, Lage mit Routenplanung und der Anbieter mit Kontakt.
 2. Gebucht wird in **drei Schritten**:
    - **Wann:** Buchungsart (ganze Tage, Zeitblöcke oder stundenweise), Räume (nichts = alles), Tag. Bei stundenweiser Buchung zeigt das Formular die **freien Zeiten des Tages** – antippen übernimmt den Beginn, das Ende passen Sie an; belegte Zeitblöcke sind markiert. Tarif und **Zusatzleistungen** (z. B. Biertischgarnituren). Verfügbarkeit und **Preis** erscheinen sofort.
    - **Angaben:** Anlass, Kontaktdaten, ggf. weitere Fragen und Nutzungsbedingungen.

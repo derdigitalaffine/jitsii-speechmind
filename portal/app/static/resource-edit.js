@@ -48,10 +48,11 @@
     return rows;
   }
 
+  // Preisspalten der Teilräume: nur eingeschaltete Buchungsarten (pm-…), Wochenendpreise nur bei Bedarf (pw)
   var priceCols = [
-    { key: 'price_day', label: 'Tag €', cls: 'col-4 col-md-2' }, { key: 'price_block', label: 'Block €', cls: 'col-4 col-md-2' },
-    { key: 'price_hour', label: 'Stunde €', cls: 'col-4 col-md-2' }, { key: 'wkd_day', label: 'Tag WE/FT €', cls: 'col-4 col-md-2' },
-    { key: 'wkd_block', label: 'Block WE/FT €', cls: 'col-4 col-md-2' }, { key: 'wkd_hour', label: 'Std. WE/FT €', cls: 'col-4 col-md-2' }];
+    { key: 'price_day', label: 'je Tag €', cls: 'col-4 col-md-2 pm pm-day' }, { key: 'wkd_day', label: 'Tag WE/FT €', cls: 'col-4 col-md-2 pm pm-day pw' },
+    { key: 'price_block', label: 'je Block €', cls: 'col-4 col-md-2 pm pm-block' }, { key: 'wkd_block', label: 'Block WE/FT €', cls: 'col-4 col-md-2 pm pm-block pw' },
+    { key: 'price_hour', label: 'je Std. €', cls: 'col-4 col-md-2 pm pm-hour' }, { key: 'wkd_hour', label: 'Std. WE/FT €', cls: 'col-4 col-md-2 pm pm-hour pw' }];
   var units = table(document.getElementById('ed-units'), D.units, [
     { key: 'name', label: 'Name', cls: 'col-12 col-md-4', placeholder: 'z. B. Großer Saal' },
     { key: 'capacity', label: 'Personen', type: 'number', cls: 'col-4 col-md-2' },
@@ -159,4 +160,30 @@
     document.getElementById('h-fields_json').value = JSON.stringify(fields);
     document.getElementById('h-tab').value = location.hash.slice(1);
   });
+
+  // --- Preise: Spalten nach Buchungsart, Wochenend-Schalter, Vorschau ------------------------------
+  var main = document.getElementById('res-main'), wkdOn = document.getElementById('p-wkd-on'), preview = document.getElementById('p-preview');
+  function euro(v) { var n = parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n; }
+  function fmt(n) { return n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' €'; }
+  function priceSync() {
+    if (!main) return;
+    var on = Array.prototype.map.call(document.querySelectorAll('input[name="units"]:checked'), function (c) { return c.value; });
+    ['day', 'block', 'hour'].forEach(function (m) { main.classList.toggle('m-' + m, on.indexOf(m) >= 0); });
+    if (wkdOn) main.classList.toggle('wkd', wkdOn.checked);
+    if (!preview) return;
+    var unit = { day: 'Tag', block: 'Zeitblock', hour: 'Stunde' }, best = null;
+    on.forEach(function (m) {
+      main.querySelectorAll('[name="price_' + m + '"], #ed-units [data-k="price_' + m + '"]').forEach(function (inp) {
+        var v = euro(inp.value);
+        if (v > 0 && (!best || v < best.v)) best = { v: v, m: m };
+      });
+    });
+    var dep = euro((document.getElementById('z-dep') || {}).value);
+    preview.innerHTML = '<div class="fs-5 fw-semibold">' + (best ? 'ab ' + fmt(best.v) + ' <span class="fs-6 fw-normal">je ' + unit[best.m] + '</span>' : 'kostenlos') + '</div>' +
+      (dep ? '<div><i class="fa-solid fa-rotate-left me-1 text-secondary"></i>Kaution ' + fmt(dep) + ' (wird erstattet)</div>' : '') +
+      '<div class="text-secondary mt-1">Buchbar: ' + (on.map(function (m) { return { day: 'tageweise', block: 'in Zeitblöcken', hour: 'stundenweise' }[m]; }).join(', ') || '–') + '</div>';
+  }
+  document.addEventListener('change', function (e) { if (e.target.name === 'units' || e.target === wkdOn) priceSync(); });
+  document.addEventListener('input', function (e) { if (e.target.closest && e.target.closest('#preise')) priceSync(); });
+  priceSync();
 })();

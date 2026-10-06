@@ -9,13 +9,20 @@
     Wählen Sie eine weitere Ressource – Ihre Angaben werden übernommen – oder schließen Sie ab. Vorgemerkt für 24 Stunden.</div>
   <a class="btn btn-primary" href="/r/merkliste">Merkliste abschließen</a></div>{% endif %}
 <form method="get" class="card mb-3"><div class="card-body row g-2 align-items-end">
-  <div class="col-md-4"><label class="form-label small mb-1" for="c-q">Suche</label><input class="form-control" id="c-q" name="q" value="{{ f.q }}" type="search" placeholder="Name oder Ort"></div>
-  {% if categories %}<div class="col-6 col-md-3"><label class="form-label small mb-1" for="c-cat">Art</label><select class="form-select" id="c-cat" name="category"><option value="">alle</option>{% for c in categories %}<option {% if f.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>{% endif %}
+  <div class="col-md-3"><label class="form-label small mb-1" for="c-q">Suche</label><input class="form-control" id="c-q" name="q" value="{{ f.q }}" type="search" placeholder="Name oder Ort"></div>
+  {% if categories %}<div class="col-6 col-md-2"><label class="form-label small mb-1" for="c-cat">Art</label><select class="form-select" id="c-cat" name="category"><option value="">alle</option>{% for c in categories %}<option {% if f.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>{% endif %}
+  {% if providers | length > 1 %}<div class="col-6 col-md-2"><label class="form-label small mb-1" for="c-prov">Anbieter</label><select class="form-select" id="c-prov" name="anbieter"><option value="">alle</option>{% for o in providers %}<option value="{{ o.id }}" {% if f.anbieter == o.id | string %}selected{% endif %}>{{ o.short_name or o.name }}</option>{% endfor %}</select></div>{% endif %}
   <div class="col-6 col-md-2"><label class="form-label small mb-1" for="c-date">Frei am</label><input class="form-control" type="date" id="c-date" name="date" value="{{ f.date }}"></div>
   <div class="col-6 col-md-2"><label class="form-label small mb-1" for="c-pers">Personen</label><input class="form-control" type="number" min="1" id="c-pers" name="persons" value="{{ f.persons }}"></div>
   <div class="col-6 col-md-1"><input type="hidden" name="ansicht" value="{{ view }}"><button class="btn btn-primary w-100" type="submit" aria-label="Suchen"><i class="fa-solid fa-magnifying-glass"></i></button></div>
 </div></form>
-{% if features %}<div class="map-mini js-geo-view mb-3" style="height: 18rem" data-features='{{ features | tojson }}' role="img" aria-label="Karte mit den Standorten"></div>{% endif %}
+{% if features %}
+<div class="card mb-3 res-map-card"><div class="map-mini js-res-map" style="height: 22rem" data-features='{{ features | tojson }}' role="img" aria-label="Karte mit den Standorten – Punkt antippen für Details"></div>
+  <div class="card-footer res-map-legend small">{% for cat in features | map(attribute='properties.category') | unique | sort %}<span><span class="res-dot" style="background: {{ colors.get(cat, colors['']) }}"></span>{{ cat or 'Sonstiges' }}</span>{% endfor %}
+    <span class="text-secondary ms-auto"><i class="fa-solid fa-hand-pointer me-1"></i>Punkt antippen für Details</span></div></div>
+<div class="modal fade" id="res-map-modal" tabindex="-1" aria-labelledby="res-map-title" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content overflow-hidden">
+  <button type="button" class="btn-close res-map-close" data-bs-dismiss="modal" aria-label="Schließen"></button><div class="js-body"></div></div></div></div>
+{% endif %}
 <div class="res-list-bar">
   <h2 class="h6 mb-0 flex-grow-1">{{ rows | length }} {{ 'Ergebnis' if rows | length == 1 else 'Ergebnisse' }}{% if f.date %} <span class="text-secondary fw-normal">· Belegung am {{ f.date[8:10] }}.{{ f.date[5:7] }}.{{ f.date[:4] }}</span>{% endif %}</h2>
   <div class="btn-group btn-group-sm" role="group" aria-label="Ansicht">
@@ -54,11 +61,12 @@
 <div class="row g-3">
   {% for r in rows %}{% set st = free.get(r.id) %}
   <div class="col-12 col-md-6 col-xl-4"><div class="card h-100">
-    {% if r.photos %}<img class="card-img-top res-thumb" src="/r/{{ r.slug }}/photo/{{ r.photos[0].id }}" alt="{{ r.name }}" loading="lazy">{% endif %}
+    {% if r.photos %}<img class="card-img-top res-thumb" src="/r/{{ r.slug }}/photo/{{ r.photos[0].id }}" alt="{{ r.name }}" loading="lazy">{% else %}<div class="card-img-top res-thumb res-thumb-empty" style="--cat: {{ colors.get(r.category, colors['']) }}" aria-hidden="true"><i class="fa-solid fa-building"></i></div>{% endif %}
     <div class="card-body d-flex flex-column">
       <div class="d-flex gap-2 align-items-start"><a class="h5 mb-1 flex-grow-1 text-decoration-none stretched-link" href="/r/{{ r.slug }}" {% if embed %}target="_blank"{% endif %}>{{ r.name }}</a>
         {{ free_badge(st) }}</div>
-      <div class="small text-secondary mb-2">{% if r.category %}{{ r.category }}{% endif %}{% if r.location %}{{ ' · ' if r.category }}<i class="fa-solid fa-location-dot me-1"></i>{{ r.location }}{% endif %}</div>
+      {% if r.provider %}<div class="small mb-1 d-flex align-items-center gap-1">{% if r.provider.logo %}<img class="org-logo org-logo-sm" src="{{ provider_logo(r.provider) }}" alt="">{% else %}<i class="fa-solid fa-landmark-flag text-secondary"></i>{% endif %}<span class="text-secondary">{{ r.provider.short_name or r.provider.name }}</span></div>{% endif %}
+      <div class="small text-secondary mb-2">{% if r.category %}<span class="res-dot me-1" style="background: {{ colors.get(r.category, colors['']) }}"></span>{{ r.category }}{% endif %}{% if r.location %}{{ ' · ' if r.category }}<i class="fa-solid fa-location-dot me-1"></i>{{ r.location }}{% endif %}</div>
       <div class="small mt-auto d-flex flex-wrap gap-3">{% if r.capacity %}<span><i class="fa-solid fa-users me-1"></i>bis {{ r.capacity }}</span>{% endif %}
         {% if r.parts %}<span><i class="fa-solid fa-door-open me-1"></i>{{ r.parts | length }} Räume</span>{% endif %}
         {% set pf = price_from(r) %}{% if pf %}<span><i class="fa-solid fa-euro-sign me-1"></i>ab {{ money(pf) }}</span>{% else %}<span>kostenlos</span>{% endif %}</div>
@@ -69,5 +77,5 @@
 {% endblock %}
 {% block scripts %}
 {% if geo_bundle %}<script type="application/json" id="geo-bundle">{{ geo_bundle | tojson }}</script>
-<script type="module" src="/static/maplibre-global.js"></script><script type="module" src="/static/map-core.js"></script><script type="module" src="/static/geo-view.js"></script>{% endif %}
+<script type="module" src="/static/maplibre-global.js"></script><script type="module" src="/static/map-core.js"></script><script type="module" src="/static/resource-map.js"></script>{% endif %}
 {% endblock %}
