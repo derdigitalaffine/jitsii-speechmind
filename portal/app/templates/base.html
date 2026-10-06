@@ -85,77 +85,90 @@
 <div class="container-fluid app-body">
   <div class="row">
     {% if user %}
-    <aside class="col-lg-2 p-0 app-aside" aria-label="Hauptmenü">
-      <div class="offcanvas-lg offcanvas-start app-sidebar" tabindex="-1" id="sidebar">
+    {% set nav_closed = (request.cookies.get('jsm_nav_closed') or '').split(',') %}
+    {% set nav_rail = request.cookies.get('jsm_nav_rail') == '1' %}
+    <aside class="col-lg-2 p-0 app-aside {{ 'is-rail' if nav_rail }}" aria-label="Hauptmenü">
+      <div class="offcanvas-lg offcanvas-start app-sidebar" tabindex="-1" id="sidebar" aria-labelledby="sidebar-title">
         <div class="offcanvas-header">
-          <strong>Menü</strong>
+          <strong id="sidebar-title">Menü</strong>
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#sidebar" aria-label="Schließen"></button>
         </div>
-        <div class="offcanvas-body d-block p-2">
-          <ul class="nav flex-column gap-1">
+        <div class="app-nav-tools">
+          <div class="app-nav-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <input type="search" id="nav-search" placeholder="Suchen …" aria-label="Menü durchsuchen (Taste / oder Strg+K)" autocomplete="off" spellcheck="false"><kbd class="d-none d-lg-inline">/</kbd></div>
+          <button type="button" class="btn btn-sm app-nav-rail-toggle d-none d-lg-inline-flex" id="nav-rail" aria-pressed="{{ 'true' if nav_rail else 'false' }}" title="{{ 'Menü ausklappen' if nav_rail else 'Menü einklappen' }}" aria-label="{{ 'Menü ausklappen' if nav_rail else 'Menü auf Symbole verkleinern' }}"><i class="fa-solid {{ 'fa-angles-right' if nav_rail else 'fa-angles-left' }}"></i></button>
+        </div>
+        <div class="offcanvas-body d-block app-nav-scroll" id="nav-scroll">
+          <ul class="nav flex-column app-nav" id="app-nav">
             {{ m.nav_item('/', 'fa-house', 'Übersicht', path == '/') }}
             {% if user.can('video') %}
-            <li class="nav-section">Videokonferenzen</li>
+            {% call m.nav_group('video', 'Videokonferenzen', nav_closed) %}
             {{ m.nav_item('/meetings', 'fa-video', 'Meetings', path.startswith('/meetings') and path != '/meetings/plan') }}
             {{ m.nav_item('/meetings/plan', 'fa-calendar-plus', 'Besprechung planen', path == '/meetings/plan') }}
+            {% endcall %}
             {% endif %}
             {% if user.can('shortlinks') and 'shortlinks' in modules %}
-            <li class="nav-section">Kurzlinks</li>
+            {% call m.nav_group('links', 'Kurzlinks', nav_closed) %}
             {{ m.nav_item('/shortlinks', 'fa-link', 'Kurzlinks', path.startswith('/shortlinks')) }}
+            {% endcall %}
             {% endif %}
             {% set nav_polls = (user.can('polls') or 'polls' in shared_nav) and 'polls' in modules %}
             {% set nav_bookings = (user.can('bookings') or 'bookings' in shared_nav) and 'bookings' in modules %}
             {% set nav_votes = (user.can('votes') or 'votes' in shared_nav) and 'polls' in modules %}
             {% if nav_polls or nav_bookings or nav_votes %}
-            <li class="nav-section">Termine & Abstimmungen</li>
+            {% call m.nav_group('dates', 'Termine & Abstimmungen', nav_closed) %}
             {% if nav_polls %}{{ m.nav_item('/polls', 'fa-calendar-check', 'Terminumfragen', path.startswith('/polls')) }}{% endif %}
             {% if nav_votes %}{{ m.nav_item('/votes', 'fa-check-to-slot', 'Abstimmungen', path.startswith('/votes')) }}{% endif %}
             {% if nav_bookings %}{{ m.nav_item('/bookings', 'fa-calendar-plus', 'Terminbuchung', path.startswith('/bookings')) }}{% endif %}
+            {% endcall %}
             {% endif %}
             {% if 'forms' in modules %}
-            <li class="nav-section">Formulare</li>
+            {% call m.nav_group('forms', 'Formulare & Anträge' if 'applications' in modules else 'Formulare', nav_closed) %}
             {{ m.nav_item('/forms', 'fa-clipboard-list', 'Formulare' if user.can('forms') else 'Geteilte Formulare', path == '/forms' or (path.startswith('/forms/') and not path.startswith('/forms/inbox') and not path.startswith('/forms/blocks') and '/applications' not in path)) }}
             {{ m.nav_item('/forms/inbox', 'fa-inbox', 'Zum Ausfüllen', path.startswith('/forms/inbox')) }}
             {% if user.can('formblocks') %}{{ m.nav_item('/forms/blocks', 'fa-cubes', 'Datenblöcke', path.startswith('/forms/blocks')) }}{% endif %}
             {% if 'applications' in modules %}
-            <li class="nav-item"><a class="nav-link {{ 'active' if path.startswith('/tasks') }}" href="/tasks" {% if path.startswith('/tasks') %}aria-current="page"{% endif %}><i class="fa-solid fa-list-check"></i><span>Meine Aufgaben</span>{% if task_badge %}<span class="badge rounded-pill text-bg-danger ms-auto" title="{{ task_badge }} offene Arbeitsschritte">{{ task_badge }}</span>{% endif %}</a></li>
+            {{ m.nav_item('/tasks', 'fa-list-check', 'Meine Aufgaben', path.startswith('/tasks'), task_badge, (task_badge ~ ' offene Arbeitsschritte') if task_badge else '') }}
             {{ m.nav_item('/forms/applications', 'fa-file-signature', 'Antragseingang', '/applications' in path) }}
             {% if user.can('processes') %}{{ m.nav_item('/processes', 'fa-diagram-project', 'Prozesse', path.startswith('/processes')) }}{% endif %}
             {% endif %}
+            {% endcall %}
             {% endif %}
             {% if 'dms' in modules and (user.is_admin or user.can('dms_admin') or dms_nav) %}
-            <li class="nav-section">Ablage</li>
+            {% call m.nav_group('dms', 'Ablage', nav_closed) %}
             {{ m.nav_item('/dms', 'fa-box-archive', 'Recherche', path == '/dms' or path.startswith('/dms/r/') or path.startswith('/dms/new')) }}
             {{ m.nav_item('/dms/persons', 'fa-address-book', 'Personen', path.startswith('/dms/persons')) }}
             {% if user.is_admin or user.can('dms_admin') %}{{ m.nav_item('/dms/areas', 'fa-sitemap', 'Aktenplan', path.startswith('/dms/areas') or path.startswith('/dms/retention')) }}{% endif %}
+            {% endcall %}
             {% endif %}
             {% if res_nav %}
-            <li class="nav-section">Ressourcen</li>
-            {{ m.nav_item('/resources', 'fa-building', 'Ressourcen & Belegung', path == '/resources' or (path.startswith('/resources/') and not path.startswith('/resources/bookings') and not path.startswith('/resources/calendars') and not path.startswith('/resources/holidays'))) }}
+            {% call m.nav_group('res', 'Ressourcen', nav_closed) %}
+            {{ m.nav_item('/resources', 'fa-building', 'Ressourcen & Belegung', path == '/resources' or (path.startswith('/resources/') and not path.startswith('/resources/bookings') and not path.startswith('/resources/planner'))) }}
+            {{ m.nav_item('/resources/planner', 'fa-table-cells', 'Planer', path.startswith('/resources/planner')) }}
             {{ m.nav_item('/resources/bookings', 'fa-calendar-check', 'Buchungen', path.startswith('/resources/bookings')) }}
-            {{ m.nav_item('/resources/calendars', 'fa-calendar-week', 'Kalender teilen', path.startswith('/resources/calendars')) }}
-            {% if user.can('resources') %}{{ m.nav_item('/resources/holidays', 'fa-champagne-glasses', 'Feiertage', path.startswith('/resources/holidays')) }}{% endif %}
+            {% endcall %}
             {% endif %}
             {% if krank_nav %}
-            <li class="nav-section">Krankmelder</li>
+            {% call m.nav_group('krank', 'Krankmelder', nav_closed) %}
             {{ m.nav_item('/krank', 'fa-notes-medical', 'Krank melden', path == '/krank' or (path.startswith('/krank/') and not path.startswith('/krank/meine'))) }}
             {{ m.nav_item('/krank/meine', 'fa-folder-open', 'Meine Krankmeldungen', path.startswith('/krank/meine')) }}
-            {% if krank_nav.staff %}
-            <li class="nav-item"><a class="nav-link {{ 'active' if path.startswith('/krankmelder') }}" href="/krankmelder" {% if path.startswith('/krankmelder') %}aria-current="page"{% endif %}><i class="fa-solid fa-user-nurse"></i><span>Krankmeldungen</span>{% if krank_nav.badge %}<span class="badge rounded-pill text-bg-danger ms-auto" title="{{ krank_nav.badge }} neue Meldungen bzw. offene eAU-Abrufe">{{ krank_nav.badge }}</span>{% endif %}</a></li>
-            {% endif %}
+            {% if krank_nav.staff %}{{ m.nav_item('/krankmelder', 'fa-user-nurse', 'Krankmeldungen', path.startswith('/krankmelder'), krank_nav.badge, (krank_nav.badge ~ ' neue Meldungen bzw. offene eAU-Abrufe') if krank_nav.badge else '') }}{% endif %}
+            {% endcall %}
             {% endif %}
             {% if 'maps' in modules %}
-            <li class="nav-section">Karten</li>
+            {% call m.nav_group('maps', 'Karten', nav_closed) %}
             {{ m.nav_item('/karte', 'fa-map-location-dot', 'Kartenbrowser', path.startswith('/karte')) }}
             {% if user.can('maps') %}{{ m.nav_item('/maps', 'fa-folder-open', 'Meine Karten', path.startswith('/maps')) }}{% endif %}
+            {% endcall %}
             {% endif %}
             {% if 'laws' in modules %}
-            <li class="nav-section">Rechtstexte</li>
+            {% call m.nav_group('laws', 'Rechtstexte', nav_closed) %}
             {{ m.nav_item('/recht', 'fa-scale-balanced', 'Ortsrecht ansehen', path.startswith('/recht')) }}
             {% if user.can('laws') %}{{ m.nav_item('/laws', 'fa-pen-to-square', 'Rechtstexte pflegen', path.startswith('/laws')) }}{% endif %}
+            {% endcall %}
             {% endif %}
             {% if user.is_admin or user.can('users') or user.can('maps_admin') or user.can('payments') or user.can('orgs') %}
-            <li class="nav-section">Verwaltung</li>
+            {% call m.nav_group('admin', 'Verwaltung', nav_closed) %}
             {% if user.is_admin %}{{ m.nav_item('/admin/recordings', 'fa-file-audio', 'Aufnahmen', path == '/admin/recordings' or path.startswith('/recordings')) }}{% endif %}
             {% if user.can('users') %}{{ m.nav_item('/admin/users', 'fa-users', 'Benutzer &amp; Gruppen'|safe, path == '/admin/users') }}{% endif %}
             {% if user.can('orgs') %}{{ m.nav_item('/admin/orgs', 'fa-landmark-flag', 'Körperschaften', path.startswith('/admin/orgs')) }}{% endif %}
@@ -172,13 +185,19 @@
             {{ m.nav_item('/admin/domains', 'fa-globe', 'Domains', path.startswith('/admin/domains')) }}
             {{ m.nav_item('/admin/design', 'fa-palette', 'Design &amp; Branding'|safe, path == '/admin/design') }}
             {% endif %}
+            {% endcall %}
             {% endif %}
           </ul>
+          <p class="app-nav-empty small text-secondary px-3 py-2" hidden>Kein Menüpunkt gefunden.</p>
         </div>
       </div>
     </aside>
+<script>
+/* Scrollposition des Menüs sofort (vor dem ersten Zeichnen) wiederherstellen – sonst springt es nach jedem Klick nach oben */
+(function () { try { var el = document.getElementById('nav-scroll'), y = sessionStorage.getItem('jsm-nav-scroll'); if (el && y) el.scrollTop = +y; } catch (e) {} })();
+</script>
     {% endif %}
-    <main id="inhalt" tabindex="-1" class="{{ 'col-lg-10 app-main' if user else 'col-12' }} {% block main_class %}px-3 px-lg-4 py-4{% endblock %}">
+    <main id="inhalt" tabindex="-1" class="{{ ('col-lg-10 app-main' ~ (' is-rail' if nav_rail else '')) if user else 'col-12' }} {% block main_class %}px-3 px-lg-4 py-4{% endblock %}">
       {{ m.flashes(messages) }}
       {% if update_hint and request.url.path == '/' %}<div class="alert alert-info d-flex gap-2 align-items-center small"><i class="fa-solid fa-circle-arrow-up"></i><div class="flex-grow-1">Eine neue Portal-Version ist verfügbar: <strong>{{ update_hint }}</strong>. <a href="/about#version">Details und Anleitung</a></div></div>{% endif %}
       {% block content %}{% endblock %}
@@ -198,6 +217,7 @@
 <script src="/static/vendor/sweetalert2/sweetalert2.min.js"></script>
 <script src="/static/vendor/coloris/coloris.min.js"></script>
 <script src="/static/app.js"></script>
+<script src="/static/nav.js"></script>
 <script src="/static/law-ref.js" defer></script>
 {% block scripts %}{% endblock %}
 </body>
