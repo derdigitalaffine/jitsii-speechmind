@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Suche{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width: 56rem">
+  <h1 class="h3 mb-3"><i class="fa-solid fa-magnifying-glass me-2 text-primary"></i>Suche</h1>
+  <form action="/suche" method="get" role="search" class="mb-4">
+    <label class="visually-hidden" for="ps-q">Alle Angebote durchsuchen</label>
+    <div class="input-group"><input class="form-control" type="search" id="ps-q" name="q" value="{{ q }}" placeholder="Suchbegriff" autofocus>
+      <button class="btn btn-primary" type="submit">Suchen</button></div>
+  </form>
+  {% if q %}
+    {% if groups %}
+    <p class="text-secondary small">{{ total }} Treffer für „{{ q }}“</p>
+    {% for g in groups %}
+    <section class="card mb-3"><div class="card-header d-flex align-items-center"><i class="fa-solid {{ g.icon }} me-2 text-secondary" aria-hidden="true"></i><h2 class="h6 mb-0 flex-grow-1">{{ g.label }}</h2>
+      <a class="small" href="{{ g.url }}">alle ansehen</a></div>
+      <div class="list-group list-group-flush">{% for h in g.hits %}<a class="list-group-item list-group-item-action" href="{{ h.url }}"><span class="fw-semibold">{{ h.title }}</span>{% if h.text %}<span class="small text-secondary ms-2">{{ h.text }}</span>{% endif %}</a>{% endfor %}
+        {% if g.more %}<div class="list-group-item small text-secondary">Weitere Treffer im Bereich {{ g.label }}.</div>{% endif %}</div></section>
+    {% endfor %}
+    {% else %}
+    <div class="alert alert-light border">Nichts gefunden für „{{ q }}“. Versuchen Sie ein anderes Wort oder sehen Sie sich die Angebote direkt an.</div>
+    {% endif %}
+  {% endif %}
+  {% if not groups and pnav %}
+  <div class="d-flex flex-wrap gap-2">{% for it in pnav if not it.external %}<a class="btn btn-outline-secondary btn-sm" href="{{ it.url }}"><i class="fa-solid {{ it.icon }} me-1"></i>{{ it.label }}</a>{% endfor %}</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -37,6 +37,7 @@
     {{ num('max_per_person', 'Termine je Person', page.max_per_person if page else 1, 'max.', 1, 50, 'gleichzeitig anstehend, je E-Mail-Adresse') }}
     <div class="col-12">
       {{ sw('invite_only', 'Nur mit persönlicher Einladung buchbar', page.invite_only if page else False, 'Empfohlen für Vorstellungsgespräche: Nur eingeladene Personen können buchen, ihr Name und ihre Adresse sind vorausgefüllt.') }}
+      {{ sw('listed', 'Öffentlich unter „Termine buchen“ zeigen', page.listed if page else False, 'Die Seite erscheint im Verzeichnis /b, auf der Startseite und im öffentlichen Menü (nicht bei „nur mit Einladung“).') }}
       {{ sw('ask_phone', 'Telefonnummer verlangen', page.ask_phone if page else False) }}
       {{ sw('notify_owner', 'Mich bei jeder Buchung, Verschiebung und Absage per Mail informieren', page.notify_owner if page else True) }}
     </div>

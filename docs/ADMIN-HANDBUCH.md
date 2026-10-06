@@ -25,7 +25,7 @@ Für alle, die das Portal der Verbandsgemeinde Otterbach-Otterberg betreuen: Vid
 8d. [Sitzungen & Cookies](#sitzungen--cookies)
 9. [E-Mail-Vorlagen](#e-mail-vorlagen)
 10. [HTTPS und Zertifikat](#https-und-zertifikat) (mit [Eigene Domains je Modul](#eigene-domains-je-modul))
-11. [Design & Branding](#design--branding)
+11. [Design & Branding](#design--branding) (mit [Öffentliches Menü & Startseite](#öffentliches-menü--startseite))
 12. [Räume und Zugang](#räume-und-zugang)
 13. [E-Mail einrichten](#e-mail-einrichten)
 14. [SpeechMind einrichten](#speechmind-einrichten)
@@ -568,6 +568,7 @@ Menü **Terminbuchung** (Recht „Terminbuchung“). Vergleichbar mit Microsoft 
 
 - Zeitbereiche im Wochenkalender aufziehen (FullCalendar) oder per Formular mit wöchentlicher Wiederholung; überlappende Bereiche werden zusammengefasst. Daraus entstehen Zeitfenster aus **Dauer + Pause**, mit einstellbaren **Plätzen** je Fenster.
 - Regeln: Vorlauf für Buchungen, Frist für Absagen/Verschieben, Termine je Person, nur mit persönlicher Einladung, Telefonnummer Pflicht.
+- **Öffentlich unter „Termine buchen“ zeigen:** Die Seite erscheint im öffentlichen Verzeichnis `/b` (mit nächstem freien Termin), in der Suche und auf der Startseite für Bürger:innen. Sobald mindestens eine Seite so freigegeben ist, steht „Termine buchen“ im öffentlichen Menü. Seiten „nur mit Einladung“ erscheinen nie.
 - Gäste bekommen eine Bestätigung mit **Kalendereintrag** (Outlook-Besprechungsanfrage) und einen Verwaltungslink; Verschieben aktualisiert, Absagen entfernt den Kalendereintrag. Doppelbuchungen sind ausgeschlossen (Prüfung beim Speichern).
 - **Online-Termine:** Pro Buchung legt das Portal einen eigenen Portal-Raum an (sichtbar unter „Meetings“ der anbietenden Person); der Gast kommt per persönlichem Link ohne Konto und ohne Aufnahmerecht hinein. Verschieben passt den Raumtermin an, Absagen löscht den Raum.
 - **Erinnerungen** verschickt der Hintergrunddienst automatisch (Prüfung alle 5 Minuten).
@@ -786,6 +787,15 @@ Menü **Verwaltung › Löschen & Papierkorb** (nur Administrator:innen). Bereic
 - **Bereich leeren:** Bedingung wählen (älter als ein Datum, optional Status, z. B. „stornierte Buchungen, beendet vor dem 01.01.2025“), **Anzahl prüfen**, dann „LÖSCHEN“ eintippen und im Dialog bestätigen. Ohne Bedingung wird nie etwas gelöscht; hat sich die Anzahl seit der Vorschau geändert, passiert nichts. Höchstens 5000 Einträge je Durchgang.
 - **Papierkorb:** Gelöschtes bleibt **30 Tage** wiederherstellbar (mit Dateien und mit den gelösten Verweisen, sofern die verweisenden Einträge noch existieren) und wird danach automatisch endgültig entfernt; „×“ löscht sofort endgültig.
 - **Protokoll:** wer wann was gelöscht, wiederhergestellt oder endgültig entfernt hat.
+
+## Öffentliches Menü & Startseite
+
+Menü **Verwaltung › Öffentliches Menü** (nur Admins). Wer nicht angemeldet ist, sieht oben im Kopf alle öffentlichen Bereiche der eingeschalteten Module mit Symbol: **Anträge**, **Räume & Plätze**, **Termine buchen** (sobald eine Buchungsseite dafür freigegeben ist), **Karte**, **Ortsrecht** und **Krankmeldung** (nur wenn der Krankmelder ohne Konto erreichbar ist). Die aktuelle Seite ist markiert. Auf großen Bildschirmen stehen die Bereiche nebeneinander, auf Handys und Tablets hinter dem Knopf **Menü** (mit Suche, Startseite und „Anmelden für Mitarbeitende“).
+
+- **Reihenfolge und Auswahl:** per Ziehen oder Pfeilknöpfen sortieren, mit dem Schalter ausblenden. Abgeschaltete Module erscheinen nie.
+- **Eigene Links** (bis 8): z. B. Homepage, Bürgerbüro oder Abfallkalender – Adressen mit `https://` öffnen in neuem Fenster, Pfade wie `/f/…` bleiben im Portal.
+- **Startseite für Bürger:innen:** Ohne Anmeldung zeigt `/` (auch das Logo) eine Startseite mit Überschrift, Begrüßung, **Suche über alle Angebote** (Anträge, Räume & Plätze, Termine, Ortsrecht – `/suche`), Kacheln je Bereich, Kontaktkasten (Anschrift, Telefon, Öffnungszeiten) und den eigenen Links. Abschaltbar – dann führt `/` wie bisher direkt zur Anmeldung. Angemeldete sehen unter `/` weiter ihr Dashboard.
+- Wie alle öffentlichen Seiten setzen Startseite, Suche und das Verzeichnis „Termine buchen“ kein Cookie.
 
 ## Design & Branding
 
