@@ -72,6 +72,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     # Freigeschaltete Bereiche, kommagetrennt (siehe PERMISSIONS). Admins dürfen immer alles.
     dashboard_json: Mapped[str] = mapped_column(Text, default="")   # Startseite: Reihenfolge/ausgeblendete Kacheln
+    nav_json: Mapped[str] = mapped_column(Text, default="")         # Menü: Favoriten, ausgeblendete Gruppen (nav.py)
     permissions: Mapped[str] = mapped_column(String(255), default="video")
     # Zwei-Faktor-Anmeldung (siehe twofa.py)
     totp_secret_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -2228,7 +2229,7 @@ _NEW_COLUMNS = {
         "permissions": "VARCHAR(255) NOT NULL DEFAULT 'video'",
         "totp_secret_enc": "TEXT", "totp_enabled": "BOOLEAN NOT NULL DEFAULT 0", "totp_last_step": "INTEGER",
         "mfa_email": "BOOLEAN NOT NULL DEFAULT 0", "recovery_json": "TEXT", "email_code_hash": "VARCHAR(64)",
-        "email_code_expires": "DATETIME", "dashboard_json": "TEXT NOT NULL DEFAULT ''",
+        "email_code_expires": "DATETIME", "dashboard_json": "TEXT NOT NULL DEFAULT ''", "nav_json": "TEXT NOT NULL DEFAULT ''",
         "krank_history": "BOOLEAN NOT NULL DEFAULT 0",
     },
     "recordings": {"audio_path": "VARCHAR(1024)", "audio_max_db": "FLOAT", "media_deleted_at": "DATETIME",

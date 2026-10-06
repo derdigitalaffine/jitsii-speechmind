@@ -61,6 +61,7 @@
         <ul class="dropdown-menu dropdown-menu-end">
           <li><h6 class="dropdown-header">{{ user.email }}</h6></li>
           <li><a class="dropdown-item" href="/profile"><i class="fa-regular fa-user fa-fw me-2"></i>Profil</a></li>
+          <li><a class="dropdown-item" href="/profile/menu"><i class="fa-solid fa-sliders fa-fw me-2"></i>Menü anpassen</a></li>
           <li><a class="dropdown-item" href="/profile/security"><i class="fa-solid fa-shield-halved fa-fw me-2"></i>Sicherheit</a></li>
           <li><a class="dropdown-item" href="/about"><i class="fa-solid fa-circle-info fa-fw me-2"></i>Über dieses Portal</a></li>
           <li><hr class="dropdown-divider"></li>
@@ -113,97 +114,16 @@
           <button type="button" class="btn btn-sm app-nav-rail-toggle d-none d-lg-inline-flex" id="nav-rail" aria-pressed="{{ 'true' if nav_rail else 'false' }}" title="{{ 'Menü ausklappen' if nav_rail else 'Menü einklappen' }}" aria-label="{{ 'Menü ausklappen' if nav_rail else 'Menü auf Symbole verkleinern' }}"><i class="fa-solid {{ 'fa-angles-right' if nav_rail else 'fa-angles-left' }}"></i></button>
         </div>
         <div class="offcanvas-body d-block app-nav-scroll" id="nav-scroll">
-          <ul class="nav flex-column app-nav" id="app-nav">
+          <ul class="nav flex-column app-nav" id="app-nav" data-csrf="{{ csrf }}">
             {{ m.nav_item('/', 'fa-house', 'Übersicht', path == '/') }}
-            {% if user.can('video') %}
-            {% call m.nav_group('video', 'Videokonferenzen', nav_closed) %}
-            {{ m.nav_item('/meetings', 'fa-video', 'Meetings', path.startswith('/meetings') and path != '/meetings/plan') }}
-            {{ m.nav_item('/meetings/plan', 'fa-calendar-plus', 'Besprechung planen', path == '/meetings/plan') }}
-            {% endcall %}
-            {% endif %}
-            {% if user.can('shortlinks') and 'shortlinks' in modules %}
-            {% call m.nav_group('links', 'Kurzlinks', nav_closed) %}
-            {{ m.nav_item('/shortlinks', 'fa-link', 'Kurzlinks', path.startswith('/shortlinks')) }}
-            {% endcall %}
-            {% endif %}
-            {% set nav_polls = (user.can('polls') or 'polls' in shared_nav) and 'polls' in modules %}
-            {% set nav_bookings = (user.can('bookings') or 'bookings' in shared_nav) and 'bookings' in modules %}
-            {% set nav_votes = (user.can('votes') or 'votes' in shared_nav) and 'polls' in modules %}
-            {% if nav_polls or nav_bookings or nav_votes %}
-            {% call m.nav_group('dates', 'Termine & Abstimmungen', nav_closed) %}
-            {% if nav_polls %}{{ m.nav_item('/polls', 'fa-calendar-check', 'Terminumfragen', path.startswith('/polls')) }}{% endif %}
-            {% if nav_votes %}{{ m.nav_item('/votes', 'fa-check-to-slot', 'Abstimmungen', path.startswith('/votes')) }}{% endif %}
-            {% if nav_bookings %}{{ m.nav_item('/bookings', 'fa-calendar-plus', 'Terminbuchung', path.startswith('/bookings')) }}{% endif %}
-            {% endcall %}
-            {% endif %}
-            {% if 'forms' in modules %}
-            {% call m.nav_group('forms', 'Formulare & Anträge' if 'applications' in modules else 'Formulare', nav_closed) %}
-            {{ m.nav_item('/forms', 'fa-clipboard-list', 'Formulare' if user.can('forms') else 'Geteilte Formulare', path == '/forms' or (path.startswith('/forms/') and not path.startswith('/forms/inbox') and not path.startswith('/forms/blocks') and '/applications' not in path)) }}
-            {{ m.nav_item('/forms/inbox', 'fa-inbox', 'Zum Ausfüllen', path.startswith('/forms/inbox')) }}
-            {% if user.can('formblocks') %}{{ m.nav_item('/forms/blocks', 'fa-cubes', 'Datenblöcke', path.startswith('/forms/blocks')) }}{% endif %}
-            {% if 'applications' in modules %}
-            {{ m.nav_item('/tasks', 'fa-list-check', 'Meine Aufgaben', path.startswith('/tasks'), task_badge, (task_badge ~ ' offene Aufgaben') if task_badge else '') }}
-            {{ m.nav_item('/forms/applications', 'fa-file-signature', 'Antragseingang', '/applications' in path) }}
-            {% if user.can('processes') %}{{ m.nav_item('/processes', 'fa-diagram-project', 'Prozesse', path.startswith('/processes')) }}{% endif %}
-            {% endif %}
-            {% endcall %}
-            {% endif %}
-            {% if 'dms' in modules and (user.is_admin or user.can('dms_admin') or dms_nav) %}
-            {% call m.nav_group('dms', 'Ablage', nav_closed) %}
-            {{ m.nav_item('/dms', 'fa-box-archive', 'Recherche', path == '/dms' or path.startswith('/dms/r/') or path.startswith('/dms/new')) }}
-            {{ m.nav_item('/dms/persons', 'fa-address-book', 'Personen', path.startswith('/dms/persons')) }}
-            {% if user.is_admin or user.can('dms_admin') %}{{ m.nav_item('/dms/areas', 'fa-sitemap', 'Aktenplan', path.startswith('/dms/areas') or path.startswith('/dms/retention')) }}{% endif %}
-            {% endcall %}
-            {% endif %}
-            {% if res_nav %}
-            {% call m.nav_group('res', 'Ressourcen', nav_closed) %}
-            {{ m.nav_item('/resources', 'fa-building', 'Ressourcen & Belegung', path == '/resources' or (path.startswith('/resources/') and not path.startswith('/resources/bookings') and not path.startswith('/resources/planner'))) }}
-            {{ m.nav_item('/resources/planner', 'fa-table-cells', 'Planer', path.startswith('/resources/planner')) }}
-            {{ m.nav_item('/resources/bookings', 'fa-calendar-check', 'Buchungen', path.startswith('/resources/bookings')) }}
-            {% if 'applications' not in modules or 'forms' not in modules %}{{ m.nav_item('/tasks', 'fa-list-check', 'Meine Aufgaben', path.startswith('/tasks'), task_badge, (task_badge ~ ' offene Aufgaben') if task_badge else '') }}{% endif %}
-            {% endcall %}
-            {% endif %}
-            {% if krank_nav %}
-            {% call m.nav_group('krank', 'Krankmelder', nav_closed) %}
-            {{ m.nav_item('/krank', 'fa-notes-medical', 'Krank melden', path == '/krank' or (path.startswith('/krank/') and not path.startswith('/krank/meine'))) }}
-            {{ m.nav_item('/krank/meine', 'fa-folder-open', 'Meine Krankmeldungen', path.startswith('/krank/meine')) }}
-            {% if krank_nav.staff %}{{ m.nav_item('/krankmelder', 'fa-user-nurse', 'Krankmeldungen', path.startswith('/krankmelder'), krank_nav.badge, (krank_nav.badge ~ ' neue Meldungen bzw. offene eAU-Abrufe') if krank_nav.badge else '') }}{% endif %}
-            {% endcall %}
-            {% endif %}
-            {% if 'maps' in modules %}
-            {% call m.nav_group('maps', 'Karten', nav_closed) %}
-            {{ m.nav_item('/karte', 'fa-map-location-dot', 'Kartenbrowser', path.startswith('/karte')) }}
-            {% if user.can('maps') %}{{ m.nav_item('/maps', 'fa-folder-open', 'Meine Karten', path.startswith('/maps')) }}{% endif %}
-            {% endcall %}
-            {% endif %}
-            {% if 'laws' in modules %}
-            {% call m.nav_group('laws', 'Rechtstexte', nav_closed) %}
-            {{ m.nav_item('/recht', 'fa-scale-balanced', 'Ortsrecht ansehen', path.startswith('/recht')) }}
-            {% if user.can('laws') %}{{ m.nav_item('/laws', 'fa-pen-to-square', 'Rechtstexte pflegen', path.startswith('/laws')) }}{% endif %}
-            {% endcall %}
-            {% endif %}
-            {% if user.is_admin or user.can('users') or user.can('maps_admin') or user.can('payments') or user.can('orgs') %}
-            {% call m.nav_group('admin', 'Verwaltung', nav_closed) %}
-            {% if user.is_admin %}{{ m.nav_item('/admin/recordings', 'fa-file-audio', 'Aufnahmen', path == '/admin/recordings' or path.startswith('/recordings')) }}{% endif %}
-            {% if user.can('users') %}{{ m.nav_item('/admin/users', 'fa-users', 'Benutzer &amp; Gruppen'|safe, path == '/admin/users') }}{% endif %}
-            {% if user.can('orgs') %}{{ m.nav_item('/admin/orgs', 'fa-landmark-flag', 'Körperschaften', path.startswith('/admin/orgs')) }}{% endif %}
-            {% if user.can('maps_admin') %}{{ m.nav_item('/admin/maps', 'fa-layer-group', 'Kartenlayer', path.startswith('/admin/maps')) }}{% endif %}
-            {% if user.can('payments') %}{{ m.nav_item('/payments', 'fa-euro-sign', 'Zahlungen', path.startswith('/payments')) }}{% endif %}
-            {% if user.is_admin %}
-            {{ m.nav_item('/admin/modules', 'fa-puzzle-piece', 'Module', path == '/admin/modules') }}
-            {{ m.nav_item('/admin/sessions', 'fa-user-clock', 'Sitzungen &amp; Cookies'|safe, path == '/admin/sessions') }}
-            {{ m.nav_item('/admin/notifications', 'fa-envelope', 'Benachrichtigungen', path.startswith('/admin/notifications')) }}
-            {{ m.nav_item('/admin/payments', 'fa-credit-card', 'PayPal &amp; Bankverbindung'|safe, path == '/admin/payments') }}
-            {{ m.nav_item('/admin/templates', 'fa-envelope-open-text', 'E-Mail-Vorlagen', path == '/admin/templates') }}
-            {{ m.nav_item('/admin/speechmind', 'fa-wand-magic-sparkles', 'SpeechMind', path == '/admin/speechmind') }}
-            {{ m.nav_item('/admin/https', 'fa-shield-halved', 'HTTPS &amp; Zertifikat'|safe, path.startswith('/admin/https')) }}
-            {{ m.nav_item('/admin/domains', 'fa-globe', 'Domains', path.startswith('/admin/domains')) }}
-            {{ m.nav_item('/admin/design', 'fa-palette', 'Design &amp; Branding'|safe, path == '/admin/design') }}
-            {{ m.nav_item('/admin/oeffentlich', 'fa-signs-post', 'Öffentliches Menü', path == '/admin/oeffentlich') }}
-            {{ m.nav_item('/admin/loeschen', 'fa-trash-can', 'Löschen &amp; Papierkorb'|safe, path.startswith('/admin/loeschen')) }}
-            {% endif %}
-            {% endcall %}
-            {% endif %}
+            <li class="nav-group nav-favs is-open" data-group="fav" {% if not nav_menu.favorites %}hidden{% endif %}>
+              <div class="nav-group-title"><i class="fa-solid fa-star" aria-hidden="true"></i><span>Favoriten</span></div>
+              <ul class="nav flex-column" id="nav-favs">{% for it in nav_menu.favorites %}{{ m.nav_entry(it, 'fav') }}{% endfor %}</ul>
+            </li>
+            {% for g in nav_menu.groups %}
+            {% call m.nav_group(g.key, g.label, nav_closed) %}{% for it in g['items'] %}{{ m.nav_entry(it) }}{% endfor %}{% endcall %}
+            {% endfor %}
+            <li class="nav-item app-nav-custom"><a class="nav-link small text-secondary" href="/profile/menu" data-label="Menü anpassen"><i class="fa-solid fa-sliders" aria-hidden="true"></i><span class="nav-label">Menü anpassen{% if nav_menu.hidden %} <span class="text-secondary">({{ nav_menu.hidden }} ausgeblendet)</span>{% endif %}</span></a></li>
           </ul>
           <p class="app-nav-empty small text-secondary px-3 py-2" hidden>Kein Menüpunkt gefunden.</p>
         </div>

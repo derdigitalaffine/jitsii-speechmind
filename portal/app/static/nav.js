@@ -73,12 +73,13 @@
     nav.classList.toggle('is-searching', !!q);
     nav.querySelectorAll(':scope > .nav-item, .nav-group').forEach(function (node) {
       if (node.classList.contains('nav-group')) {
-        var groupHit = q && norm(node.querySelector('.nav-group-toggle').textContent).indexOf(q) >= 0, shown = 0;
+        var head = node.querySelector('.nav-group-toggle, .nav-group-title');
+        var groupHit = q && head && norm(head.textContent).indexOf(q) >= 0, shown = 0;
         node.querySelectorAll('.nav-item').forEach(function (it) {
           var ok = !q || groupHit || norm(it.textContent).indexOf(q) >= 0;
           it.hidden = !ok; if (ok) shown++;
         });
-        node.hidden = q && !shown;
+        node.hidden = (q && !shown) || (node.classList.contains('nav-favs') && !node.querySelector('.nav-item'));
         if (shown && q) any = true;
       } else {
         var ok = !q || norm(node.textContent).indexOf(q) >= 0;
@@ -109,6 +110,46 @@
       if (aside && aside.classList.contains('is-rail')) applyRail(false);
       search.focus(); search.select();
     }
+  });
+
+  // --- Favoriten: Stern anheften/lösen, ohne die Seite neu zu laden ------------------------------------
+  var favGroup = nav.querySelector('.nav-favs'), favList = document.getElementById('nav-favs');
+  function renderFavs(ids) {
+    nav.querySelectorAll('.nav-pin').forEach(function (b) {
+      var on = ids.indexOf(b.dataset.pin) >= 0, label = b.closest('.nav-item').querySelector('.nav-label').textContent;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.title = on ? 'Aus Favoriten entfernen' : 'Als Favorit anheften';
+      b.setAttribute('aria-label', label + ': ' + (on ? 'aus Favoriten entfernen' : 'als Favorit anheften'));
+      b.querySelector('i').className = (on ? 'fa-solid' : 'fa-regular') + ' fa-star';
+    });
+    if (!favList) return;
+    favList.innerHTML = '';
+    ids.forEach(function (id) {
+      var src = nav.querySelector('.nav-group:not(.nav-favs) [data-nav-id="' + id + '"]');
+      if (!src) return;
+      var copy = src.cloneNode(true), link = copy.querySelector('.nav-link');
+      link.classList.remove('active'); link.removeAttribute('aria-current');
+      favList.appendChild(copy);
+    });
+    favGroup.hidden = !favList.children.length;
+  }
+  nav.addEventListener('click', function (e) {
+    var btn = e.target.closest('.nav-pin');
+    if (!btn) return;
+    e.preventDefault();
+    var body = new FormData();
+    body.append('csrf', nav.dataset.csrf);
+    body.append('id', btn.dataset.pin);
+    body.append('on', btn.classList.contains('is-on') ? '0' : '1');
+    fetch('/nav/pin', { method: 'POST', body: body, credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (d) {
+        renderFavs(d.fav || []);
+        var again = nav.querySelector('.nav-group:not(.nav-favs) .nav-pin[data-pin="' + btn.dataset.pin + '"]');
+        if (again && document.activeElement !== again && btn.isConnected) btn.focus(); else if (again) again.focus();
+      })
+      .catch(function () { btn.classList.add('text-danger'); });
   });
 
   // --- Pfeiltasten im Menü ----------------------------------------------------------------------------
