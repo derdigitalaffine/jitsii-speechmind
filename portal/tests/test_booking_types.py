@@ -164,3 +164,37 @@ def test_approval_flow_and_management_page():
         assert any(t.name == "Fundsachen" for t in page.types)
         assert sum(1 for h in page.hours if h.start == "14:00") == 2
 
+
+
+def test_custom_fields_validation_mail_and_export():
+    page_id, a_id, b_id, anna, ben = make_page()
+    admin = login(*ADMIN)
+    mg = admin.get(f"/bookings/{page_id}/arten")
+    admin.post(f"/bookings/{page_id}/arten", data={
+        "csrf": csrf_of(mg.text), "type_id": str(b_id), "name": "Gewerbeanmeldung", "duration_minutes": "15",
+        "providers": [str(anna)], "phone_mode": "none", "active": "1",
+        "f_label": ["Art des Gewerbes", "Rechtsform", "", "Beginn"], "f_kind": ["text", "select", "text", "date"],
+        "f_options": ["", "Einzelunternehmen; GmbH", "", ""], "f_help": ["", "", "", ""], "f_required": ["0", "1"]})
+    with SessionLocal() as db:
+        fields = btypes.fields(db.get(BookingType, b_id))
+    assert [f["label"] for f in fields] == ["Art des Gewerbes", "Rechtsform", "Beginn"]
+    assert fields[1]["options"] == ["Einzelunternehmen", "GmbH"] and fields[0]["required"] and not fields[2]["required"]
+    c = client()
+    html = c.get(f"/b/bt-buergerbuero-token-123?art={b_id}").text
+    assert 'name="q_f2"' in html and "<option>GmbH</option>" in html
+    slot = re.search(r'name="slot" id="s-1-[^"]+" value="([^"]+)"', html).group(1)
+    base = {"csrf": csrf_of(html), "art": str(b_id), "slot": slot, "name": "Gewerbe", "email": "gew@example.org"}
+    bad = c.post("/b/bt-buergerbuero-token-123", data={**base, "q_f1": "Bäckerei", "q_f2": "AG"}, follow_redirects=True)
+    assert "aus der Liste" in bad.text
+    ok = c.post("/b/bt-buergerbuero-token-123", data={**base, "q_f1": "Bäckerei", "q_f2": "GmbH", "q_f3": "2026-11-01"})
+    assert ok.status_code == 303 and "/b/m/" in ok.headers["location"]
+    with SessionLocal() as db:
+        b = db.scalar(select(Booking).where(Booking.email == "gew@example.org"))
+        assert btypes.answers_text(b) == "Art des Gewerbes: Bäckerei\nRechtsform: GmbH\nBeginn: 01.11.2026"
+        mail = db.scalar(select(Notification).where(Notification.kind == "booking_owner",
+                                                    Notification.to_addr == "anna.bt@example.org"))
+        assert "Rechtsform: GmbH" in mail.body
+    detail = admin.get(f"/bookings/{page_id}").text
+    assert "Rechtsform:" in detail
+    csv = admin.get(f"/bookings/{page_id}/export.csv?status=all").text
+    assert "Gewerbeanmeldung" in csv and "Rechtsform: GmbH" in csv

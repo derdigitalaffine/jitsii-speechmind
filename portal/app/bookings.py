@@ -231,7 +231,8 @@ def _notify_owner(db, b: Booking, event: str) -> None:
     for who in targets:
         subject, body = mailtpl.render(db, "booking_owner", _values(db, b, {
             "ereignis": event, "name": who.name, "gast": f"{b.name} <{b.email}>" + (f", Tel. {b.phone}" if b.phone else ""),
-            "nachricht": b.note or "", "frei": free, "link": f"{settings.portal_base_url}/bookings/{page.id}"}), cfg)
+            "nachricht": "\n\n".join(x for x in (_answers_text(b), b.note or "") if x), "frei": free,
+            "link": f"{settings.portal_base_url}/bookings/{page.id}"}), cfg)
         notify.enqueue(db, who.email, subject, body, "booking_owner", cfg)
 
 
@@ -510,6 +511,16 @@ def filter_bookings(page: BookingPage, status: str = "upcoming", date_from: str 
     return items
 
 
+def answers(b: Booking) -> list[dict]:
+    from . import btypes
+    return btypes.answers_of(b)
+
+
+def _answers_text(b: Booking) -> str:
+    from . import btypes
+    return btypes.answers_text(b)
+
+
 def _row(b: Booking) -> dict:
     return {"id": b.id, "beginn": to_local(b.starts_at).isoformat(timespec="minutes"),
             "ende": to_local(b.ends_at).isoformat(timespec="minutes"), "name": b.name, "email": b.email,
@@ -517,7 +528,9 @@ def _row(b: Booking) -> dict:
             "status": STATUS_TEXT.get(b.status, "abgesagt"),
             "gebucht_am": to_local(b.created_at).isoformat(timespec="seconds"),
             "abgesagt_von": {"guest": "Gast", "owner": "Anbieter"}.get(b.cancelled_by) if b.status == "cancelled" else None,
-            "absagegrund": b.cancel_reason or None}
+            "absagegrund": b.cancel_reason or None,
+            "terminart": b.type.name if b.type else None, "zustaendig": b.provider.name if b.provider else None,
+            "angaben": {a["label"]: a["value"] for a in answers(b)} or None}
 
 
 def to_csv(page: BookingPage, items: list[Booking] | None = None) -> str:
@@ -525,12 +538,13 @@ def to_csv(page: BookingPage, items: list[Booking] | None = None) -> str:
     buf = io.StringIO()
     w = csvsafe.writer(buf, delimiter=";")
     w.writerow(["Datum", "Beginn", "Ende", "Name", "E-Mail", "Telefon", "Nachricht", "Status", "Gebucht am",
-                "Abgesagt von", "Grund"])
+                "Abgesagt von", "Grund", "Terminart", "Zuständig", "Angaben"])
     for b in items:
         r = _row(b)
         w.writerow([to_local(b.starts_at).strftime("%d.%m.%Y"), to_local(b.starts_at).strftime("%H:%M"),
                     to_local(b.ends_at).strftime("%H:%M"), b.name, b.email, b.phone, b.note, r["status"],
-                    to_local(b.created_at).strftime("%d.%m.%Y %H:%M"), r["abgesagt_von"] or "", b.cancel_reason])
+                    to_local(b.created_at).strftime("%d.%m.%Y %H:%M"), r["abgesagt_von"] or "", b.cancel_reason,
+                    r["terminart"] or "", r["zustaendig"] or "", _answers_text(b).replace("\n", " | ")])
     return "\ufeff" + buf.getvalue()
 
 

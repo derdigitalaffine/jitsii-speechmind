@@ -26,6 +26,19 @@
   <div class="col-12"><label class="form-label" for="{{ fid }}-p">Zuständige Mitarbeitende</label>
     <select class="form-select js-select" id="{{ fid }}-p" name="providers" multiple data-search="1">{% for u in users %}<option value="{{ u.id }}" {% if t and u in t.providers %}selected{% endif %}>{{ u.name }}</option>{% endfor %}</select>
     <div class="form-text">Jede Person bietet Termine in ihren Sprechzeiten an (unten). Sind mehrere frei, verteilt das Portal gleichmäßig.</div></div>
+  <div class="col-12"><details {% if t and fields(t) %}open{% endif %}><summary class="fw-semibold small mb-2">Eigene Fragen an Bürger:innen ({{ fields(t) | length if t else 0 }})</summary>
+    <div class="form-text mb-2">Werden bei der Buchung abgefragt, stehen in der Mail an die Zuständigen und im Export. Bei „Auswahl“ die Einträge mit Semikolon trennen. Leere Zeilen werden ignoriert.</div>
+    {% set fl = fields(t) if t else [] %}
+    {% for i in range([fl | length + 2, max_fields] | min) %}{% set f = fl[i] if i < fl | length else {} %}
+    <div class="row g-2 mb-2 align-items-center">
+      <div class="col-md-4"><input class="form-control form-control-sm" name="f_label" value="{{ f.label or '' }}" maxlength="120" placeholder="Frage, z. B. Flurstück" aria-label="Frage {{ i + 1 }}"></div>
+      <div class="col-md-2"><select class="form-select form-select-sm" name="f_kind" aria-label="Art Frage {{ i + 1 }}">{% for k, v in field_kinds.items() %}<option value="{{ k }}" {% if (f.kind or 'text') == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><input class="form-control form-control-sm" name="f_options" value="{{ (f.options or []) | join('; ') }}" placeholder="Auswahl: a; b; c" aria-label="Auswahl Frage {{ i + 1 }}"></div>
+      <div class="col-md-2"><input class="form-control form-control-sm" name="f_help" value="{{ f.help or '' }}" maxlength="200" placeholder="Hinweis" aria-label="Hinweis Frage {{ i + 1 }}"></div>
+      <div class="col-md-1"><div class="form-check"><input class="form-check-input" type="checkbox" name="f_required" value="{{ i }}" id="{{ fid }}-r{{ i }}" {% if f.required %}checked{% endif %}><label class="form-check-label small" for="{{ fid }}-r{{ i }}">Pflicht</label></div></div>
+    </div>
+    {% endfor %}
+  </details></div>
   <div class="col-12 d-flex flex-wrap gap-4">
     <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="{{ fid }}-c" name="choose_provider" value="1" {% if t and t.choose_provider %}checked{% endif %}><label class="form-check-label" for="{{ fid }}-c">Bürger:innen dürfen die Person wählen</label></div>
     <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="{{ fid }}-a" name="approval" value="1" {% if t and t.approval %}checked{% endif %}><label class="form-check-label" for="{{ fid }}-a">Termin erst nach Bestätigung durch Mitarbeitende</label></div>

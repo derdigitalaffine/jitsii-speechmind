@@ -91,7 +91,7 @@
         <td data-order="{{ b.starts_at.isoformat() }}" class="text-nowrap">{{ label(b.starts_at, b.ends_at) }}<div class="small text-secondary">gebucht {{ b.created_at | local('%d.%m. %H:%M') }}</div></td>
         <td class="fw-semibold">{{ b.name }}{% if b.type %}<div class="small text-secondary fw-normal">{{ b.type.name }}{% if b.provider %} · {{ b.provider.name }}{% endif %}</div>{% endif %}</td>
         <td class="small"><a href="mailto:{{ b.email }}">{{ b.email }}</a>{% if b.phone %}<br><a href="tel:{{ b.phone }}">{{ b.phone }}</a>{% endif %}</td>
-        <td class="small text-break" style="max-width: 18rem">{{ b.note }}</td>
+        <td class="small text-break" style="max-width: 18rem">{% for a in answers(b) %}<div><span class="text-secondary">{{ a.label }}:</span> {{ a.value or '–' }}</div>{% endfor %}{{ b.note }}</td>
         <td>{% if b.status == 'cancelled' %}<span class="badge text-bg-danger">abgesagt</span><div class="small text-secondary">von {{ 'Gast' if b.cancelled_by == 'guest' else 'Ihnen' }}{% if b.cancel_reason %}: {{ b.cancel_reason }}{% endif %}</div>{% elif b.ends_at < now %}<span class="badge text-bg-secondary">vergangen</span>{% elif b.status == 'requested' %}<span class="badge text-bg-warning">angefragt</span>{% else %}<span class="badge text-bg-success">gebucht</span>{% endif %}</td>
         <td class="col-actions">{% if active_b %}<div class="d-inline-flex gap-1">
           {% if b.meeting_id %}<a class="btn btn-sm btn-outline-primary" href="/meetings/{{ b.meeting_id }}/join" title="Videokonferenz betreten" aria-label="Videokonferenz betreten"><i class="fa-solid fa-video"></i></a>{% endif %}
