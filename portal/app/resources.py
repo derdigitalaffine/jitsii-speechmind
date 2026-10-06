@@ -35,7 +35,11 @@ STATUSES = {
     "expired": ("verfallen", "secondary", "fa-clock-rotate-left"),
 }
 ACTIVE = ("unconfirmed", "requested", "confirmed")
-EXTRA_PER = {"once": "pauschal", "day": "je Tag", "hour": "je Stunde", "piece": "je Stück"}
+EXTRA_PER = {"once": "pauschal", "day": "je Tag", "hour": "je Stunde", "piece": "je Stück", "person": "je Person",
+             "persons": "je angefangene N Personen", "tier": "Staffel nach Personenzahl"}
+PERSON_PER = ("person", "persons", "tier")
+CANCEL_RULES = {"": "wie Storno-Regel", "refund": "bei Absage immer erstattet", "keep": "bleibt bei Absage fällig",
+                "only": "nur bei Absage (z. B. Nachvermietung)"}
 UNCONFIRMED_HOURS = 24
 TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 
@@ -85,6 +89,102 @@ def extras_of(b: ResourceBooking) -> list[dict]:
 
 def lines_of(b: ResourceBooking) -> list[dict]:
     return _json(b.lines_json, [])
+
+
+def cancel_items_of(b: ResourceBooking) -> list[dict]:
+    return _json(b.cancel_json, [])
+
+
+# --- Preisbestandteile nach Personenzahl -------------------------------------------------------
+
+TIER_RE = re.compile(r"(?:bis\s*)?(\d+|darüber|darueber|\*)\s*(?:personen|pers\.?|p\.?)?\s*[:=]\s*(\d[\d.]*(?:,\d{1,2})?)", re.I)
+
+
+def tiers(ex: ResourceExtra) -> list[dict]:
+    """Staffel sortiert, „darüber“ (upto 0) zuletzt."""
+    rows = [t for t in _json(ex.tiers_json, []) if isinstance(t, dict) and isinstance(t.get("cents"), int)]
+    return sorted(rows, key=lambda t: (t.get("upto") or 10**9))
+
+
+def parse_tiers(text: str) -> list[dict]:
+    """„bis 50: 20; bis 100: 35,50; darüber: 50“ → [{"upto": 50, "cents": 2000}, …]. Getrennt durch ; oder Zeilen."""
+    out = []
+    for part in re.split(r"[;\n]+", str(text or "")):
+        m = TIER_RE.search(part.strip())
+        if not m:
+            continue
+        upto = 0 if not m.group(1).isdigit() else int(m.group(1))
+        out.append({"upto": upto, "cents": parse_cents(m.group(2))})
+    seen, rows = set(), []
+    for t in sorted(out, key=lambda t: (t["upto"] or 10**9)):
+        if t["upto"] not in seen:
+            seen.add(t["upto"])
+            rows.append(t)
+    return rows[:20]
+
+
+def tiers_text(rows: list[dict]) -> str:
+    return "; ".join((f"bis {t['upto']}" if t["upto"] else "darüber") + ": " + pay.money(t["cents"]).replace(" €", "")
+                     for t in rows)
+
+
+def needs_persons(res: Resource) -> bool:
+    return any(x.active and x.per in PERSON_PER for x in res.extras)
+
+
+def extra_amount(ex: ResourceExtra, qty: int, persons: int, days_n: int, hours_n: float) -> tuple[int, str]:
+    """Betrag eines Preisbestandteils und ein Zusatz für die Bezeichnung (z. B. „× 3 (je angefangene 25 Personen)“)."""
+    if ex.per == "person":
+        cents, note = ex.price_cents * persons, f" × {persons} Personen"
+    elif ex.per == "persons":
+        n = max(1, ex.per_n or 1)
+        groups = -(-persons // n) if persons else 0
+        cents, note = ex.price_cents * groups, f" × {groups} (je angefangene {n} Personen)"
+    elif ex.per == "tier":
+        rows = tiers(ex)
+        hit = next((t for t in rows if t["upto"] and persons <= t["upto"]), None) or \
+            next((t for t in rows if not t["upto"]), None) or (rows[-1] if rows else None)
+        cents = hit["cents"] if hit else 0
+        top = max((t["upto"] for t in rows), default=0)
+        note = "" if not persons or not hit else (f" (bis {hit['upto']} Personen)" if hit["upto"]
+                                                  else f" (mehr als {top} Personen)" if top else "")
+    else:
+        factor = {"once": 1, "piece": qty, "day": qty * days_n, "hour": qty * hours_n}[ex.per]
+        cents = round(ex.price_cents * factor)
+        note = {"once": "", "piece": "", "day": f" × {days_n} Tag(e)", "hour": f" × {round(hours_n, 2)} Std."}[ex.per]
+    if ex.min_cents and cents < ex.min_cents:
+        cents, note = ex.min_cents, note + " (Mindestbetrag)"
+    if ex.max_cents and cents > ex.max_cents:
+        cents, note = ex.max_cents, note + " (Höchstbetrag)"
+    return round(cents), note
+
+
+def extra_price_text(ex: ResourceExtra) -> str:
+    """Preisangabe für Buchungsformular und Preisübersicht."""
+    if ex.per == "tier":
+        text = "Staffel: " + "; ".join((f"bis {t['upto']} Pers. " if t["upto"] else "darüber ") + pay.money(t["cents"])
+                                       for t in tiers(ex))
+    elif ex.per == "persons":
+        text = f"{pay.money(ex.price_cents)} je angefangene {max(1, ex.per_n or 1)} Personen"
+    else:
+        text = f"{pay.money(ex.price_cents)} {EXTRA_PER.get(ex.per, '')}".strip()
+    if ex.min_cents:
+        text += f", mind. {pay.money(ex.min_cents)}"
+    if ex.max_cents:
+        text += f", höchstens {pay.money(ex.max_cents)}"
+    return text
+
+
+def extra_cancel_text(ex: ResourceExtra) -> str:
+    days = ex.cancel_days or 0
+    when = f"bei Absage weniger als {days} Tage vor Beginn" if days else "bei Absage"
+    if ex.cancel_rule == "keep":
+        return f"bleibt {when} fällig"
+    if ex.cancel_rule == "only":
+        return f"wird nur {when} berechnet"
+    if ex.cancel_rule == "refund":
+        return "wird bei Absage erstattet"
+    return ""
 
 
 def answers_of(b: ResourceBooking) -> dict:
@@ -384,7 +484,11 @@ def quote(db, res: Resource, data, staff: bool = False, exclude_id: int | None =
                 errors.append("Bitte einen Tarif wählen.")
             tariff = res.tariffs[0]
     pct = tariff.percent if tariff else 100
-    lines, warnings = [], []
+    lines, warnings, cancel_only = [], [], []
+    raw_persons = str(data.get("persons", "") or "0").strip()
+    persons = min(int(raw_persons), 100000) if raw_persons.isdigit() else 0
+    if needs_persons(res) and not persons and not staff:
+        errors.append("Bitte die Personenzahl angeben – der Preis hängt davon ab.")
     if sp["start"] and not sp["errors"]:
         now = utcnow()
         if not staff:
@@ -435,36 +539,38 @@ def quote(db, res: Resource, data, staff: bool = False, exclude_id: int | None =
                 continue
             raw = str(data.get(f"extra_{ex.id}", "") or "0")
             qty = int(raw) if raw.isdigit() else 0
-            if ex.mandatory:
+            if ex.mandatory or ex.cancel_rule == "only":
                 qty = max(qty, 1)
             if not qty:
                 continue
-            if ex.per == "once":
+            if ex.per in ("once",) + PERSON_PER:
                 qty = 1
             qty = min(qty, max(1, ex.max_qty or 1))
+            cents, note = extra_amount(ex, qty, persons, days_n, hours_n)
+            if ex.cancel_rule == "only":
+                # z. B. Nachvermietung: steht nicht in der Rechnung, nur bei Absage innerhalb der Frist
+                cancel_only.append({"label": ex.name, "cents": cents, "days": ex.cancel_days or 0})
+                continue
             if ex.stock is not None:
                 free = ex.stock - _stock_used(db, res, ex, sp["start"], sp["end"], exclude_id)
                 if qty > free:
                     errors.append(f"„{ex.name}“: nur noch {max(0, free)} verfügbar.")
-            factor = {"once": 1, "piece": qty, "day": qty * days_n, "hour": qty * hours_n}[ex.per]
-            cents = round(ex.price_cents * factor)
-            per = {"once": "", "piece": "", "day": f" × {days_n} Tag(e)", "hour": f" × {round(hours_n, 2)} Std."}[ex.per]
-            lines.append({"label": f"{ex.name}{per}", "qty": qty, "unit_cents": ex.price_cents, "cents": cents, "kind": "extra"})
+            lines.append({"label": f"{ex.name}{note}", "qty": qty, "unit_cents": ex.price_cents, "cents": cents, "kind": "extra",
+                          "cancel": ex.cancel_rule, "cancel_days": ex.cancel_days or 0})
             chosen_extras.append({"id": ex.id, "name": ex.name, "qty": qty})
         if res.deposit_cents:
             lines.append({"label": "Kaution (wird nach der Rückgabe erstattet)", "qty": 1, "unit_cents": res.deposit_cents,
                           "cents": res.deposit_cents, "kind": "deposit"})
     else:
         chosen_extras = []
-    persons = str(data.get("persons", "") or "0")
     cap = sum(known[i].capacity for i in ids) if ids else res.capacity
-    if persons.isdigit() and cap and int(persons) > cap:
+    if cap and persons > cap:
         warnings.append(f"Für bis zu {cap} Personen ausgelegt.")
     total = sum(line["cents"] for line in lines)
     deposit = sum(line["cents"] for line in lines if line["kind"] == "deposit")
     return {"ok": not errors and sp["start"] is not None, "errors": errors, "warnings": warnings, "lines": lines,
             "total": total, "deposit": deposit, "start": sp["start"], "end": sp["end"], "mode": sp["mode"],
-            "unit_ids": ids, "tariff": tariff, "extras": chosen_extras, "busy": bool(sp["start"] and not sp["errors"] and any(
+            "unit_ids": ids, "tariff": tariff, "extras": chosen_extras, "cancel_only": cancel_only, "persons": persons, "busy": bool(sp["start"] and not sp["errors"] and any(
                 e.startswith(("Belegt", "Vorgemerkt")) for e in errors)),
             "when": when_text(ResourceBooking(starts_at=sp["start"], ends_at=sp["end"], mode=sp["mode"])) if sp["start"] else ""}
 
@@ -473,7 +579,8 @@ def quote_json(q: dict) -> dict:
     return {"ok": q["ok"], "errors": q["errors"], "warnings": q["warnings"], "when": q["when"],
             "lines": [{"label": ln["label"], "qty": ln["qty"], "cents": ln["cents"], "unit_cents": ln["unit_cents"],
                        "money": pay.money(ln["cents"]), "kind": ln["kind"]} for ln in q["lines"]],
-            "total": pay.money(q["total"]), "deposit": pay.money(q["deposit"]), "total_cents": q["total"], "busy": q["busy"]}
+            "total": pay.money(q["total"]), "deposit": pay.money(q["deposit"]), "total_cents": q["total"], "busy": q["busy"],
+            "cancel_only": [{"label": c["label"], "money": pay.money(c["cents"]), "days": c["days"]} for c in q.get("cancel_only", [])]}
 
 
 # --- Buchung anlegen und Statuswechsel --------------------------------------------------------
@@ -521,6 +628,7 @@ def create(db, res: Resource, q: dict, contact: dict, answers: dict, *, internal
                         tariff_id=q["tariff"].id if q["tariff"] else None, tariff_name=q["tariff"].name if q["tariff"] else "",
                         extras_json=json.dumps(q["extras"], ensure_ascii=False), answers_json=json.dumps(answers, ensure_ascii=False),
                         lines_json=json.dumps(lines, ensure_ascii=False), total_cents=0 if free else q["total"],
+                        cancel_json=json.dumps([] if free else q.get("cancel_only", []), ensure_ascii=False),
                         deposit_cents=0 if free else q["deposit"], token=secrets.token_urlsafe(24),
                         confirm_code=secrets.token_urlsafe(12), internal=internal, created_by=by[:255], series_id=series_id,
                         status="confirmed" if internal else "unconfirmed", group_ref=group_ref,
@@ -725,19 +833,47 @@ def cancel_rules_text(res: Resource) -> str:
     if not res.self_cancel:
         return "Eine Stornierung ist nur über die Verwaltung möglich."
     if not res.cancel_fee_percent:
-        return "Sie können bis zum Beginn kostenlos stornieren."
-    return (f"Bis {res.cancel_free_days} Tage vor Beginn kostenlos, danach werden {res.cancel_fee_percent} % der Kosten "
-            "(ohne Kaution) einbehalten.")
+        text = "Sie können bis zum Beginn kostenlos stornieren."
+    else:
+        text = (f"Bis {res.cancel_free_days} Tage vor Beginn kostenlos, danach werden {res.cancel_fee_percent} % der Kosten "
+                "(ohne Kaution) einbehalten.")
+    extra = [f"„{ex.name}“ {extra_cancel_text(ex)}" for ex in res.extras if ex.active and ex.cancel_rule in ("keep", "only")]
+    if extra:
+        if res.cancel_fee_percent:
+            text += " Abweichend: " + "; ".join(extra) + "."
+        else:
+            text = text.replace("kostenlos stornieren.", "stornieren. Ausnahme: ") + "; ".join(extra) + "."
+    return text
+
+
+def cancel_fee_lines(b: ResourceBooking) -> list[dict]:
+    """Was bei einer Absage jetzt fällig wäre – je Preisbestandteil:
+    Bestandteile mit eigener Regel („bleibt fällig“/„nur bei Absage“, Frist in Tagen) und für alle übrigen
+    (ohne Kaution) die Storno-Regel der Ressource (x % ab y Tagen vor Beginn)."""
+    res = b.resource
+    if b.status != "confirmed":
+        return []
+    days = (to_local(b.starts_at).date() - to_local(utcnow()).date()).days
+    out, pct_base = [], 0
+    for ln in lines_of(b):
+        if ln.get("kind") == "deposit":
+            continue
+        rule = ln.get("cancel", "")
+        if rule == "keep":
+            if days < int(ln.get("cancel_days") or 0):
+                out.append({"label": f"{ln['label']} (bleibt fällig)", "cents": int(ln["cents"])})
+        elif rule != "refund":
+            pct_base += int(ln["cents"])
+    if res.cancel_fee_percent and days < (res.cancel_free_days or 0) and pct_base:
+        out.insert(0, {"label": f"Stornogebühr ({res.cancel_fee_percent} %)", "cents": round(pct_base * res.cancel_fee_percent / 100)})
+    for item in cancel_items_of(b):
+        if days < int(item.get("days") or 0) or not item.get("days"):
+            out.append({"label": str(item.get("label", "Bei Absage")), "cents": int(item.get("cents") or 0)})
+    return [x for x in out if x["cents"] > 0]
 
 
 def cancel_fee(b: ResourceBooking) -> int:
-    res = b.resource
-    if not res.cancel_fee_percent or b.status != "confirmed":
-        return 0
-    days = (to_local(b.starts_at).date() - to_local(utcnow()).date()).days
-    if days >= (res.cancel_free_days or 0):
-        return 0
-    return round((b.total_cents - b.deposit_cents) * res.cancel_fee_percent / 100)
+    return sum(x["cents"] for x in cancel_fee_lines(b))
 
 
 def can_self_cancel(b: ResourceBooking) -> bool:
@@ -748,7 +884,8 @@ def cancel(db, b: ResourceBooking, by: str, reason: str = "", staff: bool = Fals
     """Stornieren. Bezahltes wird (abzüglich Gebühr) erstattet, Offenes storniert. Gibt einen Hinweistext zurück."""
     if b.status not in ACTIVE:
         return ""
-    fee = 0 if (staff and waive_fee) or staff else cancel_fee(b)
+    fee_lines = [] if staff else cancel_fee_lines(b)
+    fee = sum(x["cents"] for x in fee_lines)
     info = ""
     p = b.payment
     others = [m for m in db.scalars(select(ResourceBooking).where(ResourceBooking.payment_id == p.id,
@@ -773,7 +910,7 @@ def cancel(db, b: ResourceBooking, by: str, reason: str = "", staff: bool = Fals
                     pay.request_payment(db, np)
             if fee:
                 fp = pay.create(db, kind="resource", subject_id=b.id, purpose=f"Stornogebühr {b.ref}",
-                                lines=[{"label": f"Stornogebühr ({b.resource.cancel_fee_percent} %)", "unit_cents": fee}],
+                                lines=[{"label": x["label"], "unit_cents": x["cents"]} for x in fee_lines],
                                 payer_name=b.name, payer_email=b.email, methods=b.resource.pay_methods,
                                 cost_center=b.resource.cost_center, back_url=f"/r/b/{b.token}")
                 b.payment_id = fp.id
@@ -832,6 +969,7 @@ def change(db, b: ResourceBooking, res: Resource, q: dict, user: User, *, contac
         lines = [{"label": f"{res.name}: {q['when']} (Preis festgelegt)", "qty": 1, "unit_cents": price_cents - deposit,
                   "cents": price_cents - deposit, "kind": "rent"}] + [ln for ln in lines if ln["kind"] == "deposit"]
     b.lines_json = json.dumps(lines, ensure_ascii=False)
+    b.cancel_json = json.dumps(q.get("cancel_only", []) if lines and price_cents is None else [], ensure_ascii=False)
     b.total_cents = sum(ln["cents"] for ln in lines)
     b.deposit_cents = sum(ln["cents"] for ln in lines if ln["kind"] == "deposit")
     for key, value in (contact or {}).items():

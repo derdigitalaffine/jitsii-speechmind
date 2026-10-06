@@ -9,13 +9,15 @@
   var uid = function () { return Math.random().toString(36).slice(2, 8); };
   var DAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 
-  // Generischer Zeilen-Editor: cols = [{key, label, type, cls, placeholder, options}]
+  // Generischer Zeilen-Editor: cols = [{key, label, type, cls, placeholder, options, show(row), rerender, help}]
+  // show: Spalte nur anzeigen, wenn show(row) wahr ist; rerender: nach Änderung neu zeichnen (abhängige Spalten)
   function table(el, rows, cols, blank, addLabel) {
     function render() {
       el.innerHTML = (rows.length ? rows.map(function (r, i) {
         return '<div class="row g-2 align-items-end mb-2 pb-2 border-bottom" data-i="' + i + '">' + cols.map(function (c) {
           var v = r[c.key];
           var input;
+          if (c.show && !c.show(r)) return '';
           if (c.type === 'check') {
             input = '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" data-k="' + c.key + '" id="' + el.id + i + c.key + '"' + (v ? ' checked' : '') + '><label class="form-check-label small" for="' + el.id + i + c.key + '">' + esc(c.label) + '</label></div>';
             return '<div class="' + (c.cls || 'col-auto') + '">' + input + '</div>';
@@ -25,7 +27,9 @@
           } else {
             input = '<input class="form-control form-control-sm" data-k="' + c.key + '" type="' + (c.type || 'text') + '" value="' + esc(v == null ? '' : v) + '" placeholder="' + esc(c.placeholder || '') + '"' + (c.type === 'time' ? '' : '') + '>';
           }
-          return '<div class="' + (c.cls || 'col') + '"><label class="form-label small mb-0">' + esc(c.label) + '</label>' + input + '</div>';
+          var id = el.id + i + c.key;
+          input = input.replace(' data-k="', ' id="' + id + '"' + (c.help ? ' title="' + esc(c.help) + '"' : '') + ' data-k="');
+          return '<div class="' + (c.cls || 'col') + '"><label class="form-label small mb-0" for="' + id + '">' + esc(c.label) + '</label>' + input + '</div>';
         }).join('') + '<div class="col-auto"><button class="btn btn-sm btn-outline-secondary" type="button" data-up="' + i + '" aria-label="nach oben"><i class="fa-solid fa-arrow-up"></i></button> <button class="btn btn-sm btn-outline-danger" type="button" data-del="' + i + '" aria-label="entfernen"><i class="fa-solid fa-xmark"></i></button></div></div>';
       }).join('') : '<div class="small text-secondary mb-2">Noch keine Einträge.</div>') +
         '<button class="btn btn-sm btn-outline-primary" type="button" data-add="1"><i class="fa-solid fa-plus me-1"></i>' + esc(addLabel) + '</button>';
@@ -37,6 +41,8 @@
     el.addEventListener('change', function (e) {
       var row = e.target.closest('[data-i]'); if (!row || !e.target.dataset.k) return;
       rows[+row.dataset.i][e.target.dataset.k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+      var col = cols.filter(function (c) { return c.key === e.target.dataset.k; })[0];
+      if (col && col.rerender) { render(); var again = el.querySelector('[data-i="' + row.dataset.i + '"] [data-k="' + col.key + '"]'); if (again) again.focus(); }
     });
     el.addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b) return;
@@ -64,15 +70,26 @@
     { key: 'description', label: 'Hinweis', cls: 'col-8 col-md-4', placeholder: 'z. B. eingetragene Vereine aus der VG' },
     { key: 'needs_proof', label: 'Nachweis hochladen', type: 'check', cls: 'col-auto' }],
     function () { return { name: '', percent: 100, description: '', needs_proof: false }; }, 'Tarif hinzufügen');
+  var PERSON = ['person', 'persons', 'tier'];
   var extras = table(document.getElementById('ed-extras'), D.extras, [
-    { key: 'name', label: 'Leistung', cls: 'col-12 col-md-3', placeholder: 'z. B. Endreinigung' },
-    { key: 'price', label: 'Preis €', cls: 'col-4 col-md-1' },
-    { key: 'per', label: 'Abrechnung', type: 'select', cls: 'col-4 col-md-2', options: Object.keys(D.per).map(function (k) { return [k, D.per[k]]; }) },
-    { key: 'max_qty', label: 'max. Anzahl', type: 'number', cls: 'col-4 col-md-1' },
-    { key: 'stock', label: 'Bestand', type: 'number', cls: 'col-4 col-md-1', placeholder: '∞' },
-    { key: 'description', label: 'Hinweis', cls: 'col-8 col-md-2' },
-    { key: 'mandatory', label: 'Pflicht', type: 'check', cls: 'col-auto' }, { key: 'active', label: 'aktiv', type: 'check', cls: 'col-auto' }],
-    function () { return { name: '', price: '', per: 'once', max_qty: 1, stock: '', description: '', mandatory: false, active: true }; }, 'Zusatzleistung hinzufügen');
+    { key: 'name', label: 'Leistung / Preisbestandteil', cls: 'col-12 col-md-3', placeholder: 'z. B. Wasser, Kanal, Strom' },
+    { key: 'per', label: 'Abrechnung', type: 'select', cls: 'col-6 col-md-3', rerender: true, options: Object.keys(D.per).map(function (k) { return [k, D.per[k]]; }) },
+    { key: 'price', label: 'Preis €', cls: 'col-3 col-md-1', show: function (r) { return r.per !== 'tier'; } },
+    { key: 'per_n', label: 'je N Pers.', type: 'number', cls: 'col-3 col-md-1', placeholder: '25', show: function (r) { return r.per === 'persons'; } },
+    { key: 'tiers', label: 'Staffel (bis Personen: €)', cls: 'col-12 col-md-4', placeholder: 'bis 50: 20; bis 100: 35; darüber: 50', show: function (r) { return r.per === 'tier'; },
+      help: 'Je Stufe „bis Personenzahl: Betrag“, getrennt durch Semikolon; „darüber: Betrag“ für alles Größere' },
+    { key: 'max_qty', label: 'max. Anzahl', type: 'number', cls: 'col-3 col-md-1', show: function (r) { return PERSON.indexOf(r.per) < 0 && r.per !== 'once'; } },
+    { key: 'stock', label: 'Bestand', type: 'number', cls: 'col-3 col-md-1', placeholder: '∞', show: function (r) { return PERSON.indexOf(r.per) < 0; } },
+    { key: 'min', label: 'Min. €', cls: 'col-3 col-md-1', placeholder: '–', help: 'Mindestbetrag' },
+    { key: 'max', label: 'Max. €', cls: 'col-3 col-md-1', placeholder: '–', help: 'Höchstbetrag' },
+    { key: 'cancel_rule', label: 'Bei Absage', type: 'select', cls: 'col-6 col-md-3', rerender: true, options: Object.keys(D.cancelRules).map(function (k) { return [k, D.cancelRules[k]]; }) },
+    { key: 'cancel_days', label: 'Frist (Tage)', type: 'number', cls: 'col-3 col-md-2', placeholder: '0', show: function (r) { return r.cancel_rule === 'keep' || r.cancel_rule === 'only'; },
+      help: 'Gilt bei Absage weniger als so viele Tage vor Beginn (0 = immer)' },
+    { key: 'description', label: 'Hinweis', cls: 'col-12 col-md-3' },
+    { key: 'mandatory', label: 'Pflicht', type: 'check', cls: 'col-auto', show: function (r) { return r.cancel_rule !== 'only'; } },
+    { key: 'active', label: 'aktiv', type: 'check', cls: 'col-auto' }],
+    function () { return { name: '', price: '', per: 'once', max_qty: 1, stock: '', description: '', mandatory: false, active: true, per_n: '', tiers: '', min: '', max: '', cancel_rule: '', cancel_days: '' }; },
+    'Preisbestandteil hinzufügen');
   var blocks = table(document.getElementById('ed-blocks'), D.blocks, [
     { key: 'label', label: 'Bezeichnung', cls: 'col-12 col-md-5', placeholder: 'z. B. Vormittag' },
     { key: 'start', label: 'von', type: 'time', cls: 'col-6 col-md-3' }, { key: 'end', label: 'bis', type: 'time', cls: 'col-6 col-md-3' }],

@@ -68,6 +68,11 @@
                 '<tr class="fw-semibold border-top"><td>Zu zahlen</td><td class="text-end text-nowrap">' + esc(q.total) + '</td></tr>' : '') +
               '</tfoot></table>';
           }
+          if (q.cancel_only && q.cancel_only.length) {
+            h += '<div class="small text-secondary mt-2"><i class="fa-solid fa-circle-info me-1"></i>Nur bei Absage: ' + q.cancel_only.map(function (c) {
+              return esc(c.label) + ' ' + esc(c.money) + (c.days ? ' (weniger als ' + c.days + ' Tage vor Beginn)' : '');
+            }).join(', ') + '</div>';
+          }
           out.innerHTML = h || '<div class="text-secondary small">Zeitraum wählen – der Preis erscheint hier.</div>';
           var offer = document.getElementById('res-wait-offer');
           if (offer) offer.classList.toggle('d-none', !q.waitlist);

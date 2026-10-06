@@ -26,7 +26,8 @@ FIELDS = ("name", "category", "description", "location", "lat", "lon", "capacity
 UNIT_FIELDS = ("name", "description", "capacity", "position", "price_day", "price_block", "price_hour", "wkd_day",
                "wkd_block", "wkd_hour")
 TARIFF_FIELDS = ("name", "percent", "description", "needs_proof", "position")
-EXTRA_FIELDS = ("name", "description", "price_cents", "per", "stock", "max_qty", "mandatory", "active", "position")
+EXTRA_FIELDS = ("name", "description", "price_cents", "per", "stock", "max_qty", "mandatory", "active", "position",
+                "per_n", "tiers_json", "min_cents", "max_cents", "cancel_rule", "cancel_days")
 
 # Vorlagen für den Einrichtungsassistenten: sinnvolle Startwerte je Art
 PRESETS = {
@@ -273,6 +274,8 @@ def import_(db, raw: bytes, owner) -> Resource:
                 getattr(res, key).append(model(**{k: _coerce(model, k, row.get(k)) for k in fields if k in row}))
     for x in res.extras:
         x.per = x.per if x.per in rs.EXTRA_PER else "once"
+        x.cancel_rule = x.cancel_rule if x.cancel_rule in rs.CANCEL_RULES else ""
+        x.tiers_json = json.dumps(rs.parse_tiers(rs.tiers_text(rs.tiers(x))))   # nur gültige Staffelzeilen
     if not res.tariffs:
         res.tariffs.append(ResourceTariff(name="Standard", percent=100))
     db.flush()

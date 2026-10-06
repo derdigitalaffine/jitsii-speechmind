@@ -105,7 +105,16 @@
 
   <div class="tab-pane fade" id="extras" role="tabpanel">
     <div class="card mb-3"><div class="card-header small fw-semibold">Tarifgruppen <span class="fw-normal text-secondary">(Prozent der Miete; z. B. Einheimische 100, Auswärtige 150, Vereine 50)</span></div><div class="card-body" id="ed-tariffs"></div></div>
-    <div class="card"><div class="card-header small fw-semibold">Zusatzleistungen <span class="fw-normal text-secondary">(WC-Wagen, Endreinigung, Besteck …; Bestand = gleichzeitig verfügbar)</span></div><div class="card-body" id="ed-extras"></div></div>
+    <div class="card"><div class="card-header small fw-semibold">Zusatzleistungen &amp; Preisbestandteile <span class="fw-normal text-secondary">(WC-Wagen, Endreinigung, Besteck …; Bestand = gleichzeitig verfügbar)</span></div><div class="card-body">
+      <details class="small mb-3"><summary class="text-primary">Beispiel Grillplatz: Pauschale, Nebenkosten je Personen, Nachvermietung</summary>
+        <ul class="mt-2 mb-0 text-secondary">
+          <li><strong>Pauschale 100 €</strong>: Mietpreis im Reiter „Preise“; mit der Storno-Regel (Reiter „Zahlung &amp; Storno“, z. B. 100 % ab 14 Tagen vorher) bleibt sie bei kurzfristiger Absage fällig.</li>
+          <li><strong>Wasser, Kanal, Strom 10 €</strong> je angefangene 25 Personen: Abrechnung „je angefangene N Personen“, N = 25, Pflicht, „Bei Absage“ = immer erstattet.</li>
+          <li><strong>Staffel</strong> (z. B. Reinigung): „Staffel nach Personenzahl“, <code>bis 50: 20; bis 100: 35; darüber: 50</code>. Mindest-/Höchstbetrag gelten für jede Abrechnungsart.</li>
+          <li><strong>Nachvermietungskosten 25 €</strong>: „Bei Absage“ = nur bei Absage, z. B. 7 Tage vorher – erscheint nicht in der Rechnung, nur bei einer späten Absage.</li>
+        </ul>
+        Sobald ein Bestandteil von der Personenzahl abhängt, fragt das Buchungsformular die Personen gleich im ersten Schritt ab.</details>
+      <div id="ed-extras"></div></div></div>
   </div>
 
   <div class="tab-pane fade" id="formular" role="tabpanel"><div class="card"><div class="card-body">

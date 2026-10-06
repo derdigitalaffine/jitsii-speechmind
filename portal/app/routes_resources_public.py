@@ -51,7 +51,8 @@ def _cart(request, db) -> list[ResourceBooking]:
 def booking_ctx(db, res: Resource, request=None, club=None) -> dict:
     cart = _cart(request, db) if request is not None else []
     return {"res": res, "modes": rs.MODES, "res_modes": rs.modes(res), "blocks": rs.blocks(res), "hours": rs.hours(res),
-            "extra_per": rs.EXTRA_PER, "money": pay.money, "items": rs.fields(res), "values": {}, "errors": {},
+            "extra_per": rs.EXTRA_PER, "extra_price": rs.extra_price_text, "extra_cancel": rs.extra_cancel_text,
+            "needs_persons": rs.needs_persons(res), "money": pay.money, "items": rs.fields(res), "values": {}, "errors": {},
             "other": {}, "cancel_rules": rs.cancel_rules_text(res), "club": club, "cart": cart,
             "club_tariff": next((t for t in res.tariffs if club and club.tariff_name
                                  and t.name.strip().lower() == club.tariff_name.strip().lower()), None),
