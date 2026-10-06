@@ -111,6 +111,11 @@ _KRANK_VARS = {
     "praefix": "Betreff-Präfix des Arbeitgebers bzw. aus den Einstellungen",
 }
 
+_ABS_VARS = {"name": "Name der empfangenden Person", "abwesend": "Name der abwesenden Person",
+             "vertretung": "Name der Vertretung", "zeitraum": "Zeitraum, z. B. 12.10.–16.10.2026",
+             "eingetragen_von": "Wer die Abwesenheit eingetragen hat", "notiz": "Notiz zur Übergabe (falls angegeben)",
+             "link": "Link zu „Abwesenheiten“ im Portal"}
+
 TEMPLATES: dict[str, dict] = {
     "account_invite": {
         "group": "Konten", "label": "Einladung zum Konto",
@@ -678,6 +683,30 @@ TEMPLATES: dict[str, dict] = {
         "body": ("Guten Tag {name},\n\nzu Ihrer Meldung {aktenzeichen} ({art}) hat die Personalverwaltung eine Nachricht:\n\n"
                  "{nachricht}\n\nAntworten oder Unterlagen nachreichen:\n{status_link}\n\nStand: {status}\n\n{fusszeile}"),
     },
+    "absence_request": {
+        "group": "Abwesenheiten", "label": "Bitte um Vertretung (an die Vertretung, mit Zustimmung)",
+        "vars": _ABS_VARS,
+        "subject": "Bitte um Vertretung für {abwesend} ({zeitraum})",
+        "body": ("Guten Tag {name},\n\n{eingetragen_von} bittet Sie, {abwesend} im Zeitraum {zeitraum} zu vertreten.\n\n"
+                 "{notiz}\n\nBitte stimmen Sie zu oder lehnen Sie ab:\n{link}\n\n"
+                 "Während der Vertretung sehen Sie die Aufgaben von {abwesend} unter „Meine Aufgaben“ und erhalten "
+                 "Benachrichtigungen in Kopie.\n\n{fusszeile}"),
+    },
+    "absence_info": {
+        "group": "Abwesenheiten", "label": "Vertretung eingetragen (an die Vertretung)",
+        "vars": _ABS_VARS,
+        "subject": "Sie vertreten {abwesend} ({zeitraum})",
+        "body": ("Guten Tag {name},\n\n{eingetragen_von} hat Sie als Vertretung für {abwesend} im Zeitraum {zeitraum} "
+                 "eingetragen.\n\n{notiz}\n\nWährend der Vertretung sehen Sie die Aufgaben von {abwesend} unter "
+                 "„Meine Aufgaben“ und erhalten Benachrichtigungen in Kopie.\n\nÜbersicht: {link}\n\n{fusszeile}"),
+    },
+    "absence_answer": {
+        "group": "Abwesenheiten", "label": "Antwort der Vertretung (an die eintragende Person)",
+        "vars": _ABS_VARS | {"antwort": "„zugestimmt“ oder „abgelehnt“"},
+        "subject": "Vertretung {antwort}: {vertretung} für {abwesend}",
+        "body": ("Guten Tag {name},\n\n{vertretung} hat die Vertretung für {abwesend} im Zeitraum {zeitraum} {antwort}."
+                 "\n\nÜbersicht: {link}\n\n{fusszeile}"),
+    },
 }
 
 SAMPLE = {
@@ -697,6 +726,8 @@ SAMPLE = {
     "videolink": "Teilnahme per Videokonferenz:\nhttps://portal.example.org/join/beispiel",
     "verwalten": "https://portal.example.org/b/m/beispiel", "absagefrist": "24 Stunden",
     "hinweis": "Bitte bringen Sie Ihre Zeugnisse mit.", "anbieter": "Max Muster", "wer": "Sie haben",
+    "abwesend": "Max Muster", "vertretung": "Erika Mustermann",
+    "eingetragen_von": "Max Muster", "notiz": "Notiz: Akten liegen im Schrank links.",
     "grund": "", "ereignis": "Neue Buchung", "gast": "Erika Mustermann <erika@example.org>", "nachricht": "",
     "frei": "11", "zeitraum": "13.10.2026 bis 15.10.2026",
     "aktenzeichen": "GEW-2026-00042", "status": "In Bearbeitung", "status_link": "https://portal.example.org/a/beispiel",

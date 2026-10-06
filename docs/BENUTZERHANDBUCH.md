@@ -33,6 +33,7 @@ Es ist nach Aufgaben gegliedert und zeigt nur, was Sie nutzen dürfen: **Mein Ar
 12a. [Online-Anträge erstellen und bearbeiten](#12a-online-anträge-erstellen-und-bearbeiten)
 12b. [Ablage (DMS)](#12b-ablage-dms)
 12c. [Krank melden und Krankmeldungen bearbeiten](#12c-krank-melden-und-krankmeldungen-bearbeiten)
+12a. [Abwesenheiten und Vertretungen](#12a-abwesenheiten-und-vertretungen)
 13. [Profil und Sicherheit (Zwei-Faktor)](#13-profil-und-sicherheit-zwei-faktor)
 14. [Datenschutz in der Praxis](#14-datenschutz-in-der-praxis)
 15. [Hilfe bei Problemen](#15-hilfe-bei-problemen)
@@ -799,6 +800,12 @@ Mit dem Recht „Krankmeldungen“ und als Zuständige:r eines Arbeitgebers: Men
 - **Übersicht:** heute Eingegangenes, offene Meldungen, Kennzahlen. **Meldungen:** Filter, Suche, CSV-Export. **Statistik:** je Monat, Art, Arbeitgeber, Stand.
 - **Meldung öffnen:** Angaben, Prüfhinweise, Nachweise, Verlauf. **Stand setzen** (*Neu → In Bearbeitung → Bearbeitet*; bei eAU *Abruf offen → eAU abgerufen / Abruf erfolglos*). **Nachricht** an die Person (Statusseite und Mail), **interne Notiz**, Datei hinzufügen, PDF.
 - Jeder Zugriff wird protokolliert. Bearbeitete Meldungen werden nach der eingestellten Frist automatisch gelöscht.
+
+## 12a. Abwesenheiten und Vertretungen
+
+Unter **Abwesenheiten** (Menü „Mein Arbeitsplatz“) tragen Sie Urlaub oder andere planbare Abwesenheiten ein: Zeitraum, **Vertretung** und eine Notiz zur Übergabe, die nur Sie und die Vertretung sehen. Kolleg:innen sehen nur „abwesend bis …, Vertretung: …“ – nie einen Grund. Während Ihrer Abwesenheit sieht die Vertretung Ihre Aufgaben unter „Meine Aufgaben › Als Vertretung“ und Ihre Anträge im Antragseingang und bekommt Benachrichtigungen in Kopie.
+
+Werden Sie selbst als Vertretung eingetragen, bekommen Sie eine Mail. Möchten Sie jeder Vertretung vorher zustimmen, schalten Sie das im **Profil** unter „Vertretungen“ ein – Anfragen erscheinen dann unter Abwesenheiten und auf der Übersicht zum **Zustimmen** oder **Ablehnen**. Bei Krankheit tragen Gruppenleitungen bzw. die Personalstelle die Abwesenheit für Sie ein. Sind Sie früher zurück, beendet „Zurück“ die Abwesenheit.
 
 ## 13. Profil und Sicherheit (Zwei-Faktor)
 

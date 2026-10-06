@@ -58,6 +58,12 @@
   {% else %}<div class="card-body text-center text-secondary py-4"><i class="fa-regular fa-face-smile fa-2x mb-2"></i><p class="mb-0">Keine offenen Aufgaben – gut gemacht.</p></div>{% endif %}
 </div>
 
+{% if deputy %}
+<div class="card mb-4 border-primary-subtle"><div class="card-header"><i class="fa-solid fa-people-arrows me-2"></i>Als Vertretung <span class="small text-secondary fw-normal">– Aufgaben von Personen, die Sie gerade vertreten</span></div>
+  <ul class="list-group list-group-flush">{% for t in deputy %}<li class="list-group-item small text-secondary pb-0 border-bottom-0"><i class="fa-solid fa-user me-1"></i>für {{ t.assignee.name if t.assignee else '' }}</li>{{ task_row(t, false) }}{% endfor %}</ul>
+</div>
+{% endif %}
+
 {% if pool %}
 <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-users me-2"></i>Für meine Gruppen <span class="small text-secondary fw-normal">– übernehmen Sie eine Aufgabe, damit niemand doppelt arbeitet</span></div>
   <ul class="list-group list-group-flush">{% for t in pool %}{{ task_row(t, true) }}{% endfor %}</ul>

@@ -45,6 +45,11 @@
     {% if own_key_mask %}<div class="form-check"><input class="form-check-input" type="checkbox" id="rmkey" name="sm_remove_key" value="1"><label class="form-check-label" for="rmkey">Eigenen Key entfernen</label></div>{% endif %}
   </div></div></div>
   {% endif %}
+  <div class="col-12 col-xl-6" id="vertretung"><div class="card h-100"><div class="card-header"><i class="fa-solid fa-people-arrows me-2"></i>Vertretungen</div><div class="card-body">
+    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="sub_confirm" name="sub_confirm" value="1" {% if user.sub_confirm %}checked{% endif %}>
+      <label class="form-check-label" for="sub_confirm">Wenn mich jemand als Vertretung einträgt, möchte ich erst zustimmen</label></div>
+    <div class="form-text">Ohne Haken gilt eine Vertretung sofort; Sie werden per Mail informiert. Eigene Abwesenheiten tragen Sie unter <a href="/abwesenheiten">Abwesenheiten</a> ein.</div>
+  </div></div></div>
   <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Profil speichern</button></div>
 </form>
 {% endblock %}

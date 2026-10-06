@@ -282,7 +282,23 @@ def enqueue(db, to_addr: str, subject: str, body: str, kind: str, cfg: dict[str,
         return False
     db.add(Notification(kind=kind, to_addr=to_addr, subject=subject, body=body, reply_to=reply_to,
                         attachments_json=json.dumps(attachments, ensure_ascii=False) if attachments else None))
+    _copy_to_substitute(db, to_addr, subject, body, kind, attachments, reply_to)
     return True
+
+
+def _copy_to_substitute(db, to_addr, subject, body, kind, attachments, reply_to) -> None:
+    """Arbeitsbezogene Benachrichtigungen an eine heute abwesende Person gehen in Kopie an ihre Vertretung."""
+    from . import absence
+    if kind not in absence.FORWARD_KINDS:
+        return
+    hit = absence.substitutes_for_addresses(db, [to_addr]).get((to_addr or "").strip().lower())
+    if hit is None:
+        return
+    sub_email, name = hit
+    note = f"Sie erhalten diese Nachricht als Vertretung für {name}.\n\n"
+    db.add(Notification(kind=f"{kind[:28]}_vt", to_addr=sub_email, subject=f"[Vertretung für {name}] {subject}"[:255],
+                        body=note + body, reply_to=reply_to,
+                        attachments_json=json.dumps(attachments, ensure_ascii=False) if attachments else None))
 
 
 def _recent(db, to_addr: str, kind: str) -> int:

@@ -486,7 +486,8 @@ async def check_csrf(request: Request) -> None:
 
 
 def flash(request: Request, message: str, kind: str = "ok") -> None:
-    request.session.setdefault("flash", []).append({"kind": kind, "text": message})
+    # neu zuweisen statt anhängen: die Sitzung merkt Änderungen nur beim Setzen eines Schlüssels
+    request.session["flash"] = [*request.session.get("flash", []), {"kind": kind, "text": message}]
 
 
 def _shared_nav(user: User | None) -> set[str]:
@@ -1637,10 +1638,11 @@ def profile(request: Request, user: User = Depends(current_user), db: Session = 
 @app.post("/profile", dependencies=[Depends(check_csrf)])
 def profile_save(request: Request, name: str = Form(...), current_password: str = Form(""),
                  new_password: str = Form(""), sm_api_key: str = Form(""),
-                 sm_project_slug: str = Form(""), sm_remove_key: str = Form(""),
+                 sm_project_slug: str = Form(""), sm_remove_key: str = Form(""), sub_confirm: str = Form(""),
                  user: User = Depends(current_user), db: Session = Depends(get_db)):
     user = db.get(User, user.id)
     user.name = name.strip()[:200] or user.name
+    user.sub_confirm = sub_confirm == "1"
     if new_password:
         if len(new_password) < 10:
             flash(request, "Das neue Passwort braucht mindestens 10 Zeichen.", "error")
@@ -1895,7 +1897,9 @@ def _set_groups(db: Session, target: User, group_ids: list[str]) -> None:
 def admin_users(request: Request, user: User = Depends(users_manager), db: Session = Depends(get_db)):
     users = db.scalars(select(User).options(joinedload(User.groups)).order_by(User.name)).unique().all()
     groups = db.scalars(select(Group).options(joinedload(Group.members)).order_by(Group.name)).unique().all()
+    from . import absence
     return render(request, "admin_users.html", user, users=users, groups=groups,
+                  away=absence.current_map(db), away_label=absence.label,
                   invite_links=stash_get(request, "invite_links", pop=True),
                   mail_ready=notify.mail_configured(get_settings(db)),
                   invite_ttl=settings.invite_ttl_hours,
@@ -2080,7 +2084,8 @@ async def admin_groups_create(request: Request, name: str = Form(...), descripti
     if not name or db.scalar(select(Group).where(func.lower(Group.name) == name.lower())):
         flash(request, "Bitte einen neuen, noch nicht vergebenen Gruppennamen angeben.", "error")
         return redirect("/admin/users#gruppen")
-    group = Group(name=name, description=" ".join(description.split())[:255])
+    group = Group(name=name, description=" ".join(description.split())[:255],
+                  lead_id=int(form["lead_id"]) if str(form.get("lead_id", "")).isdigit() else None)
     ids = {int(u) for u in form.getlist("members") if str(u).isdigit()}
     group.members = list(db.scalars(select(User).where(User.id.in_(ids)))) if ids else []
     db.add(group)
@@ -2106,6 +2111,7 @@ async def admin_groups_update(request: Request, gid: int, action: str = Form("sa
     if name and not clash:
         group.name = name
     group.description = " ".join(str(form.get("description", "")).split())[:255]
+    group.lead_id = int(form["lead_id"]) if str(form.get("lead_id", "")).isdigit() and db.get(User, int(form["lead_id"])) else None
     ids = {int(u) for u in form.getlist("members") if str(u).isdigit()}
     group.members = list(db.scalars(select(User).where(User.id.in_(ids)))) if ids else []
     db.commit()
@@ -2627,6 +2633,7 @@ from . import routes_dms  # noqa: E402,F401
 from . import routes_polls  # noqa: E402,F401
 from . import routes_bookings  # noqa: E402,F401
 from . import routes_public  # noqa: E402,F401
+from . import routes_absences  # noqa: E402,F401
 from . import routes_sessions  # noqa: E402,F401
 from . import routes_laws  # noqa: E402,F401
 from . import routes_maps  # noqa: E402,F401
