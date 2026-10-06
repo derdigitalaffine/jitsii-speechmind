@@ -161,7 +161,7 @@ MODULES = {
     "bookings": ("Terminbuchung", "module_bookings", ("/bookings", "/b/")),
     "laws": ("Rechtstexte", "module_laws", ("/laws", "/recht")),
     "maps": ("Kartenbrowser", "module_maps", ("/karte", "/maps")),
-    "applications": ("Online-Anträge", "module_applications", ("/antraege", "/a/", "/tasks", "/processes")),
+    "applications": ("Online-Anträge", "module_applications", ("/antraege", "/a/", "/processes")),
     "dms": ("Ablage (DMS)", "module_dms", ("/dms",)),
     "resources": ("Ressourcenbuchung", "module_resources", ("/resources", "/r/", "/r", "/r-embed")),
     "krank": ("BlueOtter Krankmelder", "module_krank", ("/krank", "/krankmelder")),
@@ -481,13 +481,31 @@ def _shared_nav(user: User | None) -> set[str]:
         return {kind for kind, perm in kinds if not user.can(kind) and shares.has_any(db, perm, user)}
 
 
+_badge_cache: dict = {}
+
+
 def _task_badge(user: User | None) -> int:
-    """Anzahl offener Arbeitsschritte für die Navigation."""
-    if user is None or "applications" not in enabled_modules():
+    """Anzahl offener Arbeitsschritte (Anträge) und Buchungsaufgaben für die Navigation (30 s zwischengespeichert)."""
+    if user is None:
         return 0
-    from . import workflow
+    mods = enabled_modules()
+    if "applications" not in mods and "resources" not in mods:
+        return 0
+    hit = _badge_cache.get(user.id)
+    if hit and time.monotonic() - hit[0] < 30:
+        return hit[1]
+    n = 0
     with SessionLocal() as db:
-        return workflow.task_count(db, user)
+        if "applications" in mods:
+            from . import workflow
+            n += workflow.task_count(db, user)
+        if "resources" in mods:
+            from . import resources as rs
+            n += rs.booking_task_count(db, user)
+    if len(_badge_cache) > 2000:
+        _badge_cache.clear()
+    _badge_cache[user.id] = (time.monotonic(), n)
+    return n
 
 
 def _dms_nav(user: User | None) -> bool:

@@ -1547,5 +1547,63 @@ def booking_counts(db, res_ids: list[int]) -> dict:
     return {"requested": requested, "today_out": out, "today_back": back, "unpaid": unpaid}
 
 
+# --- Aufgaben für „Meine Aufgaben“ -------------------------------------------------------------
+
+TASK_KINDS = {
+    "request": ("Anfrage entscheiden", "fa-hourglass-half", "warning"),
+    "deposit": ("Kaution freigeben", "fa-hand-holding-dollar", "info"),
+    "handover": ("Übergabe", "fa-key", "primary"),
+    "return": ("Abnahme / Kaution offen", "fa-rotate-left", "secondary"),
+    "payment": ("Zahlung überfällig", "fa-euro-sign", "danger"),
+}
+
+
+def booking_tasks(db, user: User) -> list[dict]:
+    """Offene Arbeit an Buchungen der Ressourcen, die die Person verwaltet (Stufe ≥ 3): Anfragen,
+    Kautionsfreigaben, Übergaben heute/morgen, fehlende Abnahmen mit Kaution, überfällige Zahlungen.
+    Die Logik bleibt in der Buchung – hier wird nur gesammelt und verlinkt."""
+    ids = [r.id for r, lvl in visible(db, user) if lvl >= 3]
+    if not ids:
+        return []
+    now = utcnow()
+    today = to_local(now).date()
+    soon = _utc(datetime.combine(today + timedelta(days=2), time()))
+    base = select(ResourceBooking).where(ResourceBooking.resource_id.in_(ids))
+    out = []
+
+    def add(kind, b, due=None, note=""):
+        label, icon, color = TASK_KINDS[kind]
+        out.append({"kind": kind, "label": label, "icon": icon, "color": color, "booking": b, "due": due, "note": note,
+                    "late": bool(due and due < now), "href": f"/resources/bookings/{b.id}" + ("#uebergabe" if kind in ("deposit", "handover", "return") else "")})
+
+    for b in db.scalars(base.where(ResourceBooking.status == "requested")):
+        add("request", b, b.starts_at - timedelta(hours=b.resource.min_notice_hours or 0), f"eingegangen {to_local(b.created_at).strftime('%d.%m.%Y')}")
+    confirmed = base.where(ResourceBooking.status == "confirmed")
+    for b in db.scalars(confirmed.where(ResourceBooking.handover_json.like('%deposit_pending%'))):
+        pend = deposit_pending(b)
+        if pend:
+            add("deposit", b, None, f"Abnahme durch {pend.get('by', '')}, Vorschlag {pay.money(pend.get('keep_cents', 0))} einbehalten")
+    for b in db.scalars(confirmed.where(ResourceBooking.starts_at >= now - timedelta(hours=2), ResourceBooking.starts_at < soon,
+                                        ResourceBooking.internal.is_(False))):
+        if not handover(b).get("out"):
+            add("handover", b, b.starts_at, "heute" if to_local(b.starts_at).date() == today else "morgen")
+    for b in db.scalars(confirmed.where(ResourceBooking.ends_at < now, ResourceBooking.ends_at > now - timedelta(days=30),
+                                        ResourceBooking.deposit_cents > 0)):
+        h = handover(b)
+        if not h.get("back") and not h.get("deposit_done"):
+            add("return", b, b.ends_at + timedelta(days=3), f"Kaution {pay.money(b.deposit_cents)} noch nicht abgerechnet")
+    from .db import Payment
+    for b, p in db.execute(select(ResourceBooking, Payment).join(Payment, Payment.id == ResourceBooking.payment_id).where(
+            ResourceBooking.resource_id.in_(ids), ResourceBooking.status == "confirmed", Payment.status.in_(("open", "pending")),
+            Payment.due_at.is_not(None), Payment.due_at < now)):
+        add("payment", b, p.due_at, f"{pay.money(p.amount_cents)} · {p.ref}")
+    far = datetime(9999, 1, 1)
+    return sorted(out, key=lambda t: (not t["late"], t["due"] or far))
+
+
+def booking_task_count(db, user: User) -> int:
+    return sum(1 for t in booking_tasks(db, user) if t["kind"] in ("request", "deposit", "payment") or t["late"])
+
+
 def ceil_div(a: int, b: int) -> int:
     return math.ceil(a / b) if b else 0
