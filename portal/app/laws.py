@@ -598,11 +598,7 @@ def compare(old_md: str, new_md: str) -> list[dict]:
 # --- Querverweise und Kurzschreibweise [[ABK § 4]] ------------------------------------------------
 
 _ref_cache: dict = {"at": 0.0, "map": {}}
-REF_RE = re.compile(
-    r"(?P<all>(?P<kind>§§?|Art\.|Artikel)\s*(?P<num>\d+[a-z]?)(?![\d])"
-    r"(?P<sub>(?:\s+(?:Abs\.|Absatz)\s*\d+[a-z]?)?(?:\s+(?:S\.|Satz)\s*\d+)?(?:\s+(?:Nr\.|Nummer)\s*\d+[a-z]?)?)"
-    r"(?:\s+(?P<abbr>[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]*[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]*\b))?)")
-SHORT_RE = re.compile(r"\[\[\s*([^\]\n]{1,80}?)\s*\]\]")
+SHORT_RE = re.compile(r"\[\[\s*([^\]\n]{1,160}?)\s*\]\]")
 
 
 def ref_map(db=None) -> dict[str, tuple[str, str, set[str]]]:
@@ -641,10 +637,42 @@ def norm_anchor(kind: str, num: str) -> str:
     return _norm_anchor(("art" if kind.lower().startswith("art") else "§") + num)
 
 
+_TARGET_RE = re.compile(r"^(?P<name>.*?)\s*(?:(?P<kind>§§?|Art\.|Artikel)\s*(?P<num>\d+[a-z]?)(?P<rest>.*))?$")
+
+
+def resolve_ref(inner: str, own: tuple[str, set[str]] | None, refs: dict, base: str = "/recht") -> tuple[str | None, str]:
+    """Ziel eines ausdrücklich gesetzten Verweises [[…]] → (Adresse oder None, angezeigter Text).
+
+    [[§ 4]] / [[§ 4 Abs. 2]]   eigener Text (own = (Adresse, Anker)), Paragraf muss existieren
+    [[GemO § 24]] / [[GemO]]   anderer veröffentlichter Text (Kürzel oder Adresse), Paragraf optional
+    [[GemO § 24|Text]]         mit eigenem Linktext
+    """
+    target, _sep, label = inner.partition("|")
+    target, label = target.strip(), (label.strip() or target.strip())
+    m = _TARGET_RE.match(target)
+    if not m or not target:
+        return None, label
+    name = m.group("name").strip()
+    anchor = norm_anchor(m.group("kind"), m.group("num")) if m.group("kind") else ""
+    if not name:
+        if own is None or not anchor or anchor not in own[1]:
+            return None, label
+        return f"{base}/{own[0]}/{anchor}", label
+    entry = refs.get(name.lower())
+    if entry is None:
+        return None, label
+    slug, _title, anchors = entry
+    if anchor and anchor not in anchors:
+        return None, label
+    return f"{base}/{slug}" + (f"/{anchor}" if anchor else ""), label
+
+
 def link_refs(html: str, own_slug: str, own_anchors: set[str], base: str = "/recht") -> Markup:
-    """Verweise wie „§ 5 GemO“ oder „§ 3 Abs. 2“ im Text verlinken: mit bekannter Abkürzung auf den anderen Text,
-    ohne Abkürzung innerhalb desselben Texts. Unbekannte Abkürzungen (z. B. „BauGB“, wenn nicht eingestellt) bleiben
-    unverlinkt. Gearbeitet wird nur auf Textteilen außerhalb von Tags und vorhandenen Links."""
+    """Verweise nur dort verlinken, wo sie im Markdown ausdrücklich gesetzt sind: [[§ 4]], [[GemO § 24]],
+    [[GemO § 24|Gemeindeordnung]] (siehe resolve_ref). Normaler Text wie „§ 4“ wird nie automatisch verlinkt –
+    so entstehen keine falschen Ziele. Nicht auflösbare Verweise bleiben als Text (ohne Klammern) stehen."""
+    if "[[" not in html:
+        return Markup(html)
     refs = ref_map()
     parts = re.split(r"(<[^>]+>)", html)
     out, in_link = [], 0
@@ -657,53 +685,38 @@ def link_refs(html: str, own_slug: str, own_anchors: set[str], base: str = "/rec
                 in_link = max(0, in_link - 1)
             out.append(part)
             continue
-        if in_link or "§" not in part and "Art" not in part:
+        if in_link or "[[" not in part:
             out.append(part)
             continue
 
         def repl(m):
-            full = m.group(0)
-            anchor = norm_anchor(m.group("kind"), m.group("num"))
-            abbr = m.group("abbr")
-            if abbr:
-                target = refs.get(abbr.lower())
-                if target is None:
-                    return full                       # fremdes Kürzel, hier nicht eingestellt
-                slug, _label, anchors = target
-                href = f"{base}/{slug}/{anchor}" if anchor in anchors else f"{base}/{slug}"
-            else:
-                # „§ 4 der Hundesteuersatzung“ meint einen anderen Text – nicht auf den eigenen § 4 zeigen
-                if re.match(r"\s+(?:der|des|eines|einer)\s+[A-ZÄÖÜ]", m.string[m.end():m.end() + 40]):
-                    return full
-                if anchor not in own_anchors:
-                    return full
-                href = f"{base}/{own_slug}/{anchor}"
-            return f'<a class="law-ref" href="{href}" data-preview="{href}">{full}</a>'
-        out.append(REF_RE.sub(repl, part))
+            href, label = resolve_ref(htmllib.unescape(m.group(1)), (own_slug, own_anchors), refs, base)
+            if href is None:
+                return str(escape(label))
+            return f'<a class="law-ref" href="{escape(href)}" data-preview="{escape(href)}">{escape(label)}</a>'
+        out.append(SHORT_RE.sub(repl, part))
     return Markup("".join(out))
 
 
+def broken_refs(md: str, own_slug: str, own_anchors: set[str]) -> list[str]:
+    """Verweise [[…]] im Quelltext, die ins Leere zeigen (für Hinweise im Editor)."""
+    refs = ref_map()
+    return [m.group(0) for m in SHORT_RE.finditer(md or "")
+            if resolve_ref(m.group(1), (own_slug, own_anchors), refs)[0] is None][:20]
+
+
 def shortcodes(escaped: str, base: str = "/recht") -> str:
-    """[[HStS § 4]], [[HStS]] oder [[hundesteuersatzung § 4 Abs. 2]] in (bereits maskiertem) Text als Link mit
-    Vorschau. Unbekannte Texte bleiben als Klartext ohne Klammern stehen."""
+    """[[HStS § 4]], [[HStS]] oder [[hundesteuersatzung § 4 Abs. 2|Hundesteuer]] in (bereits maskiertem) Text
+    außerhalb der Rechtstexte (Formulare, Anträge) als Link mit Vorschau. Unbekannte Ziele bleiben als Klartext."""
     if "[[" not in escaped:
         return escaped
     refs = ref_map()
 
     def repl(m):
-        inner = htmllib.unescape(m.group(1))
-        ref = re.match(r"^(?P<name>.+?)(?:\s+(?P<kind>§§?|Art\.|Artikel)\s*(?P<num>\d+[a-z]?)(?P<rest>.*))?$", inner)
-        name = ref.group("name").strip() if ref else inner
-        target = refs.get(name.lower())
-        if target is None:
-            return str(escape(inner))
-        slug, label, anchors = target
-        href = f"{base}/{slug}"
-        if ref.group("kind"):
-            anchor = norm_anchor(ref.group("kind"), ref.group("num"))
-            if anchor in anchors:
-                href += f"/{anchor}"
-        return f'<a class="law-ref" href="{escape(href)}" data-preview="{escape(href)}" target="_blank" rel="noopener">{escape(inner)}</a>'
+        href, label = resolve_ref(htmllib.unescape(m.group(1)), None, refs, base)
+        if href is None:
+            return str(escape(label))
+        return f'<a class="law-ref" href="{escape(href)}" data-preview="{escape(href)}" target="_blank" rel="noopener">{escape(label)}</a>'
     return SHORT_RE.sub(repl, escaped)
 
 

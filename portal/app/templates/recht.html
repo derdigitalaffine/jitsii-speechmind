@@ -17,7 +17,7 @@
 {% if n or editor %}
 <li id="ebene-{{ level.id }}">
   <div class="lex-level">
-    <span class="lex-kind-icon" title="{{ kinds.get(level.kind, kinds.sonstige)[0] }}"><i class="fa-solid {{ kinds.get(level.kind, kinds.sonstige)[1] }}"></i></span>
+    {% if level.org and level.org.logo %}<img class="org-logo" src="{{ org_logo(level.org) }}" alt="" title="{{ level.org.name }}">{% else %}<span class="lex-kind-icon" title="{{ kinds.get(level.kind, kinds.sonstige)[0] }}"><i class="fa-solid {{ kinds.get(level.kind, kinds.sonstige)[1] }}"></i></span>{% endif %}
     <a class="link-body-emphasis text-decoration-none" href="{{ R }}/ebene/{{ level.id }}">{{ level.name }}</a>
     <span class="badge rounded-pill text-bg-secondary">{{ n }}</span>
   </div>

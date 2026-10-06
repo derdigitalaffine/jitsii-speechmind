@@ -25,7 +25,7 @@ MODULE_PUBLIC = {
     "krank": ("BlueOtter Krankmelder", "/krank", ("/krank", "/krank-embed")),
 }
 # Hilfspfade, die öffentliche Seiten aller Module nachladen
-SHARED = ("/static", "/healthz", "/branding", "/geo", "/map", "/pay", "/paypal/return", "/favicon.ico", "/robots.txt")
+SHARED = ("/static", "/healthz", "/branding", "/org", "/geo", "/map", "/pay", "/paypal/return", "/favicon.ico", "/robots.txt")
 # Pfade, die in fremden Seiten (iframe) erscheinen dürfen – für den Proxy
 EMBED_PATHS = ("/recht-embed", "/karte-embed", "/antraege-embed", "/r-embed", "/krank-embed")
 

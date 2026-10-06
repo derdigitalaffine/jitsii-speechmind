@@ -113,6 +113,7 @@ templates.env.globals["csp_nonce"] = csp.current_nonce
 _HANDLER_HASHES = " ".join(csp.handler_hashes(BASE / "templates"))
 templates.env.globals.update(brand=settings.brand_name, product=settings.brand_product)
 templates.env.globals["themes"] = branding.THEMES
+templates.env.globals["org_logo"] = lambda o: __import__("app.orgs", fromlist=["logo_url"]).logo_url(o)
 templates.env.globals["permissions"] = PERMISSIONS
 # Rechte, deren Modul anders heißt als das Recht (für die Auswahl in der Benutzerverwaltung)
 def _forms_mod():
@@ -2487,3 +2488,4 @@ from . import routes_votes  # noqa: E402,F401
 from . import routes_resources  # noqa: E402,F401
 from . import routes_resources_public  # noqa: E402,F401
 from . import routes_krank  # noqa: E402,F401
+from . import routes_orgs  # noqa: E402,F401

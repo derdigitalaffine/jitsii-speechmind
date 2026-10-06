@@ -16,7 +16,7 @@
 {% macro node(level, first, last) -%}
 <li id="ebene-{{ level.id }}">
   <div class="lex-level flex-wrap">
-    <span class="lex-kind-icon"><i class="fa-solid {{ kinds.get(level.kind, kinds.sonstige)[1] }}"></i></span>
+    {% if level.org and level.org.logo %}<img class="org-logo" src="{{ org_logo(level.org) }}" alt="">{% else %}<span class="lex-kind-icon"><i class="fa-solid {{ kinds.get(level.kind, kinds.sonstige)[1] }}"></i></span>{% endif %}
     <span>{{ level.name }}</span>
     <span class="badge text-bg-light border fw-normal">{{ kinds.get(level.kind, kinds.sonstige)[0] }}</span>
     <a class="badge rounded-pill text-bg-secondary text-decoration-none" href="/laws?level={{ level.id }}" title="Rechtstexte dieser Ebene">{{ counts.get(level.id, 0) }}</a>
@@ -38,6 +38,7 @@
       <div class="col-md-5"><label class="form-label small">Name</label><input class="form-control form-control-sm" name="name" value="{{ level.name }}" required maxlength="200"></div>
       <div class="col-md-3"><label class="form-label small">Art</label>{{ kind_select('kind', level.kind) }}</div>
       <div class="col-md-4"><label class="form-label small">Liegt unter</label>{{ parent_select(level) }}</div>
+      <div class="col-12"><label class="form-label small">Körperschaft <span class="text-secondary">(Wappen und Kontakt aus Verwaltung › Körperschaften)</span></label><select class="form-select form-select-sm" name="org_id"><option value="">– keine –</option>{% for i, n in org_options %}<option value="{{ i }}" {% if level.org_id == i %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
       <div class="col-12"><label class="form-label small">Beschreibung (öffentlich, optional)</label><textarea class="form-control form-control-sm" name="description" rows="2">{{ level.description }}</textarea></div>
       <div class="col-12"><button class="btn btn-sm btn-primary" type="submit">Speichern</button></div>
     </div>

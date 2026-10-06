@@ -18,6 +18,7 @@
   <div class="card mb-3"><div class="card-header fw-semibold"><span class="badge rounded-pill text-bg-primary me-2">2</span>Name, Ort und Größe</div><div class="card-body row g-3">
     <div class="col-md-6"><label class="form-label" for="n-name">Name</label><input class="form-control" id="n-name" name="name" required maxlength="200" placeholder="z. B. Bürgerhaus Otterberg"></div>
     <div class="col-md-6"><label class="form-label" for="n-cat">Art</label><input class="form-control" id="n-cat" name="category" maxlength="80" list="res-cats"><datalist id="res-cats"><option>Bürgerhaus</option><option>Veranstaltungsraum</option><option>Grillplatz</option><option>Spülmobil</option><option>Sporthalle</option><option>Gerät</option><option>Fahrzeug</option></datalist></div>
+    <div class="col-md-6"><label class="form-label" for="n-prov">Anbieter</label><select class="form-select" id="n-prov" name="provider_id"><option value="">– keine Angabe –</option>{% for i, n in org_options %}<option value="{{ i }}">{{ n }}</option>{% endfor %}</select></div>
     <div class="col-md-8"><label class="form-label" for="n-loc">Ort / Anschrift</label><input class="form-control" id="n-loc" name="location" maxlength="255" placeholder="Hauptstraße 1, 67697 Otterberg"></div>
     <div class="col-md-4"><label class="form-label" for="n-cap">Personen (höchstens)</label><input class="form-control" type="number" min="0" id="n-cap" name="capacity"></div>
   </div></div>

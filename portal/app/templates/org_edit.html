@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ 'Neuer Eintrag' if new else org.name }} · Körperschaften{% endblock %}
+{% block content %}
+<nav aria-label="Pfad" class="small mb-2"><a href="/admin/orgs">Körperschaften</a> › {{ 'Neu' if new else org.name }}</nav>
+{{ m.page_head('Neuer Eintrag' if new else org.name, 'Körperschaft, Zweckverband oder Einrichtung') }}
+<form method="post" action="{{ '/admin/orgs/new' if new else '/admin/orgs/' ~ org.id }}" enctype="multipart/form-data">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<div class="row g-4">
+  <div class="col-12 col-xl-8">
+    <div class="card mb-4"><div class="card-header fw-semibold"><i class="fa-solid fa-landmark-flag me-2"></i>Grunddaten</div><div class="card-body row g-3">
+      <div class="col-md-8"><label class="form-label" for="o-name">Name</label><input class="form-control" id="o-name" name="name" value="{{ org.name }}" required maxlength="200" placeholder="z. B. Ortsgemeinde Heiligenmoschel"></div>
+      <div class="col-md-4"><label class="form-label" for="o-short">Kurzname</label><input class="form-control" id="o-short" name="short_name" value="{{ org.short_name }}" maxlength="80" placeholder="z. B. OG Heiligenmoschel"></div>
+      <div class="col-md-4"><label class="form-label" for="o-kind">Art</label><select class="form-select" id="o-kind" name="kind">
+        <optgroup label="Körperschaften & Verbände">{% for k, v in kinds.items() if v[2] %}<option value="{{ k }}" {% if org.kind == k %}selected{% endif %}>{{ v[0] }}</option>{% endfor %}</optgroup>
+        <optgroup label="Einrichtungen">{% for k, v in kinds.items() if not v[2] %}<option value="{{ k }}" {% if org.kind == k %}selected{% endif %}>{{ v[0] }}</option>{% endfor %}</optgroup></select></div>
+      <div class="col-md-8"><label class="form-label" for="o-parent">Gehört zu</label><select class="form-select" id="o-parent" name="parent_id"><option value="">– oberste Ebene –</option>{% for i, n in parents %}<option value="{{ i }}" {% if org.parent_id == i %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+        <div class="form-text">Einrichtungen unter ihrer Körperschaft, Ortsgemeinden unter der Verbandsgemeinde.</div></div>
+      <div class="col-md-4"><label class="form-label" for="o-ags">Gemeindeschlüssel (AGS)</label><input class="form-control" id="o-ags" name="ags" value="{{ org.ags }}" maxlength="20" inputmode="numeric" placeholder="z. B. 07335…"></div>
+      <div class="col-6 col-md-4"><label class="form-label" for="o-color">Farbe</label><input class="form-control form-control-color w-100" type="color" id="o-color" name="color" value="{{ org.color or '#2563eb' }}"></div>
+      <div class="col-6 col-md-4"><label class="form-label" for="o-pos">Reihenfolge</label><input class="form-control" type="number" id="o-pos" name="position" value="{{ org.position or 0 }}"></div>
+      <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="active" value="1" id="o-active" {% if org.active %}checked{% endif %}><label class="form-check-label" for="o-active">Aktiv (in den Modulen wählbar)</label></div></div>
+    </div></div>
+    <div class="card mb-4"><div class="card-header fw-semibold"><i class="fa-solid fa-address-card me-2"></i>Anschrift & Kontakt</div><div class="card-body row g-3">
+      <div class="col-md-6"><label class="form-label" for="o-contact">Ansprechperson / Stelle</label><input class="form-control" id="o-contact" name="contact" value="{{ org.contact }}" maxlength="255" placeholder="z. B. Ortsbürgermeisterin Erika Muster"></div>
+      <div class="col-md-6"><label class="form-label" for="o-street">Straße und Hausnummer</label><input class="form-control" id="o-street" name="street" value="{{ org.street }}" maxlength="255" autocomplete="street-address"></div>
+      <div class="col-4 col-md-2"><label class="form-label" for="o-zip">PLZ</label><input class="form-control" id="o-zip" name="zip" value="{{ org.zip }}" maxlength="10" inputmode="numeric"></div>
+      <div class="col-8 col-md-4"><label class="form-label" for="o-city">Ort</label><input class="form-control" id="o-city" name="city" value="{{ org.city }}" maxlength="200"></div>
+      <div class="col-md-6"><label class="form-label" for="o-phone">Telefon</label><input class="form-control" type="tel" id="o-phone" name="phone" value="{{ org.phone }}" maxlength="60"></div>
+      <div class="col-md-6"><label class="form-label" for="o-mail">E-Mail</label><input class="form-control" type="email" id="o-mail" name="email" value="{{ org.email }}" maxlength="255"></div>
+      <div class="col-md-6"><label class="form-label" for="o-web">Website</label><input class="form-control" id="o-web" name="website" value="{{ org.website }}" maxlength="255" placeholder="https://"></div>
+      <div class="col-12"><label class="form-label" for="o-note">Notiz <span class="small text-secondary">(intern)</span></label><textarea class="form-control" id="o-note" name="note" rows="2">{{ org.note }}</textarea></div>
+    </div></div>
+  </div>
+  <div class="col-12 col-xl-4">
+    <div class="card mb-4"><div class="card-header fw-semibold"><i class="fa-solid fa-shield-halved me-2"></i>Wappen / Logo</div><div class="card-body">
+      {% if org.logo %}<div class="text-center mb-3"><img class="org-logo-lg" src="{{ logo_url(org) }}" alt="Wappen {{ org.name }}"></div>
+      <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="logo_remove" value="1" id="o-logo-rm"><label class="form-check-label" for="o-logo-rm">Wappen entfernen</label></div>{% endif %}
+      <input class="form-control" type="file" name="logo" accept="image/png,image/jpeg,image/webp" aria-label="Wappen hochladen">
+      <div class="form-text">PNG, JPEG oder WebP bis 2 MB, am besten mit transparentem Hintergrund. Erscheint z. B. auf den Ressourcenseiten und bei den Rechtstexten.</div>
+    </div></div>
+    {% if usage %}<div class="card mb-4"><div class="card-header fw-semibold"><i class="fa-solid fa-link me-2"></i>Verwendet in</div>
+      <ul class="list-group list-group-flush small">{% for label, n in usage.items() %}<li class="list-group-item d-flex"><span class="flex-grow-1">{{ label }}</span><span class="{{ 'fw-semibold' if n else 'text-secondary' }}">{{ n }}</span></li>{% endfor %}</ul></div>{% endif %}
+  </div>
+</div>
+<div class="d-flex flex-wrap gap-2 align-items-center">
+  <button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
+  <a class="btn btn-outline-secondary" href="/admin/orgs">Abbrechen</a>
+  {% if not new %}<a class="btn btn-outline-secondary ms-auto" href="/admin/orgs/new?parent={{ org.id }}"><i class="fa-solid fa-plus me-1"></i>Einrichtung darunter</a>{% endif %}
+</div>
+</form>
+{% if not new %}
+<form method="post" action="/admin/orgs/{{ org.id }}/delete" class="mt-3"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <button class="btn btn-sm btn-link text-danger p-0" type="submit" data-confirm-title="{{ org.name }} löschen?" data-confirm="Nur möglich, wenn der Eintrag nirgends mehr verwendet wird." data-confirm-button="Löschen"><i class="fa-regular fa-trash-can me-1"></i>Eintrag löschen</button></form>
+{% endif %}
+{% endblock %}

@@ -6,6 +6,7 @@ Für alle, die das Portal der Verbandsgemeinde Otterbach-Otterberg betreuen: Vid
 
 1. [Die Oberfläche im Überblick](#die-oberfläche-im-überblick)
 2. [Benutzer, Rechte und Gruppen](#benutzer-rechte-und-gruppen)
+2a. [Körperschaften und Einrichtungen](#körperschaften-und-einrichtungen)
 3. [Anmeldung und Zwei-Faktor](#anmeldung-und-zwei-faktor)
 4. [Module ein- und ausschalten](#module-ein--und-ausschalten)
 5. [Aufnahmen und Transkription](#aufnahmen-und-transkription) (mit Chatprotokoll und Umfragen)
@@ -161,6 +162,21 @@ Eine Person kann in mehreren Gruppen sein. Gruppen gibt es auch im Bearbeiten-Di
 Benutzer:innen klicken auf der Anmeldeseite „Passwort vergessen?“. Der Link ist 2 Stunden gültig. Das Portal antwortet immer gleich, auch wenn die Adresse unbekannt ist (sonst ließe sich ausprobieren, wer ein Konto hat). Ist Zwei-Faktor aktiv, wird nach dem neuen Passwort trotzdem der zweite Faktor abgefragt.
 
 **Das Standard-Admin-Konto** wird beim allerersten Start angelegt. Legen Sie danach ein persönliches Admin-Konto für jede zuständige Person an und sperren Sie das Standardkonto oder behalten Sie es mit sicherem Passwort und Zwei-Faktor.
+
+## Körperschaften und Einrichtungen
+
+Menü **Verwaltung › Körperschaften** (Admins und Recht „Körperschaften (Stammdaten)“). Hier werden die Gebietskörperschaften und Zweckverbände, die das Portal betreut, **einmal zentral** gepflegt – mit Art (Verbandsgemeinde, Ortsgemeinde, Stadt, Landkreis, Zweckverband), Kurzname, Gemeindeschlüssel, Farbe, **Wappen** (PNG/JPEG/WebP), Anschrift und Kontakt. Darunter hängen beliebig viele **Einrichtungen** (Abteilungen, Kitas, Schulen, Eigenbetriebe …); Ortsgemeinden und Städte stehen unter der Verbandsgemeinde.
+
+Genutzt wird die Liste in allen Modulen:
+
+| Modul | Verwendung |
+|---|---|
+| Ressourcen | **Anbieter** einer Ressource (Reiter Allgemein) – Wappen und Kontakt auf der öffentlichen Seite, Filter im Katalog |
+| Krankmelder | Jeder **Arbeitgeber** ist einer Körperschaft oder Einrichtung zugeordnet; das Meldeformular gruppiert die Auswahl nach Körperschaft, Kitas und Abteilungen sind einzeln wählbar |
+| Rechtstexte | Jede **Ebene** im Rechtsbaum kann auf ihre Körperschaft zeigen – das Wappen erscheint im Ortsrecht |
+| Anträge | **Zuständige Stelle** je Online-Antrag – mit Wappen im Antragskatalog, dort auch als Filter |
+
+Beim ersten Start nach dem Update legt das Portal die Verbandsgemeinde und die Ortsgemeinden aus dem Rechtsbaum an und übernimmt die bisherigen Arbeitgeber des Krankmelders als Einrichtungen (gleichnamige werden verknüpft). Danach bitte unter Verwaltung › Körperschaften die Einrichtungen ihrer Körperschaft zuordnen. Einträge, die noch verwendet werden, lassen sich nicht löschen – stattdessen auf **inaktiv** setzen.
 
 ## Anmeldung und Zwei-Faktor
 
@@ -654,7 +670,7 @@ Ohne `#`-Überschriften (aus Word, PDF oder einer Webseite kopiert) erkennt das 
 
 **Anlagen.** PDF-Anlagen (bis 20 MB) je Text, öffentlich unter `/recht/<adresse>/anlage/<nr>`.
 
-**Querverweise.** „§ 5 GemO“, „Art. 3 GG“ usw. werden beim Anzeigen automatisch verlinkt, wenn ein veröffentlichter Text mit dieser **Abkürzung** existiert; Verweise ohne Abkürzung („§ 3 Abs. 2“) zeigen auf den Paragrafen im selben Text. Nicht eingestellte Gesetze (z. B. „BauGB“) und Verweise wie „§ 4 der Friedhofssatzung“ bleiben unverlinkt. Beim Zeigen erscheint eine Vorschau des Paragrafen.
+**Querverweise.** Verlinkt wird nur, was im Text ausdrücklich als Verweis gesetzt ist (Knopf **Verweis** im Editor): `[[§ 4]]` bzw. `[[§ 4 Abs. 2]]` zeigt auf den Paragrafen im selben Text, `[[GemO § 24]]` oder `[[GemO]]` auf einen anderen veröffentlichten Text (Abkürzung oder Adresse), `[[GemO § 24|Gemeindeordnung]]` mit eigenem Linktext. Ein bloßes „§ 4“ im Fließtext wird nie automatisch verlinkt – so entstehen keine falschen Ziele. Verweise, die ins Leere zeigen (Kürzel unbekannt, Paragraf fehlt), meldet die Vorschau im Editor und zeigt sie öffentlich als normalen Text. Beim Zeigen eines Links erscheint eine Vorschau des Paragrafen.
 
 **Anträge und Formulare.** `[[ABK § N]]` in Formularbeschreibungen und Hinweisen wird zum Link mit Vorschau. Online-Anträge haben im Reiter **Antrag** das Feld **Rechtsgrundlage** (Texte und Paragrafen); es erscheint im Antragskatalog und im Formular, und der Rechtstext zeigt „Zugehörige Online-Anträge“.
 

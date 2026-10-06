@@ -141,12 +141,15 @@ def test_expired_archived_and_search_filter():
 
 def test_cross_references():
     make_law("gemeindeordnung", GEMO, "GemO")
-    make_law("hauptsatzung-verweise", HS, "HSV")
+    refs = HS.replace("Es gilt § 2 GemO entsprechend; Näheres regelt § 2 Abs. 1.",
+                      "Es gilt [[GemO § 2]] entsprechend; Näheres regelt [[§ 2 Abs. 1]].")
+    make_law("hauptsatzung-verweise", refs, "HSV")
     page = client().get("/recht/hauptsatzung-verweise").text
-    assert '<a class="law-ref" href="/recht/gemeindeordnung/p2" data-preview="/recht/gemeindeordnung/p2">§ 2 GemO</a>' in page
+    assert '<a class="law-ref" href="/recht/gemeindeordnung/p2" data-preview="/recht/gemeindeordnung/p2">GemO § 2</a>' in page
     assert '<a class="law-ref" href="/recht/hauptsatzung-verweise/p2" data-preview="/recht/hauptsatzung-verweise/p2">§ 2 Abs. 1</a>' in page
-    assert ">§ 4 BauGB<" not in page and "§ 4 BauGB" in page                 # nicht eingestellt → kein Link
-    assert "law-ref" not in page.split("§ 2 der Friedhofssatzung")[0][-80:]  # anderer Text per Name
+    assert "Siehe auch § 4 BauGB und § 2 der Friedhofssatzung." in page   # Fließtext bleibt unverlinkt
+    plain = client().get("/recht/gemeindeordnung").text                    # ohne [[…]] keine Links
+    assert "law-ref" not in plain.split('<article', 1)[1].split('</article>', 1)[0]
     preview = client().get("/recht/gemeindeordnung/p2?format=json").json()
     assert preview["label"].startswith("§ 2") and "Aufgaben" in preview["html"]
 
@@ -281,7 +284,14 @@ def test_attachments_export_import_and_preview_warnings():
 def test_link_refs_unit():
     lx.invalidate_refs()
     make_law("gemeindeordnung", GEMO, "GemO")
-    html = "<p>Nach § 1 GemO und Art. 5 GG sowie <a href='x'>§ 2 GemO</a>.</p>"
+    # Nur ausdrücklich gesetzte Verweise werden verlinkt – Fließtext nie
+    html = ("<p>Nach § 1 GemO und § 1 sowie [[GemO § 1]], [[§ 1|hier]], [[§ 9]], [[BauGB § 4]] und "
+            "<a href='x'>[[GemO § 2]]</a>.</p>")
     out = str(lx.link_refs(html, "eigene", {"p1"}))
-    assert 'href="/recht/gemeindeordnung/p1"' in out and "Art. 5 GG" in out and out.count("law-ref") == 1
-    assert re.search(r"<a href='x'>§ 2 GemO</a>", out)
+    assert out.count("law-ref") == 2
+    assert '<a class="law-ref" href="/recht/gemeindeordnung/p1" data-preview="/recht/gemeindeordnung/p1">GemO § 1</a>' in out
+    assert '<a class="law-ref" href="/recht/eigene/p1" data-preview="/recht/eigene/p1">hier</a>' in out
+    assert "Nach § 1 GemO und § 1 sowie" in out                          # kein automatischer Link
+    assert ", § 9, BauGB § 4 und" in out                                  # ins Leere: Text ohne Klammern
+    assert re.search(r"<a href='x'>\[\[GemO § 2\]\]</a>", out)          # in vorhandenen Links nichts ändern
+    assert lx.broken_refs("[[§ 9]] [[§ 1]] [[GemO § 1]] [[Gibtsnicht]]", "eigene", {"p1"}) == ["[[§ 9]]", "[[Gibtsnicht]]"]

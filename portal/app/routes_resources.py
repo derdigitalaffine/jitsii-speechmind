@@ -109,7 +109,8 @@ def resources_list(request: Request, user: User = Depends(current_user), db: Ses
 @app.get("/resources/new")
 def resource_new(request: Request, user: User = Depends(res_user), db: Session = Depends(get_db)):
     _module_on()
-    return render(request, "resource_new.html", user, presets=res_admin.PRESETS, groups=_groups(db))
+    from . import orgs
+    return render(request, "resource_new.html", user, org_options=orgs.options(db), presets=res_admin.PRESETS, groups=_groups(db))
 
 
 @app.post("/resources/new", dependencies=[Depends(check_csrf)])
@@ -125,6 +126,9 @@ async def resource_create(request: Request, user: User = Depends(res_user), db: 
     res = Resource(owner_id=user.id, name=name, category=text("category", 80), slug=rs.unique_slug(db, name),
                    manager_user_id=user.id, active=False, location=text("location"),
                    capacity=_int(data.get("capacity"), 0, 100000, 0))
+    pid = str(data.get("provider_id", "") or "")
+    from .db import Organization
+    res.provider_id = int(pid) if pid.isdigit() and db.get(Organization, int(pid)) else None
     db.add(res)
     res_admin.apply_preset(res, str(data.get("preset", "empty")))
     price = pay.parse_amount(data.get("price", "")) if str(data.get("price", "")).strip() else None
@@ -201,7 +205,9 @@ def resource_edit(request: Request, rid: int, user: User = Depends(current_user)
         "requestTypes": {k: fm.TYPES[k][:2] for k in ("short", "long", "radio", "checkbox", "dropdown", "date", "file")},
         "subtypes": fm.SUBTYPES,
     }
+    from . import orgs
     return render(request, "resource_edit.html", user, res=res, level=lvl, editor=editor, modes=rs.MODES, users=_users(db),
+                  org_options=orgs.options(db),
                   checklist=res_admin.checklist(res), fresh=request.query_params.get("neu") == "1",
                   groups=_groups(db), dms_areas=dms_areas, price=rs.money_input, pay_methods=pay.METHODS,
                   closures=[(c, (to_local(c.ends_at) - timedelta(seconds=1)).date()) for c in res.closures])
@@ -229,6 +235,10 @@ async def resource_save(request: Request, rid: int, user: User = Depends(current
     text = lambda k, n=255: " ".join(str(data.get(k, "")).split())[:n]  # noqa: E731
     res.name = text("name", 200) or res.name
     res.category = text("category", 80)
+    if "provider_id" in data:
+        pid = str(data.get("provider_id", "") or "")
+        from .db import Organization
+        res.provider_id = int(pid) if pid.isdigit() and db.get(Organization, int(pid)) else None
     res.description = str(data.get("description", "")).replace("\r\n", "\n").strip()[:10000]
     res.equipment = str(data.get("equipment", "")).replace("\r\n", "\n").strip()[:5000]
     res.location = text("location")

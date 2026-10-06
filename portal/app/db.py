@@ -115,6 +115,7 @@ PERMISSIONS = {
     "resources": ("Ressourcen", "fa-building", "Bürgerhäuser, Räume, Grillplätze, Geräte anlegen, Buchungen bearbeiten, Belegungskalender teilen"),
     "krank": ("Krankmeldungen", "fa-notes-medical", "Krankmeldungen der Arbeitgeber bearbeiten, für die man (oder die eigene Gruppe) zuständig ist"),
     "krank_admin": ("Krankmelder verwalten", "fa-user-nurse", "Alle Krankmeldungen sehen; Arbeitgeber, Empfänger, Zuständige, Zugang, Texte, Löschfrist und Import verwalten"),
+    "orgs": ("Körperschaften (Stammdaten)", "fa-landmark-flag", "Gebietskörperschaften, Zweckverbände und ihre Einrichtungen (Abteilungen, Kitas …) mit Wappen und Kontakt pflegen – genutzt von Ressourcen, Krankmelder, Rechtstexten und Anträgen"),
     "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
 }
 
@@ -375,6 +376,8 @@ class Form(Base):
     __tablename__ = "forms"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
+    org: Mapped["Organization | None"] = relationship(foreign_keys=[org_id])
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
                                                  index=True)
     title: Mapped[str] = mapped_column(String(255))
@@ -1048,6 +1051,8 @@ class Resource(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    provider_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
+    provider: Mapped["Organization | None"] = relationship(foreign_keys=[provider_id])
     name: Mapped[str] = mapped_column(String(200))
     slug: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     category: Mapped[str] = mapped_column(String(80), default="")
@@ -1646,6 +1651,39 @@ def seed_map_layers(db) -> None:
         db.add(MapLayer(position=pos, **spec))
 
 
+class Organization(Base):
+    """Gebietskörperschaft, Zweckverband oder Einrichtung (Abteilung, Kita, Bauhof …) – portalweit gepflegt
+    (Verwaltung › Körperschaften) und in allen Modulen genutzt: Anbieter von Ressourcen, Arbeitgeber im
+    Krankmelder, Ebenen der Rechtstexte, zuständige Stelle von Anträgen. Einrichtungen hängen unter ihrer
+    Körperschaft (parent), Ortsgemeinden unter der Verbandsgemeinde."""
+    __tablename__ = "organizations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True,
+                                                  index=True)
+    kind: Mapped[str] = mapped_column(String(20), default="og")          # siehe orgs.KINDS
+    name: Mapped[str] = mapped_column(String(200))
+    short_name: Mapped[str] = mapped_column(String(80), default="")
+    ags: Mapped[str] = mapped_column(String(20), default="")             # amtlicher Gemeindeschlüssel
+    color: Mapped[str] = mapped_column(String(7), default="")
+    logo: Mapped[str] = mapped_column(String(64), default="")            # Dateiname im Ordner orgs/
+    street: Mapped[str] = mapped_column(String(255), default="")
+    zip: Mapped[str] = mapped_column(String(10), default="")
+    city: Mapped[str] = mapped_column(String(200), default="")
+    phone: Mapped[str] = mapped_column(String(60), default="")
+    email: Mapped[str] = mapped_column(String(255), default="")
+    website: Mapped[str] = mapped_column(String(255), default="")
+    contact: Mapped[str] = mapped_column(String(255), default="")        # Ansprechperson / Stelle
+    note: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    parent: Mapped["Organization | None"] = relationship(remote_side="Organization.id", back_populates="children")
+    children: Mapped[list["Organization"]] = relationship(back_populates="parent",
+                                                          order_by="(Organization.position, Organization.name)")
+
+
 class LawLevel(Base):
     """Ebene im Rechtsbaum (EU, Bund, Land, Landkreis, Verbandsgemeinde, Ortsgemeinde …), beliebig verschachtelt."""
     __tablename__ = "law_levels"
@@ -1657,6 +1695,8 @@ class LawLevel(Base):
     kind: Mapped[str] = mapped_column(String(20), default="sonstige")   # siehe laws.LEVEL_KINDS
     description: Mapped[str] = mapped_column(Text, default="")
     position: Mapped[int] = mapped_column(Integer, default=0)
+    org_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
+    org: Mapped["Organization | None"] = relationship(foreign_keys=[org_id])
 
     parent: Mapped["LawLevel | None"] = relationship(remote_side="LawLevel.id", back_populates="children")
     children: Mapped[list["LawLevel"]] = relationship(back_populates="parent", order_by="(LawLevel.position, LawLevel.name)",
@@ -1766,6 +1806,8 @@ class KrankEmployer(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)        # inaktiv: ausgegraut, nicht wählbar
     color: Mapped[str] = mapped_column(String(7), default="#3B82F6")
     position: Mapped[int] = mapped_column(Integer, default=0)
+    org_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
+    org: Mapped["Organization | None"] = relationship(foreign_keys=[org_id])
     emails: Mapped[str] = mapped_column(Text, default="")              # Empfänger, eine Adresse je Zeile
     send_global_copy: Mapped[bool] = mapped_column(Boolean, default=False)
     allow_remarks: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -1909,6 +1951,31 @@ def seed_law_levels(db) -> None:
             add(child, level, i)
 
     add(DEFAULT_LAW_LEVELS, None, 0)
+
+
+def seed_orgs(db) -> None:
+    """Einmalig: Körperschaften aus dem Rechtsbaum (Landkreis, Verbandsgemeinde, Ortsgemeinden) anlegen und
+    verknüpfen; bisherige Arbeitgeber des Krankmelders als Einrichtungen übernehmen."""
+    if db.get(Setting, "migrated_orgs") is not None:
+        return
+    db.flush()
+
+    def walk(level, parent_org):
+        org = parent_org
+        if level.kind in ("vg", "og") and level.org_id is None:
+            kind = "vg" if level.kind == "vg" else ("stadt" if level.name.startswith("Stadt ") else "og")
+            org = Organization(name=level.name, kind=kind, parent=parent_org, position=level.position)
+            db.add(org)
+            level.org = org
+        for child in level.children:
+            walk(child, org)
+    for root in db.scalars(select(LawLevel).where(LawLevel.parent_id.is_(None))):
+        walk(root, None)
+    for emp in db.scalars(select(KrankEmployer).order_by(KrankEmployer.position, KrankEmployer.name)):
+        if emp.org_id is None:
+            same = db.scalar(select(Organization).where(Organization.name == emp.name))
+            emp.org = same or Organization(name=emp.name, kind="einrichtung", color=emp.color or "", position=emp.position)
+    db.add(Setting(key="migrated_orgs", value="1"))
 
 
 DEFAULT_SETTINGS = {
@@ -2078,7 +2145,8 @@ _NEW_COLUMNS = {
               "process_id": "INTEGER REFERENCES processes(id) ON DELETE SET NULL",
               "review": "BOOLEAN NOT NULL DEFAULT 1",
               "dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL",
-              "fee_json": "TEXT NOT NULL DEFAULT '{}'", "legal_json": "TEXT NOT NULL DEFAULT '[]'"},
+              "fee_json": "TEXT NOT NULL DEFAULT '{}'", "legal_json": "TEXT NOT NULL DEFAULT '[]'",
+              "org_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL"},
     "form_responses": {"ref_no": "VARCHAR(40)", "status": "VARCHAR(16) NOT NULL DEFAULT ''", "status_at": "DATETIME",
                        "assignee_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
                        "group_id": "INTEGER REFERENCES groups(id) ON DELETE SET NULL",
@@ -2092,7 +2160,8 @@ _NEW_COLUMNS = {
                     "area_manual": "BOOLEAN NOT NULL DEFAULT 0",
                     "booking_id": "INTEGER REFERENCES resource_bookings(id) ON DELETE SET NULL"},
     "processes": {"dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL"},
-    "resources": {"remind_days": "INTEGER NOT NULL DEFAULT 2", "remind_staff_days": "INTEGER NOT NULL DEFAULT 1",
+    "resources": {"provider_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL",
+                  "remind_days": "INTEGER NOT NULL DEFAULT 2", "remind_staff_days": "INTEGER NOT NULL DEFAULT 1",
                   "remind_text": "TEXT NOT NULL DEFAULT ''", "waitlist": "BOOLEAN NOT NULL DEFAULT 1"},
     "resource_bookings": {"group_ref": "VARCHAR(40) NOT NULL DEFAULT ''",
                           "club_id": "INTEGER REFERENCES resource_clubs(id) ON DELETE SET NULL",
@@ -2101,6 +2170,8 @@ _NEW_COLUMNS = {
                           "reminded_at": "DATETIME", "staff_reminded_at": "DATETIME"},
     "invitees": {"rsvp_status": "VARCHAR(16)", "rsvp_at": "DATETIME", "rsvp_comment": "TEXT",
                  "join_token": "VARCHAR(64)"},
+    "law_levels": {"org_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL"},
+    "krank_employers": {"org_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL"},
     "law_texts": {"planned_md": "TEXT NOT NULL DEFAULT ''", "planned_valid_from": "VARCHAR(10) NOT NULL DEFAULT ''",
                   "planned_note": "VARCHAR(255) NOT NULL DEFAULT ''"},
     "law_versions": {"public": "BOOLEAN NOT NULL DEFAULT 0", "title": "VARCHAR(400) NOT NULL DEFAULT ''",
@@ -2136,6 +2207,7 @@ def init_db() -> None:
             if db.get(Setting, key) is None:
                 db.add(Setting(key=key, value=value))
         seed_law_levels(db)
+        seed_orgs(db)
         seed_map_layers(db)
         seed_form_blocks(db)
         if db.get(Setting, "migrated_app_create") is None:
