@@ -654,7 +654,7 @@ Ohne `#`-Überschriften (aus Word, PDF oder einer Webseite kopiert) erkennt das 
 
 **Anlagen.** PDF-Anlagen (bis 20 MB) je Text, öffentlich unter `/recht/<adresse>/anlage/<nr>`.
 
-**Querverweise.** „§ 5 GemO“, „Art. 3 GG“ usw. werden beim Anzeigen automatisch verlinkt, wenn ein veröffentlichter Text mit dieser **Abkürzung** existiert; Verweise ohne Abkürzung („§ 3 Abs. 2“) zeigen auf den Paragrafen im selben Text. Nicht eingestellte Gesetze (z. B. „BauGB“) und Verweise wie „§ 4 der Friedhofssatzung“ bleiben unverlinkt. Beim Zeigen erscheint eine Vorschau des Paragrafen.
+**Querverweise.** Verlinkt wird nur, was im Text ausdrücklich als Verweis gesetzt ist (Knopf **Verweis** im Editor): `[[§ 4]]` bzw. `[[§ 4 Abs. 2]]` zeigt auf den Paragrafen im selben Text, `[[GemO § 24]]` oder `[[GemO]]` auf einen anderen veröffentlichten Text (Abkürzung oder Adresse), `[[GemO § 24|Gemeindeordnung]]` mit eigenem Linktext. Ein bloßes „§ 4“ im Fließtext wird nie automatisch verlinkt – so entstehen keine falschen Ziele. Verweise, die ins Leere zeigen (Kürzel unbekannt, Paragraf fehlt), meldet die Vorschau im Editor und zeigt sie öffentlich als normalen Text. Beim Zeigen eines Links erscheint eine Vorschau des Paragrafen.
 
 **Anträge und Formulare.** `[[ABK § N]]` in Formularbeschreibungen und Hinweisen wird zum Link mit Vorschau. Online-Anträge haben im Reiter **Antrag** das Feld **Rechtsgrundlage** (Texte und Paragrafen); es erscheint im Antragskatalog und im Formular, und der Rechtstext zeigt „Zugehörige Online-Anträge“.
 

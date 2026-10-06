@@ -340,7 +340,7 @@ Die Stufe lässt sich in der Liste jederzeit ändern, das ✕ entfernt die Freig
 - Fährt man über eine Paragrafenüberschrift, erscheinen Knöpfe für **„einzeln anzeigen“** und **„Link kopieren“** (z. B. `…/recht/hauptsatzung/p3` für § 3 – ideal für Mails und Bescheide).
 - **Zu einem Paragrafen springen:** Nummer ins Feld „§“ tippen (z. B. `5`, `5a` oder `Art 3`).
 - **Schriftgröße** mit A− / A+ (wird im Browser gemerkt). Auf dem Handy lässt sich die Inhaltsübersicht ein- und ausblenden.
-- **Verweise** wie „§ 2 GemO“ oder „§ 3 Abs. 2“ sind verlinkt, wenn der Text im Portal steht; beim Zeigen (oder ersten Antippen) erscheint eine **Vorschau** des Paragrafen.
+- **Verweise**, die die Verwaltung gesetzt hat, sind verlinkt; beim Zeigen (oder ersten Antippen) erscheint eine **Vorschau** des Paragrafen.
 - **Fassungen:** Über „Fassungen“ lassen sich frühere Fassungen öffnen, mit „Welche Fassung galt am …“ die an einem Tag gültige finden und mit **Änderungen vergleichen** zwei Fassungen gegenüberstellen – Neues grün, Entfallenes rot durchgestrichen, je Paragraf als „geändert“, „neu“ oder „entfallen“ markiert.
 - **Außer Kraft getretene Texte** stehen auf der Startseite gesammelt unter „Außer Kraft getretene Texte“, tragen einen Hinweis und erscheinen in der Suche nur mit „auch außer Kraft getretene Texte“.
 - **Suche:** Filter nach Art (Satzung, Gesetz …) und Ebene; bei Tippfehlern („Hundsteuer“) sucht das Portal automatisch nach dem ähnlichsten Wort; beim Tippen erscheinen Vorschläge (Titel und Paragrafen wie „§ 4 HStS“).

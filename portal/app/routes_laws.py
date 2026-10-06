@@ -450,7 +450,9 @@ async def law_preview(request: Request, file: UploadFile | None = File(None), us
     full = data.get("html") == "1"
     return JSONResponse({"ok": True, "title": parsed.title, "norms": parsed.norms, "groups": parsed.groups,
                          "body_md": md if file is not None and file.filename else None,
-                         "warnings": lx.check_outline(parsed),
+                         "warnings": lx.check_outline(parsed) + [
+                             f"Verweis {r} führt ins Leere – Kürzel bzw. Paragraf prüfen (z. B. [[§ 4]] oder [[GemO § 24]])."
+                             for r in lx.broken_refs(md, str(data.get("slug", "") or ""), {n.anchor for n in parsed.nodes})],
                          "toc": [{"depth": n.depth, "kind": n.kind, "label": n.label, "anchor": n.anchor,
                                   "chars": len(n.plain), **({"html": n.html} if full else {})} for n in parsed.nodes]})
 
