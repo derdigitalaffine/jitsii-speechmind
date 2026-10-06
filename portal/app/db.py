@@ -1280,6 +1280,37 @@ class ResourceBooking(Base):
     club: Mapped["ResourceClub | None"] = relationship()
 
 
+class TrashItem(Base):
+    """Gelöschter Eintrag im Papierkorb: alle Zeilen (mit abhängigen Daten) als JSON, Dateien im Ordner trash/<id>.
+    Nach Ablauf (Standard 30 Tage) endgültig entfernt."""
+    __tablename__ = "trash_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(20), index=True)
+    label: Mapped[str] = mapped_column(String(300), default="")
+    table_name: Mapped[str] = mapped_column(String(60))
+    row_id: Mapped[int] = mapped_column(Integer)
+    data_json: Mapped[str] = mapped_column(Text, default="{}")
+    files_json: Mapped[str] = mapped_column(Text, default="[]")       # [[Ursprungsordner, Ordner im Papierkorb]]
+    deleted_by: Mapped[str] = mapped_column(String(255), default="")
+    batch: Mapped[str] = mapped_column(String(32), default="", index=True)   # Sammellöschung (Bereich leeren)
+    deleted_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+
+
+class DeletionLog(Base):
+    """Protokoll: wer wann was gelöscht, wiederhergestellt oder endgültig entfernt hat."""
+    __tablename__ = "deletion_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    actor: Mapped[str] = mapped_column(String(255), default="")
+    action: Mapped[str] = mapped_column(String(20))       # delete | bulk | restore | purge | expire
+    kind: Mapped[str] = mapped_column(String(20), default="")
+    count: Mapped[int] = mapped_column(Integer, default=1)
+    detail: Mapped[str] = mapped_column(Text, default="")
+
+
 class ResourceCaretakerLink(Base):
     __tablename__ = "resource_caretaker_links"
 

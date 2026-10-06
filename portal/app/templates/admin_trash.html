@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Löschen & Papierkorb{% endblock %}
+{% block content %}
+{% call m.page_head('Löschen & Papierkorb', 'Einträge suchen und löschen oder ganze Bereiche leeren. Gelöschtes liegt ' ~ keep ~ ' Tage im Papierkorb und lässt sich wiederherstellen; jede Aktion wird protokolliert.') %}
+<a class="btn btn-outline-secondary" href="#papierkorb"><i class="fa-solid fa-trash-can-arrow-up me-1"></i>Papierkorb ({{ total }})</a>
+{% endcall %}
+
+<ul class="nav nav-pills flex-nowrap overflow-auto small mb-3" aria-label="Bereich">
+  {% for k, v in kinds.items() %}<li class="nav-item"><a class="nav-link text-nowrap {{ 'active' if k == kind }}" href="?kind={{ k }}" {% if k == kind %}aria-current="page"{% endif %}><i class="fa-solid {{ v.icon }} me-1"></i>{{ v.label }}</a></li>{% endfor %}
+</ul>
+{% set k = kinds[kind] %}
+
+<div class="row g-4 mb-4">
+  <div class="col-12 col-xl-7"><div class="card h-100" id="eintrag"><div class="card-header"><i class="fa-solid fa-magnifying-glass me-2"></i>Einzelne Einträge: {{ k.label }}</div>
+    <div class="card-body">
+      <form method="get" class="d-flex gap-2 mb-3"><input type="hidden" name="kind" value="{{ kind }}">
+        <input class="form-control" type="search" name="q" value="{{ q }}" placeholder="Suchen: {{ k.search | join(', ') | replace('_', ' ') }} oder Nummer" aria-label="Suchen" autofocus>
+        <button class="btn btn-primary" type="submit">Suchen</button></form>
+      {% if q %}
+      <ul class="list-group small">{% for o in hits %}
+        <li class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary font-monospace">#{{ o.id }}</span><span class="flex-grow-1">{{ show(o) }}</span>
+          <form method="post" action="/admin/loeschen/eintrag"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="obj_id" value="{{ o.id }}"><input type="hidden" name="back" value="kind={{ kind }}&q={{ q | urlencode }}">
+            <button class="btn btn-sm btn-outline-danger" type="submit" data-confirm-title="In den Papierkorb?" data-confirm="{{ show(o) }} – mit allen zugehörigen Daten und Dateien. {{ keep }} Tage wiederherstellbar." data-confirm-button="Löschen"><i class="fa-regular fa-trash-can me-1"></i>Löschen</button></form></li>
+      {% else %}<li class="list-group-item text-secondary">Nichts gefunden.</li>{% endfor %}</ul>
+      {% if hits | length >= 50 %}<div class="form-text">Nur die ersten 50 Treffer – Suche genauer fassen.</div>{% endif %}
+      {% else %}<p class="small text-secondary mb-0">Mitgelöscht werden alle abhängigen Daten (z. B. bei einer Ressource ihre Buchungen, Räume und Fotos). Verweise anderer Einträge (z. B. eine Zahlung an einer Buchung) werden gelöst und beim Wiederherstellen wieder gesetzt.</p>{% endif %}
+    </div></div></div>
+
+  <div class="col-12 col-xl-5"><div class="card h-100 border-danger-subtle" id="bereich"><div class="card-header"><i class="fa-solid fa-broom me-2"></i>Bereich leeren: {{ k.label }}</div>
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end mb-3"><input type="hidden" name="kind" value="{{ kind }}">
+        <div class="col-sm-6"><label class="form-label small mb-1" for="tb-before">älter als (Datum)</label><input class="form-control form-control-sm" type="date" id="tb-before" name="before" value="{{ before }}"></div>
+        {% if k.statuses %}<div class="col-sm-6"><label class="form-label small mb-1" for="tb-status">Status</label><select class="form-select form-select-sm" id="tb-status" name="status"><option value="">– alle –</option>{% for sk, sl in k.statuses.items() %}<option value="{{ sk }}" {% if status == sk %}selected{% endif %}>{{ sl }}</option>{% endfor %}</select></div>{% endif %}
+        <div class="col-12"><button class="btn btn-sm btn-outline-secondary" type="submit"><i class="fa-solid fa-calculator me-1"></i>Anzahl prüfen</button></div>
+      </form>
+      <div class="form-text mb-2">Maßgeblich ist {{ {'ends_at': 'das Ende der Buchung', 'received_at': 'das Eingangsdatum'}.get(k.date, 'das Anlagedatum') }}. Ohne Bedingung wird nie etwas gelöscht.</div>
+      {% if preview is not none %}
+        {% if preview %}
+        <form method="post" action="/admin/loeschen/bereich" class="alert alert-danger mb-0"><input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="before" value="{{ before }}"><input type="hidden" name="status" value="{{ status }}"><input type="hidden" name="expected" value="{{ preview }}">
+          <div class="fw-semibold mb-2"><i class="fa-solid fa-triangle-exclamation me-1"></i>{{ preview }} Einträge würden in den Papierkorb verschoben{% if preview > 5000 %} (je Durchgang höchstens 5000){% endif %}.</div>
+          <label class="form-label small" for="tb-confirm">Zur Bestätigung „{{ confirm_word }}“ eintippen</label>
+          <div class="d-flex gap-2"><input class="form-control form-control-sm" id="tb-confirm" name="confirm" autocomplete="off" required>
+            <button class="btn btn-sm btn-danger text-nowrap" type="submit" data-confirm-title="{{ preview }} Einträge löschen?" data-confirm="{{ k.label }} – alle mit den gewählten Bedingungen kommen in den Papierkorb ({{ keep }} Tage wiederherstellbar)." data-confirm-button="Ja, löschen">Bereich leeren</button></div>
+        </form>
+        {% else %}<div class="alert alert-light border mb-0 small">Keine Einträge mit diesen Bedingungen.</div>{% endif %}
+      {% endif %}
+    </div></div></div>
+</div>
+
+<div class="card mb-4" id="papierkorb"><div class="card-header"><i class="fa-solid fa-trash-can-arrow-up me-2"></i>Papierkorb <span class="small text-secondary fw-normal">– wird nach {{ keep }} Tagen automatisch geleert</span></div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0 small">
+    <thead><tr><th>Eintrag</th><th>Bereich</th><th>Gelöscht</th><th>Endgültig ab</th><th></th></tr></thead>
+    <tbody>{% for it in items %}<tr>
+      <td>{{ it.label }}</td><td class="text-nowrap">{{ kinds[it.kind].label if it.kind in kinds else it.kind }}</td>
+      <td class="text-nowrap">{{ it.deleted_at | local }}<div class="text-secondary">{{ it.deleted_by }}{% if it.batch %} · Sammellöschung{% endif %}</div></td>
+      <td class="text-nowrap">{{ it.expires_at | local('%d.%m.%Y') }}</td>
+      <td class="text-end text-nowrap"><form method="post" action="/admin/loeschen/papierkorb/{{ it.id }}" class="d-inline"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn btn-sm btn-outline-primary" name="action" value="restore" type="submit"><i class="fa-solid fa-rotate-left me-1"></i>Wiederherstellen</button>
+        <button class="btn btn-sm btn-outline-danger" name="action" value="purge" type="submit" aria-label="Endgültig löschen" data-confirm-title="Endgültig löschen?" data-confirm="„{{ it.label }}“ lässt sich danach nicht mehr wiederherstellen." data-confirm-button="Endgültig löschen"><i class="fa-solid fa-xmark"></i></button></form></td></tr>
+    {% else %}<tr><td colspan="5" class="text-center text-secondary py-4">Der Papierkorb ist leer.</td></tr>{% endfor %}</tbody>
+  </table></div></div>
+
+<div class="card" id="protokoll"><div class="card-header"><i class="fa-solid fa-clipboard-list me-2"></i>Protokoll</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 small">
+    <thead><tr><th>Zeit</th><th>Wer</th><th>Aktion</th><th>Bereich</th><th class="text-end">Anzahl</th><th>Details</th></tr></thead>
+    <tbody>{% for l in logs %}<tr><td class="text-nowrap">{{ l.at | local }}</td><td>{{ l.actor }}</td>
+      <td>{{ {'delete': 'gelöscht', 'bulk': 'Bereich geleert', 'restore': 'wiederhergestellt', 'purge': 'endgültig gelöscht', 'expire': 'abgelaufen'}.get(l.action, l.action) }}</td>
+      <td>{{ kinds[l.kind].label if l.kind in kinds else l.kind }}</td><td class="text-end">{{ l.count }}</td><td>{{ l.detail }}</td></tr>
+    {% else %}<tr><td colspan="6" class="text-center text-secondary py-3">Noch keine Einträge.</td></tr>{% endfor %}</tbody>
+  </table></div></div>
+{% endblock %}

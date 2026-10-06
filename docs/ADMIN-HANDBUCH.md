@@ -769,6 +769,15 @@ Rechts auf der Seite gibt es **Root-Zertifikat herunterladen**. Dieses Zertifika
 - Die Domains selbst (`MEET_DOMAIN`, `PORTAL_DOMAIN`) ändern Sie weiterhin in der `.env`.
 - Zertifikate und Schlüssel liegen unter `data/caddy/data/`. Sichern Sie den Ordner mit, dann muss nach einer Wiederherstellung nichts neu beantragt werden.
 
+## Löschen & Papierkorb
+
+Menü **Verwaltung › Löschen & Papierkorb** (nur Administrator:innen). Bereiche: Buchungen, Ressourcen, Zahlungen, Online-Anträge/Formularantworten, Ablage-Einträge, Terminumfragen, Abstimmungen, Kurzlinks.
+
+- **Einzelne Einträge:** suchen (Nummer, Name, E-Mail, Titel …), „Löschen“ und im Dialog bestätigen. Mitgelöscht wird alles, was davon abhängt (z. B. bei einer Ressource Buchungen, Räume, Fotos); Verweise anderer Einträge (z. B. die Zahlung an einer Buchung) werden gelöst.
+- **Bereich leeren:** Bedingung wählen (älter als ein Datum, optional Status, z. B. „stornierte Buchungen, beendet vor dem 01.01.2025“), **Anzahl prüfen**, dann „LÖSCHEN“ eintippen und im Dialog bestätigen. Ohne Bedingung wird nie etwas gelöscht; hat sich die Anzahl seit der Vorschau geändert, passiert nichts. Höchstens 5000 Einträge je Durchgang.
+- **Papierkorb:** Gelöschtes bleibt **30 Tage** wiederherstellbar (mit Dateien und mit den gelösten Verweisen, sofern die verweisenden Einträge noch existieren) und wird danach automatisch endgültig entfernt; „×“ löscht sofort endgültig.
+- **Protokoll:** wer wann was gelöscht, wiederhergestellt oder endgültig entfernt hat.
+
 ## Design & Branding
 
 Menü **Design & Branding**. Links stellen Sie ein, rechts sehen Sie sofort eine **Vorschau**. Erst **Design speichern** übernimmt die Änderungen.

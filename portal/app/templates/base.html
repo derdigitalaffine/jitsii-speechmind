@@ -185,6 +185,7 @@
             {{ m.nav_item('/admin/https', 'fa-shield-halved', 'HTTPS &amp; Zertifikat'|safe, path.startswith('/admin/https')) }}
             {{ m.nav_item('/admin/domains', 'fa-globe', 'Domains', path.startswith('/admin/domains')) }}
             {{ m.nav_item('/admin/design', 'fa-palette', 'Design &amp; Branding'|safe, path == '/admin/design') }}
+            {{ m.nav_item('/admin/loeschen', 'fa-trash-can', 'Löschen &amp; Papierkorb'|safe, path.startswith('/admin/loeschen')) }}
             {% endif %}
             {% endcall %}
             {% endif %}

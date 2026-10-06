@@ -434,6 +434,8 @@ async def run_forever() -> None:
                 await asyncio.to_thread(krank.purge_expired)
                 from . import laws
                 await asyncio.to_thread(laws.apply_planned)   # vorbereitete Fassungen zum Inkrafttreten
+                from . import trash
+                await asyncio.to_thread(trash.purge_expired)  # Papierkorb nach 30 Tagen leeren
             if time.monotonic() - _last_chat_prune[0] >= 3600:
                 _last_chat_prune[0] = time.monotonic()
                 await asyncio.to_thread(chat.prune)
