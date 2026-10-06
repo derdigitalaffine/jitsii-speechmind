@@ -5,7 +5,7 @@
 {% macro status_badge(key) -%}{% set st = statuses.get(key, (key, 'secondary', 'fa-circle')) %}<span class="badge text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>{%- endmacro %}
 {% block content %}
 {% call m.page_head('Antragseingang', 'Online-Anträge, für die Sie zuständig sind – direkt, über eine Gruppe oder als Besitzer:in bzw. über eine Freigabe des Antragsformulars. Überfällige Vorgänge stehen oben.') %}
-<a class="btn btn-outline-secondary" href="/antraege" target="_blank"><i class="fa-solid fa-list me-1"></i>Öffentlicher Katalog</a>
+<a class="btn btn-outline-secondary" href="/antraege" target="_blank"><i class="fa-solid fa-list me-1"></i>Öffentlicher Katalog</a>{{ m.qr_button(public_url('applications', '/antraege'), 'Online-Anträge') }}
 {% if user.can('forms') %}<a class="btn btn-primary" href="/forms"><i class="fa-solid fa-plus me-1"></i>Antragsformular anlegen</a>{% endif %}
 {% endcall %}
 

@@ -470,6 +470,8 @@ Unter `/r` (oder über die Homepage) stehen alle buchbaren Ressourcen – mit Fo
 
 ## 7. Kurzlinks und QR-Codes
 
+**QR-Code zu jedem öffentlichen Link:** Neben öffentlichen Links steht ein Knopf mit dem QR-Symbol (z. B. Ressourcen-Katalog und Ressourcenseite, Vereinszugang, Antragskatalog, Formulare, Terminumfragen, Buchungsseiten, Abstimmungen, Gastlinks zu Meetings, Karten, Rechtstexte, Zahlungs- und Buchungslinks). Er öffnet einen Dialog mit Vorschau, Download als **SVG, PNG oder JPG**, Größe, Rand, Farben und Fehlerkorrektur. **Aushang:** Überschrift und Hinweis eintragen, „Aushang“ öffnet eine A4-Druckansicht mit Logo, großem QR-Code und Adresse – zum Ausdrucken oder als PDF speichern. QR-Codes gibt es dort nur für Adressen dieses Portals (auch eigene Modul-Domains).
+
 Menü **Kurzlinks** (Recht „Kurzlinks“). Aus einer langen Adresse wird eine kurze, z. B. `https://…/s/sommerfest` – ideal für Aushänge, Flyer, Amtsblatt und Mails.
 
 ### Einen Kurzlink anlegen

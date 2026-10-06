@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aushang – {{ title }}</title>
+<style>
+  @page { size: A4 portrait; margin: 14mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #111; background: #e9ecef; }
+  .sheet { width: 210mm; min-height: 297mm; margin: 1rem auto; background: #fff; padding: 18mm 16mm; display: flex; flex-direction: column;
+    align-items: center; text-align: center; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+  .brand { display: flex; align-items: center; gap: 4mm; font-size: 13pt; color: #444; margin-bottom: 12mm; }
+  .brand img { max-height: 16mm; max-width: 60mm; }
+  h1 { font-size: 34pt; line-height: 1.15; margin: 0 0 6mm; overflow-wrap: anywhere; }
+  .text { font-size: 16pt; color: #333; margin: 0 0 10mm; max-width: 160mm; }
+  .qr { width: 120mm; height: 120mm; }
+  .url { margin-top: 8mm; font-size: 13pt; font-family: ui-monospace, Consolas, monospace; overflow-wrap: anywhere; max-width: 170mm; }
+  .hint { margin-top: auto; padding-top: 10mm; font-size: 10pt; color: #666; }
+  .tools { text-align: center; margin: 1rem; font-family: system-ui, sans-serif; }
+  .tools button, .tools a { font: inherit; padding: .5rem 1rem; margin: 0 .25rem; }
+  @media print { body { background: #fff; } .sheet { margin: 0; box-shadow: none; width: auto; min-height: auto; height: 269mm; } .tools { display: none; } }
+</style>
+</head>
+<body>
+<div class="tools"><button type="button" id="print">Drucken</button> <a href="#" id="back">Zurück</a></div>
+<main class="sheet">
+  <div class="brand">{% if brand.logo %}<img src="{{ brand.logo }}" alt="">{% endif %}<span>{{ brand.name }}</span></div>
+  <h1>{{ title }}</h1>
+  <p class="text">{{ text }}</p>
+  <img class="qr" src="{{ qr }}" alt="QR-Code: {{ url }}">
+  <div class="url">{{ short }}</div>
+  <div class="hint">Kamera öffnen, auf den Code richten und dem Link folgen.</div>
+</main>
+<script>
+document.getElementById('print').addEventListener('click', function () { window.print(); });
+document.getElementById('back').addEventListener('click', function (e) { e.preventDefault(); history.back(); });
+</script>
+</body>
+</html>

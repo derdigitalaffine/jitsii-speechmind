@@ -10,7 +10,7 @@
       {% if public_url %}
       <p class="small text-secondary">Jede:r mit diesem Link kann das Formular ausfüllen, ohne Anmeldung.</p>
       <div class="input-group mb-3"><input class="form-control" id="pub" readonly value="{{ public_url }}">
-        <button class="btn btn-outline-primary" type="button" data-copy="#pub"><i class="fa-regular fa-copy"></i> Kopieren</button></div>
+        <button class="btn btn-outline-primary" type="button" data-copy="#pub"><i class="fa-regular fa-copy"></i> Kopieren</button>{{ m.qr_button(public_url, form.title) }}</div>
       <div class="d-flex flex-wrap gap-2 mb-3">
         {% if user.can('shortlinks') and 'shortlinks' in modules %}<a class="btn btn-sm btn-outline-secondary" href="{{ shortlink_url }}"><i class="fa-solid fa-link me-1"></i>Kurzlink erzeugen</a>{% endif %}
         <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#qrbox"><i class="fa-solid fa-qrcode me-1"></i>QR-Code</button>

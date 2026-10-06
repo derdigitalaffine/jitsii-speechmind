@@ -206,6 +206,22 @@
   </div>
 </div>
 {{ m.footer(ui) }}
+{% if user %}
+<div class="modal fade" id="qr-modal" tabindex="-1" aria-labelledby="qr-modal-title" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+  <div class="modal-header"><h2 class="modal-title h5" id="qr-modal-title"><i class="fa-solid fa-qrcode me-2"></i>QR-Code</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+  <div class="modal-body">
+    <p class="small text-secondary mb-3 text-break">Adresse: <a class="js-qr-target" href="#" target="_blank" rel="noopener"></a></p>
+    {% with qr_url='/qr/link.{fmt}', qr_text_field='', qr_id='qrm', errors=qr_errors %}{% include "_qr_panel.html" %}{% endwith %}
+    <hr>
+    <div class="row g-2 align-items-end">
+      <div class="col-12 fw-semibold"><i class="fa-solid fa-print me-1"></i>Aushang zum Drucken (A4)</div>
+      <div class="col-md-5"><label class="form-label small mb-1" for="qr-poster-title">Überschrift</label><input class="form-control form-control-sm" id="qr-poster-title" maxlength="120"></div>
+      <div class="col-md-5"><label class="form-label small mb-1" for="qr-poster-text">Hinweis</label><input class="form-control form-control-sm" id="qr-poster-text" maxlength="300" placeholder="QR-Code mit der Handykamera scannen"></div>
+      <div class="col-md-2"><a class="btn btn-sm btn-outline-primary w-100 js-qr-poster" href="#" target="_blank" rel="noopener">Aushang</a></div>
+    </div>
+  </div>
+</div></div></div>
+{% endif %}
 {% endblock %}
 
 <script src="/static/vendor/bootstrap/bootstrap.bundle.min.js"></script>

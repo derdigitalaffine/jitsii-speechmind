@@ -175,3 +175,9 @@
 {% macro date_tile(pp, final=False) -%}
 <span class="date-tile {{ 'is-final' if final }}" aria-hidden="true"><span class="dt-month">{{ pp.month }}</span><span class="dt-day">{{ pp.day }}</span><span class="dt-wd">{{ pp.weekday }}</span></span>
 {%- endmacro %}
+
+
+{# QR-Code-Knopf für einen öffentlichen Link: öffnet den QR-Dialog (Download SVG/PNG/JPG, Größe, Farben, Aushang). #}
+{% macro qr_button(url, title='', label='', cls='btn btn-outline-secondary') -%}
+<button type="button" class="{{ cls }} js-qr-open" data-qr-link="{{ url }}" data-qr-title="{{ title }}" title="QR-Code{{ ' zu ' ~ title if title }}" aria-label="QR-Code{{ ' zu ' ~ title if title }}"><i class="fa-solid fa-qrcode{{ ' me-1' if label }}"></i>{{ label }}</button>
+{%- endmacro %}

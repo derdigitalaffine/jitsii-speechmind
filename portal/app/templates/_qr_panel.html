@@ -1,4 +1,5 @@
-{# QR-Code mit Vorschau und Download (SVG, PNG, JPG). Erwartet: qr_url mit Platzhalter {fmt}, optional qr_text_field #}
+{# QR-Code mit Vorschau und Download (SVG, PNG, JPG). Erwartet: qr_url mit Platzhalter {fmt}, optional qr_text_field, qr_id (Präfix der IDs) #}
+{% set qid = qr_id | default('qr') %}
 <div class="row g-4 js-qr" data-qr-url="{{ qr_url }}" {% if qr_text_field %}data-qr-text="{{ qr_text_field }}"{% endif %}>
   <div class="col-md-5 text-center">
     <div class="qr-preview border rounded p-3 mb-3 d-inline-block bg-white">
@@ -12,17 +13,17 @@
     <div class="form-text mt-2">SVG für Druck und Grafikprogramme (beliebig skalierbar), PNG für Web und Office, JPG für Programme, die nur JPG annehmen.</div>
   </div>
   <div class="col-md-7"><div class="row g-3">
-    <div class="col-sm-6"><label class="form-label" for="qr-size">Größe (Pixel je Modul)</label>
-      <input class="form-range js-qr-opt" id="qr-size" name="size" type="range" min="2" max="30" value="10">
+    <div class="col-sm-6"><label class="form-label" for="{{ qid }}-size">Größe (Pixel je Modul)</label>
+      <input class="form-range js-qr-opt" id="{{ qid }}-size" name="size" type="range" min="2" max="30" value="10">
       <div class="form-text"><span class="js-qr-px">–</span> px je Punkt (bei PNG/JPG)</div></div>
-    <div class="col-sm-6"><label class="form-label" for="qr-border">Rand (Module)</label>
-      <input class="form-range js-qr-opt" id="qr-border" name="border" type="range" min="0" max="8" value="2"></div>
-    <div class="col-sm-6"><label class="form-label" for="qr-dark">Farbe</label>
-      <input class="form-control js-qr-opt js-color" id="qr-dark" name="dark" type="text" value="#000000"></div>
-    <div class="col-sm-6"><label class="form-label" for="qr-light">Hintergrund</label>
-      <input class="form-control js-qr-opt js-color" id="qr-light" name="light" type="text" value="#ffffff"></div>
-    <div class="col-12"><label class="form-label" for="qr-error">Fehlerkorrektur</label>
-      <select class="form-select js-qr-opt" id="qr-error" name="error">{% for k, v in errors.items() %}<option value="{{ k }}" {% if k == 'm' %}selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+    <div class="col-sm-6"><label class="form-label" for="{{ qid }}-border">Rand (Module)</label>
+      <input class="form-range js-qr-opt" id="{{ qid }}-border" name="border" type="range" min="0" max="8" value="2"></div>
+    <div class="col-sm-6"><label class="form-label" for="{{ qid }}-dark">Farbe</label>
+      <input class="form-control js-qr-opt js-color" id="{{ qid }}-dark" name="dark" type="text" value="#000000"></div>
+    <div class="col-sm-6"><label class="form-label" for="{{ qid }}-light">Hintergrund</label>
+      <input class="form-control js-qr-opt js-color" id="{{ qid }}-light" name="light" type="text" value="#ffffff"></div>
+    <div class="col-12"><label class="form-label" for="{{ qid }}-error">Fehlerkorrektur</label>
+      <select class="form-select js-qr-opt" id="{{ qid }}-error" name="error">{% for k, v in errors.items() %}<option value="{{ k }}" {% if k == 'm' %}selected{% endif %}>{{ v }}</option>{% endfor %}</select>
       <div class="form-text">Höher = bleibt bei Verschmutzung oder überklebtem Logo lesbar, wird aber dichter.</div></div>
     <div class="col-12 small text-secondary"><i class="fa-solid fa-circle-info me-1"></i>Auf ausreichend Kontrast achten (dunkle Farbe auf hellem Grund), sonst lesen manche Kameras den Code nicht.</div>
   </div></div>

@@ -3,7 +3,7 @@
 {% block title %}Rechtstexte{% endblock %}
 {% block content %}
 {% call m.page_head('Rechtstexte', 'Gesetze, Satzungen und Verordnungen als Markdown einstellen. Veröffentlichte Texte erscheinen öffentlich unter /recht – durchsuchbar, als Volltext oder Paragraf für Paragraf.') %}
-<a class="btn btn-outline-secondary" href="/recht" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Öffentliche Ansicht</a>
+<a class="btn btn-outline-secondary" href="/recht" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Öffentliche Ansicht</a>{{ m.qr_button(public_url('laws', '/recht'), 'Ortsrecht') }}
 <a class="btn btn-outline-secondary" href="/laws/embed"><i class="fa-solid fa-code me-1"></i>Link &amp; Einbinden</a>
 <a class="btn btn-outline-secondary" href="/laws/levels"><i class="fa-solid fa-sitemap me-1"></i>Ebenen</a>
 <div class="dropdown"><button class="btn btn-outline-secondary" data-bs-toggle="dropdown" type="button"><i class="fa-solid fa-right-left me-1"></i>Ex-/Import</button>

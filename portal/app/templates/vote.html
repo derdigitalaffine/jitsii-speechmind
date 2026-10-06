@@ -51,7 +51,7 @@
       <div class="mb-2">{% for k in modes %}<span class="badge text-bg-light border me-1">{{ access[k][0] }}</span>{% endfor %}</div>
       {% if 'public' in modes or 'codes' in modes %}
       <label class="form-label fw-semibold" for="v-link">Öffentlicher Link{% if 'codes' in modes and 'public' not in modes %} (Code-Eingabe){% endif %}</label>
-      <div class="input-group input-group-sm mb-2"><input class="form-control" id="v-link" value="{{ public_link }}" readonly><button class="btn btn-outline-secondary" type="button" data-copy="#v-link" aria-label="Kopieren"><i class="fa-regular fa-copy"></i></button>
+      <div class="input-group input-group-sm mb-2"><input class="form-control" id="v-link" value="{{ public_link }}" readonly><button class="btn btn-outline-secondary" type="button" data-copy="#v-link" aria-label="Kopieren"><i class="fa-regular fa-copy"></i></button>{{ m.qr_button(public_link, vote.title) }}
         <a class="btn btn-outline-secondary" href="/votes/{{ vote.id }}/qr/public.svg" target="_blank" title="QR-Code"><i class="fa-solid fa-qrcode"></i></a></div>
       {% endif %}
       {% if vote.status == 'draft' and not vote.opened_at %}<p class="text-secondary mb-0">Der Link funktioniert ab dem Start. Einladungen gehen beim Start raus.</p>{% endif %}

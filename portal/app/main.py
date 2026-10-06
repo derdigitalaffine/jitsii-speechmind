@@ -130,6 +130,17 @@ templates.env.globals["perm_modules"] = {"processes": "applications", "app_creat
 templates.env.globals.update(planning_when=planning.when, cancel_recipients=planning.cancel_recipients, local_input=planning.local_input,
                              is_upcoming=planning.is_upcoming, rsvp_labels=planning.RSVP_LABELS,
                              rsvp_summary=planning.rsvp_summary)
+from .shortlinks import QR_ERRORS as _QR_ERRORS  # noqa: E402
+templates.env.globals["qr_errors"] = _QR_ERRORS
+
+
+def _public_url(key: str, path: str) -> str:
+    """Öffentliche Adresse eines Moduls (eigene Domain, falls eingerichtet) – für QR-Codes und Links."""
+    from . import links
+    return links.base(key) + path
+
+
+templates.env.globals["public_url"] = _public_url
 templates.env.filters["isodate"] = lambda value: datetime.fromisoformat(value) if value else None
 templates.env.filters["filesize"] = lambda n: (
     "" if not n else f"{n / 1_000_000:.1f} MB".replace(".", ",") if n >= 1_000_000 else f"{max(n // 1000, 1)} kB")
@@ -2515,5 +2526,6 @@ from . import routes_votes  # noqa: E402,F401
 from . import routes_resources  # noqa: E402,F401
 from . import routes_resources_public  # noqa: E402,F401
 from . import routes_caretakers  # noqa: E402,F401
+from . import routes_qr  # noqa: E402,F401
 from . import routes_krank  # noqa: E402,F401
 from . import routes_orgs  # noqa: E402,F401

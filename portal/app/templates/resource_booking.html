@@ -88,7 +88,7 @@
       <form method="post" action="/resources/bookings/{{ b.id }}/note" class="d-flex gap-2"><input type="hidden" name="csrf" value="{{ csrf }}"><input class="form-control form-control-sm" name="note" placeholder="Interne Notiz"><button class="btn btn-sm btn-outline-secondary" type="submit">Hinzufügen</button></form>
     </div></div>
     <div class="card mb-4"><div class="card-body small"><label class="form-label fw-semibold" for="mlink">Link der buchenden Person</label>
-      <div class="input-group input-group-sm"><input class="form-control" id="mlink" value="{{ manage_link }}" readonly><button class="btn btn-outline-secondary" type="button" data-copy="#mlink" aria-label="Kopieren"><i class="fa-regular fa-copy"></i></button></div></div></div>
+      <div class="input-group input-group-sm"><input class="form-control" id="mlink" value="{{ manage_link }}" readonly><button class="btn btn-outline-secondary" type="button" data-copy="#mlink" aria-label="Kopieren"><i class="fa-regular fa-copy"></i></button>{{ m.qr_button(manage_link, "Buchung " ~ b.ref) }}</div></div></div>
     {% if b.status in ('unconfirmed', 'requested', 'confirmed') %}
     <form method="post" action="/resources/bookings/{{ b.id }}/cancel" class="card border-danger-subtle"><div class="card-body small"><input type="hidden" name="csrf" value="{{ csrf }}">
       <label class="form-label fw-semibold" for="c-reason">Stornieren</label>
