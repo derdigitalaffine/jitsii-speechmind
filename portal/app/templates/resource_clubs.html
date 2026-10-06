@@ -4,6 +4,7 @@
 {% block title %}Vereine & Dauernutzer{% endblock %}
 {% block content %}
 {% call rm.head('clubs', [('Vereine', '')], 'Vereine & Dauernutzer', 'Anmeldung per Link aus der E-Mail, Buchen ohne erneute Angaben, eigener Tarif und eigene Zahlweise.') %}
+  {% if signup %}{{ m.qr_button(public_url('resources', '/r/verein'), 'Verein registrieren', 'Registrierung') }}{% endif %}{{ m.qr_button(public_url('resources', '/r/login'), 'Vereinszugang', 'Anmeldung') }}
   <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#club-new"><i class="fa-solid fa-plus me-1"></i>Verein anlegen</button>
 {% endcall %}
 {% macro club_form(c) %}

@@ -119,7 +119,7 @@
   {% if level >= 2 %}
   <div class="col-12 col-xxl-5"><div class="card h-100"><div class="card-header"><i class="fa-solid fa-share-nodes me-2"></i>Link zur Buchung</div><div class="card-body">
     {% if page.invite_only %}<div class="alert alert-info small py-2"><i class="fa-solid fa-lock me-1"></i>Nur mit persönlicher Einladung buchbar – der allgemeine Link zeigt Gästen ohne Einladung einen Hinweis.</div>{% endif %}
-    <div class="input-group mb-3"><input class="form-control" id="pub" readonly value="{{ public_url }}"><button class="btn btn-outline-primary" type="button" data-copy="#pub"><i class="fa-regular fa-copy"></i> Kopieren</button></div>
+    <div class="input-group mb-3"><input class="form-control" id="pub" readonly value="{{ public_url }}"><button class="btn btn-outline-primary" type="button" data-copy="#pub"><i class="fa-regular fa-copy"></i> Kopieren</button>{{ m.qr_button(public_url, page.title) }}</div>
     <div class="d-flex flex-wrap gap-2 mb-3">
       {% if user.can('shortlinks') and 'shortlinks' in modules %}<a class="btn btn-sm btn-outline-secondary" href="{{ shortlink_url }}"><i class="fa-solid fa-link me-1"></i>Kurzlink</a>{% endif %}
       <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#qrbox"><i class="fa-solid fa-qrcode me-1"></i>QR-Code</button>

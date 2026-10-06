@@ -11,7 +11,7 @@
     <div class="flex-grow-1">
       <div class="input-group input-group-lg">
         <input class="form-control fw-semibold" id="short-url" type="text" readonly value="{{ url }}">
-        <button class="btn btn-outline-primary" type="button" data-copy="#short-url"><i class="fa-regular fa-copy"></i> Kopieren</button>
+        <button class="btn btn-outline-primary" type="button" data-copy="#short-url"><i class="fa-regular fa-copy"></i> Kopieren</button>{{ m.qr_button(url, link.title or "Kurzlink") }}
         <a class="btn btn-outline-secondary" href="{{ url }}" target="_blank" rel="noopener" title="Öffnen (zählt als Aufruf)"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
       </div>
       <div class="small text-secondary mt-2 text-truncate"><i class="fa-solid fa-arrow-turn-down fa-rotate-270 me-1"></i>{{ link.target_url }}</div>

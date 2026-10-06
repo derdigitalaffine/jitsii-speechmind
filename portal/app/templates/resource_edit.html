@@ -5,7 +5,7 @@
 {% block content %}
 {% call rm.head('home', [(res.name, '/resources/' ~ res.id), ('Bearbeiten', '')], res.name, 'Einstellungen der Ressource') %}
   <a class="btn btn-outline-secondary" href="/resources/{{ res.id }}"><i class="fa-solid fa-calendar-days me-1"></i>Belegung</a>
-  {% if res.active and res.public %}<a class="btn btn-outline-secondary" href="/r/{{ res.slug }}" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Öffentliche Seite</a>{% endif %}
+  {% if res.active and res.public %}<a class="btn btn-outline-secondary" href="/r/{{ res.slug }}" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Öffentliche Seite</a>{{ m.qr_button(public_url('resources', '/r/' ~ res.slug), res.name ~ ' buchen') }}{% endif %}
   <div class="dropdown"><button class="btn btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Weitere Aktionen"><i class="fa-solid fa-ellipsis"></i></button>
     <ul class="dropdown-menu dropdown-menu-end">
       {% if user.can('resources') %}<li><form method="post" action="/resources/{{ res.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item" type="submit"><i class="fa-regular fa-copy fa-fw me-2"></i>Kopie anlegen</button></form></li>{% endif %}

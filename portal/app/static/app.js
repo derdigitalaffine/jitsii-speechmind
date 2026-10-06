@@ -243,8 +243,34 @@
     var later = function () { clearTimeout(timer); timer = setTimeout(update, 250); };
     $('.js-qr-opt', box).forEach(function (el) { el.addEventListener('input', later); el.addEventListener('change', later); });
     if (textField) { textField.addEventListener('input', later); }
-    update();
+    box.addEventListener('qr:refresh', update);
+    if (box.dataset.qrUrl.indexOf('/qr/link.') !== 0 || box.dataset.qrUrl.indexOf('u=') > 0) { update(); }
   });
+
+  /* ---- QR-Dialog für beliebige öffentliche Links (Knopf qr_button) ----- */
+  var qrModal = document.getElementById('qr-modal');
+  if (qrModal && window.bootstrap) {
+    var qrBox = qrModal.querySelector('.js-qr'), qrLink = '', qrTitle = qrModal.querySelector('#qr-poster-title');
+    var qrText = qrModal.querySelector('#qr-poster-text'), qrPoster = qrModal.querySelector('.js-qr-poster');
+    var posterHref = function () {
+      var dark = qrBox.querySelector('[name="dark"]');
+      return '/qr/aushang?' + new URLSearchParams({ u: qrLink, title: qrTitle.value.trim(), text: qrText.value.trim(), dark: dark ? dark.value : '#000000' });
+    };
+    qrPoster.addEventListener('click', function () { qrPoster.href = posterHref(); });
+    document.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('.js-qr-open');
+      if (!btn) { return; }
+      qrLink = btn.dataset.qrLink;
+      var name = (btn.dataset.qrTitle || 'qr-code').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').slice(0, 50);
+      qrBox.dataset.qrUrl = '/qr/link.{fmt}?' + new URLSearchParams({ u: qrLink, name: 'qr-' + name });
+      var target = qrModal.querySelector('.js-qr-target');
+      target.textContent = qrLink; target.href = qrLink;
+      qrTitle.value = btn.dataset.qrTitle || '';
+      qrModal.querySelector('#qr-modal-title').lastChild.textContent = 'QR-Code' + (btn.dataset.qrTitle ? ': ' + btn.dataset.qrTitle : '');
+      qrBox.dispatchEvent(new Event('qr:refresh'));
+      bootstrap.Modal.getOrCreateInstance(qrModal).show();
+    });
+  }
 
   /* ---- Passwort anzeigen --------------------------------------------- */
   $('[data-toggle-password]').forEach(function (btn) {
