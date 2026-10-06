@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Präsentation: {{ poll.title }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/live.css">{% endblock %}
+{% block content %}
+<div class="live-present" id="live-present" data-poll="{{ poll.id }}" data-csrf="{{ csrf }}" data-pacing="{{ poll.pacing }}" tabindex="-1">
+  <header>
+    {% if ui.logo %}<img src="{{ ui.logo }}" alt="">{% endif %}
+    <div class="flex-grow-1"><div class="fw-semibold">{{ poll.title }}</div><div class="small text-secondary" id="lp-pos"></div></div>
+    <div class="live-p-controls d-flex gap-1" role="toolbar" aria-label="Steuerung">
+      <button class="btn btn-outline-secondary" type="button" id="lp-prev" title="Vorige Frage (←)" aria-label="Vorige Frage"><i class="fa-solid fa-chevron-left"></i></button>
+      <button class="btn btn-outline-secondary" type="button" id="lp-next" title="Nächste Frage (→)" aria-label="Nächste Frage"><i class="fa-solid fa-chevron-right"></i></button>
+      <div class="btn-group" role="group" aria-label="Darstellung" id="lp-charts"></div>
+      <button class="btn btn-outline-secondary" type="button" id="lp-results" title="Ergebnis ein-/ausblenden (R)" aria-pressed="true"><i class="fa-solid fa-chart-column"></i></button>
+      <button class="btn btn-outline-secondary" type="button" id="lp-qr" title="QR-Code ein-/ausblenden (Q)" aria-pressed="true"><i class="fa-solid fa-qrcode"></i></button>
+      <button class="btn btn-outline-secondary" type="button" id="lp-full" title="Vollbild (F)" aria-label="Vollbild"><i class="fa-solid fa-expand"></i></button>
+      <a class="btn btn-outline-secondary" href="/votes/live/{{ poll.id }}" title="Schließen" aria-label="Präsentation schließen"><i class="fa-solid fa-xmark"></i></a>
+    </div>
+  </header>
+  <div class="live-p-title" id="lp-title" aria-live="polite">{{ poll.title }}</div>
+  <div class="live-p-body">
+    <div class="live-p-result" id="lp-result"></div>
+    <div class="live-p-qr"><img src="/votes/live/{{ poll.id }}/qr.svg" alt="QR-Code zur Teilnahme"><div class="live-p-url">{{ short }}</div><div class="small text-secondary">QR scannen – ohne Anmeldung</div></div>
+  </div>
+  <footer><span class="live-p-count" id="lp-count">0</span><span>Antworten</span><span class="ms-auto small">← → Fragen · R Ergebnis · Q QR-Code · F Vollbild</span>{% if poll.status != 'open' %}<span class="badge text-bg-warning">Umfrage ist nicht gestartet</span>{% endif %}</footer>
+</div>
+<script type="application/json" id="lp-chartnames">{{ charts | tojson }}</script>
+<script type="application/json" id="lp-kinds">{{ kinds | tojson }}</script>
+{% endblock %}
+{% block scripts %}<script src="/static/vendor/chartjs/chart.umd.min.js"></script><script src="/static/live-chart.js"></script><script src="/static/live-present.js"></script>{% endblock %}

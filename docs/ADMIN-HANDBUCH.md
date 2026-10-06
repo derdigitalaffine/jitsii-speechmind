@@ -567,6 +567,17 @@ Menü **Terminumfragen** (Recht „Terminumfragen“). Ein Doodle-Pendant auf de
 
 ## Abstimmungen und Wahlen
 
+### Live-Umfragen
+
+Unter **Abstimmungen › Neu** wählen Sie zwischen einer **förmlichen Abstimmung** (unten) und einer **Live-Umfrage**: Teilnehmende scannen den QR-Code und antworten sofort – ohne Einladungslink, ohne Anmeldung, ohne Namen (`/l/<kennung>`). Jedes Gerät bekommt eine zufällige Kennung (Cookie, gespeichert wird nur ein Hash); je Gerät und Frage zählt eine Antwort, die sich ändern lässt, bis die Frage gesperrt wird.
+
+- **Ablauf:** *moderiert* – alle sehen die Frage, die Sie gerade zeigen; oder *frei* – alle Fragen auf einmal.
+- **Fragearten:** Auswahl (eine oder mehrere Antworten, „höchstens …“), Ja/Nein, Skala (z. B. 1–5 mit Texten links/rechts), Sterne, Schieberegler (Zahl mit Einheit).
+- **Darstellung** je Frage: Balken liegend, Säulen, Torte, Ring oder Kennzahlen (Durchschnitt, Median, Spanne) – im Präsentationsmodus umschaltbar.
+- **Ergebnis für Teilnehmende** je Frage: sofort nach der Antwort, erst nach Freigabe oder nie (nur Beamer).
+- **Präsentationsmodus** (Beamer): Frage groß, Ergebnis live, QR-Code mit Kurzadresse, Logo aus dem Design; Pfeiltasten wechseln die Frage, R blendet das Ergebnis aus/ein, Q den QR-Code, F schaltet Vollbild.
+- Steuerung je Frage: jetzt zeigen, Ergebnis freigeben, Antworten sperren, Antworten zurücksetzen, Reihenfolge, löschen.
+
 Menü **Abstimmungen** (Recht „Abstimmungen“; Teil des Moduls „Umfragen & Abstimmungen“). Bedienung im [Benutzerhandbuch](BENUTZERHANDBUCH.md#6f-abstimmungen-und-wahlen).
 
 - **Fragearten:** eine Antwort, mehrere Antworten (mindestens/höchstens), Rangfolge (Borda: Platz 1 bekommt so viele Punkte wie es Antworten gibt, jeder weitere einen weniger) und Punkte verteilen – jeweils mit „Enthaltung“.

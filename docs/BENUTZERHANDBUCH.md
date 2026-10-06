@@ -407,6 +407,8 @@ Menü **Kartenbrowser** (oder `/karte`, auch ohne Anmeldung).
 
 Menü **Abstimmungen** (Recht „Abstimmungen“) – im selben Bereich wie die Terminumfragen; oben wechseln Reiter zwischen beiden.
 
+**Live-Umfrage** (z. B. Bürgerversammlung, Workshop): **Neu › Live-Umfrage**, Titel und Ablauf wählen (moderiert = Frage für Frage, frei = alle auf einmal), Fragen hinzufügen (Auswahl, Ja/Nein, Skala, Sterne, Schieberegler), **Starten** und **Präsentieren**. Auf dem Beamer stehen Frage, Ergebnis und QR-Code; mit den Pfeiltasten gehen Sie weiter. Teilnehmende scannen den Code und antworten ohne Namen – je Handy eine Antwort, die sie ändern können. Ob sie das Ergebnis sehen, legen Sie je Frage fest (sofort, nach Freigabe, nie).
+
 ### Abstimmung anlegen
 
 1. **Neue Abstimmung**, Titel und Beschreibung.

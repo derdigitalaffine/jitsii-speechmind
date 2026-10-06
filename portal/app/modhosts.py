@@ -17,7 +17,7 @@ import re
 MODULE_PUBLIC = {
     "forms": ("Formulare", "", ("/f",)),
     "applications": ("Online-Anträge", "/antraege", ("/antraege", "/antraege-embed", "/a")),
-    "polls": ("Terminumfragen & Abstimmungen", "", ("/t", "/v")),
+    "polls": ("Terminumfragen & Abstimmungen", "", ("/t", "/v", "/l")),
     "bookings": ("Terminbuchung", "/b", ("/b",)),
     "resources": ("Ressourcenbuchung", "/r", ("/r", "/r-embed")),
     "laws": ("Rechtstexte", "/recht", ("/recht", "/recht-embed")),

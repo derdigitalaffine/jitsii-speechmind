@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ poll.title }} – Live-Umfrage{% endblock %}
+{% macro qform(q=None, kind='single') %}
+{% set k = q.kind if q else kind %}{% set fid = 'q' ~ (q.id if q else 'new-' ~ k) %}{% set st = settings_of(q) if q else {} %}
+<form method="post" action="/votes/live/{{ poll.id }}/fragen" class="row g-2">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="question_id" value="{{ q.id if q else '' }}"><input type="hidden" name="kind" value="{{ k }}">
+  <div class="col-12"><label class="form-label small" for="{{ fid }}-t">Frage</label><input class="form-control" id="{{ fid }}-t" name="title" required maxlength="500" value="{{ q.title if q else '' }}" placeholder="z. B. Wie zufrieden sind Sie mit …?"></div>
+  {% if k in ('single', 'multi') %}
+  <div class="col-md-8"><label class="form-label small" for="{{ fid }}-o">Antwortmöglichkeiten <span class="text-secondary">(eine je Zeile)</span></label>
+    <textarea class="form-control" id="{{ fid }}-o" name="options" rows="4" required>{% if q %}{% for o in opts(q) %}{{ o.label }}
+{% endfor %}{% endif %}</textarea></div>
+  {% if k == 'multi' %}<div class="col-md-4"><label class="form-label small" for="{{ fid }}-mx">Höchstens wählbar</label><input class="form-control" type="number" id="{{ fid }}-mx" name="max_choices" min="1" max="20" value="{{ st.max_choices or 3 }}"></div>{% endif %}
+  {% elif k == 'scale' %}
+  <div class="col-3"><label class="form-label small" for="{{ fid }}-mi">von</label><input class="form-control" type="number" id="{{ fid }}-mi" name="min" min="0" max="10" value="{{ st.min if q else 1 }}"></div>
+  <div class="col-3"><label class="form-label small" for="{{ fid }}-ma">bis</label><input class="form-control" type="number" id="{{ fid }}-ma" name="max" min="1" max="10" value="{{ st.max if q else 5 }}"></div>
+  <div class="col-3"><label class="form-label small" for="{{ fid }}-lo">Text links</label><input class="form-control" id="{{ fid }}-lo" name="low" maxlength="40" value="{{ st.low or '' }}" placeholder="gar nicht"></div>
+  <div class="col-3"><label class="form-label small" for="{{ fid }}-hi">Text rechts</label><input class="form-control" id="{{ fid }}-hi" name="high" maxlength="40" value="{{ st.high or '' }}" placeholder="sehr"></div>
+  {% elif k == 'slider' %}
+  <div class="col-3"><label class="form-label small" for="{{ fid }}-mi">von</label><input class="form-control" type="number" id="{{ fid }}-mi" name="min" value="{{ st.min if q else 0 }}"></div>
+  <div class="col-3"><label class="form-label small" for="{{ fid }}-ma">bis</label><input class="form-control" type="number" id="{{ fid }}-ma" name="max" value="{{ st.max if q else 100 }}"></div>
+  <div class="col-3"><label class="form-label small" for="{{ fid }}-sp">Schritt</label><input class="form-control" type="number" id="{{ fid }}-sp" name="step" min="1" value="{{ st.step if q else 1 }}"></div>
+  <div class="col-3"><label class="form-label small" for="{{ fid }}-u">Einheit</label><input class="form-control" id="{{ fid }}-u" name="unit" maxlength="12" value="{{ st.unit or '' }}" placeholder="€, %, km"></div>
+  {% endif %}
+  <div class="col-sm-6"><label class="form-label small" for="{{ fid }}-c">Darstellung</label>
+    <select class="form-select form-select-sm" id="{{ fid }}-c" name="chart">{% for c in kinds[k][2] %}<option value="{{ c }}" {% if q and q.chart == c %}selected{% endif %}>{{ charts[c] }}</option>{% endfor %}</select></div>
+  <div class="col-sm-6"><label class="form-label small" for="{{ fid }}-r">Ergebnis für Teilnehmende</label>
+    <select class="form-select form-select-sm" id="{{ fid }}-r" name="show_results">{% for kk, v in show_results.items() %}<option value="{{ kk }}" {% if q and q.show_results == kk %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+  <div class="col-12"><button class="btn btn-sm btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>{{ 'Speichern' if q else 'Frage hinzufügen' }}</button></div>
+</form>
+{% endmacro %}
+{% block content %}
+{% set st = statuses[poll.status] %}
+{% call m.page_head(poll.title, 'Live-Umfrage · ' ~ pacing[poll.pacing][0] ~ ' · ' ~ (poll.questions | length) ~ ' Frage(n)') %}
+<span class="badge text-bg-{{ st[1] }} align-self-center fs-6">{{ st[0] }}</span>
+<a class="btn btn-primary" href="/votes/live/{{ poll.id }}/praesentation" target="_blank"><i class="fa-solid fa-display me-1"></i>Präsentieren</a>
+<form method="post" action="/votes/live/{{ poll.id }}/status" class="d-inline"><input type="hidden" name="csrf" value="{{ csrf }}">
+  {% if poll.status == 'open' %}<button class="btn btn-outline-danger" name="action" value="close"><i class="fa-solid fa-stop me-1"></i>Beenden</button>
+  {% else %}<button class="btn btn-success" name="action" value="open"><i class="fa-solid fa-play me-1"></i>{{ 'Wieder öffnen' if poll.status == 'closed' else 'Starten' }}</button>{% endif %}</form>
+{% endcall %}
+
+<div class="row g-4">
+  <div class="col-12 col-xl-8">
+    {% for q in poll.questions %}
+    <div class="card mb-3 {{ 'border-primary' if poll.current_id == q.id and poll.pacing == 'moderated' }}" id="frage-{{ q.id }}">
+      <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <span class="badge text-bg-light border">{{ loop.index }}</span><i class="fa-solid {{ kinds[q.kind][1] }} text-secondary"></i>
+        <strong class="flex-grow-1">{{ q.title }}</strong>
+        {% if poll.current_id == q.id and poll.pacing == 'moderated' %}<span class="badge text-bg-primary">wird gezeigt</span>{% endif %}
+        {% if q.locked %}<span class="badge text-bg-secondary">gesperrt</span>{% endif %}
+        <span class="small text-secondary">{{ counts[q.id] }} Antwort{{ 'en' if counts[q.id] != 1 }}</span>
+        <form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/up" class="d-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-light" {% if loop.first %}disabled{% endif %} aria-label="Nach oben"><i class="fa-solid fa-arrow-up"></i></button></form>
+        <form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/down" class="d-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-light" {% if loop.last %}disabled{% endif %} aria-label="Nach unten"><i class="fa-solid fa-arrow-down"></i></button></form>
+      </div>
+      <div class="card-body">
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          {% if poll.pacing == 'moderated' %}<form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/show"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-eye me-1"></i>Jetzt zeigen</button></form>{% endif %}
+          {% if q.show_results == 'release' %}<form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/release"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm {{ 'btn-success' if q.released else 'btn-outline-success' }}"><i class="fa-solid fa-chart-pie me-1"></i>{{ 'Ergebnis freigegeben' if q.released else 'Ergebnis freigeben' }}</button></form>{% endif %}
+          <form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/lock"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-secondary"><i class="fa-solid {{ 'fa-lock-open' if q.locked else 'fa-lock' }} me-1"></i>{{ 'Antworten wieder zulassen' if q.locked else 'Antworten sperren' }}</button></form>
+          <form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/reset"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-secondary" data-confirm="Alle Antworten zu dieser Frage löschen?" data-confirm-button="Zurücksetzen"><i class="fa-solid fa-rotate-left me-1"></i>Antworten zurücksetzen</button></form>
+          <form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/delete" class="ms-auto"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger" data-confirm="Frage „{{ q.title }}“ mit allen Antworten löschen?" data-confirm-button="Löschen" aria-label="Frage löschen"><i class="fa-regular fa-trash-can"></i></button></form>
+        </div>
+        <details><summary class="small mb-2">Bearbeiten</summary>{{ qform(q) }}</details>
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-light border">Noch keine Fragen. Wählen Sie unten eine Frageart.</div>
+    {% endfor %}
+
+    <div class="card border-primary-subtle" id="neu"><div class="card-header"><i class="fa-solid fa-plus me-2"></i>Neue Frage</div><div class="card-body">
+      <ul class="nav nav-pills small mb-3 flex-wrap" role="tablist">{% for k, v in kinds.items() %}<li class="nav-item" role="presentation"><button class="nav-link {{ 'active' if loop.first }}" data-bs-toggle="pill" data-bs-target="#neu-{{ k }}" type="button" role="tab"><i class="fa-solid {{ v[1] }} me-1"></i>{{ v[0] }}</button></li>{% endfor %}</ul>
+      <div class="tab-content">{% for k in kinds %}<div class="tab-pane {{ 'show active' if loop.first }}" id="neu-{{ k }}" role="tabpanel">{{ qform(None, k) }}</div>{% endfor %}</div>
+    </div></div>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-qrcode me-2"></i>Teilnahme</div><div class="card-body text-center">
+      <img src="/votes/live/{{ poll.id }}/qr.svg" alt="QR-Code zur Teilnahme" style="width: 12rem; height: 12rem">
+      <div class="input-group input-group-sm mt-2"><input class="form-control" value="{{ join }}" readonly aria-label="Link zur Teilnahme"><button class="btn btn-outline-secondary" type="button" data-copy-text="{{ join }}" aria-label="Link kopieren"><i class="fa-regular fa-copy"></i></button></div>
+      <p class="small text-secondary mt-2 mb-0">QR scannen und sofort antworten – ohne Anmeldung, ohne Namen. Je Gerät eine Antwort je Frage (änderbar).</p>
+    </div></div>
+    <div class="card"><div class="card-header"><i class="fa-solid fa-sliders me-2"></i>Einstellungen</div>
+      <form class="card-body" method="post" action="/votes/live/{{ poll.id }}/settings"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <label class="form-label small" for="ls-t">Titel</label><input class="form-control mb-2" id="ls-t" name="title" value="{{ poll.title }}" maxlength="255">
+        <label class="form-label small" for="ls-d">Begrüßung <span class="text-secondary">(sehen Teilnehmende)</span></label><textarea class="form-control mb-2" id="ls-d" name="description" rows="2" maxlength="2000">{{ poll.description }}</textarea>
+        <fieldset class="mb-2"><legend class="form-label small">Ablauf</legend>{% for k, v in pacing.items() %}
+          <div class="form-check"><input class="form-check-input" type="radio" name="pacing" id="ls-p-{{ k }}" value="{{ k }}" {% if poll.pacing == k %}checked{% endif %}><label class="form-check-label" for="ls-p-{{ k }}">{{ v[0] }} <span class="small text-secondary d-block">{{ v[1] }}</span></label></div>{% endfor %}</fieldset>
+        <button class="btn btn-sm btn-primary" type="submit">Speichern</button>
+      </form>
+      <div class="card-footer"><form method="post" action="/votes/live/{{ poll.id }}/loeschen"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger p-0" data-confirm="Live-Umfrage „{{ poll.title }}“ mit allen Antworten löschen?" data-confirm-button="Löschen"><i class="fa-regular fa-trash-can me-1"></i>Umfrage löschen</button></form></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
