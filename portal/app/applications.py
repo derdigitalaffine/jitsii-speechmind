@@ -19,7 +19,7 @@ from datetime import timedelta
 
 from sqlalchemy import or_, select
 
-from . import forms as fm, links, mailtpl, notify
+from . import forms as fm, icons, links, mailtpl, notify
 from .config import settings
 from .db import (
     ApplicationEvent, ApplicationTask, Form, FormResponse, GroupMember, SessionLocal, User, get_settings, to_local, utcnow,
@@ -614,6 +614,32 @@ def catalog(db) -> list[Form]:
                                           Form.public_token.is_not(None), Form.active.is_(True))
                        .order_by(Form.app_category, Form.title)).all()
     return [f for f in forms if fm.is_open(f)]
+
+
+COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def category_styles(db) -> dict[str, dict]:
+    """Symbol und Farbe je Kategorie des Antragskatalogs (Einstellung „apps_category_styles“)."""
+    try:
+        raw = json.loads(get_settings(db).get("apps_category_styles") or "{}")
+    except ValueError:
+        raw = {}
+    out = {}
+    for cat, st in (raw.items() if isinstance(raw, dict) else []):
+        if isinstance(st, dict):
+            out[str(cat)] = {"icon": icons.clean(st.get("icon", "")),
+                             "color": st.get("color", "") if COLOR_RE.match(str(st.get("color", ""))) else ""}
+    return out
+
+
+def style_of(form: Form, cats: dict[str, dict]) -> dict:
+    """Symbol und Farbe eines Antrags: eigene Wahl → Kategorie → Vorschlag aus Titel/Kategorie → Standard."""
+    cat = form.app_category or "Allgemein"
+    st = cats.get(cat, {})
+    icon = icons.clean(form.app_icon) or st.get("icon") or icons.suggest(f"{form.title} {cat}") or icons.DEFAULT
+    color = form.app_color if COLOR_RE.match(form.app_color or "") else (st.get("color") or icons.color_for(cat))
+    return {"icon": icon, "color": color, "auto": not icons.clean(form.app_icon)}
 
 
 def mail_ready(db) -> bool:

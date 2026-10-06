@@ -9,7 +9,8 @@ from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import applications as apps, forms as fm, worker, workflow
+from . import applications as apps, forms as fm, icons, worker, workflow
+from .config import settings
 from .db import LOCAL_TZ, Form, FormResponse, Group, Process, User, get_settings, set_setting, utcnow
 from .main import (
     app, check_csrf, current_user, enabled_modules, flash, get_db, rate_limit, redirect, render, session_user,
@@ -41,8 +42,9 @@ def form_application(request: Request, form_id: int, user: User = Depends(curren
     from .routes_forms import _ctx
     items = fm.schema(form)
     from . import orgs
+    auto = apps.style_of(Form(title=form.title, app_category=form.app_category), apps.category_styles(db))
     return render(request, "form_application.html", user, **_ctx(db, form, "application", level),
-                  org_options=orgs.options(db),
+                  org_options=orgs.options(db), icon_list=icons.picker_data(), icon_auto=auto["icon"], icon_color=auto["color"],
                   questions=fm.questions(items), rules=apps.routing_rules(form),
                   users=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(),
                   groups=db.scalars(select(Group).order_by(Group.name)).all(),
@@ -86,6 +88,10 @@ async def form_application_save(request: Request, form_id: int, user: User = Dep
     prefix = re.sub(r"[^A-Z0-9]", "", str(data.get("app_prefix", "")).upper())[:10]
     form.app_prefix = prefix
     form.app_category = " ".join(str(data.get("app_category", "")).split())[:100]
+    if "app_icon" in data:
+        form.app_icon = icons.clean(str(data.get("app_icon", "")))
+        color = str(data.get("app_color", "")).strip()
+        form.app_color = color if apps.COLOR_RE.match(color) and data.get("app_color_on") == "1" else ""
     oid = str(data.get("org_id", "") or "")
     from .db import Organization
     form.org_id = int(oid) if oid.isdigit() and db.get(Organization, int(oid)) else None
@@ -166,9 +172,15 @@ def applications_inbox(request: Request, status: str = "open", form: str = "", s
         items = [r for r in items if needle in " ".join([r.ref_no or "", r.name, r.email, r.form.title]).lower()]
     items.sort(key=lambda r: (r.closed_at is not None, r.due_at or datetime.max, r.id))
     forms = sorted({r.form for r in visible}, key=lambda f: f.title)
+    cat_rows = []
+    if user.is_admin or user.can("app_create"):
+        styles = apps.category_styles(db)
+        names = sorted({f.app_category or "Allgemein" for f in db.scalars(select(Form).where(Form.kind == "application"))})
+        cat_rows = [{"name": c, "icon": styles.get(c, {}).get("icon", ""), "color": styles.get(c, {}).get("color", ""),
+                     "auto": icons.suggest(c) or icons.DEFAULT, "auto_color": icons.color_for(c)} for c in names]
     return render(request, "applications.html", user, items=items, counts=counts, statuses=apps.STATUSES,
                   filt={"status": status, "form": form, "scope": scope, "q": q}, forms=forms, now=now,
-                  cfg=get_settings(db))
+                  cfg=get_settings(db), cat_rows=cat_rows, icon_list=icons.picker_data() if cat_rows else [])
 
 
 def _application(db: Session, form_id: int, resp_id: int, user: User, need: int) -> tuple[FormResponse, int]:
@@ -347,8 +359,12 @@ def application_status_pdf(token: str, db: Session = Depends(get_db)):
 
 # --- Öffentlicher Antragskatalog ---------------------------------------------------------
 
+CATALOG_VIEWS = ("karten", "tabelle")
+
+
 def _catalog(request: Request, db: Session, embed: bool):
-    if embed and get_settings(db).get("apps_embed", "1") != "1":
+    cfg = get_settings(db)
+    if embed and cfg.get("apps_embed", "1") != "1":
         raise HTTPException(404, "Das Einbinden des Antragskatalogs ist abgeschaltet.")
     forms = apps.catalog(db)
     cats: dict[str, list[Form]] = {}
@@ -360,10 +376,19 @@ def _catalog(request: Request, db: Session, embed: bool):
         from . import laws
         legal = {f.id: laws.form_refs(db, f) for f in forms}
     org_list = sorted({f.org for f in forms if f.org is not None}, key=lambda o: (o.position, o.name))
+    cat_styles = apps.category_styles(db)
+    styles = {f.id: apps.style_of(f, cat_styles) for f in forms}
+    # Ansicht: ?ansicht=…, sonst zuletzt gewählt (Cookie), sonst Voreinstellung der Verwaltung
+    chosen = request.query_params.get("ansicht", "")
+    view = chosen if chosen in CATALOG_VIEWS else request.cookies.get("jsm_app_catalog_view", "")
+    view = view if view in CATALOG_VIEWS else (cfg.get("apps_catalog_view") if cfg.get("apps_catalog_view") in CATALOG_VIEWS else "karten")
     response = render(request, "antraege.html", user, cats=cats, total=len(forms), embed=embed, legal=legal, org_list=org_list,
                       layout="base_embed.html" if embed else "base.html", R="/antraege-embed" if embed else "/antraege",
-                      embed_label="Online-Anträge", embed_icon="fa-file-signature",
+                      embed_label="Online-Anträge", embed_icon="fa-file-signature", styles=styles, view=view,
                       embed_public_path="/antraege", public_link=fm.public_link)
+    if chosen in CATALOG_VIEWS:
+        response.set_cookie("jsm_app_catalog_view", chosen, max_age=365 * 86400, httponly=True, samesite="lax",
+                            secure=settings.secure_cookies)
     if not user and "jsm_session" not in request.cookies:
         request.session.clear()
     return response
@@ -381,15 +406,36 @@ def applications_catalog_embed(request: Request, db: Session = Depends(get_db)):
 
 @app.post("/forms/applications/settings", dependencies=[Depends(check_csrf)])
 def applications_settings(request: Request, apps_embed: str = FormField(""), apps_embed_origins: str = FormField(""),
+                          apps_catalog_view: str = FormField("karten"),
                           user: User = Depends(current_user), db: Session = Depends(get_db)):
     if not user.is_admin:
         raise HTTPException(403)
     origins = [o.strip().rstrip("/") for o in re.split(r"[\s,;]+", apps_embed_origins) if o.strip()]
     set_setting(db, "apps_embed", "1" if apps_embed == "1" else "0")
     set_setting(db, "apps_embed_origins", " ".join(origins))
+    set_setting(db, "apps_catalog_view", apps_catalog_view if apps_catalog_view in CATALOG_VIEWS else "karten")
     db.commit()
     flash(request, "Einstellungen zum Antragskatalog gespeichert.")
     return redirect("/forms/applications#katalog")
+
+
+@app.post("/forms/applications/categories", dependencies=[Depends(check_csrf)])
+async def applications_categories(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Symbol und Farbe je Kategorie (gelten für alle Anträge der Kategorie ohne eigene Wahl)."""
+    if not (user.is_admin or user.can("app_create")):
+        raise HTTPException(403)
+    data = await request.form()
+    styles = {}
+    for cat, icon, color, on in zip(data.getlist("cat"), data.getlist("cat_icon"), data.getlist("cat_color"),
+                                    data.getlist("cat_color_on")):
+        cat = " ".join(str(cat).split())[:100]
+        st = {"icon": icons.clean(str(icon)), "color": str(color) if on == "1" and apps.COLOR_RE.match(str(color)) else ""}
+        if cat and (st["icon"] or st["color"]):
+            styles[cat] = st
+    set_setting(db, "apps_category_styles", json.dumps(styles, ensure_ascii=False))
+    db.commit()
+    flash(request, "Symbole der Kategorien gespeichert.")
+    return redirect("/forms/applications#kategorien")
 
 
 
