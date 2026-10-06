@@ -134,7 +134,7 @@ def booking_detail(request: Request, page_id: int, user: User = Depends(current_
                   free_days=bk.group_by_day(free_slots), label=bk.label, public_url=link, users=users, groups=groups,
                   booked_emails=bk.booked_emails(page), invite_link=bk.invite_link, errors=sl.QR_ERRORS,
                   events=bk.calendar_events(page), initial_date=to_local(first).date().isoformat(),
-                  manage_link=bk.manage_link,
+                  manage_link=bk.manage_link, answers=bk.answers,
                   shortlink_url="/shortlinks?new=" + quote(link) + "&title=" + quote(page.title)
                   + "&next=" + quote(f"/bookings/{page.id}") + "#neu", level=level, share_levels=sh.LEVELS["booking"])
 
@@ -555,6 +555,7 @@ def booking_public(request: Request, token: str, i: str = "", db: Session = Depe
         person = request.query_params.get("person", "")
         pid = int(person) if person.isdigit() and bt.choose_provider and any(p.id == int(person) for p in bt.providers) else None
         return _public(request, db, page, mode="book", invite=inv, member=member, bt=bt, person=pid, types=types,
+                       fields=btypes.fields(bt),
                        days=bk.group_by_day(btypes.slots(db, page, bt, pid)), selected=request.query_params.get("slot", ""),
                        summary=btypes.summary)
     return _public(request, db, page, mode="book", invite=inv, member=member,
@@ -598,9 +599,14 @@ async def booking_public_book(request: Request, token: str, db: Session = Depend
         error = "Bitte geben Sie eine gültige E-Mail-Adresse an – dorthin geht die Bestätigung."
     elif need_phone and not phone:
         error = "Bitte geben Sie eine Telefonnummer an."
+    answers = ""
+    if not error and bt is not None:
+        import json as _json
+        rows, error = btypes.read_answers(bt, data)
+        answers = _json.dumps(rows, ensure_ascii=False) if rows else ""
     if not error:
         b, error = bk.book(db, page, start, name, email, phone, note, session_user(request, db), inv, bt=bt,
-                           provider_id=pid)
+                           provider_id=pid, answers=answers)
     if error:
         db.rollback()
         flash(request, error, "error")

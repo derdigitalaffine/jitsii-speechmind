@@ -23,7 +23,8 @@ def btypes_page(request: Request, page_id: int, user: User = Depends(current_use
     providers = btypes.all_providers(page)
     return render(request, "booking_types.html", user, page=page, users=_users(db), providers=providers,
                   plan=btypes.weekly_plan(page), weekdays=btypes.WEEKDAYS, durations=btypes.DURATIONS,
-                  phone_modes=btypes.PHONE_MODES, summary=btypes.summary, can_video=user.can("video"),
+                  phone_modes=btypes.PHONE_MODES, summary=btypes.summary, field_kinds=btypes.FIELD_KINDS,
+                  fields=btypes.fields, max_fields=btypes.MAX_FIELDS, can_video=user.can("video"),
                   previews={t.id: btypes.slots(db, page, t)[:3] for t in page.types}, label=bk.label)
 
 
@@ -55,6 +56,8 @@ async def btypes_save(request: Request, page_id: int, user: User = Depends(curre
     bt.choose_provider = data.get("choose_provider") == "1"
     bt.active = data.get("active", "1") == "1"
     bt.phone_mode = data.get("phone_mode") if data.get("phone_mode") in btypes.PHONE_MODES else "optional"
+    bt.fields_json = btypes.clean_fields(data.getlist("f_label"), data.getlist("f_kind"), data.getlist("f_options"),
+                                         set(data.getlist("f_required")), data.getlist("f_help"))
     ids = {int(x) for x in data.getlist("providers") if str(x).isdigit()}
     bt.providers = list(db.scalars(select(User).where(User.id.in_(ids), User.active.is_(True)))) if ids else []
     db.commit()

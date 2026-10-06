@@ -81,6 +81,16 @@
         <input class="form-control" id="be" name="email" type="email" required maxlength="255" autocomplete="email" value="{{ invite.email if invite else (member.email if member else '') }}" {% if invite %}readonly{% endif %}></div>
       {% set phone_mode = bt.phone_mode if bt else ('required' if page.ask_phone else 'none') %}
       {% if phone_mode != 'none' %}<div class="col-md-6"><label class="form-label" for="bp">Telefon{% if phone_mode == 'optional' %} <span class="text-secondary">(optional)</span>{% endif %}</label><input class="form-control" id="bp" name="phone" type="tel" {% if phone_mode == 'required' %}required{% endif %} maxlength="60" autocomplete="tel"></div>{% endif %}
+      {% for f in fields or [] %}{% set fidq = 'q_' ~ f.key %}
+      <div class="{{ 'col-12' if f.kind in ('textarea', 'checkbox') else 'col-md-6' }}">
+        {% if f.kind == 'checkbox' %}<div class="form-check"><input class="form-check-input" type="checkbox" id="{{ fidq }}" name="{{ fidq }}" value="1" {% if f.required %}required{% endif %}><label class="form-check-label" for="{{ fidq }}">{{ f.label }}</label></div>
+        {% else %}<label class="form-label" for="{{ fidq }}">{{ f.label }}{% if not f.required %} <span class="text-secondary">(optional)</span>{% endif %}</label>
+          {% if f.kind == 'textarea' %}<textarea class="form-control" id="{{ fidq }}" name="{{ fidq }}" rows="3" maxlength="2000" {% if f.required %}required{% endif %}></textarea>
+          {% elif f.kind == 'select' %}<select class="form-select" id="{{ fidq }}" name="{{ fidq }}" {% if f.required %}required{% endif %}><option value="">– bitte wählen –</option>{% for o in f.options %}<option>{{ o }}</option>{% endfor %}</select>
+          {% else %}<input class="form-control" id="{{ fidq }}" name="{{ fidq }}" type="{{ {'date': 'date', 'number': 'text'}.get(f.kind, 'text') }}" {% if f.kind == 'number' %}inputmode="decimal"{% endif %} maxlength="2000" {% if f.required %}required{% endif %}>{% endif %}
+        {% endif %}{% if f.help %}<div class="form-text">{{ f.help }}</div>{% endif %}
+      </div>
+      {% endfor %}
       <div class="col-12"><label class="form-label" for="bno">Nachricht <span class="text-secondary">(optional)</span></label><textarea class="form-control" id="bno" name="note" rows="2" maxlength="2000"></textarea></div>
       <div class="col-12 small text-secondary"><i class="fa-solid fa-shield-halved me-1"></i>Ihre Angaben werden nur für diesen Termin verwendet. Absagen oder Verschieben ist bis {{ page.cancel_hours }} Stunden vorher über den Link in der Bestätigung möglich.</div>
       <div class="col-12"><button class="btn btn-primary btn-lg" type="submit"><i class="fa-solid fa-calendar-check me-1"></i>{{ 'Termin anfragen' if bt and bt.approval else 'Termin verbindlich buchen' }}</button></div>

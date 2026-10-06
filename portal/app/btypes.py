@@ -176,3 +176,77 @@ def summary(bt: BookingType) -> str:
     elif bt.location:
         parts.append(bt.location)
     return " · ".join(parts)
+
+
+# --- Eigene Felder je Terminart -------------------------------------------------------------------
+
+FIELD_KINDS = {"text": "Text (eine Zeile)", "textarea": "Text (mehrzeilig)", "select": "Auswahl", "checkbox": "Ja/Nein",
+               "date": "Datum", "number": "Zahl"}
+MAX_FIELDS = 12
+
+
+def fields(bt: BookingType | None) -> list[dict]:
+    """Eigene Felder: [{key, label, kind, options, required, help}]."""
+    import json
+    if bt is None:
+        return []
+    try:
+        data = json.loads(bt.fields_json or "[]")
+    except ValueError:
+        return []
+    return [f for f in data if isinstance(f, dict) and f.get("label") and f.get("kind") in FIELD_KINDS][:MAX_FIELDS]
+
+
+def clean_fields(labels, kinds, options, required, helps) -> str:
+    """Formularzeilen aus der Verwaltung → JSON (leere Zeilen fallen weg, Schlüssel f1, f2 … bleiben stabil je Reihenfolge)."""
+    import json
+    out = []
+    for i, label in enumerate(labels):
+        label = " ".join(str(label or "").split())[:120]
+        if not label:
+            continue
+        kind = kinds[i] if i < len(kinds) and kinds[i] in FIELD_KINDS else "text"
+        opts = [o.strip()[:80] for o in str(options[i] if i < len(options) else "").split(";") if o.strip()][:30]
+        if kind == "select" and not opts:
+            kind = "text"
+        out.append({"key": f"f{len(out) + 1}", "label": label, "kind": kind, "options": opts,
+                    "required": str(i) in required, "help": " ".join(str(helps[i] if i < len(helps) else "").split())[:200]})
+    return json.dumps(out[:MAX_FIELDS], ensure_ascii=False)
+
+
+def read_answers(bt: BookingType | None, form) -> tuple[list[dict], str]:
+    """Antworten aus dem Buchungsformular prüfen: ([{label, value}], Fehler)."""
+    out = []
+    for f in fields(bt):
+        raw = form.get(f"q_{f['key']}")
+        if f["kind"] == "checkbox":
+            value = "ja" if raw == "1" else ("nein" if not f["required"] else "")
+        else:
+            value = " ".join(str(raw or "").split()) if f["kind"] != "textarea" else str(raw or "").replace("\r\n", "\n").strip()
+            value = value[:2000]
+        if f["kind"] == "select" and value and value not in f["options"]:
+            return [], f"Bitte bei „{f['label']}“ einen Eintrag aus der Liste wählen."
+        if f["kind"] == "number" and value and not re.fullmatch(r"-?\d+(?:[.,]\d+)?", value):
+            return [], f"Bitte bei „{f['label']}“ eine Zahl angeben."
+        if f["kind"] == "date" and value:
+            try:
+                value = date.fromisoformat(value).strftime("%d.%m.%Y")
+            except ValueError:
+                return [], f"Bitte bei „{f['label']}“ ein Datum angeben."
+        if f["required"] and not value:
+            return [], f"Bitte „{f['label']}“ angeben." if f["kind"] != "checkbox" else f"Bitte „{f['label']}“ bestätigen."
+        out.append({"label": f["label"], "value": value})
+    return out, ""
+
+
+def answers_of(b) -> list[dict]:
+    import json
+    try:
+        data = json.loads(getattr(b, "answers_json", "") or "[]")
+    except ValueError:
+        return []
+    return [a for a in data if isinstance(a, dict) and "label" in a] if isinstance(data, list) else []
+
+
+def answers_text(b) -> str:
+    return "\n".join(f"{a['label']}: {a['value'] or '–'}" for a in answers_of(b))
