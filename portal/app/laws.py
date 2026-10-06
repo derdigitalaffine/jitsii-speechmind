@@ -55,6 +55,17 @@ GROUP_RE = re.compile(r"^(?P<num>" + _GROUP_WORDS + r"\s+(?:\d+[a-z]?|[IVXLC]+)\
                       + r")" + _SEP + r"(?P<title>.*)$")
 _GROUP_RANK = {"buch": 2, "anlage": 2, "anhang": 2, "teil": 3, "kapitel": 4, "titel": 4, "abschnitt": 5,
                "unterabschnitt": 6, "untertitel": 6}
+# Einzelvorschriften ohne § (Verträge, Richtlinien …): „Ziffer 3“, „Nr. 5“, „Klausel 4“, „Punkt 2“, „Regel 7“
+_UNIT_WORDS = r"(?:Ziffer|Ziff\.|Nr\.|Nummer|Punkt|Regel|Klausel)"
+UNIT_RE = re.compile(r"^(?P<num>" + _UNIT_WORDS + r"\s*\d+(?:\.\d+)*[a-z]?)(?![\d])" + _SEP + r"(?P<title>.*)$")
+# reine Nummern als Überschrift: „3. Leistungen“, „3.2 Kündigung“, „3.2.1 Frist“
+NUMHEAD_RE = re.compile(r"^(?P<num>\d{1,3}(?:\.\d{1,3}){0,4})\.?\s+(?P<title>[A-ZÄÖÜ„\"].{0,118})$")
+UNIT_CANON = {"ziffer": "ziffer", "ziff": "ziffer", "nr": "nr", "nummer": "nr", "punkt": "punkt", "regel": "regel",
+              "klausel": "klausel", "abschnitt": "abschnitt", "anlage": "anlage", "anhang": "anhang", "teil": "teil",
+              "kapitel": "kapitel", "buch": "buch", "titel": "titel"}
+# Einstellung „unterste Ebene“ je Text: leer = automatisch
+OUTLINE_MODES = {"": "automatisch erkennen", "paragraf": "§ und Artikel", "abschnitt": "Abschnitt", "klausel": "Klausel",
+                 "ziffer": "Ziffer", "nr": "Nr. / Nummer", "punkt": "Punkt", "regel": "Regel", "nummer": "reine Nummern (1., 3.2 …)"}
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
 ABS_LINE_RE = re.compile(r"^\s{0,3}\(\d+[a-z]?\)\s")
@@ -69,6 +80,7 @@ class Node:
     kind: str            # intro | group | norm
     number: str
     title: str
+    word: str = ""       # Bezeichnung: ziffer, nr, abschnitt … bzw. „num“ (reine Nummer); leer bei § / Art.
     lines: list[str] = field(default_factory=list)
     anchor: str = ""
     html: str = ""
@@ -99,13 +111,45 @@ def _norm_anchor(number: str) -> str:
 
 def _classify(text: str) -> tuple[str, str, str]:
     """Überschriftstext → (Art, Nummer, Titel)."""
+    kind, number, title, _word = _classify_word(text)
+    return kind, number, title
+
+
+def _canon(word: str) -> str:
+    return UNIT_CANON.get(re.sub(r"[^a-zäöü]", "", word.lower()), "")
+
+
+def _classify_word(text: str) -> tuple[str, str, str, str]:
+    """Überschriftstext → (Art, Nummer, Titel, Bezeichnung). § und Artikel sind immer Einzelvorschriften; alle
+    anderen Bezeichnungen entscheidet erst parse() (unterste Ebene bzw. Einstellung des Textes)."""
     m = NORM_RE.match(text)
     if m:
-        return "norm", " ".join(m.group("num").split()), m.group("title").strip()
+        return "norm", " ".join(m.group("num").split()), m.group("title").strip(), ""
+    m = UNIT_RE.match(text)
+    if m:
+        num = " ".join(m.group("num").split())
+        return "group", num, m.group("title").strip(), _canon(num.split()[0])
     m = GROUP_RE.match(text)
     if m:
-        return "group", " ".join(m.group("num").split()), m.group("title").strip()
-    return "group", "", text.strip()
+        num = " ".join(m.group("num").split())
+        word = next((_canon(w) for w in num.split() if _canon(w)), "")
+        return "group", num, m.group("title").strip(), word
+    m = NUMHEAD_RE.match(text.strip())
+    if m:
+        num = m.group("num")
+        return "group", num if "." in num else num + ".", m.group("title").strip(), "num"   # „3.“ wie im Text
+    return "group", "", text.strip(), ""
+
+
+def unit_anchor(word: str, num: str) -> str:
+    """Sprungmarke einer Einzelvorschrift ohne §: „Ziffer 3“ → ziffer-3, „3.2“ → n3-2, „Nr. 5a“ → nr-5a."""
+    num = slugify(num.replace(".", "-"))
+    return f"n{num}" if word in ("num", "") else f"{word}-{num}"
+
+
+def _unit_anchor_of(number: str, word: str) -> str:
+    digits = re.search(r"\d+(?:\.\d+)*[a-z]?", number)
+    return unit_anchor(word, digits.group(0) if digits else number)
 
 
 def _is_title_line(line: str) -> bool:
@@ -119,6 +163,8 @@ def _preprocess(lines: list[str]) -> list[tuple[int, str] | str]:
     headings = [m.group(2) for m in explicit if m]
     has_norm_heads = any(_classify(h)[0] == "norm" for h in headings)
     has_group_heads = any(_classify(h)[0] == "group" for h in headings)
+    # Ohne § / Artikel im ganzen Text dürfen auch „Ziffer 3 …“ und „3.2 …“-Zeilen Überschriften sein
+    paragraph_text = any(NORM_RE.match(x.strip()) for x in lines)
     out: list = []
     fenced, i = False, 0
     while i < len(lines):
@@ -135,17 +181,24 @@ def _preprocess(lines: list[str]) -> list[tuple[int, str] | str]:
         if not fenced and prev_blank and s and len(s) <= 160:
             nxt = lines[i + 1] if i + 1 < len(lines) else ""
             nxt2 = lines[i + 2] if i + 2 < len(lines) else ""
-            kind = None
+            kind, level = None, 0
             m = NORM_RE.match(s)
             if m and not has_norm_heads:
-                kind = "norm"
+                kind, level = "norm", AUTO_NORM_LEVEL
             elif not has_group_heads and GROUP_RE.match(s):
-                kind = "group"
-            if kind:
-                title = (m.group("title") if kind == "norm" else GROUP_RE.match(s).group("title")).strip()
-                ends_sentence = s.endswith((".", ";", ",")) and not re.fullmatch(r".*\d+\s*[a-z]?\.", s)
+                kind, m = "group", GROUP_RE.match(s)
                 word = re.search(_GROUP_WORDS, s)
-                level = AUTO_NORM_LEVEL if kind == "norm" else _GROUP_RANK.get(word.group().lower() if word else "", 5)
+                level = _GROUP_RANK.get(word.group().lower() if word else "", 5)
+            elif not has_group_heads and not paragraph_text and UNIT_RE.match(s):
+                kind, m, level = "unit", UNIT_RE.match(s), AUTO_NORM_LEVEL
+            elif (not has_group_heads and not paragraph_text and NUMHEAD_RE.match(s) and not nxt.strip()
+                  and not s.endswith((".", ",", ";", ":")) and len(s) <= 90):
+                # „3.2 Kündigung“ allein auf der Zeile, danach eine Leerzeile: Stufe nach Anzahl der Punkte
+                m = NUMHEAD_RE.match(s)
+                kind, level = "num", 5 + m.group("num").count(".") + 1
+            if kind:
+                title = m.group("title").strip()
+                ends_sentence = s.endswith((".", ";", ",")) and not re.fullmatch(r".*\d+\s*[a-z]?\.", s)
                 # „§ 3 Name“ allein oder direkt vor dem Text („(1) …“); kein Satz wie „§ 3 gilt entsprechend.“
                 heading_like = not ends_sentence and (not title or (title[:1].isupper() and not _PROSE_RE.search(title)))
                 if heading_like and (not nxt.strip() or (title and len(s) <= 120)):
@@ -190,8 +243,11 @@ class Parsed:
         return sum(1 for n in self.nodes if n.kind == "group")
 
 
-def parse(markdown: str) -> Parsed:
-    lines = markdown.replace("\r\n", "\n").replace("\r", "\n").replace("﻿", "").split("\n")
+def parse(markdown: str, mode: str = "") -> Parsed:
+    """Text → Gliederung. mode bestimmt die unterste Ebene (Einzelvorschrift): leer = automatisch (gibt es § oder
+    Artikel, sind es diese; sonst die tiefsten Überschriften, die Text tragen), „paragraf“ = nur § und Artikel,
+    sonst eine Bezeichnung (ziffer, nr, abschnitt, klausel, punkt, regel, nummer)."""
+    lines = markdown.replace("\r\n", "\n").replace("\r", "\n").replace("\ufeff", "").split("\n")
     title = ""
     first = next((i for i, x in enumerate(lines) if x.strip()), None)
     if first is not None:
@@ -209,8 +265,8 @@ def parse(markdown: str) -> Parsed:
     current = intro
     for item in _preprocess(lines):
         if isinstance(item, tuple):
-            kind, number, text = _classify(item[1])
-            current = Node(level=item[0], kind=kind, number=number, title=text)
+            kind, number, text, word = _classify_word(item[1])
+            current = Node(level=item[0], kind=kind, number=number, title=text, word=word)
             nodes.append(current)
         else:
             current.lines.append(item)
@@ -218,14 +274,11 @@ def parse(markdown: str) -> Parsed:
         nodes.insert(0, intro)
     roots: list[Node] = []
     stack: list[Node] = []
-    used: set[str] = set()
     for pos, node in enumerate(nodes):
         node.position = pos
         node.html, node.plain = _render(node.lines)
         if node.kind == "intro":
             roots.append(node)
-            node.anchor = "eingang"
-            used.add(node.anchor)
             continue
         while stack and stack[-1].level >= node.level:
             stack.pop()
@@ -233,8 +286,19 @@ def parse(markdown: str) -> Parsed:
         node.depth = len(stack)
         (node.parent.children if node.parent else roots).append(node)
         stack.append(node)
-        if node.kind == "norm":
+    _lowest_level(nodes, mode)
+    used: set[str] = set()
+    for pos, node in enumerate(nodes):
+        if node.kind == "intro":
+            node.anchor = "eingang"
+            used.add(node.anchor)
+            continue
+        if node.kind == "norm" and not node.word and NORM_RE.match(node.number + " x"):
             base = _norm_anchor(node.number)
+        elif node.kind == "norm" and node.number:
+            base = _unit_anchor_of(node.number, node.word)
+        elif node.kind == "norm":
+            base = slugify(node.title, 40) or f"e{pos}"
         else:
             own = slugify(node.number) or slugify(node.title, 40) or f"g{pos}"
             parent_group = node.parent.anchor if node.parent and node.parent.kind == "group" else ""
@@ -247,9 +311,69 @@ def parse(markdown: str) -> Parsed:
     return Parsed(title=title, nodes=nodes, roots=roots)
 
 
+_UNIT_PLURAL = {"ziffer": "Ziffern", "nr": "Nummern", "punkt": "Punkte", "regel": "Regeln", "klausel": "Klauseln",
+                "abschnitt": "Abschnitte", "anlage": "Anlagen", "anhang": "Anhänge", "teil": "Teile", "kapitel": "Kapitel",
+                "buch": "Bücher", "titel": "Titel", "num": "Nummern"}
+
+
+def _word_of(number: str) -> str:
+    if not number:
+        return ""
+    if NORM_RE.match(number + " x"):
+        return "paragraf"
+    if re.match(r"^\d", number):
+        return "num"
+    return _canon(number.split()[0])
+
+
+def unit_name(items) -> str:
+    """Wie heißen die Einzelvorschriften dieses Texts? „§§ / Artikel“, „Ziffern“, „Nummern“ … (für Hinweise, Zähler).
+    items: Parsed, Knoten oder gespeicherte Abschnitte (alles mit kind und number)."""
+    items = getattr(items, "nodes", items)
+    words = [_word_of(n.number) for n in items if n.kind == "norm"]
+    if not words:
+        return "Einzelvorschriften"
+    top = max(set(words), key=words.count)
+    if top == "paragraf":
+        return "§§ / Artikel"
+    return _UNIT_PLURAL.get(top, "Einzelvorschriften")
+
+
+def jump_prefix(items) -> str:
+    """Vorsatz im Sprungfeld der Leseansicht: „§“ bei Gesetzen, sonst „Nr.“."""
+    return "§" if unit_name(items) == "§§ / Artikel" else "Nr."
+
+
+def _lowest_level(nodes: list[Node], mode: str) -> None:
+    """Welche Überschriften sind Einzelvorschriften (wie Paragrafen dargestellt, verlinkbar)?"""
+    heads = [n for n in nodes if n.kind != "intro"]
+    if mode == "paragraf" or (not mode and any(n.kind == "norm" for n in heads)):
+        return                                     # klassisch: nur § und Artikel
+    if mode and mode != "nummer":
+        for n in heads:
+            if n.word == mode:
+                n.kind = "norm"
+        return
+    if mode == "nummer":
+        for n in heads:
+            if n.word == "num" and not any(c.word == "num" for c in n.children):
+                n.kind = "norm"
+        return
+    # automatisch: die tiefsten Überschriften (ohne Unterüberschriften) werden Einzelvorschriften – ausgenommen
+    # oberste Gliederungswörter wie Buch, Teil, Kapitel, solange es darunter noch andere Überschriften gibt
+    big = {"buch", "teil", "kapitel", "titel"}
+    deeper = any(n.word not in big for n in heads)
+    for n in heads:
+        if n.children:
+            continue
+        if n.word in big and deeper:
+            continue
+        n.kind = "norm"
+
+
 def store(db, law: LawText) -> Parsed:
     """Gliederung neu berechnen und als LawSection-Zeilen speichern."""
-    parsed = parse(law.body_md or "")
+    parsed = parse(law.body_md or "", getattr(law, "outline", "") or "")
     law.sections.clear()
     db.flush()
     for node in parsed.nodes:
@@ -258,6 +382,25 @@ def store(db, law: LawText) -> Parsed:
                                        title=node.title[:400], anchor=node.anchor, html=node.html,
                                        plain=" ".join(p for p in (node.number, node.title, node.plain) if p)))
     return parsed
+
+
+OUTLINE_VERSION = "2"   # erhöhen, wenn sich die Erkennung ändert – alle Texte werden beim Start neu zerlegt
+
+
+def reparse_all(db) -> int:
+    """Einmalig nach einem Update: Gliederung aller Texte mit der aktuellen Erkennung neu speichern
+    (§- und Artikel-Sprungmarken bleiben gleich). Gibt die Zahl der Texte zurück."""
+    from .db import get_settings, set_setting
+    if get_settings(db).get("laws_outline_version") == OUTLINE_VERSION:
+        return 0
+    count = 0
+    for law in db.scalars(select(LawText)):
+        store(db, law)
+        count += 1
+    set_setting(db, "laws_outline_version", OUTLINE_VERSION)
+    db.commit()
+    invalidate_refs()
+    return count
 
 
 @dataclass
@@ -366,7 +509,8 @@ def law_counts(db, published_only: bool) -> dict[int, int]:
 # --- Suche -------------------------------------------------------------------
 
 def terms(query: str) -> list[str]:
-    words = re.findall(r"(?:§+|Art\.)\s*\d+[a-z]?\b|[\wÄÖÜäöüß-]+", query or "")
+    words = re.findall(r"(?:§+|Art\.|Ziffer|Ziff\.|Nr\.|Nummer|Punkt|Regel|Klausel)\s*\d+(?:\.\d+)*[a-z]?\b"
+                       r"|\d+(?:\.\d+)+|[\wÄÖÜäöüß-]+", query or "")
     return [w.strip() for w in words if len(w.strip()) >= 2 or w.strip().isdigit()][:8]
 
 
@@ -517,9 +661,9 @@ class Section:
     plain: str
 
 
-def tree_of(markdown: str) -> tuple[list[View], list[View]]:
+def tree_of(markdown: str, mode: str = "") -> tuple[list[View], list[View]]:
     """Wie tree(), aber für eine frühere Fassung direkt aus dem Markdown."""
-    parsed = parse(markdown or "")
+    parsed = parse(markdown or "", mode)
     by_node: dict[int, View] = {}
     roots, flat = [], []
     for node in parsed.nodes:
@@ -573,10 +717,10 @@ def _body_text(v: View) -> str:
     return re.sub(r"\s(\(\d+[a-z]?\))\s", r"\n\1 ", text)
 
 
-def compare(old_md: str, new_md: str) -> list[dict]:
+def compare(old_md: str, new_md: str, mode: str = "") -> list[dict]:
     """Abschnittsweiser Vergleich: geändert (mit Wortänderungen), neu, entfallen, unverändert."""
-    _, old_flat = tree_of(old_md)
-    _, new_flat = tree_of(new_md)
+    _, old_flat = tree_of(old_md, mode)
+    _, new_flat = tree_of(new_md, mode)
     old_by = {v.section.anchor: v for v in old_flat}
     new_anchors = {v.section.anchor for v in new_flat}
     out = []
@@ -637,7 +781,36 @@ def norm_anchor(kind: str, num: str) -> str:
     return _norm_anchor(("art" if kind.lower().startswith("art") else "§") + num)
 
 
-_TARGET_RE = re.compile(r"^(?P<name>.*?)\s*(?:(?P<kind>§§?|Art\.|Artikel)\s*(?P<num>\d+[a-z]?)(?P<rest>.*))?$")
+_REF_WORDS = r"(?:§§?|Art\.|Artikel|Ziffer|Ziff\.|Nr\.|Nummer|Punkt|Regel|Klausel|Abschnitt|Anlage|Anhang)"
+_TARGET_RE = re.compile(r"^(?P<name>.*?)\s*(?:(?P<kind>" + _REF_WORDS + r")\s*(?P<num>\d+(?:\.\d+)*[a-z]?)(?P<rest>(?:\s.*)?)"
+                        r"|(?<!\S)(?P<bare>\d+(?:\.\d+)*[a-z]?)\.?)?$")
+
+
+def ref_anchors(kind: str | None, num: str) -> list[str]:
+    """Mögliche Sprungmarken zu „§ 4“, „Art. 3“, „Ziffer 3“, „Nr. 3.2“, „Abschnitt 4“ oder „3.2“ – in dieser
+    Reihenfolge versucht. Bezeichnung und Nummer passen auch zu reinen Nummern („Ziffer 3“ → „3.“)."""
+    kind = (kind or "").strip()
+    if kind.startswith("§") or kind.lower().startswith("art"):
+        return [norm_anchor(kind, num)]
+    num = num.rstrip(".")
+    word = _canon(kind) if kind else ""
+    out = [unit_anchor(word, num)] if word else []
+    out.append(unit_anchor("num", num))
+    if not word:
+        out += [unit_anchor(w, num) for w in ("ziffer", "nr", "punkt", "regel", "klausel", "abschnitt")]
+    return out
+
+
+def _pick(candidates: list[str], anchors: set[str]) -> str:
+    """Erste vorhandene Sprungmarke; Abschnitte als Gliederung tragen ggf. ein Präfix der Oberebene."""
+    for a in candidates:
+        if a in anchors:
+            return a
+    for a in candidates:
+        hit = next((x for x in sorted(anchors) if x.endswith("-" + a)), None)
+        if hit:
+            return hit
+    return ""
 
 
 def resolve_ref(inner: str, own: tuple[str, set[str]] | None, refs: dict, base: str = "/recht") -> tuple[str | None, str]:
@@ -646,23 +819,28 @@ def resolve_ref(inner: str, own: tuple[str, set[str]] | None, refs: dict, base: 
     [[§ 4]] / [[§ 4 Abs. 2]]   eigener Text (own = (Adresse, Anker)), Paragraf muss existieren
     [[GemO § 24]] / [[GemO]]   anderer veröffentlichter Text (Kürzel oder Adresse), Paragraf optional
     [[GemO § 24|Text]]         mit eigenem Linktext
+    [[Ziffer 3]] / [[Nr. 3.2]] / [[3.2]] / [[VERTRAG Abschnitt 4]]   Einzelvorschriften ohne § (Verträge, Regeln)
     """
     target, _sep, label = inner.partition("|")
     target, label = target.strip(), (label.strip() or target.strip())
     m = _TARGET_RE.match(target)
     if not m or not target:
         return None, label
-    name = m.group("name").strip()
-    anchor = norm_anchor(m.group("kind"), m.group("num")) if m.group("kind") else ""
+    name, num = m.group("name").strip(), m.group("num") or m.group("bare")
     if not name:
-        if own is None or not anchor or anchor not in own[1]:
+        anchor = _pick(ref_anchors(m.group("kind"), num), own[1]) if own is not None and num else ""
+        if not anchor:
             return None, label
         return f"{base}/{own[0]}/{anchor}", label
     entry = refs.get(name.lower())
+    if entry is None and num and not m.group("kind"):
+        entry = refs.get(f"{name} {num}".lower())   # Kürzel mit Zahl, z. B. „BauGB 2“ – dann ohne Sprungmarke
+        num = None if entry else num
     if entry is None:
         return None, label
     slug, _title, anchors = entry
-    if anchor and anchor not in anchors:
+    anchor = _pick(ref_anchors(m.group("kind"), num), anchors) if num else ""
+    if num and not anchor:
         return None, label
     return f"{base}/{slug}" + (f"/{anchor}" if anchor else ""), label
 
@@ -763,7 +941,7 @@ def did_you_mean(db, query: str) -> str:
 
 
 def quick(db, query: str, published_only: bool = True, limit: int = 8) -> list[dict]:
-    """Vorschläge beim Tippen: Titel, Abkürzungen und Paragrafen („§ 3 HS“)."""
+    """Vorschläge beim Tippen: Titel, Abkürzungen und Einzelvorschriften („§ 3 HS“, „Ziffer 4 Vertrag“)."""
     q = (query or "").strip()
     if len(q) < 2:
         return []
@@ -774,10 +952,10 @@ def quick(db, query: str, published_only: bool = True, limit: int = 8) -> list[d
         lq = lq.where(LawText.published.is_(True))
     for law in db.scalars(lq.order_by(LawText.title).limit(limit)):
         out.append({"label": law.title + (f" ({law.short_title})" if law.short_title else ""), "slug": law.slug, "anchor": ""})
-    m = re.match(r"^(§§?|Art\.?|Artikel)\s*(\d+[a-z]?)\s*(.*)$", q)
+    m = re.match(r"^(" + _REF_WORDS + r"|Art)\s*(\d+(?:\.\d+)*[a-z]?)\s*(.*)$", q)
     if m and len(out) < limit:
-        anchor = norm_anchor(m.group(1), m.group(2))
-        sq = select(LawSection).join(LawText).where(LawSection.anchor == anchor)
+        sq = select(LawSection).join(LawText).where(LawSection.kind == "norm",
+                                                    LawSection.anchor.in_(ref_anchors(m.group(1), m.group(2))))
         rest = m.group(3).strip()
         if rest:
             sq = sq.where(or_(LawText.short_title.ilike(f"%{rest}%"), LawText.title.ilike(f"%{rest}%")))
@@ -797,7 +975,7 @@ def quick(db, query: str, published_only: bool = True, limit: int = 8) -> list[d
 
 
 def check_outline(parsed: Parsed) -> list[str]:
-    """Hinweise zur erkannten Gliederung: leere Paragrafen, doppelte Nummern, Lücken in der Zählung."""
+    """Hinweise zur erkannten Gliederung: leere Einzelvorschriften, doppelte Nummern, Lücken in der Zählung."""
     out = []
     seen: dict[str, int] = {}
     last = None
@@ -817,7 +995,7 @@ def check_outline(parsed: Parsed) -> list[str]:
         if num is not None:
             last = num
     if parsed.nodes and not any(n.kind == "norm" for n in parsed.nodes) and len(parsed.nodes) < 2:
-        out.append("Keine Paragrafen oder Artikel erkannt – der Text wird als ein Block angezeigt.")
+        out.append("Keine Einzelvorschriften (§, Artikel, Ziffern …) erkannt – der Text wird als ein Block angezeigt.")
     return out[:20]
 
 
@@ -833,8 +1011,13 @@ def clean_form_refs(db, law_ids: list, paras: list) -> list[dict]:
         if law is None:
             continue
         para = " ".join(str(para or "").split())[:40]
-        m = re.match(r"^(§§?|Art\.?|Artikel)?\s*(\d+[a-z]?)", para)
-        anchor = norm_anchor(m.group(1) or "§", m.group(2)) if m else ""
+        m = re.match(r"^(" + _REF_WORDS + r"|Art)?\s*(\d+(?:\.\d+)*[a-z]?)", para)
+        anchor = ""
+        if m:
+            anchors = {s.anchor for s in law.sections}
+            cands = ref_anchors(m.group(1), m.group(2)) if m.group(1) else \
+                [norm_anchor("§", m.group(2))] + ref_anchors(None, m.group(2))   # nur Zahl: § bevorzugt
+            anchor = _pick(cands, anchors) or ("" if anchors else cands[0])
         out.append({"law_id": law.id, "anchor": anchor, "para": para})
     return out[:10]
 

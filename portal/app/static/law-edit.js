@@ -59,6 +59,8 @@
     body.append('csrf', form.querySelector('[name=csrf]').value);
     body.append('body_md', text.value);
     body.append('html', '1');
+    var outline = form.querySelector('[name=outline]');
+    if (outline) body.append('outline', outline.value);
     if (withFile && file.files.length) body.append('file', file.files[0]);
     if (status) status.textContent = 'prüfe …';
     fetch('/laws/preview', { method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
@@ -81,7 +83,7 @@
           fillMeta(d.meta_raw || {});
         }
         var html = metaHtml + '<div class="mb-2">' + (d.title ? 'Titel: <strong>' + esc(d.title) + '</strong><br>' : '') +
-          '<span class="badge text-bg-primary">' + d.norms + ' §§ / Artikel</span> <span class="badge text-bg-secondary">' + d.groups + ' Gliederungseinheiten</span></div>';
+          '<span class="badge text-bg-primary">' + d.norms + ' ' + esc(d.unit || 'Einzelvorschriften') + '</span> <span class="badge text-bg-secondary">' + d.groups + ' Gliederungseinheiten</span></div>';
         if (d.warnings && d.warnings.length) {
           html += '<div class="alert alert-warning py-1 px-2 small mb-2"><ul class="mb-0 ps-3">' + d.warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul></div>';
         }
@@ -95,12 +97,14 @@
         // Vorschau: die Abschnitte wie auf der öffentlichen Seite (HTML kommt aus Markdown ohne eingebettetes HTML)
         prev.innerHTML = (d.title ? '<h2 class="h5 text-center mb-3">' + esc(d.title) + '</h2>' : '') + d.toc.map(function (n) {
           var head = n.kind === 'intro' ? '' : '<div class="lex-head" style="margin-top:1.2rem"><span class="lex-nr">' + esc(n.label) + '</span></div>';
-          return '<section class="lex-unit lex-' + n.kind + '" id="pv-' + esc(n.anchor) + '">' + head + (n.html || '') + '</section>';
+          return '<section class="lex-unit lex-' + n.kind + ' lex-d' + Math.min(n.depth, 3) + '" id="pv-' + esc(n.anchor) + '">' + head + (n.html || '') + '</section>';
         }).join('') || '<p class="text-secondary">Noch kein Text.</p>';
-        if (status) status.textContent = d.norms + ' §§ · ' + (d.warnings && d.warnings.length ? d.warnings.length + ' Hinweis(e)' : 'keine Hinweise');
+        if (status) status.textContent = d.norms + ' ' + (d.unit || 'Einzelvorschriften') + ' · ' + (d.warnings && d.warnings.length ? d.warnings.length + ' Hinweis(e)' : 'keine Hinweise');
       })
       .catch(function () { box.innerHTML = '<div class="text-danger">Prüfung fehlgeschlagen.</div>'; });
   }
+  var outlineSel = form.querySelector('[name=outline]');
+  if (outlineSel) outlineSel.addEventListener('change', function () { check(false); });
   text.addEventListener('input', function () { dirty = true; clearTimeout(timer); timer = setTimeout(function () { check(false); }, 600); });
   file.addEventListener('change', function () { if (file.files.length) check(true); });
   box.addEventListener('click', function (e) {

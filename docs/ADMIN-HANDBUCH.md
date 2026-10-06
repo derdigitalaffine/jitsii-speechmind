@@ -670,10 +670,19 @@ Menü **Rechtstexte › Rechtstexte pflegen** (Recht „Rechtstexte“). Die öf
 | Text vor der ersten Gliederung | Eingangsformel / Präambel (kursiv) |
 | `## Erster Teil – Allgemeines`, `### Abschnitt 2` … | Gliederungsebenen, beliebig tief |
 | `### § 3 Ortsbezirke`, `### Artikel 5 Inkrafttreten` | Norm (Paragraf/Artikel) mit Überschrift |
+| `### Ziffer 3 Haftung`, `## 3. Haftung`, `### 3.2 Schäden` | Einzelvorschrift in Texten ohne § (Verträge, Regeln) – siehe „Unterste Ebene“ |
 | `(1) …`, `(2) …` am Zeilenanfang | nummerierte Absätze mit hängendem Einzug |
 | Listen, Tabellen, **fett**, Links | wie in Markdown üblich (HTML wird nicht übernommen) |
 
 Ohne `#`-Überschriften (aus Word, PDF oder einer Webseite kopiert) erkennt das Portal allein stehende Zeilen wie „§ 3 Ortsbezirke“, „§ 3“ mit der Überschrift in der nächsten Zeile, „Artikel 2“ oder „Zweiter Abschnitt“ selbst. Sätze wie „§ 5 gilt entsprechend.“ bleiben Text.
+
+**Unterste Ebene (Einzelvorschrift).** Was wie ein Paragraf dargestellt wird (zentrierte Überschrift ohne Trennlinie, eigene Adresse, einzeln anzeigbar, verlinkbar), erkennt das Portal selbst:
+
+- Gibt es `§` oder Artikel, sind es diese – wie bisher (große Gesetze wie das BGB gliedern sich darüber in Buch › Abschnitt › Titel).
+- Gibt es keine (Verträge, Haus- und Benutzungsordnungen, Richtlinien), werden die **tiefsten Überschriften, die Text tragen**, zu Einzelvorschriften – z. B. „Ziffer 3 Haftung“, „Nr. 5“, „Klausel 2“, „Regel 4“, „Abschnitt 4“ oder reine Nummern wie „## 3. Haftung“ und „### 3.2 Schäden“. Bei mehrstufiger Zählung gilt die tiefste Stufe: 3.1 und 3.2 sind Einzelvorschriften, „3.“ darüber wird Zwischenüberschrift (ihr eigener Text bleibt erhalten). Buch, Teil, Kapitel und Titel bleiben Gliederung, solange es darunter noch etwas gibt.
+- Passt die Erkennung nicht, legen Sie sie im Feld **Unterste Ebene** fest (automatisch, § und Artikel, Abschnitt, Klausel, Ziffer, Nr., Punkt, Regel, reine Nummern) – oder im Stammdaten-Kopf mit `einzelvorschrift: Ziffer`.
+
+Die Gliederung wird **abgestuft** dargestellt: nur die oberste Ebene (z. B. Buch oder Teil) groß mit Trennlinie, darunter kleiner werdende Zwischenüberschriften ohne Linie; die Inhaltsübersicht ist eingerückt und einklappbar. Überall – Inhaltsübersicht, Suche, Vergleich, Einzelansicht, Sprungfeld („§“ bzw. „Nr.“) – steht die echte Bezeichnung des Textes. Nach dem Update werden alle vorhandenen Texte einmalig neu zerlegt; Adressen von §§ und Artikeln (`…/p3`, `…/art2`) bleiben gleich, Einzelvorschriften ohne § bekommen Adressen wie `…/ziffer-3` oder `…/n3-2` (für 3.2).
 
 **Veröffentlichen.** Nur Texte mit Schalter **Öffentlich sichtbar** erscheinen unter `/recht` und in der Suche; Entwürfe sehen ausschließlich Personen mit dem Recht „Rechtstexte“ (mit Hinweis „nicht veröffentlicht“). In der Liste schaltet ein Klick auf „öffentlich/Entwurf“ um.
 
@@ -683,7 +692,7 @@ Ohne `#`-Überschriften (aus Word, PDF oder einer Webseite kopiert) erkennt das 
 
 **Anlagen.** PDF-Anlagen (bis 20 MB) je Text, öffentlich unter `/recht/<adresse>/anlage/<nr>`.
 
-**Querverweise.** Verlinkt wird nur, was im Text ausdrücklich als Verweis gesetzt ist (Knopf **Verweis** im Editor): `[[§ 4]]` bzw. `[[§ 4 Abs. 2]]` zeigt auf den Paragrafen im selben Text, `[[GemO § 24]]` oder `[[GemO]]` auf einen anderen veröffentlichten Text (Abkürzung oder Adresse), `[[GemO § 24|Gemeindeordnung]]` mit eigenem Linktext. Ein bloßes „§ 4“ im Fließtext wird nie automatisch verlinkt – so entstehen keine falschen Ziele. Verweise, die ins Leere zeigen (Kürzel unbekannt, Paragraf fehlt), meldet die Vorschau im Editor und zeigt sie öffentlich als normalen Text. Beim Zeigen eines Links erscheint eine Vorschau des Paragrafen.
+**Querverweise.** Verlinkt wird nur, was im Text ausdrücklich als Verweis gesetzt ist (Knopf **Verweis** im Editor): `[[§ 4]]` bzw. `[[§ 4 Abs. 2]]` zeigt auf den Paragrafen im selben Text, `[[GemO § 24]]` oder `[[GemO]]` auf einen anderen veröffentlichten Text (Abkürzung oder Adresse), `[[GemO § 24|Gemeindeordnung]]` mit eigenem Linktext. In Texten ohne § mit ihrer Bezeichnung: `[[Ziffer 3]]`, `[[Abschnitt 4]]`, `[[Nr. 3.2]]` oder einfach `[[3.2]]`, auf andere Texte `[[VERTRAG Ziffer 3]]` – das gilt auch in Anträgen, Formularen und im Feld „Paragraf“ bei Rechtsgrundlagen und Ressourcen. Ein bloßes „§ 4“ im Fließtext wird nie automatisch verlinkt – so entstehen keine falschen Ziele. Verweise, die ins Leere zeigen (Kürzel unbekannt, Paragraf fehlt), meldet die Vorschau im Editor und zeigt sie öffentlich als normalen Text. Beim Zeigen eines Links erscheint eine Vorschau des Paragrafen.
 
 **Anträge und Formulare.** `[[ABK § N]]` in Formularbeschreibungen und Hinweisen wird zum Link mit Vorschau. Online-Anträge haben im Reiter **Antrag** das Feld **Rechtsgrundlage** (Texte und Paragrafen); es erscheint im Antragskatalog und im Formular, und der Rechtstext zeigt „Zugehörige Online-Anträge“.
 

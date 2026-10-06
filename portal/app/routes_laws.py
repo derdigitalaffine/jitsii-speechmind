@@ -189,7 +189,7 @@ def _law_page(request: Request, db: Session, embed: bool, slug: str, anchor: str
         found = lx.version_for_date(law, day)
         if found is not None:
             return redirect(f"{ctx['R']}/{law.slug}/fassung/{found.id}" + (f"#{anchor}" if anchor else ""))
-    roots, flat = lx.tree_of(version.body_md) if version is not None else lx.tree(law)
+    roots, flat = lx.tree_of(version.body_md, law.outline) if version is not None else lx.tree(law)
     current = None
     if anchor is not None:
         current = next((v for v in flat if v.section.anchor == anchor), None)
@@ -212,6 +212,8 @@ def _law_page(request: Request, db: Session, embed: bool, slug: str, anchor: str
                   versions=versions, is_expired=lx.expired(law), forms=[] if embed else related_forms(db, law),
                   resources=[] if embed else related_resources(db, law),
                   base=f"{ctx['R']}/{law.slug}" + (f"/fassung/{version.id}" if version else ""),
+                  unit_prefix=lx.jump_prefix([v.section for v in flat]),
+                  norm_anchors=" ".join(v.section.anchor for v in flat if v.section.kind == "norm"),
                   link=lambda v: lx.link_refs(v.section.html, law.slug, anchors, ctx["R"]) if version is None else v.html,
                   **ctx))
 
@@ -242,7 +244,7 @@ def _compare(request: Request, db: Session, embed: bool, slug: str, a: str, b: s
         a = str(versions[0].id)
     old_v, old_md = pick(a)
     new_v, new_md = pick(b)
-    rows = lx.compare(old_md, new_md)
+    rows = lx.compare(old_md, new_md, law.outline)
     changed = [r for r in rows if r["status"] != "same"]
     return _cookieless(request, render(request, "recht_compare.html", user, law=law, rows=rows, changed=changed,
                   old_v=old_v, new_v=new_v, a=a, b=b or "aktuell", versions=versions, **ctx))
@@ -332,7 +334,7 @@ def laws_list(request: Request, level: int | None = None, user: User = Depends(l
 
 def _form_page(request: Request, db: Session, user: User, law: LawText | None, values: dict | None = None):
     return render(request, "law_edit.html", user, law=law, v=values or {}, level_options=lx.level_options(db),
-                  **_common(db, user))
+                  outline_modes=lx.OUTLINE_MODES, **_common(db, user))
 
 
 @app.get("/laws/new")
@@ -379,7 +381,8 @@ def _take_meta(db: Session, md: str, data) -> tuple[str, dict, list[str]]:
 
 def _apply(db: Session, law: LawText, data, md: str, user: User) -> str | None:
     """Felder übernehmen; gibt eine Fehlermeldung zurück oder None."""
-    parsed = lx.parse(md)
+    outline = data.get("outline") if data.get("outline") in lx.OUTLINE_MODES else (law.outline or "")
+    parsed = lx.parse(md, outline)
     title = " ".join((data.get("title") or "").split())[:400] or parsed.title
     if not title:
         return "Bitte einen Titel angeben (oder den Text mit „# Titel“ beginnen)."
@@ -407,6 +410,7 @@ def _apply(db: Session, law: LawText, data, md: str, user: User) -> str | None:
     law.valid_from = (data.get("valid_from") or "").strip()
     law.valid_until = (data.get("valid_until") or "").strip()
     law.published = data.get("published") == "1"
+    law.outline = outline
     law.body_md = md
     law.updated_by = user.id
     wanted = (data.get("slug") or "").strip() or law.slug or law.short_title or title
@@ -430,7 +434,7 @@ async def law_create(request: Request, file: UploadFile | None = File(None), use
     parsed = lx.store(db, law)
     db.commit()
     lx.invalidate_refs()
-    flash(request, f"„{law.title}“ gespeichert: {parsed.norms} Paragrafen/Artikel in {parsed.groups} Gliederungsebenen erkannt."
+    flash(request, f"„{law.title}“ gespeichert: {parsed.norms} Einzelvorschriften in {parsed.groups} Gliederungsebenen erkannt."
           + ("" if law.published else " Der Text ist noch nicht veröffentlicht."))
     for note in notes:
         flash(request, note, "ok" if note.startswith("Aus dem Kopf") else "error")
@@ -448,7 +452,7 @@ def _law(db: Session, law_id: int) -> LawText:
 def law_edit(request: Request, law_id: int, user: User = Depends(law_user), db: Session = Depends(get_db)):
     law = _law(db, law_id)
     values = {k: getattr(law, k) for k in ("title", "short_title", "slug", "level_id", "doc_type", "version_note",
-                                           "issued_on", "valid_from", "valid_until", "body_md")}
+                                           "issued_on", "valid_from", "valid_until", "body_md", "outline")}
     values["published"] = "1" if law.published else ""
     return _form_page(request, db, user, law, values)
 
@@ -468,7 +472,7 @@ async def law_update(request: Request, law_id: int, file: UploadFile | None = Fi
     parsed = lx.store(db, law)
     db.commit()
     lx.invalidate_refs()
-    flash(request, f"Gespeichert: {parsed.norms} Paragrafen/Artikel, {parsed.groups} Gliederungsebenen.")
+    flash(request, f"Gespeichert: {parsed.norms} Einzelvorschriften, {parsed.groups} Gliederungsebenen.")
     for note in notes:
         flash(request, note, "ok" if note.startswith("Aus dem Kopf") else "error")
     return redirect(f"/laws/{law.id}/edit")
@@ -504,18 +508,21 @@ async def law_preview(request: Request, file: UploadFile | None = File(None), us
         level_names = {str(lv.id): lv.name for lv in mdb.scalars(select(LawLevel))}
     if meta_raw:
         md = meta_body
-    parsed = lx.parse(md)
+    outline = meta.get("outline", data.get("outline", ""))
+    parsed = lx.parse(md, outline if outline in lx.OUTLINE_MODES else "")
     full = data.get("html") == "1"
     shown_meta = {laws_meta.LABELS["level" if k == "level_id" else k]:
                   (level_names.get(v, v) if k == "level_id" else lx.DOC_TYPES.get(v, v) if k == "doc_type"
                    else ("ja" if v == "1" else "nein") if k == "published"
+                   else lx.OUTLINE_MODES.get(v, v) if k == "outline"
                    else _fmt_date(v) if k in ("issued_on", "valid_from", "valid_until") else v) for k, v in meta.items()}
     return JSONResponse({"ok": True, "title": parsed.title, "norms": parsed.norms, "groups": parsed.groups,
                          "meta": shown_meta, "meta_raw": meta, "meta_notes": meta_notes + more,
                          "body_md": md if file is not None and file.filename else None,
                          "warnings": lx.check_outline(parsed) + [
-                             f"Verweis {r} führt ins Leere – Kürzel bzw. Paragraf prüfen (z. B. [[§ 4]] oder [[GemO § 24]])."
+                             f"Verweis {r} führt ins Leere – Kürzel bzw. Nummer prüfen (z. B. [[§ 4]], [[Ziffer 3]] oder [[GemO § 24]])."
                              for r in lx.broken_refs(md, str(data.get("slug", "") or ""), {n.anchor for n in parsed.nodes})],
+                         "unit": lx.unit_name(parsed),
                          "toc": [{"depth": n.depth, "kind": n.kind, "label": n.label, "anchor": n.anchor,
                                   "chars": len(n.plain), **({"html": n.html} if full else {})} for n in parsed.nodes]})
 
@@ -615,7 +622,7 @@ async def laws_upload(request: Request, files: list[UploadFile] = File(...), lev
         db.add(law)
         db.flush()
         lx.store(db, law)
-        created.append(f"{law.title} ({parsed.norms} §§/Art.)")
+        created.append(f"{law.title} ({parsed.norms} Einzelvorschr.)")
     db.commit()
     lx.invalidate_refs()
     if created:

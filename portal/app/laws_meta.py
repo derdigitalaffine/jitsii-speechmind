@@ -22,11 +22,13 @@ KEYS = {
     "gueltigab": "valid_from", "valid_from": "valid_from",
     "ausserkraft": "valid_until", "auserkraft": "valid_until", "ausserkraftab": "valid_until", "gultigbis": "valid_until",
     "gueltigbis": "valid_until", "valid_until": "valid_until",
+    "einzelvorschrift": "outline", "einzelvorschriften": "outline", "untersteebene": "outline", "gliederung": "outline",
+    "outline": "outline",
     "veroffentlicht": "published", "veroeffentlicht": "published", "published": "published", "offentlich": "published",
 }
 LABELS = {"title": "Titel", "short_title": "Kurztitel", "slug": "Adresse", "doc_type": "Art", "level": "Ebene",
           "version_note": "Fassung", "issued_on": "Ausgefertigt", "valid_from": "In Kraft seit",
-          "valid_until": "Außer Kraft ab", "published": "Veröffentlicht"}
+          "valid_until": "Außer Kraft ab", "published": "Veröffentlicht", "outline": "Unterste Ebene"}
 MONTHS = {"januar": 1, "jan": 1, "februar": 2, "feb": 2, "marz": 3, "maerz": 3, "mar": 3, "april": 4, "apr": 4, "mai": 5,
           "juni": 6, "jun": 6, "juli": 7, "jul": 7, "august": 8, "aug": 8, "september": 9, "sep": 9, "sept": 9,
           "oktober": 10, "okt": 10, "november": 11, "nov": 11, "dezember": 12, "dez": 12}
@@ -67,6 +69,24 @@ def _doc_type(value: str) -> str | None:
         if n in (_norm(key), _norm(label)) or (n and _norm(label).startswith(n)):
             return key
     return None
+
+
+_OUTLINE_WORDS = {"automatisch": "", "auto": "", "paragraf": "paragraf", "paragraph": "paragraf", "paragrafen": "paragraf",
+                  "paragraphen": "paragraf", "artikel": "paragraf", "art": "paragraf", "paragrafundartikel": "paragraf",
+                  "ziffern": "ziffer", "nummer": "nr", "nummern": "nr", "abschnitte": "abschnitt", "klauseln": "klausel",
+                  "punkte": "punkt", "regeln": "regel", "reinenummern": "nummer", "nummerierung": "nummer", "zahlen": "nummer"}
+
+
+def outline_mode(value: str) -> str | None:
+    """„Ziffer“, „§“, „automatisch“, „reine Nummern“ … → Schlüssel aus laws.OUTLINE_MODES; None, wenn unbekannt."""
+    if str(value or "").strip().startswith("§"):
+        return "paragraf"
+    n = _norm(value)
+    if n in lx.OUTLINE_MODES:
+        return n
+    if n in _OUTLINE_WORDS:
+        return _OUTLINE_WORDS[n]
+    return next((k for k, label in lx.OUTLINE_MODES.items() if _norm(label) == n), None)
 
 
 def _bool(value: str) -> bool | None:
@@ -148,6 +168,13 @@ def clean(db, raw: dict) -> tuple[dict, list[str]]:
                 notes.append(f"Ebene „{value}“ nicht gefunden – bitte unter Rechtstexte › Ebenen anlegen oder im Formular wählen.")
             else:
                 out["level_id"] = str(level.id)
+        elif field == "outline":
+            mode = outline_mode(value)
+            if mode is None:
+                notes.append(f"Unterste Ebene „{value}“ unbekannt – möglich: automatisch, §, Abschnitt, Klausel, Ziffer, "
+                             "Nr., Punkt, Regel, reine Nummern.")
+            else:
+                out[field] = mode
         elif field == "published":
             flag = _bool(value)
             if flag is None:
@@ -172,6 +199,7 @@ ausgefertigt: 12.03.2024
 in kraft: 01.04.2024
 außer kraft:
 veröffentlicht: nein
+einzelvorschrift: automatisch
 ---
 
 # Satzung über die Benutzung der Grillhütte der Ortsgemeinde Musterdorf
@@ -216,17 +244,21 @@ Antworte NUR mit dem fertigen Markdown, ohne Erklärungen und ohne Codeblock-Zei
 
 Regeln:
 1. Ganz oben ein Kopf zwischen zwei Zeilen „---“ mit genau diesen Schlüsseln (leer lassen, was nicht im Text steht):
-   titel, kurztitel, art, ebene, fassung, ausgefertigt, in kraft, außer kraft, veröffentlicht
+   titel, kurztitel, art, ebene, fassung, ausgefertigt, in kraft, außer kraft, veröffentlicht, einzelvorschrift
    - art: eine von {kinds}
+   - einzelvorschrift: automatisch (Normalfall); nur bei Texten ohne § und Artikel die Bezeichnung der kleinsten
+     Einheit, z. B. Ziffer, Abschnitt, Klausel, Nr., Punkt, Regel oder „reine Nummern“ (1., 3.2 …)
    - ebene: eine von {lv}
    - Datumsangaben als TT.MM.JJJJ, veröffentlicht: nein
 2. Danach „# “ + vollständiger Titel, dann die Eingangsformel (Präambel) als normaler Text.
 3. Gliederungsebenen (Teil, Kapitel, Abschnitt) als „## …“, Unterebenen als „### …“ usw.
 4. Jeder Paragraf bzw. Artikel als eigene Überschrift eine Ebene tiefer als sein Abschnitt, z. B. „### § 3 Benutzung“
-   bzw. „### Art. 2 Änderung“ – Nummer und Überschrift in einer Zeile.
+   bzw. „### Art. 2 Änderung“ – Nummer und Überschrift in einer Zeile. Texte ohne § (Verträge, Regeln, Richtlinien):
+   die kleinste Einheit genauso, z. B. „### Ziffer 3 Haftung“, „## 3. Haftung“ oder „### 3.2 Schäden“.
 5. Absätze beginnen mit „(1) “, „(2) “ … am Zeilenanfang, mit Leerzeile dazwischen. Nummern und Buchstaben
    in Aufzählungen bleiben erhalten (1., 2. bzw. a), b)).
-6. Verweise auf Paragrafen DESSELBEN Textes als [[§ 4]], auf andere Gesetze als [[GemO § 24]] (Abkürzung + §).
+6. Verweise auf Paragrafen DESSELBEN Textes als [[§ 4]] (bzw. [[Ziffer 3]], [[Nr. 3.2]]), auf andere Gesetze als
+   [[GemO § 24]] (Abkürzung + §).
 7. Tabellen als Markdown-Tabellen. Nichts weglassen, nichts umformulieren, keine eigenen Ergänzungen;
    Silbentrennungen und Seitenumbrüche aus PDFs entfernen.
 

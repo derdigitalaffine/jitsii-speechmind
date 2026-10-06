@@ -2,7 +2,7 @@
 {% import "_macros.html" as m with context %}
 {% block title %}{{ law.title if law else 'Neuer Rechtstext' }}{% endblock %}
 {% block content %}
-{% call m.page_head(law.title if law else 'Neuer Rechtstext', 'Text einfügen oder als Datei laden (Word, PDF, Markdown, Text). Die Gliederung (Teile, Abschnitte, §§, Artikel) wird automatisch erkannt – die Vorschau zeigt sie sofort.') %}
+{% call m.page_head(law.title if law else 'Neuer Rechtstext', 'Text einfügen oder als Datei laden (Word, PDF, Markdown, Text). Die Gliederung (Bücher, Teile, Abschnitte, §§, Artikel – bei Verträgen und Regeln auch Ziffern oder Nummern wie 3.2) wird automatisch erkannt – die Vorschau zeigt sie sofort.') %}
 <a class="btn btn-outline-secondary" href="/laws"><i class="fa-solid fa-arrow-left me-1"></i>Zur Liste</a>
 {% if law %}<a class="btn btn-outline-secondary" href="/recht/{{ law.slug }}" target="_blank"><i class="fa-regular fa-eye me-1"></i>Ansehen</a>
 <a class="btn btn-outline-secondary" href="/laws/{{ law.id }}/plan"><i class="fa-regular fa-calendar-plus me-1"></i>{{ 'Vorbereitete Fassung' if law.planned_valid_from else 'Neue Fassung vorbereiten' }}</a>{% endif %}
@@ -27,6 +27,9 @@
             <input class="form-control" id="version_note" name="version_note" value="{{ v.version_note or '' }}" maxlength="255" placeholder="z. B. Fassung vom 12.03.2024, zuletzt geändert durch Satzung vom …"></div>
           <div class="col-12 col-md-6"><label class="form-label" for="slug">Adresse</label>
             <div class="input-group"><span class="input-group-text">/recht/</span><input class="form-control" id="slug" name="slug" value="{{ v.slug or '' }}" maxlength="120" placeholder="automatisch"></div></div>
+          <div class="col-12 col-md-6"><label class="form-label" for="outline">Unterste Ebene <span class="small text-secondary fw-normal">(Einzelvorschrift)</span></label>
+            <select class="form-select" id="outline" name="outline" aria-describedby="outline-help">{% for k, label in outline_modes.items() %}<option value="{{ k }}" {% if (v.outline or '') == k %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+          <div class="col-12 col-md-6 d-flex align-items-end"><div class="form-text mb-2" id="outline-help">Was wie ein Paragraf dargestellt und mit <code>[[…]]</code> verlinkt wird. Automatisch: § und Artikel, sonst die tiefsten Überschriften mit Text (z. B. Ziffer 3, Nr. 3.2, Abschnitt 4).</div></div>
           <div class="col-4"><label class="form-label" for="issued_on">Ausgefertigt am</label><input class="form-control" type="date" id="issued_on" name="issued_on" value="{{ v.issued_on or '' }}"></div>
           <div class="col-4"><label class="form-label" for="valid_from">In Kraft seit</label><input class="form-control" type="date" id="valid_from" name="valid_from" value="{{ v.valid_from or '' }}"></div>
           <div class="col-4"><label class="form-label" for="valid_until">Außer Kraft ab</label><input class="form-control" type="date" id="valid_until" name="valid_until" value="{{ v.valid_until or '' }}"></div>
@@ -77,7 +80,7 @@
 
     <div class="col-12 col-xxl-4">
       <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-sitemap me-2"></i>Erkannte Gliederung</div>
-        <div class="card-body small" id="law-toc"><p class="text-secondary mb-0">Erscheint beim Tippen: so wird der Text in Abschnitte und Paragrafen zerlegt – mit Hinweisen auf Lücken in der Zählung oder leere Paragrafen.</p></div></div>
+        <div class="card-body small" id="law-toc"><p class="text-secondary mb-0">Erscheint beim Tippen: so wird der Text in Gliederungsebenen und Einzelvorschriften (§, Artikel, Ziffern …) zerlegt – mit Hinweisen auf Lücken in der Zählung oder leere Einzelvorschriften.</p></div></div>
       {% if law %}
       <div class="card mb-4" id="anlagen"><div class="card-header"><i class="fa-solid fa-paperclip me-2"></i>Anlagen (PDF)</div>
         <ul class="list-group list-group-flush small">{% for a in law.attachments %}<li class="list-group-item d-flex gap-2 align-items-center"><a class="flex-grow-1" href="/recht/{{ law.slug }}/anlage/{{ a.id }}" target="_blank"><i class="fa-regular fa-file-pdf me-1"></i>{{ a.name }}</a>
@@ -124,7 +127,8 @@ Präambel / Eingangsformel …
 ### § 2 Inkrafttreten</pre>
           <ul class="mb-0 ps-3">
             <li><code>#</code> am Anfang = Titel, <code>##</code> … <code>######</code> = Gliederungsebenen (Teil, Kapitel, Abschnitt …).</li>
-            <li>Überschriften mit <code>§</code>, <code>Art.</code> oder <code>Artikel</code> werden als Normen erkannt.</li>
+            <li>Überschriften mit <code>§</code>, <code>Art.</code> oder <code>Artikel</code> werden als Einzelvorschriften erkannt. Texte ohne § (Verträge, Regeln, Richtlinien): die tiefsten Überschriften mit Text, z. B. „Ziffer 3 Haftung“, „## 3. Haftung“ oder „### 3.2 Schäden“ – „3.“ wird dann zur Zwischenüberschrift. Unter „Unterste Ebene“ lässt sich das festlegen.</li>
+            <li>Verweise: <code>[[§ 4]]</code>, <code>[[Ziffer 3]]</code>, <code>[[Nr. 3.2]]</code>, <code>[[3.2]]</code> im selben Text, <code>[[GemO § 24]]</code> oder <code>[[VERTRAG Ziffer 3]]</code> auf andere Texte.</li>
             <li>Ohne <code>#</code>: allein stehende Zeilen wie „§ 3 Ortsbezirke“ oder „Zweiter Abschnitt“ werden automatisch erkannt (z. B. beim Einfügen aus Word oder einer Webseite).</li>
             <li>„(1)“, „(2)“ … am Zeilenanfang werden als Absätze gesetzt. Listen, Tabellen, <strong>**fett**</strong> und Links funktionieren wie gewohnt.</li>
           </ul>

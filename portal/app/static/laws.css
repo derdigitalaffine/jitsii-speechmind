@@ -13,8 +13,14 @@
 .lex-head { position: relative; text-align: center; font-family: inherit; margin: 2.2rem 0 1rem; line-height: 1.35; }
 .lex-head .lex-nr { display: block; font-weight: 700; }
 .lex-head .lex-title { display: block; font-weight: 700; }
-.lex-group > .lex-head { font-size: 1.18rem; padding-bottom: .5rem; border-bottom: 1px solid var(--bs-border-color); margin-top: 2.8rem; }
+/* Abgestufte Gliederung: nur die oberste Ebene (Buch, Teil …) groß mit Trennlinie, darunter kleiner werdende
+   Zwischenüberschriften ohne Linie; Einzelvorschriften (§, Artikel, Ziffer, 3.2 …) immer gleich */
+.lex-group > .lex-head { font-size: 1.08rem; margin-top: 2.2rem; }
 .lex-group > .lex-head .lex-nr { font-variant: small-caps; letter-spacing: .04em; font-weight: 600; }
+.lex-group.lex-d0 > .lex-head { font-size: 1.22rem; padding-bottom: .5rem; border-bottom: 1px solid var(--bs-border-color); margin-top: 2.8rem; }
+.lex-group.lex-d2 > .lex-head, .lex-group.lex-d3 > .lex-head { font-size: 1rem; margin-top: 1.8rem; }
+.lex-group.lex-d2 > .lex-head .lex-title, .lex-group.lex-d3 > .lex-head .lex-title { font-weight: 600; font-style: italic; }
+.lex-single .lex-group.lex-d0 > .lex-head { border-bottom: 0; }
 .lex-norm > .lex-head { font-size: 1.04rem; }
 .lex-intro { font-style: italic; color: var(--bs-secondary-color); }
 .lex-intro p { text-align: left; }

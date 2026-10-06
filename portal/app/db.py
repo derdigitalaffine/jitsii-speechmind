@@ -1826,6 +1826,8 @@ class LawText(Base):
     planned_md: Mapped[str] = mapped_column(Text, default="")
     planned_valid_from: Mapped[str] = mapped_column(String(10), default="")
     planned_note: Mapped[str] = mapped_column(String(255), default="")
+    # Unterste Ebene (Einzelvorschrift): leer = automatisch, „paragraf“ oder eine Bezeichnung (laws.OUTLINE_MODES)
+    outline: Mapped[str] = mapped_column(String(20), default="")
 
 
 class LawSection(Base):
@@ -2272,7 +2274,7 @@ _NEW_COLUMNS = {
     "law_levels": {"org_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL"},
     "krank_employers": {"org_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL"},
     "law_texts": {"planned_md": "TEXT NOT NULL DEFAULT ''", "planned_valid_from": "VARCHAR(10) NOT NULL DEFAULT ''",
-                  "planned_note": "VARCHAR(255) NOT NULL DEFAULT ''"},
+                  "planned_note": "VARCHAR(255) NOT NULL DEFAULT ''", "outline": "VARCHAR(20) NOT NULL DEFAULT ''"},
     "law_versions": {"public": "BOOLEAN NOT NULL DEFAULT 0", "title": "VARCHAR(400) NOT NULL DEFAULT ''",
                      "valid_from": "VARCHAR(10) NOT NULL DEFAULT ''", "valid_until": "VARCHAR(10) NOT NULL DEFAULT ''"},
 }

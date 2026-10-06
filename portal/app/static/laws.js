@@ -69,13 +69,24 @@
     if (first && !location.hash) { first.scrollIntoView({ block: 'center' }); }
   }
 
-  /* Zu einem Paragrafen springen: „5“, „5a“, „Art 3“ */
+  /* Zu einer Einzelvorschrift springen: „5“, „5a“, „Art 3“, „Ziffer 4“, „3.2“ */
   document.querySelectorAll('.js-jump').forEach(function (f) {
+    var known = (f.dataset.anchors || '').split(' ').filter(Boolean);
     f.addEventListener('submit', function (e) {
       e.preventDefault();
       var v = f.nr.value.trim().toLowerCase().replace(/\s+/g, '');
       if (!v) return;
-      var anchor = /^(art|artikel)/.test(v) ? 'art' + v.replace(/^(artikel|art)\.?/, '') : 'p' + v.replace(/^§+/, '');
+      var cands;
+      if (/^(art|artikel)/.test(v)) cands = ['art' + v.replace(/^(artikel|art)\.?/, '')];
+      else {
+        var m = v.replace(/^§+/, '').match(/^([a-zäöü]*)\.?(\d+(?:\.\d+)*[a-z]?)\.?$/);
+        if (!m) return;
+        var num = m[2].replace(/\./g, '-'), word = { ziff: 'ziffer', nummer: 'nr' }[m[1]] || m[1];
+        cands = (word ? [word + '-' + num] : []).concat(['p' + num, 'n' + num, 'ziffer-' + num, 'nr-' + num, 'punkt-' + num,
+          'regel-' + num, 'klausel-' + num, 'abschnitt-' + num]);
+      }
+      var anchor = cands.filter(function (a) { return known.indexOf(a) >= 0; })[0] ||
+        known.filter(function (a) { return cands.some(function (c) { return a.slice(-c.length - 1) === '-' + c; }); })[0] || cands[0];
       var el = document.getElementById(anchor);
       if (f.dataset.full === '1' && el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); history.replaceState(null, '', '#' + anchor); return; }
       location.href = f.dataset.base + '/' + anchor;
