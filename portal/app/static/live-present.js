@@ -35,10 +35,16 @@
     posEl.textContent = 'Frage ' + (index + 1) + ' von ' + state.questions.length + ' · ' + (kinds[q.kind] ? kinds[q.kind][0] : '');
     countEl.textContent = q.results ? q.results.total : 0;
     var allowed = kinds[q.kind] ? kinds[q.kind][2] : [];
-    var html = allowed.map(function (c) {
-      return '<button type="button" class="btn btn-outline-secondary ' + (c === q.chart ? 'active' : '') + '" data-chart="' + c + '" aria-pressed="' + (c === q.chart) + '">' + chartNames[c] + '</button>';
-    }).join('');
-    if (chartsEl.innerHTML !== html) chartsEl.innerHTML = html;
+    while (chartsEl.firstChild) chartsEl.removeChild(chartsEl.firstChild);
+    allowed.forEach(function (c) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-outline-secondary' + (c === q.chart ? ' active' : '');
+      btn.setAttribute('data-chart', c);
+      btn.setAttribute('aria-pressed', c === q.chart ? 'true' : 'false');
+      btn.textContent = chartNames[c] != null ? String(chartNames[c]) : '';
+      chartsEl.appendChild(btn);
+    });
     if (window.LiveChart) LiveChart.render(resultEl, q, { big: true });
   }
   function load() {
