@@ -129,8 +129,13 @@
       </div></div>
       {% endif %}
       {% if public %}
-      {% if res.terms_text or res.terms_file %}
-      <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="terms" value="1" id="r-terms" required {% if d.get('terms') %}checked{% endif %}><label class="form-check-label" for="r-terms">Ich habe die {% if res.terms_file %}<a href="/r/{{ res.slug }}/nutzungsordnung.pdf" target="_blank">Nutzungsordnung</a>{% else %}Nutzungsbedingungen{% endif %} gelesen und akzeptiere sie.</label></div>
+      {% set accept_refs = (legal or []) | selectattr('accept') | list %}
+      {% if res.terms_text or res.terms_file or accept_refs %}
+      {% set n_docs = accept_refs | length + (1 if res.terms_file else 0) + (1 if res.terms_text else 0) %}
+      <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="terms" value="1" id="r-terms" required {% if d.get('terms') %}checked{% endif %}><label class="form-check-label" for="r-terms">Ich habe
+        {%- for r in accept_refs %} die <a class="law-ref" href="{{ r.url }}" data-preview="{{ r.url }}" target="_blank" rel="noopener" title="{{ r.title }}">{{ r.role_label }} ({{ r.label }})</a>{% if loop.index < n_docs - 1 %},{% elif loop.index == n_docs - 1 %} und{% endif %}{% endfor %}
+        {%- if res.terms_file %} die <a href="/r/{{ res.slug }}/nutzungsordnung.pdf" target="_blank">Nutzungsordnung (PDF)</a>{% if res.terms_text %} und{% endif %}{% endif %}
+        {%- if res.terms_text %} die Nutzungsbedingungen{% endif %} gelesen und akzeptiere sie.</label></div>
         {% if res.terms_text %}<details class="small mt-1"><summary>Nutzungsbedingungen anzeigen</summary><div class="mt-2" style="white-space: pre-line">{{ res.terms_text }}</div></details>{% endif %}</div>
       {% endif %}
       <div class="d-none" aria-hidden="true"><label>Webseite <input name="website" tabindex="-1" autocomplete="off"></label></div>

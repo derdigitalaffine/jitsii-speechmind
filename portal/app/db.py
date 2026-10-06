@@ -1092,6 +1092,7 @@ class Resource(Base):
     fields_json: Mapped[str] = mapped_column(Text, default="[]")      # zusätzliche Angaben (Feld-Editor)
     terms_text: Mapped[str] = mapped_column(Text, default="")        # Nutzungsbedingungen (bestätigen lassen)
     terms_file: Mapped[str] = mapped_column(String(80), default="")  # Nutzungsordnung als PDF
+    legal_json: Mapped[str] = mapped_column(Text, default="[]")      # verknüpfte Rechtstexte [{law_id, anchor, para, role, accept}]
     manager_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     manager_group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
     mailbox: Mapped[str] = mapped_column(String(255), default="")
@@ -2175,6 +2176,7 @@ _NEW_COLUMNS = {
                     "booking_id": "INTEGER REFERENCES resource_bookings(id) ON DELETE SET NULL"},
     "processes": {"dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL"},
     "resources": {"provider_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL",
+                  "legal_json": "TEXT NOT NULL DEFAULT '[]'",
                   "remind_days": "INTEGER NOT NULL DEFAULT 2", "remind_staff_days": "INTEGER NOT NULL DEFAULT 1",
                   "remind_text": "TEXT NOT NULL DEFAULT ''", "waitlist": "BOOLEAN NOT NULL DEFAULT 1"},
     "resource_bookings": {"group_ref": "VARCHAR(40) NOT NULL DEFAULT ''", "cancel_json": "TEXT NOT NULL DEFAULT '[]'",

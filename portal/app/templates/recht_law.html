@@ -137,12 +137,14 @@
       {% if next %}<a class="btn btn-outline-secondary text-end" href="{{ base }}/{{ next.section.anchor }}">{{ next.section.number or next.label }}<i class="fa-solid fa-chevron-right ms-2"></i></a>{% endif %}
     </nav>
     {% endif %}
-    {% if (law.attachments and not version) or forms %}
+    {% if (law.attachments and not version) or forms or resources %}
     <div class="row g-3 mt-4 lex-noprint" style="max-width: 52rem">
       {% if law.attachments and not version %}<div class="col-md-6" id="anlagen"><div class="card h-100"><div class="card-header small fw-semibold"><i class="fa-solid fa-paperclip me-1"></i>Anlagen</div>
         <ul class="list-group list-group-flush small">{% for a in law.attachments %}<li class="list-group-item"><a href="{{ R }}/{{ law.slug }}/anlage/{{ a.id }}" target="_blank"><i class="fa-regular fa-file-pdf me-1"></i>{{ a.name }}</a> <span class="text-secondary">({{ (a.size / 1024) | round | int }} KB)</span></li>{% endfor %}</ul></div></div>{% endif %}
       {% if forms %}<div class="col-md-6"><div class="card h-100 border-primary-subtle"><div class="card-header small fw-semibold"><i class="fa-solid fa-file-signature me-1"></i>Zugehörige Online-Anträge</div>
         <div class="list-group list-group-flush small">{% for f in forms %}<a class="list-group-item list-group-item-action" href="/f/{{ f.public_token }}" target="_top">{{ f.title }} <i class="fa-solid fa-arrow-right float-end mt-1"></i></a>{% endfor %}</div></div></div>{% endif %}
+      {% if resources %}<div class="col-md-6"><div class="card h-100 border-success-subtle"><div class="card-header small fw-semibold"><i class="fa-solid fa-building me-1"></i>Gilt für Räume &amp; Plätze</div>
+        <div class="list-group list-group-flush small">{% for r in resources %}<a class="list-group-item list-group-item-action" href="/r/{{ r.slug }}" target="_top">{{ r.name }} <i class="fa-solid fa-arrow-right float-end mt-1"></i></a>{% endfor %}</div></div></div>{% endif %}
     </div>
     {% endif %}
   </div>

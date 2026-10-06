@@ -52,7 +52,7 @@ def booking_ctx(db, res: Resource, request=None, club=None) -> dict:
     cart = _cart(request, db) if request is not None else []
     return {"res": res, "modes": rs.MODES, "res_modes": rs.modes(res), "blocks": rs.blocks(res), "hours": rs.hours(res),
             "extra_per": rs.EXTRA_PER, "extra_price": rs.extra_price_text, "extra_cancel": rs.extra_cancel_text,
-            "needs_persons": rs.needs_persons(res), "money": pay.money, "items": rs.fields(res), "values": {}, "errors": {},
+            "needs_persons": rs.needs_persons(res), "legal": rs.legal_refs(db, res), "money": pay.money, "items": rs.fields(res), "values": {}, "errors": {},
             "other": {}, "cancel_rules": rs.cancel_rules_text(res), "club": club, "cart": cart,
             "club_tariff": next((t for t in res.tariffs if club and club.tariff_name
                                  and t.name.strip().lower() == club.tariff_name.strip().lower()), None),
@@ -297,7 +297,7 @@ async def resource_book(request: Request, slug: str, db: Session = Depends(get_d
     proof = [f for f in data.getlist("proof") if getattr(f, "filename", "")]
     if tariff and tariff.needs_proof and not proof and club is None:
         errors.append(f"Für den Tarif „{tariff.name}“ bitte einen Nachweis hochladen.")
-    if (res.terms_text or res.terms_file) and data.get("terms") != "1":
+    if (res.terms_text or res.terms_file or any(r["accept"] for r in rs.legal_refs(db, res))) and data.get("terms") != "1":
         errors.append("Bitte die Nutzungsbedingungen bestätigen.")
     if errors or field_errors:
         for e in errors:

@@ -62,6 +62,18 @@ def related_forms(db: Session, law: LawText) -> list[FormModel]:
     return out
 
 
+def related_resources(db: Session, law: LawText) -> list:
+    """Öffentlich buchbare Räume & Plätze, für die dieser Text gilt (Benutzungsordnung, Gebührenordnung …)."""
+    from .main import enabled_modules
+    if "resources" not in enabled_modules():
+        return []
+    from . import resources as rs
+    from .db import Resource
+    rows = db.scalars(select(Resource).where(Resource.active.is_(True), Resource.public.is_(True),
+                                             Resource.legal_json.like("%law_id%")).order_by(Resource.name)).all()
+    return [r for r in rows if any(x["law_id"] == law.id for x in rs.legal_raw(r))]
+
+
 # --- Öffentlich ----------------------------------------------------------------
 #
 # Jede öffentliche Seite gibt es zweimal: unter /recht mit Portal-Rahmen und unter /recht-embed ohne Menüs zum
@@ -198,6 +210,7 @@ def _law_page(request: Request, db: Session, embed: bool, slug: str, anchor: str
                   next=flat[idx + 1] if current and idx + 1 < len(flat) else None,
                   path=lx.level_path(law.level), q=request.query_params.get("q", ""), version=version,
                   versions=versions, is_expired=lx.expired(law), forms=[] if embed else related_forms(db, law),
+                  resources=[] if embed else related_resources(db, law),
                   base=f"{ctx['R']}/{law.slug}" + (f"/fassung/{version.id}" if version else ""),
                   link=lambda v: lx.link_refs(v.section.html, law.slug, anchors, ctx["R"]) if version is None else v.html,
                   **ctx))
