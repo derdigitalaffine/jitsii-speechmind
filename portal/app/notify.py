@@ -18,7 +18,7 @@ import base64
 from email.message import EmailMessage, Message
 from email.utils import formataddr, formatdate, make_msgid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from . import branding, mailtpl
 from .config import settings
@@ -215,7 +215,8 @@ def test_imap(cfg: dict[str, str]) -> str:
 # --- Warteschlange -----------------------------------------------------------
 
 def enqueue(db, to_addr: str, subject: str, body: str, kind: str, cfg: dict[str, str] | None = None,
-            *, attachments: list[dict] | None = None, reply_to: str | None = None) -> bool:
+            *, attachments: list[dict] | None = None, reply_to: str | None = None,
+            per_hour: int | None = None) -> bool:
     """Reiht eine Mail ein. Ohne eingerichteten Versand passiert nichts (False).
 
     attachments: [{"filename": "einladung.ics", "content": "...", "calendar_method": "REQUEST"}]
@@ -224,9 +225,21 @@ def enqueue(db, to_addr: str, subject: str, body: str, kind: str, cfg: dict[str,
     """
     if not mail_configured(cfg or get_settings(db)):
         return False
+    if per_hour is not None and _recent(db, to_addr, kind) >= per_hour:
+        # Von außen ausgelöste Mails (Eingangsbestätigungen) an dieselbe Adresse begrenzen – sonst ließe sich
+        # das Portal mit fremder Adresse und eigenem Text als Spam-Schleuder missbrauchen
+        log.warning("Mail an %s (%s) übersprungen: Höchstzahl pro Stunde erreicht", to_addr, kind)
+        return False
     db.add(Notification(kind=kind, to_addr=to_addr, subject=subject, body=body, reply_to=reply_to,
                         attachments_json=json.dumps(attachments, ensure_ascii=False) if attachments else None))
     return True
+
+
+def _recent(db, to_addr: str, kind: str) -> int:
+    since = utcnow() - timedelta(hours=1)
+    return db.scalar(select(func.count(Notification.id)).where(
+        func.lower(Notification.to_addr) == to_addr.strip().lower(), Notification.kind == kind,
+        Notification.created_at >= since)) or 0
 
 
 def process_queue() -> int:

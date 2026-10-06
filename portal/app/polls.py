@@ -6,7 +6,6 @@ ihren persönlichen Link aus einer Einladung. Danach legt die planende Person de
 auf Wunsch entsteht daraus direkt eine Besprechung mit Kalendereinladungen.
 """
 
-import csv
 import io
 import json
 import re
@@ -14,7 +13,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
 
-from . import ics, links, mailtpl, notify
+from . import csvsafe, ics, links, mailtpl, notify
 from .config import settings
 from .db import LOCAL_TZ, Group, Poll, PollOption, PollParticipant, User, get_settings, to_local, utcnow
 from .planning import EMAIL_RE
@@ -173,7 +172,7 @@ def read_answers(poll: Poll, data, participant: PollParticipant | None) -> tuple
 
 def to_csv(poll: Poll) -> str:
     buf = io.StringIO()
-    writer = csv.writer(buf, delimiter=";")
+    writer = csvsafe.writer(buf, delimiter=";")
     writer.writerow(["Name", "E-Mail", "Geantwortet", *[option_parts(o)["label"] for o in poll.options], "Kommentar"])
     for p in poll.participants:
         if not p.answered_at:

@@ -1,6 +1,5 @@
 """Seiten und Weiterleitung des Kurzlink-Dienstes inkl. QR-Generator."""
 
-import csv
 import io
 from datetime import datetime, timezone
 from urllib.parse import urlencode
@@ -10,7 +9,7 @@ from fastapi.responses import RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from . import proxy, shortlinks as sl
+from . import csvsafe, proxy, shortlinks as sl
 from .config import settings
 from .db import LOCAL_TZ, ShortLink, ShortVisit, User, get_settings, set_setting, to_local
 from .main import (
@@ -207,7 +206,7 @@ def shortlink_qr(link_id: int, fmt: str, size: int = 10, dark: str = "#000000", 
 def shortlink_visits_csv(link_id: int, user: User = Depends(shortlink_user), db: Session = Depends(get_db)):
     link = _own_link(db, link_id, user)
     buf = io.StringIO()
-    writer = csv.writer(buf, delimiter=";")
+    writer = csvsafe.writer(buf, delimiter=";")
     writer.writerow(["Zeitpunkt", "Herkunft", "Browser", "Betriebssystem", "Gerät", "Bot"])
     for v in db.scalars(select(ShortVisit).where(ShortVisit.link_id == link.id).order_by(ShortVisit.at)):
         writer.writerow([to_local(v.at).strftime("%d.%m.%Y %H:%M:%S"), v.referer_host, v.browser, v.os,

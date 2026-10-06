@@ -18,7 +18,6 @@ Datenschutz (Gesundheitsdaten, Art. 9 DSGVO):
 """
 
 import base64
-import csv
 import hashlib
 import hmac
 import io
@@ -37,7 +36,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from sqlalchemy import func, or_, select
 
-from . import links, mailtpl, notify
+from . import csvsafe, links, mailtpl, notify
 from .config import settings
 from .db import (
     DmsArea, DmsRecord, GroupMember, KrankAccess, KrankEmployer, KrankEvent, KrankFeedback, KrankFile, KrankReport,
@@ -982,7 +981,7 @@ CSV_HEAD = ["Aktenzeichen", "Eingang", "Art", "Status", "Arbeitgeber", "Nachname
 
 def csv_export(reports: list[KrankReport]) -> str:
     buf = io.StringIO()
-    w = csv.writer(buf, delimiter=";")
+    w = csvsafe.writer(buf, delimiter=";")
     w.writerow(CSV_HEAD)
     for r in reports:
         d = data(r)
@@ -1079,6 +1078,8 @@ def import_archive(db, archive: Path, user: User | None) -> dict:
         db_member = next((m for m in members if PurePosixPath(m.filename).name == "krankmeldungen.db"), None)
         if db_member is None:
             raise ValueError("In der ZIP-Datei fehlt krankmeldungen.db (aus dem Ordner data/ des Krankmelders).")
+        if db_member.file_size > 1024 ** 3 or sum(m.file_size for m in members) > 20 * 1024 **3:
+            raise ValueError("Die ZIP-Datei ist entpackt zu groß (Datenbank höchstens 1 GB, insgesamt 20 GB).")
         uploads = {PurePosixPath(m.filename).name: m for m in members
                    if "uploads" in PurePosixPath(m.filename).parts[:-1] and m.file_size <= 50 * 1024 * 1024}
         with tempfile.TemporaryDirectory() as tmp:
