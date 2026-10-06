@@ -81,17 +81,22 @@ def price_rows(res: Resource) -> list[dict]:
     return rows
 
 
+def _prices(res: Resource) -> list[tuple[int, str]]:
+    """(Preis, Buchungsart) nur für die eingeschalteten Buchungsarten – auch die der Teilräume. Preise einer
+    abgeschalteten Buchungsart (z. B. noch eingetragener Blockpreis) zählen nicht."""
+    return [(getattr(t, f"price_{m}"), m) for m in rs.modes(res) for t in [res, *res.parts] if getattr(t, f"price_{m}")]
+
+
 def price_from(res: Resource) -> int:
-    values = [v for v in (res.price_day, res.price_block, res.price_hour) if v]
-    values += [v for u in res.parts for v in (u.price_day, u.price_block, u.price_hour) if v]
-    return min(values) if values else 0
+    values = _prices(res)
+    return min(v for v, _ in values) if values else 0
 
 
 def price_from_unit(res: Resource) -> str:
-    for m, unit in (("hour", "Std."), ("block", "Block"), ("day", "Tag")):
-        if getattr(res, f"price_{m}") and getattr(res, f"price_{m}") == price_from(res):
-            return unit
-    return ""
+    values = _prices(res)
+    if not values:
+        return ""
+    return {"hour": "Std.", "block": "Block", "day": "Tag"}[min(values)[1]]
 
 
 def booking_window(res: Resource) -> tuple[date, date]:
