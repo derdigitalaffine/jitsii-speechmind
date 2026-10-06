@@ -303,3 +303,33 @@ a.dash-num:hover > span { text-decoration: underline; }
 .res-chip.st-confirmed { background: var(--bs-success); }
 .res-chip.moving { opacity: .5; }
 .res-check li { list-style: none; }
+
+
+/* Ressourcenbuchung: einheitlicher Seitenkopf (siehe _res_macros.html) – feste Höhen, damit beim Wechsel
+   zwischen den Seiten Navigation, Überschrift und Inhalt an derselben Stelle bleiben */
+.res-nav { margin-bottom: .75rem; flex-wrap: nowrap; scrollbar-width: thin; }
+.res-nav .nav-link { padding: .4rem .75rem; }
+.res-crumbs { min-height: 1.5em; line-height: 1.5; margin-bottom: .25rem; }
+.res-head { display: flex; align-items: center; gap: 1rem; min-height: 3.75rem; margin-bottom: 1.25rem; }
+.res-head-text { flex: 1 1 auto; min-width: 0; }
+.res-head h1 { font-size: 1.6rem; line-height: 1.25; margin: 0; }
+.res-head p { margin: .2rem 0 0; color: var(--bs-secondary-color); line-height: 1.5; }
+.res-head-actions { display: flex; flex-wrap: nowrap; gap: .5rem; flex-shrink: 0; }
+.res-head-actions:empty { display: none; }
+@media (max-width: 991.98px) {
+  .res-head { flex-wrap: wrap; align-items: flex-start; }
+  .res-head h1, .res-head p { white-space: normal; }
+  .res-head-actions { flex-wrap: wrap; }
+}
+.res-list-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; min-height: 2.25rem; margin-bottom: .75rem; }
+.res-table-thumb { width: 3rem; height: 2.25rem; flex: 0 0 auto; object-fit: cover; border-radius: .375rem; background: var(--bs-tertiary-bg); }
+.res-table-thumb-empty { display: inline-flex; align-items: center; justify-content: center; color: var(--bs-secondary-color); }
+.res-table .min-w-0 { min-width: 0; }
+.res-table td { vertical-align: middle; }
+.res-table th.res-left, .res-table td.res-left { text-align: left !important; }
+.res-pub-bar { display: flex; flex-wrap: nowrap; align-items: center; gap: .25rem 1rem; min-height: 1.5em; margin-bottom: .5rem; }
+.res-pub-bar .res-crumbs { margin-bottom: 0; min-width: 0; }
+.res-head-public { min-height: 0; align-items: flex-end; }
+.res-head-public p { max-width: 50rem; }
+.res-kicker { margin-bottom: .1rem; }
+.res-narrow { max-width: 48rem; }

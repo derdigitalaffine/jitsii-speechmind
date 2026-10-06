@@ -1,10 +1,10 @@
 {% extends "base.html" %}
+{% import "_res_macros.html" as rm with context %}
 {% block title %}Merkliste{% endblock %}
 {% block content %}
-<div style="max-width: 52rem">
-<h1 class="h3 mb-1"><i class="fa-solid fa-basket-shopping me-2"></i>Merkliste</h1>
-<p class="text-secondary">Mehrere Ressourcen in einer Buchung – z. B. Saal, Küche und Spülmobil. Die Zeiträume sind 24 Stunden für Sie vorgemerkt.
-  {% if club %}Mit „Abschicken“ wird alles verbindlich angefragt.{% else %}Mit „Abschicken“ bekommen Sie <strong>eine</strong> E-Mail, mit der Sie alles auf einmal bestätigen.{% endif %}</p>
+{{ rm.pub_head([('Merkliste', '')], 'Merkliste', 'Mehrere Ressourcen in einer Buchung – z. B. Saal, Küche und Spülmobil. Die Zeiträume sind 24 Stunden für Sie vorgemerkt.') }}
+<div class="res-narrow">
+<p class="small text-secondary">{% if club %}Mit „Abschicken“ wird alles verbindlich angefragt.{% else %}Mit „Abschicken“ bekommen Sie <strong>eine</strong> E-Mail, mit der Sie alles auf einmal bestätigen.{% endif %}</p>
 {% if rows %}
 <div class="list-group mb-3">
   {% for b in rows %}

@@ -1,18 +1,20 @@
 {% extends "base.html" %}
+{% import "_res_macros.html" as rm with context %}
 {% block title %}Buchung {{ edit.ref }} ändern{% endblock %}
 {% block content %}
-<nav aria-label="Pfad" class="small mb-2"><a href="/resources/bookings">Buchungen</a> › <a href="/resources/bookings/{{ edit.id }}">{{ edit.ref }}</a> › Ändern</nav>
+{% call rm.head('bookings', [('Buchungen', '/resources/bookings'), (edit.ref, '/resources/bookings/' ~ edit.id), ('Ändern', '')], 'Buchung ' ~ edit.ref ~ ' ändern', edit.resource.name ~ ' · ' ~ when(edit)) %}
+  <a class="btn btn-outline-secondary" href="/resources/bookings/{{ edit.id }}"><i class="fa-solid fa-xmark me-1"></i>Abbrechen</a>
+{% endcall %}
 <div class="row g-4">
+  <div class="col-12 col-xl-8">{% include "_res_booking_form.html" %}</div>
   <div class="col-12 col-xl-4">
-    <h1 class="h4 mb-1">Buchung {{ edit.ref }} ändern</h1>
-    <p class="text-secondary small mb-3">Bisher: <strong>{{ edit.resource.name }}</strong>, {{ when(edit) }} · {{ money(edit.total_cents) }} · <span class="badge text-bg-{{ statuses[edit.status][1] }}">{{ statuses[edit.status][0] }}</span></p>
-    <div class="card mb-3"><div class="card-body small">
+    <div class="card mb-3"><div class="card-header"><i class="fa-solid fa-clock-rotate-left me-2"></i>Bisher</div><div class="card-body small">
+      <p class="mb-2"><strong>{{ edit.resource.name }}</strong>, {{ when(edit) }} · {{ money(edit.total_cents) }} · <span class="badge text-bg-{{ statuses[edit.status][1] }}">{{ statuses[edit.status][0] }}</span></p>
       <p class="mb-2"><i class="fa-solid fa-circle-info me-1 text-primary"></i>Zeit, Ressource, Räume, Tarif, Zusatzleistungen und Kontakt lassen sich ändern. Der Preis wird neu berechnet oder fest vorgegeben.</p>
       <p class="mb-0">Tipp: Im <a href="/resources/planner?start={{ edit.starts_at | local('%Y-%m-%d') }}">Planer</a> lassen sich Buchungen auch per Ziehen auf einen anderen Tag oder eine andere Ressource verschieben.</p>
     </div></div>
-    <div class="js-res-cal small" data-src="/resources/{{ res.id }}/events.json" data-views="0" data-view="dayGridMonth"></div>
+    <div class="card"><div class="card-header"><i class="fa-solid fa-calendar-days me-2"></i>Belegung {{ res.name }}</div><div class="card-body"><div class="js-res-cal small" data-src="/resources/{{ res.id }}/events.json" data-views="0" data-view="dayGridMonth"></div></div></div>
   </div>
-  <div class="col-12 col-xl-8">{% include "_res_booking_form.html" %}</div>
 </div>
 {% endblock %}
 {% block scripts %}

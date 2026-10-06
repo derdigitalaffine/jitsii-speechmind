@@ -147,7 +147,7 @@
     if (!stepped) return;
     if (next) next.disabled = step === 1 && !(last && last.ok);
   }
-  function show(n) {
+  function show(n, initial) {
     if (!stepped) return;
     step = n;
     form.classList.remove('step-1', 'step-2', 'step-3');
@@ -164,7 +164,8 @@
     out.classList.toggle('d-none', n === 2);
     if (n === 3) review();
     updateSteps();
-    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Nur beim Weiterblättern und nur, wenn der Formularanfang nicht mehr zu sehen ist – sonst springt die Seite
+    if (!initial && form.getBoundingClientRect().top < 0) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   if (stepped && steps.length === 3) {
     form.classList.add('stepped');
@@ -183,7 +184,7 @@
       if (e.key === 'Enter' && step < 3 && e.target.tagName === 'INPUT' && e.target.type !== 'submit') { e.preventDefault(); next.click(); }
     });
     // Nach einer Rückmeldung des Servers (Fehler) die Seite mit allen Angaben zeigen: Schritt 2
-    show(document.querySelector('.alert-danger, .has-error, .is-invalid') && form.querySelector('[name="title"]').value ? 2 : 1);
+    show(document.querySelector('.alert-danger, .has-error, .is-invalid') && form.querySelector('[name="title"]').value ? 2 : 1, true);
   } else {
     stepped = false;
   }

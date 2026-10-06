@@ -1,0 +1,44 @@
+{# Einheitlicher Kopf aller Verwaltungsseiten der Ressourcenbuchung – damit beim Durchklicken nichts springt:
+   1. Modul-Navigation (immer gleiche Position), 2. Pfadzeile (immer vorhanden), 3. Titel und Kurzbeschreibung
+   (einzeilig, volle Beschreibung als Tooltip) links, Aktionen rechts.
+   Aufruf:  {% call rm.head('bookings', [('Buchungen', '/resources/bookings'), (b.ref, '')], 'Titel', 'Beschreibung') %}…Knöpfe…{% endcall %}
+   tab: home | planner | bookings | stats | clubs | calendars | holidays #}
+{% macro head(tab, crumbs, title, lede='') -%}
+<ul class="nav nav-pills flex-nowrap overflow-auto small res-nav" aria-label="Ressourcen">
+  {% for key, href, icon, label, need in (('home', '/resources', 'fa-building', 'Übersicht', ''), ('planner', '/resources/planner', 'fa-table-cells', 'Planer', ''),
+     ('bookings', '/resources/bookings', 'fa-list', 'Buchungen', ''), ('stats', '/resources/stats', 'fa-chart-column', 'Auswertung', ''),
+     ('clubs', '/resources/clubs', 'fa-people-group', 'Vereine', 'resources'), ('calendars', '/resources/calendars', 'fa-calendar-week', 'Kalender-Links', ''),
+     ('holidays', '/resources/holidays', 'fa-umbrella-beach', 'Feiertage', 'resources')) if not need or user.can(need) %}
+  <li class="nav-item"><a class="nav-link text-nowrap {{ 'active' if tab == key }}" href="{{ href }}" {% if tab == key %}aria-current="page"{% endif %}><i class="fa-solid {{ icon }} me-1"></i>{{ label }}</a></li>
+  {% endfor %}
+</ul>
+<nav class="res-crumbs small text-truncate" aria-label="Pfad">{% if crumbs %}<a href="/resources">Ressourcen</a>{% else %}<span aria-current="page">Ressourcen</span>{% endif %}{% for label, href in crumbs %} <span class="text-secondary" aria-hidden="true">›</span> {% if href and not loop.last %}<a href="{{ href }}">{{ label }}</a>{% else %}<span aria-current="page">{{ label }}</span>{% endif %}{% endfor %}</nav>
+<div class="res-head">
+  <div class="res-head-text">
+    <h1 class="text-truncate" title="{{ title }}">{{ title }}</h1>
+    <p class="text-truncate" {% if lede %}title="{{ lede }}"{% endif %}>{% if lede %}{{ lede }}{% else %}&nbsp;{% endif %}</p>
+  </div>
+  <div class="res-head-actions">{{ caller() if caller else '' }}</div>
+</div>
+{%- endmacro %}
+
+{# Öffentliche Seiten (Bürger:innen): gleiche Struktur – Kopfzeile mit Pfad links und Merkliste/Vereinszugang rechts
+   (immer an derselben Stelle), darunter Titel und Kurzbeschreibung mit optionalen Aktionen.
+   crumbs wie oben, beginnend nach „Räume & Plätze“. Optional im Kontext: cart (Liste), club, embed. #}
+{% macro pub_head(crumbs, title, lede='', kicker='') -%}
+<div class="res-pub-bar small">
+  <nav class="res-crumbs text-truncate flex-grow-1" aria-label="Pfad">{% if crumbs %}<a href="/r">Räume &amp; Plätze</a>{% else %}<span aria-current="page">Räume &amp; Plätze</span>{% endif %}{% for label, href in crumbs %} <span class="text-secondary" aria-hidden="true">›</span> {% if href and not loop.last %}<a href="{{ href }}">{{ label }}</a>{% else %}<span aria-current="page">{{ label }}</span>{% endif %}{% endfor %}</nav>
+  {% if not embed %}
+  {% if cart %}<a class="text-nowrap" href="/r/merkliste" title="Merkliste"><i class="fa-solid fa-basket-shopping me-1"></i><span class="d-none d-sm-inline">Merkliste </span>({{ cart | length }})</a>{% endif %}
+  {% if club %}<a class="text-nowrap" href="/r/mein" title="{{ club.name }}" aria-label="Mein Bereich: {{ club.name }}"><i class="fa-solid fa-people-group me-1"></i><span class="d-none d-sm-inline">{{ club.name | truncate(30) }}</span></a>{% elif not crumbs or crumbs[0][0] != 'Vereinszugang' %}<a class="text-nowrap" href="/r/login" title="Vereinszugang" aria-label="Vereinszugang"><i class="fa-solid fa-right-to-bracket"></i><span class="d-none d-sm-inline ms-1">Vereinszugang</span></a>{% endif %}
+  {% endif %}
+</div>
+<div class="res-head res-head-public">
+  <div class="res-head-text">
+    {% if kicker %}<div class="small text-secondary res-kicker">{{ kicker }}</div>{% endif %}
+    <h1>{{ title }}</h1>
+    {% if lede %}<p>{{ lede }}</p>{% endif %}
+  </div>
+  <div class="res-head-actions">{{ caller() if caller else '' }}</div>
+</div>
+{%- endmacro %}

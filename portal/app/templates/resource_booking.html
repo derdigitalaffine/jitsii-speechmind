@@ -1,20 +1,13 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
+{% import "_res_macros.html" as rm with context %}
 {% block title %}Buchung {{ b.ref }}{% endblock %}
 {% block content %}
 {% set st = statuses[b.status] %}
-<nav aria-label="Pfad" class="small mb-2"><a href="/resources/bookings">Buchungen</a> › <a href="/resources/{{ res.id }}">{{ res.name }}</a> › {{ b.ref }}</nav>
-{% call m.page_head(res.name ~ (' – ' ~ units if units else ''), when(b) ~ ' · ' ~ b.title) %}
+{% call rm.head('bookings', [('Buchungen', '/resources/bookings'), (b.ref, '')], res.name ~ (' – ' ~ units if units else ''), when(b) ~ ' · ' ~ b.title) %}
   {% if level >= 2 %}<a class="btn btn-outline-secondary" href="/resources/bookings/{{ b.id }}/pdf" target="_blank"><i class="fa-regular fa-file-pdf me-1"></i>Bestätigung (PDF)</a>{% endif %}
   {% if level >= 3 and b.status in ('unconfirmed', 'requested', 'confirmed') %}<a class="btn btn-primary" href="/resources/bookings/{{ b.id }}/edit"><i class="fa-solid fa-pen me-1"></i>Ändern / verschieben</a>{% endif %}
 {% endcall %}
-<div class="d-flex flex-wrap gap-2 align-items-center mb-3"><span class="badge fs-6 text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>
-  <span class="font-monospace text-secondary">{{ b.ref }}</span>{% if b.internal %}<span class="badge text-bg-light border">intern eingetragen von {{ b.created_by }}</span>{% endif %}
-  {% if b.decided_by %}<span class="small text-secondary">entschieden von {{ b.decided_by }} am {{ b.decided_at | local }}</span>{% endif %}
-  {% if b.club %}<a class="badge text-bg-light border text-decoration-none" href="/resources/clubs/{{ b.club_id }}"><i class="fa-solid fa-people-group me-1"></i>{{ b.club.name }}</a>{% endif %}
-  {% if billing == 'monthly' %}<span class="badge text-bg-info">Sammelrechnung{% if b.billed_payment_id %} · abgerechnet{% endif %}</span>{% elif billing == 'invoice' %}<span class="badge text-bg-info">auf Rechnung</span>{% endif %}
-  {% if b.reminded_at %}<span class="small text-secondary"><i class="fa-regular fa-bell me-1"></i>erinnert {{ b.reminded_at | local }}</span>{% endif %}</div>
-
 {% if b.status == 'requested' and level >= 3 %}
 <div class="card border-warning border-2 mb-4"><div class="card-body">
   <h2 class="h5"><i class="fa-solid fa-hourglass-half me-1"></i>Anfrage entscheiden</h2>
@@ -26,8 +19,15 @@
 {% endif %}
 
 <div class="row g-4">
-  <div class="col-12 col-xxl-7">
-    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-circle-info me-2"></i>Buchung</div><div class="card-body"><dl class="row mb-0 small">
+  <div class="col-12 col-xl-8">
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-circle-info me-2"></i>Buchung</div><div class="card-body">
+      <div class="d-flex flex-wrap gap-2 align-items-center mb-3 pb-3 border-bottom"><span class="badge fs-6 text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>
+  <span class="font-monospace text-secondary">{{ b.ref }}</span>{% if b.internal %}<span class="badge text-bg-light border">intern eingetragen von {{ b.created_by }}</span>{% endif %}
+  {% if b.decided_by %}<span class="small text-secondary">entschieden von {{ b.decided_by }} am {{ b.decided_at | local }}</span>{% endif %}
+  {% if b.club %}<a class="badge text-bg-light border text-decoration-none" href="/resources/clubs/{{ b.club_id }}"><i class="fa-solid fa-people-group me-1"></i>{{ b.club.name }}</a>{% endif %}
+  {% if billing == 'monthly' %}<span class="badge text-bg-info">Sammelrechnung{% if b.billed_payment_id %} · abgerechnet{% endif %}</span>{% elif billing == 'invoice' %}<span class="badge text-bg-info">auf Rechnung</span>{% endif %}
+  {% if b.reminded_at %}<span class="small text-secondary"><i class="fa-regular fa-bell me-1"></i>erinnert {{ b.reminded_at | local }}</span>{% endif %}</div>
+      <dl class="row mb-0 small">
       <dt class="col-sm-4">Zeitraum</dt><dd class="col-sm-8">{{ when(b) }}</dd>
       {% if units %}<dt class="col-sm-4">Räume</dt><dd class="col-sm-8">{{ units }}</dd>{% endif %}
       <dt class="col-sm-4">Anlass</dt><dd class="col-sm-8">{{ b.title }}{% if b.organizer %} – {{ b.organizer }}{% endif %}{% if b.persons %} · {{ b.persons }} Personen{% endif %}</dd>
@@ -72,7 +72,7 @@
     {% if series %}<div class="card mb-4"><div class="card-header small"><i class="fa-solid fa-repeat me-2"></i>Weitere Termine dieser Serie</div><ul class="list-group list-group-flush small">{% for s in series %}<li class="list-group-item"><a href="/resources/bookings/{{ s.id }}">{{ when(s) }}</a> <span class="badge text-bg-{{ statuses[s.status][1] }}">{{ statuses[s.status][0] }}</span></li>{% endfor %}</ul></div>{% endif %}
   </div>
 
-  <div class="col-12 col-xxl-5">
+  <div class="col-12 col-xl-4">
     {% include "_payment_box.html" %}
     {% if extra_payments %}<div class="card mb-4"><div class="card-header small"><i class="fa-solid fa-receipt me-2"></i>Weitere Zahlungen</div><ul class="list-group list-group-flush small">{% for p in extra_payments %}<li class="list-group-item d-flex gap-2"><a class="flex-grow-1" href="/payments/{{ p.id }}">{{ p.ref }} – {{ p.purpose }}</a><span>{{ money(p.amount_cents) }}</span><span class="badge text-bg-{{ pay_statuses[p.status][1] }}">{{ pay_statuses[p.status][0] }}</span></li>{% endfor %}</ul></div>{% endif %}
     {% if level >= 3 %}

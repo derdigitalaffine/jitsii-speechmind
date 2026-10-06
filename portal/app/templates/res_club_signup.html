@@ -1,10 +1,10 @@
 {% extends "base.html" %}
+{% import "_res_macros.html" as rm with context %}
 {% block title %}Als Verein registrieren{% endblock %}
 {% block content %}
 {% set d = draft or {} %}
-<div class="mx-auto" style="max-width: 40rem">
-  <h1 class="h3 mb-1">Als Verein registrieren</h1>
-  <p class="text-secondary">Nach der Freigabe durch die Verwaltung buchen Sie ohne erneute Angaben – mit Vereinstarif und passender Abrechnung.</p>
+{{ rm.pub_head([('Vereinszugang', '/r/login'), ('Registrieren', '')], 'Als Verein registrieren', 'Nach der Freigabe durch die Verwaltung buchen Sie ohne erneute Angaben – mit Vereinstarif und passender Abrechnung.') }}
+<div class="res-narrow">
   <form method="post" class="card"><div class="card-body row g-3"><input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="col-12"><label class="form-label" for="s-name">Name des Vereins / der Einrichtung</label><input class="form-control" id="s-name" name="club_name" value="{{ d.get('club_name', '') }}" required maxlength="200"></div>
     <div class="col-md-6"><label class="form-label" for="s-contact">Ansprechperson</label><input class="form-control" id="s-contact" name="contact_name" value="{{ d.get('contact_name', '') }}" autocomplete="name"></div>

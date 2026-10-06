@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
+{% import "_res_macros.html" as rm with context %}
 {% block title %}Neue Ressource{% endblock %}
 {% block content %}
-<nav aria-label="Pfad" class="small mb-2"><a href="/resources">Ressourcen</a> › Neue Ressource</nav>
-{{ m.page_head('Neue Ressource einrichten', 'In drei Schritten startklar – Feinheiten danach in den Reitern.') }}
+{{ rm.head('home', [('Neue Ressource', '')], 'Neue Ressource einrichten', 'In drei Schritten startklar – Feinheiten danach in den Reitern.') }}
 <form method="post" action="/resources/new" class="res-wizard" style="max-width: 60rem"><input type="hidden" name="csrf" value="{{ csrf }}">
   <div class="card mb-3"><div class="card-header fw-semibold"><span class="badge rounded-pill text-bg-primary me-2">1</span>Was wird gebucht?</div><div class="card-body">
     <div class="row g-2">

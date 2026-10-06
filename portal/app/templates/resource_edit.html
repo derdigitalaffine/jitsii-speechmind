@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
+{% import "_res_macros.html" as rm with context %}
 {% block title %}{{ res.name }} bearbeiten{% endblock %}
 {% block content %}
-<nav aria-label="Pfad" class="small mb-2"><a href="/resources">Ressourcen</a> › <a href="/resources/{{ res.id }}">{{ res.name }}</a> › Bearbeiten</nav>
-{% call m.page_head(res.name, 'Einstellungen der Ressource') %}
+{% call rm.head('home', [(res.name, '/resources/' ~ res.id), ('Bearbeiten', '')], res.name, 'Einstellungen der Ressource') %}
   <a class="btn btn-outline-secondary" href="/resources/{{ res.id }}"><i class="fa-solid fa-calendar-days me-1"></i>Belegung</a>
   {% if res.active and res.public %}<a class="btn btn-outline-secondary" href="/r/{{ res.slug }}" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Öffentliche Seite</a>{% endif %}
   <div class="dropdown"><button class="btn btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Weitere Aktionen"><i class="fa-solid fa-ellipsis"></i></button>

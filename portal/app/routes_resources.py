@@ -63,6 +63,24 @@ def _groups(db):
 
 # --- Übersicht -----------------------------------------------------------------------------
 
+VIEWS = ("karten", "tabelle")
+
+
+def list_view(request: Request, cookie: str) -> tuple[str, bool]:
+    """Ansicht einer Liste (Karten oder Tabelle): aus ?ansicht=…, sonst wie zuletzt gewählt (Cookie).
+    Gibt (Ansicht, neu gewählt) zurück – bei neu gewählt das Cookie mit remember_view setzen."""
+    chosen = request.query_params.get("ansicht", "")
+    if chosen in VIEWS:
+        return chosen, True
+    saved = request.cookies.get(cookie, "")
+    return (saved if saved in VIEWS else "karten"), False
+
+
+def remember_view(response, cookie: str, view: str):
+    response.set_cookie(cookie, view, max_age=365 * 86400, httponly=True, samesite="lax", secure=settings.secure_cookies)
+    return response
+
+
 @app.get("/resources")
 def resources_list(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
     _module_on()
@@ -70,8 +88,22 @@ def resources_list(request: Request, user: User = Depends(current_user), db: Ses
     if not items and not user.can("resources"):
         raise HTTPException(403, "Für „Ressourcen“ fehlt die Berechtigung. Bitte wenden Sie sich an die Verwaltung des Portals.")
     managed = [r.id for r, lvl in items if lvl >= 3]
-    return render(request, "resources.html", user, items=items, counts=rs.booking_counts(db, managed), money=pay.money,
-                  modes=rs.MODES, statuses=rs.STATUSES, when=rs.when_text, unit_label=rs.unit_label, unit_ids=rs.unit_ids)
+    counts = rs.booking_counts(db, managed)
+    requests_by = {}
+    for b in counts["requested"]:
+        requests_by[b.resource_id] = requests_by.get(b.resource_id, 0) + 1
+    next_by: dict[int, ResourceBooking] = {}
+    ids = [r.id for r, _lvl in items]
+    if ids:
+        for b in db.scalars(select(ResourceBooking).where(
+                ResourceBooking.resource_id.in_(ids), ResourceBooking.status.in_(("requested", "confirmed")),
+                ResourceBooking.ends_at >= utcnow()).order_by(ResourceBooking.starts_at)):
+            next_by.setdefault(b.resource_id, b)
+    view, chosen = list_view(request, "jsm_res_view")
+    response = render(request, "resources.html", user, items=items, counts=counts, money=pay.money, view=view,
+                      requests_by=requests_by, next_by=next_by, modes=rs.MODES, statuses=rs.STATUSES, when=rs.when_text,
+                      unit_label=rs.unit_label, unit_ids=rs.unit_ids)
+    return remember_view(response, "jsm_res_view", view) if chosen else response
 
 
 @app.get("/resources/new")
