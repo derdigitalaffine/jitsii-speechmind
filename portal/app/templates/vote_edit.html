@@ -25,6 +25,11 @@
       <div class="mb-3"><label class="form-label" for="v-res">Ergebnis sichtbar für Abstimmende</label>
         <select class="form-select" id="v-res" name="results">{% for k, r in results_modes.items() %}<option value="{{ k }}" {% if (vote.results if vote else 'after_end') == k %}selected{% endif %}>{{ r[0] }} – {{ r[1] }}</option>{% endfor %}</select>
         <div class="form-text">Sie selbst und Freigegebene sehen den Stand immer (z. B. für den Live-Modus).</div></div>
+      <div class="mb-3"><span class="form-label d-block">Balken in der Live-Ansicht</span>
+        <div class="btn-group" role="group" aria-label="Darstellung der Balken">
+          <input type="radio" class="btn-check" name="chart" id="v-chart-bar" value="bar" {% if not vote or vote.chart != 'column' %}checked{% endif %}><label class="btn btn-outline-secondary btn-sm" for="v-chart-bar"><i class="fa-solid fa-chart-bar me-1"></i>liegend</label>
+          <input type="radio" class="btn-check" name="chart" id="v-chart-col" value="column" {% if vote and vote.chart == 'column' %}checked{% endif %}><label class="btn btn-outline-secondary btn-sm" for="v-chart-col"><i class="fa-solid fa-chart-column me-1"></i>stehend</label></div>
+        <div class="form-text">Voreinstellung – in der Live-Ansicht jederzeit umschaltbar.</div></div>
       <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="v-change" name="allow_change" value="1" {% if vote and vote.allow_change %}checked{% endif %}><label class="form-check-label" for="v-change">Stimme bis zum Ende änderbar <span class="small text-secondary">(nur bei offener Abstimmung)</span></label></div>
     </div></div>
   </div>

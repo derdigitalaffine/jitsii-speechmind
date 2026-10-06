@@ -413,7 +413,7 @@ Menü **Abstimmungen** (Recht „Abstimmungen“) – im selben Bereich wie die 
 
 - Oben stehen Stand, Stimmzettel und Beteiligung, darunter der Zwischenstand als Diagramm.
 - **Offene erinnern** schickt allen Eingeladenen ohne Stimme eine Erinnerung.
-- **Live-Modus** für Sitzungen: Beamer-Ansicht mit großem QR-Code, Stimmenzahl und Balken, die sich alle drei Sekunden aktualisieren. „Ergebnis verdecken“, bis alle abgestimmt haben; **Anhalten** und **Beenden** direkt dort.
+- **Live-Modus** für Sitzungen: Beamer-Ansicht mit großem QR-Code, Stimmenzahl und Balken, die sich alle drei Sekunden aktualisieren. Balken **liegend oder stehend** (Voreinstellung in den Einstellungen der Abstimmung, in der Live-Ansicht mit den beiden Diagramm-Knöpfen umschaltbar – die Wahl merkt sich der Browser). „Ergebnis verdecken“, bis alle abgestimmt haben; **Anhalten** und **Beenden** direkt dort.
 - **Beenden** schreibt das Ergebnis fest (mit Prüfsumme). Danach: **Ergebnisprotokoll (PDF)**, Stimmzettel als CSV und auf Wunsch **Protokoll in die Ablage**.
 
 ### Abstimmen (Sicht der Abstimmenden)

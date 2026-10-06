@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Live: {{ vote.title }}{% endblock %}
 {% block content %}
-<div id="vote-live" class="vote-live" data-src="/votes/{{ vote.id }}/results.json">
+<div id="vote-live" class="vote-live" data-src="/votes/{{ vote.id }}/results.json" data-chart="{{ vote.chart or 'bar' }}" data-vote="{{ vote.id }}">
   <div class="d-flex flex-wrap align-items-start gap-3 mb-3">
     <div class="flex-grow-1"><div class="small text-secondary"><a href="/votes/{{ vote.id }}"><i class="fa-solid fa-arrow-left me-1"></i>zurück</a></div>
       <h1 class="display-6 fw-semibold mb-1">{{ vote.title }}</h1>
@@ -10,6 +10,9 @@
       {% if vote.status != 'open' %}<form method="post" action="/votes/{{ vote.id }}/state?next=/votes/{{ vote.id }}/live"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="start"><button class="btn btn-success btn-lg" type="submit"><i class="fa-solid fa-play me-1"></i>Starten</button></form>
       {% else %}<form method="post" action="/votes/{{ vote.id }}/state?next=/votes/{{ vote.id }}/live"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="pause"><button class="btn btn-outline-secondary btn-lg" type="submit"><i class="fa-solid fa-pause me-1"></i>Anhalten</button></form>{% endif %}
       {% if level >= 3 and vote.opened_at %}<form method="post" action="/votes/{{ vote.id }}/state?next=/votes/{{ vote.id }}/live"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="close"><button class="btn btn-danger btn-lg" type="submit" data-confirm-title="Abstimmung beenden?" data-confirm="Ergebnis wird festgeschrieben." data-confirm-button="Beenden"><i class="fa-solid fa-flag-checkered me-1"></i>Beenden</button></form>{% endif %}
+      <div class="btn-group btn-group-lg" role="group" aria-label="Balken">
+        <button class="btn btn-outline-secondary" type="button" data-chart="bar" title="Balken liegend" aria-label="Balken liegend" aria-pressed="false"><i class="fa-solid fa-chart-bar"></i></button>
+        <button class="btn btn-outline-secondary" type="button" data-chart="column" title="Balken stehend" aria-label="Balken stehend" aria-pressed="false"><i class="fa-solid fa-chart-column"></i></button></div>
       <button class="btn btn-outline-secondary btn-lg" type="button" id="live-full" title="Vollbild" aria-label="Vollbild"><i class="fa-solid fa-expand"></i></button>
       <div class="form-check form-switch align-self-center ms-2"><input class="form-check-input" type="checkbox" role="switch" id="live-hide"><label class="form-check-label" for="live-hide">Ergebnis verdecken</label></div>
     </div>

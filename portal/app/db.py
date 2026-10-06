@@ -960,6 +960,7 @@ class Vote(Base):
     results: Mapped[str] = mapped_column(String(12), default="after_end")    # live | after_vote | after_end | owner
     status: Mapped[str] = mapped_column(String(10), default="draft")         # draft | open | closed
     allow_change: Mapped[bool] = mapped_column(Boolean, default=False)       # Stimme bis zum Ende änderbar (nur offen)
+    chart: Mapped[str] = mapped_column(String(8), default="bar")             # Live-Ansicht: bar (liegend) | column (stehend)
     ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     public_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     opened_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -2173,6 +2174,7 @@ DEFAULT_SETTINGS = {
 
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)
 _NEW_COLUMNS = {
+    "votes": {"chart": "VARCHAR(8) NOT NULL DEFAULT 'bar'"},
     "resource_extras": {"per_n": "INTEGER NOT NULL DEFAULT 0", "tiers_json": "TEXT NOT NULL DEFAULT '[]'",
                         "min_cents": "INTEGER NOT NULL DEFAULT 0", "max_cents": "INTEGER NOT NULL DEFAULT 0",
                         "cancel_rule": "VARCHAR(8) NOT NULL DEFAULT ''", "cancel_days": "INTEGER NOT NULL DEFAULT 0"},
