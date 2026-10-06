@@ -886,12 +886,12 @@ def pdf(report: KrankReport) -> bytes:
             continue
         total = len(e["reader"].pages)
         for i, page in enumerate(e["reader"].pages, start=1):
+            added = writer.add_page(page)   # erst übernehmen, dann stempeln (pypdf 7 verlangt die Seite im Writer)
             try:
-                w, h = float(page.mediabox.width), float(page.mediabox.height)
-                page.merge_page(PdfReader(io.BytesIO(_stamp(f"{report.ref_no} · Anlage {e['n']} · Seite {i}/{total}", w, h))).pages[0])
+                w, h = float(added.mediabox.width), float(added.mediabox.height)
+                added.merge_page(PdfReader(io.BytesIO(_stamp(f"{report.ref_no} · Anlage {e['n']} · Seite {i}/{total}", w, h))).pages[0])
             except Exception:  # noqa: BLE001
                 pass
-            writer.add_page(page)
     out = io.BytesIO()
     writer.write(out)
     return out.getvalue()

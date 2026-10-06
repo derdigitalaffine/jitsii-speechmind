@@ -110,9 +110,9 @@
 <script type="application/json" id="map-meta">{{ {'canEdit': can_edit, 'mapId': (saved.id if own else None), 'embed': embed} | tojson }}</script>
 {% endblock %}
 {% block scripts %}
-<script src="/static/vendor/maplibre/maplibre-gl.js"></script>
+<script type="module" src="/static/maplibre-global.js"></script>
 <script src="/static/vendor/sortablejs/Sortable.min.js"></script>
-<script src="/static/map-core.js"></script>
-<script src="/static/map-draw.js"></script>
-<script src="/static/map-browser.js"></script>
+<script type="module" src="/static/map-core.js"></script>
+<script type="module" src="/static/map-draw.js"></script>
+<script type="module" src="/static/map-browser.js"></script>
 {% endblock %}
