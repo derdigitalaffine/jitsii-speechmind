@@ -439,19 +439,7 @@ async def processes_import(request: Request, user: User = Depends(process_user),
     if not isinstance(raw, dict) or not isinstance(raw.get("definition"), dict):
         flash(request, "Die Datei ist kein exportierter Prozess.", "error")
         return redirect("/processes")
-    definition = wf.clean_definition(raw["definition"])
-    for step in definition["steps"]:   # Personen und Gruppen anderer Server gibt es hier nicht
-        if step.get("assign"):
-            step["assign"] = {"mode": "case", "user_id": None, "group_id": None}
-        if step.get("escalate"):
-            step["escalate"] = {"user_id": None, "group_id": None, "after_days": 0, "reassign": False}
-        for a in step.get("actions", []):
-            if a["type"] == "assign":
-                a["user_id"] = a["group_id"] = None
-    process = Process(name=" ".join(str(raw.get("name") or "Importierter Prozess").split())[:200],
-                      description=str(raw.get("description") or "")[:5000], owner_id=user.id,
-                      draft_json=json.dumps(definition, ensure_ascii=False))
-    db.add(process)
+    process = wf.import_process(db, raw, user)
     db.commit()
     flash(request, "Prozess importiert. Bitte Zuständigkeiten prüfen und dann veröffentlichen.")
     return redirect(f"/processes/{process.id}")
@@ -599,8 +587,7 @@ def process_export(process_id: int, user: User = Depends(process_user), db: Sess
     _module_on()
     process = _process(db, process_id)
     slug = re.sub(r"[^a-z0-9]+", "-", process.name.lower()).strip("-")[:40] or "prozess"
-    body = json.dumps({"format": "jitsii-prozess-1", "name": process.name, "description": process.description,
-                       "definition": wf.definition_of(process)}, ensure_ascii=False, indent=2)
+    body = json.dumps(wf.export_data(process), ensure_ascii=False, indent=2)
     return Response(body, media_type="application/json",
                     headers={"Content-Disposition": f'attachment; filename="{slug}.json"'})
 

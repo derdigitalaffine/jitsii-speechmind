@@ -290,6 +290,29 @@ def publish(db, process: Process, actor: User, note: str) -> ProcessVersion:
     return version
 
 
+def export_data(process: Process) -> dict:
+    return {"format": "jitsii-prozess-1", "name": process.name, "description": process.description,
+            "definition": definition_of(process)}
+
+
+def import_process(db, raw: dict, owner: User) -> Process:
+    """Legt einen exportierten Prozess als Entwurf an; Personen und Gruppen gibt es auf diesem Server nicht."""
+    definition = clean_definition(raw["definition"])
+    for step in definition["steps"]:
+        if step.get("assign"):
+            step["assign"] = {"mode": "case", "user_id": None, "group_id": None}
+        if step.get("escalate"):
+            step["escalate"] = {"user_id": None, "group_id": None, "after_days": 0, "reassign": False}
+        for a in step.get("actions", []):
+            if a["type"] == "assign":
+                a["user_id"] = a["group_id"] = None
+    process = Process(name=" ".join(str(raw.get("name") or "Importierter Prozess").split())[:200],
+                      description=str(raw.get("description") or "")[:5000], owner_id=owner.id,
+                      draft_json=json.dumps(definition, ensure_ascii=False))
+    db.add(process)
+    return process
+
+
 TEMPLATES = {
     "simple": ("Einfache Prüfung", "Eingang prüfen, bei Bedarf nachfordern, abschließen.", {
         "end_status": "done",

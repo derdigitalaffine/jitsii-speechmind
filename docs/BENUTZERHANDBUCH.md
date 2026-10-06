@@ -623,6 +623,16 @@ Reiter **Antworten** (die Zahl daneben zeigt, wie viele es sind).
 
 Über **„…“** oben rechts: **Kopie anlegen** (ohne Antworten, Einladungen und öffentlichen Link – z. B. für die Anmeldung im nächsten Jahr) oder **Löschen** (mit allen Antworten und Dateien).
 
+**Als Datei exportieren und importieren** – um ein Formular oder einen Online-Antrag an eine andere Verbandsgemeinde weiterzugeben oder auf einen anderen Server umzuziehen:
+
+- **„…“ › Als Datei exportieren …** lädt Fragen und Einstellungen (inkl. Gebühren und Antragsangaben) als JSON-Datei herunter. Per Häkchen kommen dazu:
+  - der **verknüpfte Prozess** (bei Online-Anträgen),
+  - die **verwendeten Datenblöcke** (ohne Häkchen werden auf dem Zielportal gleichnamige Datenblöcke verwendet, fehlende fallen weg),
+  - die **Einsendungen mit hochgeladenen Dateien** – nur für einen Umzug, da personenbezogen; die Datei ist dann ein ZIP.
+- **Formulare › Importieren** liest die Datei ein und erkennt selbst, was enthalten ist. Gleichnamige Datenblöcke werden wiederverwendet, fehlende angelegt. Ein mitgelieferter Prozess wird als Entwurf angelegt (nur mit dem Recht *Prozesse*) und muss nach Prüfung veröffentlicht werden.
+- Nicht übernommen werden zuständige Personen und Gruppen, Funktionspostfach, Weiterleitungsregeln, Ablage und der öffentliche Link. Das importierte Formular ist zunächst **geschlossen** – nach dem Prüfen unter *Teilen* öffnen.
+- Übernommene Anträge behalten Aktenzeichen, Status und Verlauf; neue Anträge zählen die Aktenzeichen weiter. Der Verlauf vermerkt den Import samt Prüfsumme des Quellservers.
+
 ---
 
 ## 11. Formulare mit Kolleg:innen teilen

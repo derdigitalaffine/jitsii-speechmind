@@ -3,6 +3,7 @@
 {% block title %}Formulare{% endblock %}
 {% block content %}
 {% call m.page_head('Formulare', 'Umfragen, Anmeldungen und Anträge mit dem Baukasten erstellen, per Link oder Einladung verteilen und die Antworten auswerten oder als CSV/JSON exportieren.') %}
+  {% if user.can('forms') %}<button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#import-modal"><i class="fa-solid fa-file-import me-1"></i>Importieren</button>{% endif %}
   {% if user.is_admin %}<a class="btn btn-outline-secondary" href="?{{ '' if show_all else 'all=1' }}">{{ 'Nur meine' if show_all else 'Alle Formulare' }}</a>{% endif %}
 {% endcall %}
 
@@ -63,5 +64,14 @@
 </div>
 {% elif not shared %}
 <div class="text-center text-secondary py-5"><i class="fa-solid fa-clipboard-list fa-3x mb-3"></i><p>{{ 'Noch keine Formulare. Legen Sie oben das erste an.' if user.can('forms') else 'Für Sie sind keine Formulare freigegeben. Formulare zum Ausfüllen finden Sie unter „Zum Ausfüllen“.' }}</p></div>
+{% endif %}
+{% if user.can('forms') %}
+<div class="modal fade" id="import-modal" tabindex="-1" aria-labelledby="imp-title" aria-hidden="true"><div class="modal-dialog"><form class="modal-content" method="post" action="/forms/import" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="modal-header"><h2 class="modal-title h5" id="imp-title">Formular oder Antrag importieren</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+  <div class="modal-body"><input class="form-control" type="file" name="file" accept=".json,.zip,application/json,application/zip" required aria-label="Exportdatei">
+    <div class="form-text">Datei aus „Als Datei exportieren“ (JSON oder ZIP) – z. B. von einer anderen Verbandsgemeinde. Mitgelieferte Prozesse, Datenblöcke und Einsendungen werden automatisch erkannt; vorhandene gleichnamige Datenblöcke werden verwendet. Das Formular ist danach noch geschlossen; Zuständigkeiten bitte neu festlegen.</div></div>
+  <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button><button class="btn btn-primary" type="submit">Importieren</button></div>
+</form></div></div>
 {% endif %}
 {% endblock %}

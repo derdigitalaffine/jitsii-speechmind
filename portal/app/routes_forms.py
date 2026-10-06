@@ -10,10 +10,10 @@ from fastapi.responses import FileResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
-from . import applications as apps, fees, forms as fm, payments, shortlinks as sl, worker
+from . import applications as apps, fees, formio, forms as fm, payments, shortlinks as sl, worker
 from .db import LOCAL_TZ, SessionLocal, Form, FormInvite, FormResponse, FormShare, Group, User, get_settings, to_local, utcnow
 from .main import (
-    app, check_csrf, current_user, flash, get_db, rate_limit, redirect, render, require, session_user,
+    app, check_csrf, current_user, enabled_modules, flash, get_db, rate_limit, redirect, render, require, session_user,
 )
 from .planning import parse_emails
 from .security import new_link_token
@@ -50,7 +50,7 @@ def _ctx(db: Session, form: Form, tab: str, level: int) -> dict:
     """Gemeinsame Angaben für die Kopfzeile mit Reitern."""
     return {"form": form, "tab": tab, "level": level, "levels": fm.LEVELS, "is_open": fm.is_open(form), "public_url": fm.public_link(form),
             "response_count": db.scalar(select(func.count(FormResponse.id)).where(FormResponse.form_id == form.id)),
-            "types": fm.TYPES}
+            "types": fm.TYPES, "uses_blocks": any(i.get("type") == "block" for i in fm.raw_schema(form))}
 
 
 # --- Übersicht -----------------------------------------------------------------
@@ -403,6 +403,36 @@ def form_export(form_id: int, fmt: str, user: User = Depends(current_user), db: 
         return Response(fm.to_json(form, list(form.responses)), media_type="application/json; charset=utf-8",
                         headers={"Content-Disposition": f'attachment; filename="{slug}-{stamp}.json"'})
     raise HTTPException(404)
+
+
+@app.get("/forms/{form_id}/transfer")
+def form_transfer_export(form_id: int, process: str = "", blocks: str = "", responses: str = "",
+                         user: User = Depends(current_user), db: Session = Depends(get_db)):
+    form, _ = _form(db, form_id, user, fm.VIEW)
+    body, ext = formio.export(db, form, process=process == "1", blocks=blocks == "1", responses=responses == "1")
+    slug = re.sub(r"[^a-z0-9]+", "-", form.title.lower()).strip("-")[:40] or "formular"
+    stamp = to_local(utcnow()).strftime("%Y-%m-%d")
+    return Response(body, media_type="application/zip" if ext == "zip" else "application/json",
+                    headers={"Content-Disposition": f'attachment; filename="{slug}-{stamp}.{ext}"'})
+
+
+@app.post("/forms/import", dependencies=[Depends(check_csrf)])
+async def form_transfer_import(request: Request, user: User = Depends(forms_user), db: Session = Depends(get_db)):
+    data = await request.form()
+    upload = data.get("file")
+    try:
+        if upload is None or not hasattr(upload, "read"):
+            raise formio.FormImportError("Bitte eine Exportdatei auswählen.")
+        payload, archive = formio.read(await upload.read(formio.MAX_ZIP + 1))
+        form, notes = formio.import_form(db, payload, archive, user, with_process=user.can("processes") and "applications" in enabled_modules())
+    except formio.FormImportError as exc:
+        db.rollback()
+        flash(request, str(exc), "error")
+        return redirect("/forms")
+    db.commit()
+    flash(request, "Importiert: " + ", ".join(formio.describe(payload)) + ". Das Formular ist noch geschlossen. "
+          + " ".join(notes))
+    return redirect(f"/forms/{form.id}")
 
 
 @app.get("/forms/{form_id}/responses/{response_id}/files/{name}")

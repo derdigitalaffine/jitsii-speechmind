@@ -5,11 +5,28 @@
     <button class="btn btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Weitere Aktionen"><i class="fa-solid fa-ellipsis"></i></button>
     <ul class="dropdown-menu dropdown-menu-end">
       {% if user.can('forms') %}<li><form method="post" action="/forms/{{ form.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item" type="submit"><i class="fa-regular fa-copy fa-fw me-2"></i>Kopie anlegen</button></form></li>{% endif %}
+      <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#export-modal"><i class="fa-solid fa-file-export fa-fw me-2"></i>Als Datei exportieren …</button></li>
       {% if level >= 3 %}<li><hr class="dropdown-divider"></li>
       <li><form method="post" action="/forms/{{ form.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item text-danger" type="submit" data-confirm-title="Formular löschen?" data-confirm="Das Formular wird mit allen {{ response_count }} Antworten und hochgeladenen Dateien gelöscht. Links funktionieren danach nicht mehr."><i class="fa-regular fa-trash-can fa-fw me-2"></i>Löschen</button></form></li>{% endif %}
     </ul>
   </div>
 {% endcall %}
+<div class="modal fade" id="export-modal" tabindex="-1" aria-labelledby="exp-title" aria-hidden="true"><div class="modal-dialog"><form class="modal-content" method="get" action="/forms/{{ form.id }}/transfer">
+  <div class="modal-header"><h2 class="modal-title h5" id="exp-title">{{ 'Antrag' if form.kind == 'application' else 'Formular' }} exportieren</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+  <div class="modal-body">
+    <p class="small text-secondary">Die Datei lässt sich auf diesem oder einem anderen Portal unter <em>Formulare › Importieren</em> wieder einlesen. Fragen und Einstellungen sind immer enthalten.</p>
+    {% if form.process %}<div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="process" value="1" id="exp-process" checked>
+      <label class="form-check-label" for="exp-process">Prozess „{{ form.process.name }}“ mitnehmen</label></div>{% endif %}
+    {% if uses_blocks %}<div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="blocks" value="1" id="exp-blocks" checked>
+      <label class="form-check-label" for="exp-blocks">Verwendete Datenblöcke mitnehmen</label>
+      <div class="form-text">Ohne: Auf dem Zielportal werden gleichnamige Datenblöcke verwendet.</div></div>{% endif %}
+    <div class="form-check"><input class="form-check-input" type="checkbox" name="responses" value="1" id="exp-responses">
+      <label class="form-check-label" for="exp-responses">Auch die {{ response_count }} Einsendung(en) mit Dateien</label>
+      <div class="form-text text-warning-emphasis"><i class="fa-solid fa-triangle-exclamation me-1"></i>Enthält personenbezogene Daten – nur für einen Umzug zwischen Servern. Ergibt eine ZIP-Datei.</div></div>
+    <div class="form-text mt-3">Zuständige Personen und Gruppen, Funktionspostfach, Weiterleitungsregeln, Ablage und öffentlicher Link werden beim Import nicht übernommen.</div>
+  </div>
+  <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button><button class="btn btn-primary" type="submit" data-bs-dismiss="modal"><i class="fa-solid fa-download me-1"></i>Herunterladen</button></div>
+</form></div></div>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-3 small">
   {% if is_open %}<span class="badge text-bg-success">nimmt Antworten an</span>{% else %}<span class="badge text-bg-secondary">geschlossen</span>{% endif %}
   {% if form.expires_at %}<span class="text-secondary"><i class="fa-regular fa-hourglass-half me-1"></i>bis {{ form.expires_at | local }} Uhr</span>{% endif %}
