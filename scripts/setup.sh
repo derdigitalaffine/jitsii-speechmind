@@ -61,6 +61,9 @@ chmod +x jibri/finalize.sh
 chmod 777 data/recordings
 # Prosody schreibt die Chatprotokolle als eigener Benutzer
 chmod 1777 data/portal-chat
+# Andere Benutzer des Hosts sehen nichts davon (Container greifen über ihre Bind-Mounts direkt zu)
+chmod 750 data
+chmod 700 data/portal data/caddy/data
 
 echo
 echo "Fertig. .env wurde erzeugt."

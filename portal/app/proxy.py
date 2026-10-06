@@ -78,6 +78,7 @@ def render(cfg: dict[str, str]) -> str:
         f"# Modus: {mode_label}\n"
         f"{head}"
         f"{h['meet']} {{\n{tls}\tencode gzip\n"
+        + (f"\theader {{\n{hsts}\t}}\n" if hsts else "") +
         "\t# Design der Konferenzoberfläche (dynamicBrandingUrl) und Logo kommen vom Portal\n"
         "\thandle /branding/* {\n\t\treverse_proxy portal:8000\n\t}\n"
         "\thandle {\n\t\treverse_proxy web:80\n\t}\n}\n\n"
@@ -90,7 +91,7 @@ def render(cfg: dict[str, str]) -> str:
         "\t# Nur die einbettbaren Seiten (…-embed) dürfen in fremden Seiten (iframe) erscheinen\n"
         f"{_noembed()}"
         "\treverse_proxy portal:8000\n}\n"
-        f"{short_block(cfg, h, tls)}"
+        f"{short_block(cfg, h, tls, hsts)}"
         f"{module_blocks(cfg, h, tls, hsts)}"
     )
 
@@ -119,7 +120,7 @@ def module_blocks(cfg: dict[str, str], h: dict[str, str], tls: str, hsts: str) -
     return "".join(out)
 
 
-def short_block(cfg: dict[str, str], h: dict[str, str], tls: str) -> str:
+def short_block(cfg: dict[str, str], h: dict[str, str], tls: str, hsts: str = "") -> str:
     """Optionale Kurz-Domain: jeder Pfad wird auf /s/... des Portals umgeschrieben."""
     domain = (cfg.get("short_domain") or "").strip().lower()
     if not domain:
@@ -127,6 +128,7 @@ def short_block(cfg: dict[str, str], h: dict[str, str], tls: str) -> str:
     if not DOMAIN_RE.match(domain) or domain in h.values():
         raise ValueError(f"Ungültige Kurz-Domain: {domain!r}")
     return (f"\n{domain} {{\n{tls}\tencode gzip\n"
+            + (f"\theader {{\n{hsts}\t}}\n" if hsts else "") +
             "\t# Kurzlinks (Portal › Kurzlinks): /abc -> Portal /s/abc\n"
             "\trewrite * /s{uri}\n\treverse_proxy portal:8000\n}\n")
 
@@ -216,5 +218,10 @@ def dns_check(host: str) -> dict:
 
 
 def root_cert_path() -> Path | None:
-    path = settings.caddy_data_dir / "caddy" / "pki" / "authorities" / "local" / "root.crt"
-    return path if path.exists() else None
+    """Öffentliches Root-Zertifikat der internen CA. Caddy kopiert es nach /conf (siehe docker-compose.yml),
+    damit das Portal den Datenordner von Caddy mit dem privaten Schlüssel nicht mehr einbinden muss."""
+    for path in (settings.caddy_conf_dir / "root.crt",
+                 settings.caddy_data_dir / "caddy" / "pki" / "authorities" / "local" / "root.crt"):
+        if path.is_file():
+            return path
+    return None

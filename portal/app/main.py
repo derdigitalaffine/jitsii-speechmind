@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session, joinedload
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import access, branding, chat, links, mailtpl, modhosts, notify, planning, proxy, sessions, twofa, worker
+from . import access, branding, chat, csp, links, mailtpl, modhosts, notify, planning, proxy, sessions, twofa, worker
 from .planning import EMAIL_RE, name_from_email
 from .config import settings
 from .db import (
@@ -108,6 +108,9 @@ app.add_middleware(
 )
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")
+templates.env.add_extension(csp.NonceExtension)
+templates.env.globals["csp_nonce"] = csp.current_nonce
+_HANDLER_HASHES = " ".join(csp.handler_hashes(BASE / "templates"))
 templates.env.globals.update(brand=settings.brand_name, product=settings.brand_product)
 templates.env.globals["themes"] = branding.THEMES
 templates.env.globals["permissions"] = PERMISSIONS
@@ -186,14 +189,16 @@ def module_for_path(path: str) -> str | None:
 _MEET_ORIGIN = "{0.scheme}://{0.netloc}".format(urlparse(settings.meet_base_url)) if settings.meet_base_url else ""
 
 
-def build_csp(frame_ancestors: str = "'none'", hosts: list[str] | tuple = ()) -> str:
+def build_csp(frame_ancestors: str = "'none'", hosts: list[str] | tuple = (), nonce: str = "") -> str:
     """Content-Security-Policy für Portalseiten. Alle Bibliotheken liegen lokal, daher nur 'self'.
-    Inline-Skripte sind (noch) nötig; die Richtlinie verhindert trotzdem fremde Skripte, Datenabfluss
-    zu fremden Servern, <base>/<object>-Tricks und Formulare an fremde Ziele.
+    Inline-Skripte nur mit der Nonce dieser Antwort (siehe csp.py), Inline-Handler nur mit bekanntem Hash.
+    Die Richtlinie verhindert so eingeschleuste Skripte, Datenabfluss zu fremden Servern, <base>/<object>-Tricks
+    und Formulare an fremde Ziele.
     hosts: zusätzliche Herkünfte für Bilder und Abrufe (direkt geladene Kartendienste)."""
     form_targets = " ".join(x for x in ("'self'", _MEET_ORIGIN) if x)
     extra = "".join(" " + h for h in hosts if re.fullmatch(r"https?://[A-Za-z0-9.-]+(:\d+)?", h))
-    return ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+    scripts = "'self'" + (f" 'nonce-{nonce}'" if nonce else "") + (f" 'unsafe-hashes' {_HANDLER_HASHES}" if _HANDLER_HASHES else "")
+    return (f"default-src 'self'; script-src {scripts}; style-src 'self' 'unsafe-inline'; "
             f"img-src 'self' data: blob:{extra}; font-src 'self' data:; connect-src 'self'{extra}; "
             "media-src 'self' blob:; frame-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; "
             f"form-action {form_targets}; frame-ancestors {frame_ancestors}")
@@ -233,6 +238,7 @@ SECURITY_HEADERS = {
 @app.middleware("http")
 async def _security_headers(request: Request, call_next):
     """Schutz-Header für alle Antworten (zusätzlich zu denen des Reverse Proxys)."""
+    nonce = csp.new_nonce()
     response = await call_next(request)
     for key, value in SECURITY_HEADERS.items():
         response.headers.setdefault(key, value)
@@ -250,10 +256,12 @@ async def _security_headers(request: Request, call_next):
     if "content-security-policy" not in response.headers and \
             response.headers.get("content-type", "").startswith("text/html"):
         response.headers["Content-Security-Policy"] = build_csp(frame_ancestors,
-                                                                getattr(request.state, "csp_hosts", ()))
-    if request.url.path.startswith(("/admin", "/profile", "/login", "/invite", "/laws")) and \
-            response.headers.get("content-type", "").startswith("text/html"):
-        response.headers.setdefault("Cache-Control", "no-store")   # keine Verwaltungsseiten im Browser-Cache
+                                                                getattr(request.state, "csp_hosts", ()), nonce)
+    logged_in = bool(request.scope.get("session", {}).get("uid")) if "session" in request.scope else False
+    if (logged_in or request.url.path.startswith(("/admin", "/profile", "/login", "/invite", "/laws"))) and \
+            response.headers.get("content-type", "").startswith(("text/html", "application/json")):
+        # Seiten mit persönlichen Daten nicht im Browser-Cache ablegen (gemeinsam genutzte Rechner, Zurück-Taste)
+        response.headers.setdefault("Cache-Control", "no-store")
     if request.url.path.startswith("/static/"):
         # Eigene Skripte/Stile nach einem Update sofort neu laden (Browser fragt mit ETag nach, meist 304);
         # Bibliotheken unter vendor/ ändern sich selten und dürfen einen Tag im Cache bleiben.
@@ -400,9 +408,11 @@ def client_ip(request: Request) -> str:
         ip = ipaddress.ip_address(host)
     except ValueError:
         return host
-    if ip.version == 6 and not ip.ipv4_mapped:
+    if ip.version == 6:
+        if ip.ipv4_mapped:
+            return str(ip.ipv4_mapped)
         return str(ipaddress.ip_network(f"{ip}/64", strict=False))
-    return str(ip.ipv4_mapped or ip)
+    return str(ip)
 
 
 def rate_limit(request: Request, bucket: str, limit: int = 10, window: int = 600, key: str | None = None) -> None:
