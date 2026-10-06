@@ -270,7 +270,7 @@ a.dash-num:hover > span { text-decoration: underline; }
 .res-ev.res-tentative { background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.35) 0 6px, transparent 6px 12px); opacity: .85; }
 .res-ev.res-closure { background-color: var(--bs-secondary) !important; border-color: var(--bs-secondary) !important; }
 .res-photo { aspect-ratio: 4 / 3; object-fit: cover; width: 100%; border-radius: var(--bs-border-radius); }
-.res-thumb { aspect-ratio: 16 / 9; object-fit: cover; width: 100%; }
+.res-thumb { aspect-ratio: var(--res-thumb-ratio, 16 / 9); object-fit: var(--res-photo-fit, cover); width: 100%; }
 
 /* Ressourcenbuchung: Schritte, freie Zeiten, Planer */
 .res-steps { display: flex; gap: .75rem; }
@@ -381,14 +381,14 @@ a.dash-num:hover > span { text-decoration: underline; }
 .res-public .res-block .form-check-input:focus-visible + .form-check-label { outline: 3px solid rgba(var(--bs-primary-rgb), .5); }
 
 /* Öffentliche Ressourcenseite */
-.res-gallery { display: grid; grid-template-columns: 2fr 1fr 1fr; grid-template-rows: 1fr 1fr; height: clamp(13rem, 26vw, 22.5rem); gap: .5rem; border-radius: .75rem; overflow: hidden; }
+.res-gallery { display: grid; grid-template-columns: 2fr 1fr 1fr; grid-template-rows: 1fr 1fr; height: clamp(8rem, 30vw, var(--res-gallery-h, 22.5rem)); gap: .5rem; border-radius: .75rem; overflow: hidden; }
 .res-gallery-n1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
 .res-gallery-n0 { grid-template-columns: 1fr; grid-template-rows: 1fr; height: 8rem; }
 .res-gallery-n2, .res-gallery-n3 { grid-template-columns: 2fr 1fr; }
 .res-gallery-n2 .res-gallery-item:nth-child(2) { grid-row: span 2; }
 .res-gallery-n4 .res-gallery-item:nth-child(4) { grid-column: span 2; }
 .res-gallery-item { position: relative; padding: 0; border: 0; background: var(--bs-tertiary-bg); overflow: hidden; }
-.res-gallery-item img { width: 100%; height: 100%; object-fit: cover; transition: transform .25s ease; }
+.res-gallery-item img { width: 100%; height: 100%; object-fit: var(--res-photo-fit, cover); transition: transform .25s ease; }
 .res-gallery-item:hover img { transform: scale(1.03); }
 .res-gallery-item:focus-visible { outline: 3px solid rgba(var(--bs-primary-rgb), .6); outline-offset: -3px; }
 .res-gallery-main { grid-row: span 2; }
@@ -397,8 +397,8 @@ a.dash-num:hover > span { text-decoration: underline; }
   background: linear-gradient(135deg, color-mix(in srgb, var(--cat) 22%, transparent), color-mix(in srgb, var(--cat) 6%, transparent)); color: var(--cat); font-size: 2.5rem; }
 .res-gallery-empty span { font-size: 1rem; font-weight: 600; }
 @media (max-width: 767.98px) {
-  .res-gallery { grid-template-columns: 1fr 1fr; grid-template-rows: 12rem 5.5rem; height: auto; }
-  .res-gallery-n1 { grid-template-columns: 1fr; grid-template-rows: 13rem; }
+  .res-gallery { grid-template-columns: 1fr 1fr; grid-template-rows: calc(var(--res-gallery-h-sm, 15rem) * .68) calc(var(--res-gallery-h-sm, 15rem) * .32 - .5rem); height: auto; }
+  .res-gallery-n1 { grid-template-columns: 1fr; grid-template-rows: var(--res-gallery-h-sm, 15rem); }
   .res-gallery-n0 { grid-template-rows: 7rem; }
   .res-gallery .res-gallery-item { grid-row: auto; grid-column: auto; }
   .res-gallery .res-gallery-main { grid-column: 1 / -1; }
@@ -424,7 +424,7 @@ a.dash-num:hover > span { text-decoration: underline; }
 .res-dot { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; flex: 0 0 auto; vertical-align: 0; box-shadow: 0 0 0 2px var(--bs-body-bg); }
 .res-map-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem 1rem; }
 .res-map-legend .res-dot { margin-right: .35rem; }
-.res-map-photo { width: 100%; height: 12rem; object-fit: cover; display: block; }
+.res-map-photo { width: 100%; aspect-ratio: var(--res-thumb-ratio, 16 / 9); max-height: 14rem; object-fit: var(--res-photo-fit, cover); display: block; background: var(--bs-tertiary-bg); }
 .res-map-photo-empty { display: flex; align-items: center; justify-content: center; font-size: 2.5rem; color: var(--cat);
   background: linear-gradient(135deg, color-mix(in srgb, var(--cat) 22%, transparent), color-mix(in srgb, var(--cat) 6%, transparent)); }
 .res-map-close { position: absolute; top: .6rem; right: .6rem; z-index: 2; background-color: rgba(255, 255, 255, .9); border-radius: 50%; padding: .5rem; opacity: 1; }

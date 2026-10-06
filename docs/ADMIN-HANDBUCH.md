@@ -771,6 +771,8 @@ Rechts auf der Seite gibt es **Root-Zertifikat herunterladen**. Dieses Zertifika
 
 Menü **Design & Branding**. Links stellen Sie ein, rechts sehen Sie sofort eine **Vorschau**. Erst **Design speichern** übernimmt die Änderungen.
 
+**Fotos (Räume & Plätze)** – gilt immer, auch ohne eigenes Design: Höhe der Fotogalerie auf der Ressourcenseite (Standard 360 px) und auf dem Handy (240 px), Seitenverhältnis der Vorschaubilder im Katalog und im Karten-Info-Fenster (16:9, 4:3, 21:9, 3:1) und ob Fotos vollständig gezeigt statt zugeschnitten werden.
+
 **Gilt immer (auch bei ausgeschaltetem Design):** Name der Organisation, Produktbezeichnung, Hinweistext auf der Anmeldeseite, Fußzeile, Links zu Impressum und Datenschutzerklärung. Der Name erscheint auch in E-Mails. Lassen Sie ein Feld leer, gilt die Voreinstellung (`BRAND_NAME`/`BRAND_PRODUCT` aus der `.env`).
 
 **Eigenes Design** (großer Schalter ganz oben auf der Seite). Farben, Logo, Favicon, Farbschema und Rundungen wirken **nur, wenn er eingeschaltet ist**. Sobald Sie etwas daran ändern, schaltet er sich von selbst ein; speichern Sie mit **Design speichern**. Ist er aus, sieht das Portal in der neutralen Standardfarbe aus. Ihre Einstellungen bleiben gespeichert und lassen sich jederzeit wieder einschalten. Speichern Sie Änderungen bei ausgeschaltetem Schalter, weist das Portal darauf hin.
