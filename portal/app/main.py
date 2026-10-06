@@ -2487,5 +2487,6 @@ from . import routes_payments  # noqa: E402,F401
 from . import routes_votes  # noqa: E402,F401
 from . import routes_resources  # noqa: E402,F401
 from . import routes_resources_public  # noqa: E402,F401
+from . import routes_caretakers  # noqa: E402,F401
 from . import routes_krank  # noqa: E402,F401
 from . import routes_orgs  # noqa: E402,F401

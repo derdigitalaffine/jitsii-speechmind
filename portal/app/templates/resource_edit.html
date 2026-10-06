@@ -142,6 +142,18 @@
     <div class="col-md-4"><label class="form-label" for="r-mg">Zuständige Gruppe</label><select class="form-select" id="r-mg" name="manager_group_id"><option value="">–</option>{% for g in groups %}<option value="{{ g.id }}" {% if res.manager_group_id == g.id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select></div>
     <div class="col-md-4"><label class="form-label" for="r-mb">Funktionspostfach</label><input class="form-control" type="email" id="r-mb" name="mailbox" value="{{ res.mailbox }}"></div>
     <div class="col-12 form-text">Zuständige bekommen Anfragen per Mail und dürfen alles verwalten. Weitere Personen (z. B. Hausmeisterei) geben Sie auf der Belegungsseite frei.</div>
+    <div class="col-12"><hr class="my-1"><div class="fw-semibold mb-1"><i class="fa-solid fa-user-gear me-1 text-secondary"></i>Hausmeister:innen, Übergabe und Kaution</div>
+      <input type="hidden" name="caretakers_present" value="1">
+      {% if all_caretakers %}<div class="d-flex flex-wrap gap-3 mb-2">{% for c in all_caretakers %}<div class="form-check"><input class="form-check-input" type="checkbox" name="caretakers" value="{{ c.id }}" id="r-ct-{{ c.id }}" {% if c in res.caretakers %}checked{% endif %}><label class="form-check-label" for="r-ct-{{ c.id }}">{{ c.display_name }}{% if not c.active %} <span class="text-secondary">(inaktiv)</span>{% endif %}</label></div>{% endfor %}</div>
+      {% else %}<p class="small text-secondary mb-2">Noch keine Hausmeister:innen angelegt.</p>{% endif %}
+      <p class="small mb-2"><a href="/resources/caretakers">Hausmeister:innen verwalten</a> – sie halten Übergabe und Abnahme über einen persönlichen Link fest.</p>
+      {% for key, label, hint in (('deposit_release', 'Kaution erst nach Freigabe durch die Verwaltung auszahlen', 'gilt für Abnahmen durch Hausmeister:innen; die Freigabe erscheint in der Buchung und unter „Meine Aufgaben“'),
+                                   ('protocol_to_booker', 'Protokoll (PDF) nach der Abnahme an die buchende Person', ''),
+                                   ('protocol_to_staff', 'Protokoll (PDF) an die Zuständigen', 'liegt außerdem immer in der Ablage (DMS), wenn diese eingeschaltet ist'),
+                                   ('caretaker_public', 'Kontakt der Hausmeister:innen an Buchende (Ressourcenseite der Buchung, Erinnerungsmail)', 'optional'),
+                                   ('caretaker_remind', 'Hausmeister:innen vor Beginn erinnern (mit Link)', 'optional; zur Erinnerung „Zuständige“ im Reiter Erinnerungen')) %}
+      <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="{{ key }}" value="1" id="r-{{ key }}" {% if res[key] %}checked{% endif %}><label class="form-check-label" for="r-{{ key }}">{{ label }}</label>{% if hint %}<div class="form-text mt-0">{{ hint }}</div>{% endif %}</div>{% endfor %}
+    </div>
     {% if dms_areas %}<div class="col-md-6"><label class="form-label" for="r-dms">Ablagebereich (DMS)</label><select class="form-select" id="r-dms" name="dms_area_id"><option value="">– „Nicht einsortiert“ –</option>{% for a, lbl in dms_areas %}<option value="{{ a.id }}" {% if res.dms_area_id == a.id %}selected{% endif %}>{{ lbl }}</option>{% endfor %}</select><div class="form-text">Bestätigte Buchungen mit PDF und der Person werden dort abgelegt.</div></div>{% endif %}
   </div></div></div>
 

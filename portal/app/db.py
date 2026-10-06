@@ -1103,6 +1103,12 @@ class Resource(Base):
     remind_staff_days: Mapped[int] = mapped_column(Integer, default=1)
     remind_text: Mapped[str] = mapped_column(Text, default="")
     waitlist: Mapped[bool] = mapped_column(Boolean, default=True)    # bei belegtem Zeitraum auf die Warteliste
+    # Übergabe durch Hausmeister:innen (Magic Link) und Protokolle
+    deposit_release: Mapped[bool] = mapped_column(Boolean, default=False)   # Kaution erst nach Freigabe der Verwaltung
+    protocol_to_booker: Mapped[bool] = mapped_column(Boolean, default=True)
+    protocol_to_staff: Mapped[bool] = mapped_column(Boolean, default=True)
+    caretaker_public: Mapped[bool] = mapped_column(Boolean, default=False)  # Kontakt vor Ort an Buchende
+    caretaker_remind: Mapped[bool] = mapped_column(Boolean, default=False)  # Erinnerung an Hausmeister:innen
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -1115,6 +1121,8 @@ class Resource(Base):
                                                           order_by="ResourceTariff.position", passive_deletes=True)
     extras: Mapped[list["ResourceExtra"]] = relationship(back_populates="resource", cascade="all, delete-orphan",
                                                         order_by="ResourceExtra.position", passive_deletes=True)
+    caretakers: Mapped[list["ResourceCaretaker"]] = relationship(secondary="resource_caretaker_links",
+                                                                 back_populates="resources", order_by="ResourceCaretaker.name")
     photos: Mapped[list["ResourcePhoto"]] = relationship(back_populates="resource", cascade="all, delete-orphan",
                                                         order_by="ResourcePhoto.position", passive_deletes=True)
     closures: Mapped[list["ResourceClosure"]] = relationship(back_populates="resource", cascade="all, delete-orphan",
@@ -1267,6 +1275,42 @@ class ResourceBooking(Base):
     resource: Mapped[Resource] = relationship()
     payment: Mapped["Payment | None"] = relationship(foreign_keys=[payment_id])
     club: Mapped["ResourceClub | None"] = relationship()
+
+
+class ResourceCaretakerLink(Base):
+    __tablename__ = "resource_caretaker_links"
+
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), primary_key=True)
+    caretaker_id: Mapped[int] = mapped_column(ForeignKey("resource_caretakers.id", ondelete="CASCADE"), primary_key=True)
+
+
+class ResourceCaretaker(Base):
+    """Hausmeister:in / Platzwart:in: übergibt und nimmt ab – ohne Portal-Konto über einen persönlichen Link
+    (Magic Link), wahlweise mit einem Portal-Konto verknüpft (Name, E-Mail und Telefon kommen dann von dort)."""
+    __tablename__ = "resource_caretakers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), default="")
+    email: Mapped[str] = mapped_column(String(255), default="")
+    phone: Mapped[str] = mapped_column(String(60), default="")
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    token_hash: Mapped[str] = mapped_column(String(400), default="")   # SHA-256 der gültigen Links (bis zu 5)
+    note: Mapped[str] = mapped_column(String(500), default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    user: Mapped[User | None] = relationship(foreign_keys=[user_id])
+    resources: Mapped[list[Resource]] = relationship(secondary="resource_caretaker_links", back_populates="caretakers",
+                                                     order_by="Resource.name")
+
+    @property
+    def display_name(self) -> str:
+        return (self.user.name if self.user else "") or self.name
+
+    @property
+    def contact_email(self) -> str:
+        return (self.user.email if self.user else "") or self.email
 
 
 class ResourceClub(Base):
@@ -2176,6 +2220,9 @@ _NEW_COLUMNS = {
                     "booking_id": "INTEGER REFERENCES resource_bookings(id) ON DELETE SET NULL"},
     "processes": {"dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL"},
     "resources": {"provider_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL",
+                  "deposit_release": "BOOLEAN NOT NULL DEFAULT 0", "protocol_to_booker": "BOOLEAN NOT NULL DEFAULT 1",
+                  "protocol_to_staff": "BOOLEAN NOT NULL DEFAULT 1", "caretaker_public": "BOOLEAN NOT NULL DEFAULT 0",
+                  "caretaker_remind": "BOOLEAN NOT NULL DEFAULT 0",
                   "legal_json": "TEXT NOT NULL DEFAULT '[]'",
                   "remind_days": "INTEGER NOT NULL DEFAULT 2", "remind_staff_days": "INTEGER NOT NULL DEFAULT 1",
                   "remind_text": "TEXT NOT NULL DEFAULT ''", "waitlist": "BOOLEAN NOT NULL DEFAULT 1"},
