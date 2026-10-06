@@ -207,8 +207,11 @@ def resource_edit(request: Request, rid: int, user: User = Depends(current_user)
         "tariffs": [{"id": t.id, "name": t.name, "percent": t.percent, "description": t.description, "needs_proof": t.needs_proof}
                     for t in res.tariffs],
         "extras": [{"id": x.id, "name": x.name, "description": x.description, "price": rs.money_input(x.price_cents), "per": x.per,
-                    "stock": x.stock, "max_qty": x.max_qty, "mandatory": x.mandatory, "active": x.active} for x in res.extras],
+                    "stock": x.stock, "max_qty": x.max_qty, "mandatory": x.mandatory, "active": x.active, "per_n": x.per_n or "",
+                    "tiers": rs.tiers_text(rs.tiers(x)), "min": rs.money_input(x.min_cents), "max": rs.money_input(x.max_cents),
+                    "cancel_rule": x.cancel_rule, "cancel_days": x.cancel_days or ""} for x in res.extras],
         "blocks": rs.blocks(res), "hours": rs.hours(res), "fields": rs.fields(res), "per": rs.EXTRA_PER,
+        "cancelRules": rs.CANCEL_RULES,
         "requestTypes": {k: fm.TYPES[k][:2] for k in ("short", "long", "radio", "checkbox", "dropdown", "date", "file")},
         "subtypes": fm.SUBTYPES,
     }
@@ -365,6 +368,13 @@ def _extra(x: ResourceExtra, row: dict) -> None:
     x.stock = int(stock) if stock.isdigit() else None
     x.max_qty = _int(row.get("max_qty"), 1, 10000, 1)
     x.mandatory, x.active = bool(row.get("mandatory")), row.get("active", True) is not False
+    x.per_n = _int(row.get("per_n"), 0, 100000, 0) if x.per == "persons" else 0
+    x.tiers_json = json.dumps(rs.parse_tiers(str(row.get("tiers", ""))) if x.per == "tier" else [])
+    x.min_cents, x.max_cents = rs.parse_cents(row.get("min", "")), rs.parse_cents(row.get("max", ""))
+    if x.max_cents and x.min_cents > x.max_cents:
+        x.min_cents, x.max_cents = x.max_cents, x.min_cents
+    x.cancel_rule = row.get("cancel_rule") if row.get("cancel_rule") in rs.CANCEL_RULES else ""
+    x.cancel_days = _int(row.get("cancel_days"), 0, 3650, 0) if x.cancel_rule in ("keep", "only") else 0
 
 
 def _photo_list(res: Resource) -> list[dict]:

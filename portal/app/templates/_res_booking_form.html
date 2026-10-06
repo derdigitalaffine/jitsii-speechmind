@@ -74,14 +74,17 @@
       <div class="col-md-6 d-none" id="r-proof-box"><label class="form-label" for="r-proof">Nachweis für den Tarif</label><input class="form-control" type="file" id="r-proof" name="proof" accept=".pdf,.jpg,.jpeg,.png"><div class="form-text">z. B. Vereinsregisterauszug, Meldebescheinigung</div></div>
       {% elif res.tariffs %}<input type="hidden" name="tariff" value="{{ res.tariffs[0].id }}">{% endif %}
 
-      {% set extras = res.extras | selectattr('active') | list %}
+      {% if needs_persons %}
+      <div class="col-sm-6 col-md-4"><label class="form-label" for="r-pers">Wie viele Personen?</label><input class="form-control" type="number" min="1" inputmode="numeric" id="r-pers" name="persons" value="{{ d.get('persons', '') }}" {% if public %}required{% endif %} aria-describedby="r-pers-help"><div class="form-text" id="r-pers-help">Der Preis hängt von der Personenzahl ab.</div></div>
+      {% endif %}
+      {% set extras = res.extras | selectattr('active') | rejectattr('cancel_rule', 'equalto', 'only') | list %}
       {% if extras %}
       <div class="col-12"><span class="form-label d-block">Zusatzleistungen</span>
         <div class="list-group">
           {% for x in extras %}
           <div class="list-group-item d-flex flex-wrap gap-2 align-items-center">
             <div class="flex-grow-1"><strong>{{ x.name }}</strong>{% if x.mandatory %} <span class="badge text-bg-secondary">immer dabei</span>{% endif %}
-              <div class="small text-secondary">{{ money(x.price_cents) }} {{ extra_per[x.per] }}{% if x.description %} · {{ x.description }}{% endif %}</div></div>
+              <div class="small text-secondary">{{ extra_price(x) }}{% if x.description %} · {{ x.description }}{% endif %}{% if x.cancel_rule in ('keep', 'refund') %} · {{ extra_cancel(x) }}{% endif %}</div></div>
             {% if x.per in ('piece', 'day', 'hour') and x.max_qty > 1 %}
             <div class="input-group input-group-sm" style="width: 9rem"><span class="input-group-text">Anzahl</span><input class="form-control" type="number" min="{{ 1 if x.mandatory else 0 }}" max="{{ x.max_qty }}" name="extra_{{ x.id }}" value="{{ d.get('extra_' ~ x.id, '1' if x.mandatory else '0') }}" aria-label="Anzahl {{ x.name }}"></div>
             {% else %}
@@ -97,7 +100,7 @@
       <div class="col-12 d-none d-lg-block"><hr class="my-1"></div>
       <div class="col-md-6"><label class="form-label" for="r-title">Anlass</label><input class="form-control" id="r-title" name="title" maxlength="255" value="{{ d.get('title', '') }}" placeholder="z. B. Geburtstagsfeier, Vereinsversammlung" {% if public %}required{% endif %}></div>
       {% if not club %}<div class="col-md-4"><label class="form-label" for="r-org">Verein / Veranstalter <span class="text-secondary small">(optional)</span></label><input class="form-control" id="r-org" name="organizer" maxlength="255" value="{{ d.get('organizer', '') }}"></div>{% endif %}
-      <div class="col-md-2"><label class="form-label" for="r-pers">Personen</label><input class="form-control" type="number" min="0" inputmode="numeric" id="r-pers" name="persons" value="{{ d.get('persons', '') }}"></div>
+      {% if not needs_persons %}<div class="col-md-2"><label class="form-label" for="r-pers">Personen</label><input class="form-control" type="number" min="0" inputmode="numeric" id="r-pers" name="persons" value="{{ d.get('persons', '') }}"></div>{% endif %}
       {% if club %}
       <div class="col-12 small text-secondary"><i class="fa-solid fa-address-card me-1"></i>{{ club.contact_name or club.name }} · {{ club.email }}{% if club.phone %} · {{ club.phone }}{% endif %} <a href="/r/mein#angaben" class="ms-1">ändern</a></div>
       {% else %}

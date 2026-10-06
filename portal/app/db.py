@@ -1166,7 +1166,13 @@ class ResourceExtra(Base):
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(String(500), default="")
     price_cents: Mapped[int] = mapped_column(Integer, default=0)
-    per: Mapped[str] = mapped_column(String(8), default="once")        # once | day | hour | piece
+    per: Mapped[str] = mapped_column(String(8), default="once")        # once | day | hour | piece | person | persons | tier
+    per_n: Mapped[int] = mapped_column(Integer, default=0)             # „je angefangene N Personen“
+    tiers_json: Mapped[str] = mapped_column(Text, default="[]")       # Staffel [{"upto": 50, "cents": 2000}, {"upto": 0, …}]
+    min_cents: Mapped[int] = mapped_column(Integer, default=0)         # Mindestbetrag (0 = keiner)
+    max_cents: Mapped[int] = mapped_column(Integer, default=0)         # Höchstbetrag (0 = keiner)
+    cancel_rule: Mapped[str] = mapped_column(String(8), default="")    # "" Storno-Regel | refund | keep | only
+    cancel_days: Mapped[int] = mapped_column(Integer, default=0)       # Frist für keep/only (Tage vor Beginn)
     stock: Mapped[int | None] = mapped_column(Integer, nullable=True)   # gleichzeitig verfügbar (leer = unbegrenzt)
     max_qty: Mapped[int] = mapped_column(Integer, default=1)
     mandatory: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -1231,6 +1237,7 @@ class ResourceBooking(Base):
     extras_json: Mapped[str] = mapped_column(Text, default="[]")         # [{"id","name","qty"}]
     answers_json: Mapped[str] = mapped_column(Text, default="{}")
     lines_json: Mapped[str] = mapped_column(Text, default="[]")          # Preisposten zum Zeitpunkt der Buchung
+    cancel_json: Mapped[str] = mapped_column(Text, default="[]")         # nur bei Absage fällige Posten (Nachvermietung)
     total_cents: Mapped[int] = mapped_column(Integer, default=0)
     deposit_cents: Mapped[int] = mapped_column(Integer, default=0)
     token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
@@ -2119,6 +2126,9 @@ DEFAULT_SETTINGS = {
 
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)
 _NEW_COLUMNS = {
+    "resource_extras": {"per_n": "INTEGER NOT NULL DEFAULT 0", "tiers_json": "TEXT NOT NULL DEFAULT '[]'",
+                        "min_cents": "INTEGER NOT NULL DEFAULT 0", "max_cents": "INTEGER NOT NULL DEFAULT 0",
+                        "cancel_rule": "VARCHAR(8) NOT NULL DEFAULT ''", "cancel_days": "INTEGER NOT NULL DEFAULT 0"},
     "resource_photos": {"thumb": "VARCHAR(80) NOT NULL DEFAULT ''", "caption": "VARCHAR(300) NOT NULL DEFAULT ''"},
     "users": {
         "password_set": "BOOLEAN NOT NULL DEFAULT 1",
@@ -2167,7 +2177,7 @@ _NEW_COLUMNS = {
     "resources": {"provider_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL",
                   "remind_days": "INTEGER NOT NULL DEFAULT 2", "remind_staff_days": "INTEGER NOT NULL DEFAULT 1",
                   "remind_text": "TEXT NOT NULL DEFAULT ''", "waitlist": "BOOLEAN NOT NULL DEFAULT 1"},
-    "resource_bookings": {"group_ref": "VARCHAR(40) NOT NULL DEFAULT ''",
+    "resource_bookings": {"group_ref": "VARCHAR(40) NOT NULL DEFAULT ''", "cancel_json": "TEXT NOT NULL DEFAULT '[]'",
                           "club_id": "INTEGER REFERENCES resource_clubs(id) ON DELETE SET NULL",
                           "billing": "VARCHAR(10) NOT NULL DEFAULT ''",
                           "billed_payment_id": "INTEGER REFERENCES payments(id) ON DELETE SET NULL",
