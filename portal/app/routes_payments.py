@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from . import payments as pay
 from .db import LOCAL_TZ, Payment, User, get_settings, set_setting, to_local
-from .main import admin_user, app, check_csrf, flash, get_db, rate_limit, redirect, render, require, safe_next, session_user
+from .main import admin_user, app, check_csrf, current_user, flash, get_db, rate_limit, redirect, render, require, safe_next, session_user
 from .security import encrypt
 
 payments_user = require("payments")
@@ -163,10 +163,8 @@ def _managed(db, user: User | None, pid: int) -> Payment:
 
 
 def _user(request: Request, db) -> User:
-    user = session_user(request, db)
-    if user is None:
-        raise HTTPException(401, "Bitte anmelden.")
-    return user
+    # wie überall: auch Passwortwechsel- und Zwei-Faktor-Pflicht durchsetzen
+    return current_user(request, db)
 
 
 @app.get("/payments/{pid:int}")

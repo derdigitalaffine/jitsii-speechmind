@@ -113,6 +113,11 @@ def parse(data: bytes, db, actor: User) -> tuple[list[dict], list[str]]:
         if bad_perms:
             row["errors"].append("unbekannte Rechte: " + ", ".join(bad_perms) + f" (erlaubt: {', '.join(PERMISSIONS)})")
         row["permissions"] = ",".join(p for p in PERMISSIONS if p in perms_raw) if perms_raw else "video"
+        if not actor.is_admin:
+            dropped = [p for p in row["permissions"].split(",") if p and p not in actor.perms]
+            if dropped:
+                row["permissions"] = ",".join(p for p in row["permissions"].split(",") if p in actor.perms)
+                row["notes"].append("Rechte ignoriert (haben Sie selbst nicht): " + ", ".join(dropped))
         if values.get("admin", "").lower() in TRUE:
             if actor.is_admin:
                 row["admin"] = True

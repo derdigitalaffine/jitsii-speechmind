@@ -112,9 +112,11 @@ def _jitsi_jwt(room: str, uid: str, name: str, email: str, recording: bool, mode
     return jwt.encode(payload, settings.jwt_app_secret, algorithm="HS256")
 
 
-def jitsi_token(user, room: str, recording: bool = True) -> str:
-    """Token für Portal-Benutzer. Aufnehmen dürfen sie nur in Portal-Räumen (recording=True)."""
-    return _jitsi_jwt(room, str(user.id), user.name, user.email, recording=recording)
+def jitsi_token(user, room: str, recording: bool = True, moderator: bool = True) -> str:
+    """Token für Portal-Benutzer. Aufnehmen dürfen sie nur in Portal-Räumen (recording=True); Moderator
+    sind in Portal-Räumen nur Gastgeber:in und Administration."""
+    return _jitsi_jwt(room, str(user.id), user.name, user.email, recording=recording and moderator,
+                      moderator=moderator)
 
 
 def guest_token(name: str, room: str, uid: str, email: str = "") -> str:

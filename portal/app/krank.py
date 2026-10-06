@@ -20,6 +20,7 @@ Datenschutz (Gesundheitsdaten, Art. 9 DSGVO):
 import base64
 import csv
 import hashlib
+import hmac
 import io
 import json
 import logging
@@ -211,17 +212,24 @@ def _serializer(salt: str) -> URLSafeTimedSerializer:
 TICKET_HOURS = 12
 
 
-def make_ticket() -> str:
+def _ticket_generation(cfg: dict[str, str]) -> str:
+    """Ändert sich mit Passwort und Zugangslink – neue Zugangsdaten machen alte Tickets ungültig."""
+    raw = f"{cfg.get('krank_password_hash') or ''}|{cfg.get('krank_access_token_enc') or ''}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def make_ticket(cfg: dict[str, str]) -> str:
     """Nachweis für den öffentlichen Zugang (Passwort oder Zugangslink geprüft). Wird als verstecktes Feld
     mitgeschickt und funktioniert damit auch eingebettet (iframe), wo Browser keine Cookies senden."""
-    return _serializer("krank-access").dumps("ok")
+    return _serializer("krank-access").dumps(_ticket_generation(cfg))
 
 
-def ticket_valid(ticket: str | None) -> bool:
+def ticket_valid(ticket: str | None, cfg: dict[str, str]) -> bool:
     if not ticket:
         return False
     try:
-        return _serializer("krank-access").loads(ticket, max_age=TICKET_HOURS * 3600) == "ok"
+        return hmac.compare_digest(str(_serializer("krank-access").loads(ticket, max_age=TICKET_HOURS * 3600)),
+                                   _ticket_generation(cfg))
     except (BadSignature, SignatureExpired):
         return False
 
