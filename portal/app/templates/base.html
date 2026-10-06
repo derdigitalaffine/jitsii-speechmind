@@ -73,14 +73,28 @@
         </ul>
       </div>
       {% else %}
-      {% if 'applications' in modules %}<a class="btn btn-link" href="/antraege"><i class="fa-solid fa-file-signature me-1"></i><span class="d-none d-sm-inline">Anträge</span></a>{% endif %}
-      {% if 'maps' in modules %}<a class="btn btn-link" href="/karte"><i class="fa-solid fa-map-location-dot me-1"></i><span class="d-none d-sm-inline">Karte</span></a>{% endif %}
-      {% if 'laws' in modules %}<a class="btn btn-link" href="/recht"><i class="fa-solid fa-scale-balanced me-1"></i><span class="d-none d-sm-inline">Rechtstexte</span></a>{% endif %}
-      <a class="btn btn-link" href="/login">Anmelden</a>
+      {% for it in pnav %}<a class="btn btn-link pub-nav-link d-none d-xl-inline-flex align-items-center {{ 'active' if pnav_active(it, path) }}" href="{{ it.url }}" {% if pnav_active(it, path) %}aria-current="page"{% endif %}{% if it.external %} target="_blank" rel="noopener"{% endif %}><i class="fa-solid {{ it.icon }} me-1" aria-hidden="true"></i>{{ it.label }}</a>{% endfor %}
+      <a class="btn btn-link d-none d-sm-inline-flex align-items-center" href="/login"><i class="fa-solid fa-right-to-bracket me-1" aria-hidden="true"></i>Anmelden</a>
+      {% if pnav %}<button class="btn btn-link d-xl-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#pubnav" aria-controls="pubnav" aria-label="Menü öffnen"><i class="fa-solid fa-bars fa-lg"></i><span class="ms-1 d-none d-md-inline">Menü</span></button>
+      {% else %}<a class="btn btn-link d-sm-none" href="/login">Anmelden</a>{% endif %}
       {% endif %}
     </div>
   </div>
 </nav>
+{% if not user and pnav %}
+<div class="offcanvas offcanvas-end pub-offcanvas" tabindex="-1" id="pubnav" aria-labelledby="pubnav-title">
+  <div class="offcanvas-header border-bottom"><strong id="pubnav-title">Menü</strong>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Schließen"></button></div>
+  <div class="offcanvas-body p-2">
+    <form action="/suche" method="get" role="search" class="p-2 mb-2"><div class="input-group"><input class="form-control" type="search" name="q" placeholder="Suchen …" aria-label="Alle Angebote durchsuchen"><button class="btn btn-outline-secondary" type="submit" aria-label="Suchen"><i class="fa-solid fa-magnifying-glass"></i></button></div></form>
+    <nav class="list-group list-group-flush" aria-label="Öffentliches Menü">
+      <a class="list-group-item list-group-item-action {{ 'active' if path == '/' }}" href="/"><i class="fa-solid fa-house fa-fw me-2" aria-hidden="true"></i>Startseite</a>
+      {% for it in pnav %}<a class="list-group-item list-group-item-action {{ 'active' if pnav_active(it, path) }}" href="{{ it.url }}" {% if pnav_active(it, path) %}aria-current="page"{% endif %}{% if it.external %} target="_blank" rel="noopener"{% endif %}><i class="fa-solid {{ it.icon }} fa-fw me-2" aria-hidden="true"></i>{{ it.label }}</a>{% endfor %}
+    </nav>
+    <hr><a class="btn btn-outline-primary w-100" href="/login"><i class="fa-solid fa-right-to-bracket me-1"></i>Anmelden für Mitarbeitende</a>
+  </div>
+</div>
+{% endif %}
 
 <div class="container-fluid app-body">
   <div class="row">
@@ -185,6 +199,7 @@
             {{ m.nav_item('/admin/https', 'fa-shield-halved', 'HTTPS &amp; Zertifikat'|safe, path.startswith('/admin/https')) }}
             {{ m.nav_item('/admin/domains', 'fa-globe', 'Domains', path.startswith('/admin/domains')) }}
             {{ m.nav_item('/admin/design', 'fa-palette', 'Design &amp; Branding'|safe, path == '/admin/design') }}
+            {{ m.nav_item('/admin/oeffentlich', 'fa-signs-post', 'Öffentliches Menü', path == '/admin/oeffentlich') }}
             {{ m.nav_item('/admin/loeschen', 'fa-trash-can', 'Löschen &amp; Papierkorb'|safe, path.startswith('/admin/loeschen')) }}
             {% endif %}
             {% endcall %}

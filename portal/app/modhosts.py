@@ -18,7 +18,7 @@ MODULE_PUBLIC = {
     "forms": ("Formulare", "", ("/f",)),
     "applications": ("Online-Anträge", "/antraege", ("/antraege", "/antraege-embed", "/a")),
     "polls": ("Terminumfragen & Abstimmungen", "", ("/t", "/v")),
-    "bookings": ("Terminbuchung", "", ("/b",)),
+    "bookings": ("Terminbuchung", "/b", ("/b",)),
     "resources": ("Ressourcenbuchung", "/r", ("/r", "/r-embed")),
     "laws": ("Rechtstexte", "/recht", ("/recht", "/recht-embed")),
     "maps": ("Kartenbrowser", "/karte", ("/karte", "/karte-embed")),

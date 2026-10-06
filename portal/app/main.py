@@ -176,7 +176,7 @@ MODULES = {
     "shortlinks": ("Kurzlinks & QR-Codes", "module_shortlinks", ("/shortlinks", "/s/", "/s")),
     "forms": ("Formulare", "module_forms", ("/forms", "/f/")),
     "polls": ("Umfragen & Abstimmungen", "module_polls", ("/polls", "/t/", "/votes", "/v/")),
-    "bookings": ("Terminbuchung", "module_bookings", ("/bookings", "/b/")),
+    "bookings": ("Terminbuchung", "module_bookings", ("/bookings", "/b/", "/b")),
     "laws": ("Rechtstexte", "module_laws", ("/laws", "/recht")),
     "maps": ("Kartenbrowser", "module_maps", ("/karte", "/maps")),
     "applications": ("Online-Anträge", "module_applications", ("/antraege", "/a/", "/processes")),
@@ -566,6 +566,19 @@ def _update_hint(user: User | None) -> str:
         return updates.available(get_settings(db))
 
 
+def _public_nav(user: User | None) -> list[dict]:
+    """Einträge der öffentlichen Kopfzeile – nur ohne Anmeldung (angemeldet gibt es das Seitenmenü)."""
+    if user is not None:
+        return []
+    from . import public_nav
+    return public_nav.items(enabled_modules())
+
+
+def _pnav_active(item: dict, path: str) -> bool:
+    from . import public_nav
+    return public_nav.active(item, path)
+
+
 def render(request: Request, name: str, user: User | None = None, **ctx) -> HTMLResponse:
     messages = request.session.pop("flash", [])
     ui = branding.load()
@@ -585,6 +598,8 @@ def render(request: Request, name: str, user: User | None = None, **ctx) -> HTML
         "res_nav": _res_nav(user),
         "krank_nav": _krank_nav(user),
         "update_hint": _update_hint(user),
+        "pnav": _public_nav(user),
+        "pnav_active": _pnav_active,
         **ctx,
     })
 
@@ -1009,9 +1024,14 @@ def join_guest(request: Request, token: str, name: str = Form(""), db: Session =
 # --- Dashboard & Meetings -----------------------------------------------------
 
 @app.get("/")
-def dashboard(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """Startseite: Kacheln mit Aufgaben, Anträgen, Terminen, Formularen und Ablage – je nach Rechten."""
+def dashboard(request: Request, db: Session = Depends(get_db)):
+    """Startseite: Kacheln mit Aufgaben, Anträgen, Terminen, Formularen und Ablage – je nach Rechten. Ohne
+    Anmeldung die Startseite für Bürger:innen (abschaltbar unter Verwaltung › Öffentliches Menü)."""
     from . import home
+    if not request.session.get("uid") and get_settings(db).get("public_home", "1") == "1":
+        from .routes_public import public_home
+        return public_home(request, db)
+    user = current_user(request, db)
     return render(request, "home.html", user, tiles=home.tiles(db, user, enabled_modules()), now=utcnow())
 
 
@@ -2541,6 +2561,7 @@ from . import routes_geo  # noqa: E402,F401
 from . import routes_dms  # noqa: E402,F401
 from . import routes_polls  # noqa: E402,F401
 from . import routes_bookings  # noqa: E402,F401
+from . import routes_public  # noqa: E402,F401
 from . import routes_sessions  # noqa: E402,F401
 from . import routes_laws  # noqa: E402,F401
 from . import routes_maps  # noqa: E402,F401

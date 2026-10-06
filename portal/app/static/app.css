@@ -514,3 +514,15 @@ a.dash-num:hover > span { text-decoration: underline; }
 .app-icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 2.75rem; height: 2.75rem;
   border-radius: .75rem; font-size: 1.25rem; color: var(--app-color); background: color-mix(in srgb, var(--app-color) 14%, transparent); }
 .app-icon-sm { width: 2rem; height: 2rem; font-size: .95rem; border-radius: .5rem; }
+
+/* Öffentliches Menü und Startseite für Bürger:innen */
+.app-navbar .pub-nav-link { padding-inline: .55rem; white-space: nowrap; border-radius: var(--bs-border-radius); }
+.app-navbar .pub-nav-link:hover { background: color-mix(in srgb, var(--app-nav-fg) 10%, transparent); }
+.app-navbar .pub-nav-link.active { box-shadow: inset 0 -2px 0 currentColor; font-weight: 600; }
+.pub-offcanvas { max-width: 22rem; }
+.pub-hero { background: linear-gradient(135deg, rgba(var(--bs-primary-rgb), .14), rgba(var(--bs-primary-rgb), .03)); border-radius: var(--bs-border-radius-lg); }
+.pub-hero h1 { font-size: clamp(1.5rem, 3.5vw, 2.2rem); }
+.pub-tile { transition: transform .12s ease, box-shadow .12s ease; }
+.pub-tile:hover, .pub-tile:focus-visible { transform: translateY(-2px); box-shadow: var(--bs-box-shadow-sm); border-color: rgba(var(--bs-primary-rgb), .5); }
+.pub-tile-icon { width: 3rem; height: 3rem; display: inline-grid; place-items: center; border-radius: 50%; background: rgba(var(--bs-primary-rgb), .12); color: var(--bs-primary); font-size: 1.25rem; flex: none; }
+.pub-contact { white-space: pre-line; }

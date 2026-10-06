@@ -1541,6 +1541,7 @@ class BookingPage(Base):
     cancel_hours: Mapped[int] = mapped_column(Integer, default=24)       # bis so viele Stunden vorher selbst absagbar
     max_per_person: Mapped[int] = mapped_column(Integer, default=1)      # aktive Buchungen je E-Mail-Adresse
     invite_only: Mapped[bool] = mapped_column(Boolean, default=False)    # nur mit persönlichem Einladungslink
+    listed: Mapped[bool] = mapped_column(Boolean, default=False)         # im öffentlichen Verzeichnis „Termine buchen“
     ask_phone: Mapped[bool] = mapped_column(Boolean, default=False)
     online: Mapped[bool] = mapped_column(Boolean, default=False)         # je Buchung eine Videokonferenz
     notify_owner: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -2179,6 +2180,12 @@ DEFAULT_SETTINGS = {
     "krank_intro": "",
     "krank_kinds": "simple,au,eau,child",   # angebotene Meldewege
     "krank_public": "1",                    # Zugang ohne Konto (Passwort oder Zugangslink)
+    # Öffentliches Menü und Startseite für Bürger:innen (siehe public_nav.py)
+    "public_nav": "",                       # JSON: Reihenfolge, ausgeblendete Bereiche, eigene Links
+    "public_home": "1",                     # „/“ ohne Anmeldung zeigt die Startseite (sonst Anmeldung)
+    "public_home_title": "",                # Überschrift (leer = Name des Portals)
+    "public_home_text": "",                 # Begrüßungstext
+    "public_contact": "",                   # Kontakt: Anschrift, Telefon, E-Mail, Öffnungszeiten (Text)
     "krank_password_hash": "",
     "krank_access_token_enc": "",
     "krank_global_email": "",               # Personalverwaltung (Standard und globale Kopie)
@@ -2207,6 +2214,7 @@ DEFAULT_SETTINGS = {
 
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)
 _NEW_COLUMNS = {
+    "booking_pages": {"listed": "BOOLEAN NOT NULL DEFAULT 0"},
     "votes": {"chart": "VARCHAR(8) NOT NULL DEFAULT 'bar'"},
     "resource_extras": {"per_n": "INTEGER NOT NULL DEFAULT 0", "tiers_json": "TEXT NOT NULL DEFAULT '[]'",
                         "min_cents": "INTEGER NOT NULL DEFAULT 0", "max_cents": "INTEGER NOT NULL DEFAULT 0",

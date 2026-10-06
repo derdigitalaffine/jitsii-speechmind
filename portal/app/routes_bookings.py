@@ -52,6 +52,7 @@ def _apply(page: BookingPage, data) -> None:
     page.max_per_person = _int(data.get("max_per_person"), 1, 50, 1)
     page.reminder_hours = _int(data.get("reminder_hours"), 0, 24 * 14, 24)
     page.invite_only, page.ask_phone = flag("invite_only"), flag("ask_phone")
+    page.listed = flag("listed") and not page.invite_only
     page.online, page.notify_owner = flag("online"), flag("notify_owner")
     page.confirm_text = str(data.get("confirm_text", "")).replace("\r\n", "\n").strip()[:2000]
 
@@ -348,7 +349,7 @@ def booking_copy(request: Request, page_id: int, user: User = Depends(booking_us
     page, level = _bpage(db, page_id, user, sh.VIEW)
     clone = BookingPage(owner_id=user.id, public_token=new_link_token(), title=(page.title + " (Kopie)")[:255])
     for col in ("description", "location", "slot_minutes", "pause_minutes", "capacity", "min_notice_hours",
-                "cancel_hours", "max_per_person", "invite_only", "ask_phone", "online", "notify_owner",
+                "cancel_hours", "max_per_person", "invite_only", "listed", "ask_phone", "online", "notify_owner",
                 "reminder_hours", "confirm_text"):
         setattr(clone, col, getattr(page, col))
     db.add(clone)
@@ -459,6 +460,22 @@ def _public(request: Request, db: Session, page: BookingPage | None, **ctx):
         status = 404
     response = render(request, "booking_public.html", None, page=page, **ctx)
     response.status_code = status
+    return response
+
+
+@app.get("/b")
+def booking_directory(request: Request, db: Session = Depends(get_db)):
+    """Öffentliches Verzeichnis „Termine buchen“: alle freigegebenen Buchungsseiten mit nächstem freien Termin."""
+    pages = db.scalars(select(BookingPage).where(BookingPage.listed.is_(True), BookingPage.active.is_(True),
+                                                 BookingPage.invite_only.is_(False))
+                       .order_by(BookingPage.title)).all()
+    rows = []
+    for page in pages:
+        free = bk.bookable(page)
+        rows.append({"page": page, "next": bk.label(free[0]["start"]) if free else "", "count": len(free)})
+    response = render(request, "booking_directory.html", None, rows=rows)
+    if "jsm_session" not in request.cookies:
+        request.session.clear()
     return response
 
 

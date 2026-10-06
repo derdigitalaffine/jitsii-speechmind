@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Öffentliches Menü{% endblock %}
+{% block content %}
+{% call m.page_head('Öffentliches Menü & Startseite', 'Was Bürger:innen ohne Anmeldung oben im Kopf und auf der Startseite sehen. Bereiche eingeschalteter Module erscheinen automatisch – hier legen Sie Reihenfolge und Auswahl fest und ergänzen eigene Links.') %}
+<a class="btn btn-outline-secondary" href="/suche" target="_blank"><i class="fa-solid fa-magnifying-glass me-1"></i>Öffentliche Suche</a>
+{% endcall %}
+<form method="post" action="/admin/oeffentlich" id="pn-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="row g-4">
+    <div class="col-12 col-xl-6">
+      <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-bars me-2"></i>Bereiche im Kopf</div>
+        <ul class="list-group list-group-flush" id="pn-list">
+          {% for e in entries %}
+          <li class="list-group-item d-flex align-items-center gap-2" data-key="{{ e.key }}">
+            <input type="hidden" name="order" value="{{ e.key }}">
+            <span class="drag-handle text-secondary" aria-hidden="true" style="cursor: grab"><i class="fa-solid fa-grip-vertical"></i></span>
+            <div class="form-check form-switch mb-0 flex-grow-1">
+              <input class="form-check-input" type="checkbox" role="switch" id="pn-{{ e.key }}" name="show" value="{{ e.key }}" {% if not e.hidden %}checked{% endif %}>
+              <label class="form-check-label" for="pn-{{ e.key }}"><i class="fa-solid {{ e.icon }} fa-fw me-1 text-secondary"></i>{{ e.label }} <code class="small">{{ e.url }}</code></label>
+              {% if not e.available %}<div class="small text-secondary">{% if e.key == 'termine' %}erscheint, sobald eine Buchungsseite „Öffentlich unter Termine buchen“ zeigt{% elif e.key == 'krank' %}erscheint nur, wenn der Krankmelder ohne Konto erreichbar ist{% else %}Modul ist abgeschaltet{% endif %}</div>{% endif %}
+            </div>
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="btn btn-light js-up" aria-label="{{ e.label }} nach oben"><i class="fa-solid fa-arrow-up"></i></button>
+              <button type="button" class="btn btn-light js-down" aria-label="{{ e.label }} nach unten"><i class="fa-solid fa-arrow-down"></i></button></div>
+          </li>
+          {% endfor %}
+        </ul>
+        <div class="card-footer small text-secondary">Auf großen Bildschirmen stehen die Bereiche nebeneinander im Kopf, auf Handys und Tablets hinter dem Knopf „Menü“.</div></div>
+
+      <div class="card"><div class="card-header"><i class="fa-solid fa-link me-2"></i>Eigene Links <span class="small text-secondary fw-normal">– z. B. Homepage, Bürgerbüro, Abfallkalender (höchstens {{ max_links }})</span></div>
+        <div class="card-body">
+          {% for i in range(max_links) %}{% set l = links[i] if i < links | length else {} %}
+          <div class="row g-2 mb-2 {{ 'd-none js-spare' if i > links | length + 1 }}">
+            <div class="col-5"><input class="form-control form-control-sm" name="link_label" value="{{ l.label or '' }}" maxlength="40" placeholder="Bezeichnung" aria-label="Bezeichnung Link {{ i + 1 }}"></div>
+            <div class="col-7"><input class="form-control form-control-sm" name="link_url" value="{{ l.url or '' }}" maxlength="500" placeholder="https://… oder /pfad" aria-label="Adresse Link {{ i + 1 }}"></div>
+          </div>
+          {% endfor %}
+          <button type="button" class="btn btn-sm btn-link px-0" id="pn-more"><i class="fa-solid fa-plus me-1"></i>weiterer Link</button>
+        </div></div>
+    </div>
+
+    <div class="col-12 col-xl-6">
+      <div class="card"><div class="card-header"><i class="fa-solid fa-house me-2"></i>Startseite für Bürger:innen</div>
+        <div class="card-body">
+          <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" role="switch" id="public_home" name="public_home" value="1" {% if cfg.public_home != '0' %}checked{% endif %}>
+            <label class="form-check-label" for="public_home">Ohne Anmeldung zeigt <code>/</code> die Startseite <span class="small text-secondary">– sonst direkt die Anmeldung</span></label></div>
+          <label class="form-label" for="public_home_title">Überschrift</label>
+          <input class="form-control mb-3" id="public_home_title" name="public_home_title" value="{{ cfg.public_home_title }}" maxlength="120" placeholder="{{ brand }}">
+          <label class="form-label" for="public_home_text">Begrüßung</label>
+          <textarea class="form-control mb-3" id="public_home_text" name="public_home_text" rows="3" maxlength="2000" placeholder="Anträge stellen, Räume buchen, Termine vereinbaren und Ortsrecht nachlesen – online und rund um die Uhr.">{{ cfg.public_home_text }}</textarea>
+          <label class="form-label" for="public_contact">Kontakt</label>
+          <textarea class="form-control" id="public_contact" name="public_contact" rows="6" maxlength="2000" placeholder="Verbandsgemeindeverwaltung …&#10;Hauptstraße 1, 12345 Musterstadt&#10;Telefon 01234 5678-0&#10;info@example.de&#10;Mo–Fr 8–12 Uhr, Do 14–18 Uhr">{{ cfg.public_contact }}</textarea>
+          <div class="form-text">Leer = kein Kontaktkasten. Links werden anklickbar, **fett** wird fett.</div>
+        </div></div>
+    </div>
+    <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
+      <a class="btn btn-outline-secondary ms-2" href="/" target="_blank" rel="noopener">Startseite ansehen (abgemeldet: privates Fenster)</a></div>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}<script src="/static/vendor/sortablejs/Sortable.min.js"></script><script src="/static/public-nav-admin.js"></script>{% endblock %}

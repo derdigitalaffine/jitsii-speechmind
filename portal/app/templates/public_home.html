@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ home_title or brand }}{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width: 68rem">
+  <section class="pub-hero p-4 p-md-5 mb-4">
+    {% if not home_title %}<div class="text-secondary fw-semibold mb-1">Willkommen im Bürgerportal</div>{% endif %}
+    <h1 class="mb-2">{{ home_title or brand }}</h1>
+    <p class="lead text-secondary mb-4" style="max-width: 44rem">{% if home_text %}{{ home_text | richtext }}{% else %}Anträge stellen, Räume buchen, Termine vereinbaren und Ortsrecht nachlesen – online und rund um die Uhr.{% endif %}</p>
+    <form action="/suche" method="get" role="search" style="max-width: 36rem">
+      <label class="visually-hidden" for="home-q">Alle Angebote durchsuchen</label>
+      <div class="input-group input-group-lg"><input class="form-control" type="search" id="home-q" name="q" placeholder="Was suchen Sie? z. B. Hundesteuer, Grillhütte …">
+        <button class="btn btn-primary" type="submit"><i class="fa-solid fa-magnifying-glass me-1"></i>Suchen</button></div>
+    </form>
+  </section>
+
+  {% if tiles %}
+  <h2 class="h5 mb-3">Unsere Online-Angebote</h2>
+  <div class="row g-3 mb-4">
+    {% for t in tiles %}
+    <div class="col-sm-6 col-lg-4"><a class="card h-100 text-reset text-decoration-none pub-tile" href="{{ t.url }}">
+      <div class="card-body d-flex gap-3 align-items-start"><span class="pub-tile-icon"><i class="fa-solid {{ t.icon }}" aria-hidden="true"></i></span>
+        <div><h3 class="h6 mb-1">{{ t.label }}</h3><p class="small text-secondary mb-0">{{ t.text }}</p></div></div></a></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="row g-3">
+    {% if contact %}
+    <div class="col-md-6"><div class="card h-100"><div class="card-header"><i class="fa-solid fa-address-card me-2"></i>Kontakt</div>
+      <div class="card-body pub-contact">{{ contact | richtext }}</div></div></div>
+    {% endif %}
+    {% if links %}
+    <div class="col-md-6"><div class="card h-100"><div class="card-header"><i class="fa-solid fa-link me-2"></i>Weitere Links</div>
+      <div class="list-group list-group-flush">{% for l in links %}<a class="list-group-item list-group-item-action" href="{{ l.url }}" {% if l.external %}target="_blank" rel="noopener"{% endif %}>{{ l.label }}{% if l.external %} <i class="fa-solid fa-arrow-up-right-from-square small text-secondary ms-1"></i>{% endif %}</a>{% endfor %}</div></div></div>
+    {% endif %}
+  </div>
+  <p class="small text-secondary mt-4 mb-0"><i class="fa-solid fa-user-tie me-1"></i>Für Mitarbeitende: <a href="/login">Anmelden</a></p>
+</div>
+{% endblock %}
