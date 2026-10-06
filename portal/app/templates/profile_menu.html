@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Menü anpassen{% endblock %}
+{% block content %}
+{% call m.page_head('Menü anpassen', 'Ihr persönliches Menü: Favoriten stehen ganz oben, nicht benötigte Bereiche blenden Sie aus. Die Einstellung gilt nur für Sie. Tipp: Im Menü heften Sie einen Eintrag auch direkt mit dem Stern an.') %}{% endcall %}
+<form method="post" action="/profile/menu" id="pm-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="row g-4">
+    <div class="col-12 col-xl-7">
+      {% for g in groups %}
+      <div class="card mb-3"><div class="card-header d-flex align-items-center">
+        <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" id="pm-g-{{ g.key }}" name="show" value="{{ g.key }}" {% if not g.hidden %}checked{% endif %}>
+          <label class="form-check-label fw-semibold" for="pm-g-{{ g.key }}">{{ g.label }}</label></div>
+        <span class="small text-secondary ms-auto">{{ g['items'] | length }} Einträge</span></div>
+        <div class="card-body py-2"><div class="row row-cols-1 row-cols-md-2 g-1">
+          {% for it in g['items'] %}
+          <div class="col"><div class="form-check"><input class="form-check-input" type="checkbox" id="pm-f-{{ it.id }}" name="fav" value="{{ it.id }}" {% if it.fav %}checked{% endif %}>
+            <label class="form-check-label" for="pm-f-{{ it.id }}"><i class="fa-solid {{ it.icon }} fa-fw text-secondary me-1"></i>{{ it.label }}</label></div></div>
+          {% endfor %}
+        </div></div></div>
+      {% endfor %}
+      <div class="form-text">Haken = Favorit. Ein ausgeblendeter Bereich erscheint trotzdem, solange Sie gerade eine seiner Seiten geöffnet haben; über die Menüsuche (Taste <kbd>/</kbd>) finden Sie nur sichtbare Einträge.</div>
+    </div>
+    <div class="col-12 col-xl-5">
+      <div class="card"><div class="card-header"><i class="fa-solid fa-star me-2 text-warning"></i>Reihenfolge der Favoriten <span class="small text-secondary fw-normal">– höchstens {{ max_fav }}</span></div>
+        <ul class="list-group list-group-flush" id="pm-favs">
+          {% for f in favorites %}<li class="list-group-item d-flex align-items-center gap-2"><input type="hidden" name="fav_order" value="{{ f.id }}">
+            <span class="drag-handle text-secondary" style="cursor: grab" aria-hidden="true"><i class="fa-solid fa-grip-vertical"></i></span>
+            <i class="fa-solid {{ f.icon }} fa-fw text-secondary"></i><span class="flex-grow-1">{{ f.label }}</span>
+            <div class="btn-group btn-group-sm"><button type="button" class="btn btn-light js-up" aria-label="{{ f.label }} nach oben"><i class="fa-solid fa-arrow-up"></i></button><button type="button" class="btn btn-light js-down" aria-label="{{ f.label }} nach unten"><i class="fa-solid fa-arrow-down"></i></button></div></li>
+          {% else %}<li class="list-group-item text-secondary small">Noch keine Favoriten – Haken links setzen oder im Menü auf den Stern klicken.</li>{% endfor %}
+        </ul></div>
+    </div>
+    <div class="col-12 d-flex flex-wrap gap-2"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
+      <button class="btn btn-outline-secondary" type="submit" name="reset" value="1" data-confirm="Favoriten entfernen und alle Bereiche wieder einblenden?" data-confirm-button="Zurücksetzen">Zurücksetzen</button></div>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}<script src="/static/vendor/sortablejs/Sortable.min.js"></script><script src="/static/profile-menu.js"></script>{% endblock %}

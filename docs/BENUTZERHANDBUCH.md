@@ -6,6 +6,8 @@ Für alle, die im Portal der Verbandsgemeinde Otterbach-Otterberg arbeiten: Vide
 
 **Das Menü links:** Die Bereiche lassen sich mit einem Klick auf ihre Überschrift ein- und ausklappen – das Portal merkt sich die Auswahl, der Bereich der aktuellen Seite bleibt immer offen. Oben im Menü finden Sie jeden Punkt über die **Suche** (Taste `/` oder `Strg`+`K`, Enter öffnet den ersten Treffer, Pfeiltasten wechseln). Mit dem Doppelpfeil daneben wird das Menü auf Symbole verkleinert (Name beim Darüberfahren); ein weiterer Klick klappt es wieder aus. Das Menü bleibt beim Seitenwechsel an seiner Stelle stehen.
 
+Es ist nach Aufgaben gegliedert und zeigt nur, was Sie nutzen dürfen: **Mein Arbeitsplatz** (Meine Aufgaben, Zum Ausfüllen, Krankmeldung), **Bürgerservice** (Antragseingang, Prozesse, Formulare, Räume & Belegung, Terminbuchung, Krankmeldungen bearbeiten), **Kommunikation** (Meetings, Besprechung planen, Terminumfragen, Abstimmungen, Kurzlinks), **Wissen & Ablage** (Ablage, Ortsrecht, Karten) und **Verwaltung**. **Favoriten:** Beim Darüberfahren erscheint neben jedem Eintrag ein Stern – ein Klick heftet ihn ganz oben unter „Favoriten“ an, ein weiterer löst ihn wieder. Unter **Menü anpassen** (unten im Menü oder im Benutzermenü oben rechts) ordnen Sie die Favoriten und blenden Bereiche aus, die Sie nicht brauchen; der Bereich der gerade geöffneten Seite bleibt trotzdem sichtbar. „Zurücksetzen“ stellt das ursprüngliche Menü wieder her.
+
 ## Inhalt
 
 1. [Anmelden](#1-anmelden)

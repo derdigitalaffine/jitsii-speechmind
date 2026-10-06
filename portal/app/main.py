@@ -566,6 +566,22 @@ def _update_hint(user: User | None) -> str:
         return updates.available(get_settings(db))
 
 
+def nav_ctx(request: Request, user: User, navctx: dict | None = None):
+    from . import nav
+    n = navctx or {"shared_nav": _shared_nav(user), "task_badge": _task_badge(user), "dms_nav": _dms_nav(user),
+                   "res_nav": _res_nav(user), "krank_nav": _krank_nav(user)}
+    return nav.Ctx(user=user, path=request.url.path, modules=enabled_modules(), shared=n["shared_nav"],
+                   task_badge=n["task_badge"], dms_nav=n["dms_nav"], res_nav=n["res_nav"], krank_nav=n["krank_nav"])
+
+
+def _nav_menu(request: Request, user: User | None, navctx: dict) -> dict:
+    """Hauptmenü (Gruppen, Favoriten) für angemeldete Personen – siehe nav.py."""
+    if user is None:
+        return {}
+    from . import nav
+    return nav.build(nav_ctx(request, user, navctx))
+
+
 def _public_nav(user: User | None) -> list[dict]:
     """Einträge der öffentlichen Kopfzeile – nur ohne Anmeldung (angemeldet gibt es das Seitenmenü)."""
     if user is not None:
@@ -582,6 +598,8 @@ def _pnav_active(item: dict, path: str) -> bool:
 def render(request: Request, name: str, user: User | None = None, **ctx) -> HTMLResponse:
     messages = request.session.pop("flash", [])
     ui = branding.load()
+    navctx = {"shared_nav": _shared_nav(user), "task_badge": _task_badge(user), "dms_nav": _dms_nav(user),
+              "res_nav": _res_nav(user), "krank_nav": _krank_nav(user)}
     return templates.TemplateResponse(request, name, {
         "user": user,
         "ui": ui, "brand": ui["name"], "product": ui["product"],
@@ -592,13 +610,10 @@ def render(request: Request, name: str, user: User | None = None, **ctx) -> HTML
         "active_statuses": ACTIVE_STATUSES,
         "meet_base_url": settings.meet_base_url,
         "modules": enabled_modules(),
-        "shared_nav": _shared_nav(user),
-        "task_badge": _task_badge(user),
-        "dms_nav": _dms_nav(user),
-        "res_nav": _res_nav(user),
-        "krank_nav": _krank_nav(user),
+        **navctx,
         "update_hint": _update_hint(user),
         "pnav": _public_nav(user),
+        "nav_menu": _nav_menu(request, user, navctx),
         "pnav_active": _pnav_active,
         **ctx,
     })
@@ -1045,6 +1060,53 @@ async def dashboard_layout(request: Request, user: User = Depends(current_user),
     target.dashboard_json = json.dumps({"order": order, "hidden": hidden})
     db.commit()
     return JSONResponse({"ok": True})
+
+
+@app.post("/nav/pin", dependencies=[Depends(check_csrf)])
+async def nav_pin(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Menüeintrag als Favorit anheften bzw. lösen (Stern im Menü)."""
+    from . import nav
+    data = await request.form()
+    item = str(data.get("id", ""))
+    target = db.get(User, user.id)
+    p = nav.prefs(target)
+    fav = [i for i in p["fav"] if i != item]
+    if data.get("on") == "1" and item in nav.BY_ID:
+        if len(fav) >= nav.MAX_FAVORITES:
+            return JSONResponse({"ok": False, "fav": fav, "error": f"Höchstens {nav.MAX_FAVORITES} Favoriten."}, status_code=400)
+        fav.append(item)
+    target.nav_json = nav.dump(fav, p["hidden"])
+    db.commit()
+    return JSONResponse({"ok": True, "fav": nav.prefs(target)["fav"]})
+
+
+@app.get("/profile/menu")
+def profile_menu(request: Request, user: User = Depends(current_user)):
+    from . import nav
+    c = nav_ctx(request, user)
+    p = nav.prefs(user)
+    labels = {it.id: (it.label, it.icon) for it in nav.visible(c)}
+    return render(request, "profile_menu.html", user, groups=nav.options(c), max_fav=nav.MAX_FAVORITES,
+                  favorites=[{"id": i, "label": labels[i][0], "icon": labels[i][1]} for i in p["fav"] if i in labels])
+
+
+@app.post("/profile/menu", dependencies=[Depends(check_csrf)])
+async def profile_menu_save(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    from . import nav
+    data = await request.form()
+    if data.get("reset") == "1":
+        fav, hidden = [], []
+    else:
+        checked = set(data.getlist("fav"))
+        order = [i for i in data.getlist("fav_order") if i in checked]
+        fav = order + [it.id for it in nav.ITEMS if it.id in checked and it.id not in order]
+        shown = set(data.getlist("show"))
+        hidden = [g for g in nav.GROUPS if g not in shown]
+    target = db.get(User, user.id)
+    target.nav_json = nav.dump(fav, hidden)
+    db.commit()
+    flash(request, "Menü zurückgesetzt." if data.get("reset") == "1" else "Menü gespeichert.")
+    return redirect("/profile/menu")
 
 
 @app.get("/meetings")

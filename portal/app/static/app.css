@@ -474,6 +474,20 @@ a.dash-num:hover > span { text-decoration: underline; }
 .app-nav.is-searching .nav-group-body { grid-template-rows: 1fr; }
 .app-nav.is-searching .nav-group-toggle i { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .nav-group-body, .nav-group-toggle i, .app-sidebar .app-nav .nav-link { transition: none; } }
+/* Favoriten: Stern zum Anheften erscheint beim Zeigen/Fokus; Favoriten stehen ganz oben */
+.app-nav .nav-item { position: relative; }
+.nav-pin { position: absolute; right: .3rem; top: 50%; transform: translateY(-50%); border: 0; background: none; color: var(--bs-secondary-color);
+  width: 1.7rem; height: 1.7rem; border-radius: .4rem; font-size: .8rem; opacity: 0; transition: opacity .12s ease; }
+.nav-pin.is-on { color: #e0a800; }
+.app-nav .nav-item:hover > .nav-pin, .nav-pin:focus-visible { opacity: 1; }
+.app-nav .nav-item:hover > .nav-link .badge { margin-right: 1.5rem; }
+.nav-pin:hover { background: var(--bs-tertiary-bg); color: #e0a800; }
+@media (hover: none) { .nav-favs .nav-pin { opacity: .6; } }
+.nav-group-title { display: flex; align-items: center; gap: .4rem; padding: .45rem .75rem .3rem; font-size: .72rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--bs-secondary-color); font-weight: 600; }
+.nav-group-title i { color: #e0a800; font-size: .65rem; }
+.nav-favs > ul { gap: .1rem; }
+.app-nav-custom { margin-top: .6rem; }
 /* Schmale Leiste (nur Desktop) */
 @media (min-width: 992px) {
   .app-aside.is-rail { flex: 0 0 4.25rem; width: 4.25rem; max-width: 4.25rem; }
@@ -485,7 +499,7 @@ a.dash-num:hover > span { text-decoration: underline; }
   .app-aside.is-rail .nav-link i { opacity: 1; font-size: 1.05rem; }
   .app-aside.is-rail .nav-link .badge { position: absolute; top: .15rem; right: .15rem; font-size: .6rem; }
   .app-aside.is-rail .nav-group { margin-top: .25rem; border-top: 1px solid var(--bs-border-color-translucent); }
-  .app-aside.is-rail .nav-group-toggle { display: none; }
+  .app-aside.is-rail .nav-group-toggle, .app-aside.is-rail .nav-group-title span, .app-aside.is-rail .nav-pin { display: none; }
   .app-aside.is-rail .nav-group-body { grid-template-rows: 1fr !important; }
 }
 .nav-group-toggle span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

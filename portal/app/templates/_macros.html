@@ -7,6 +7,11 @@
 <li class="nav-item"><a class="nav-link {{ 'active' if active }}" href="{{ href }}" {% if active %}aria-current="page"{% endif %} data-label="{{ label | striptags }}"><i class="fa-solid {{ icon }}" aria-hidden="true"></i><span class="nav-label">{{ label }}</span>{% if badge %}<span class="badge rounded-pill text-bg-danger ms-auto" title="{{ badge_title }}">{{ badge }}</span>{% endif %}</a></li>
 {%- endmacro %}
 
+{# Menüeintrag aus nav.py mit Stern zum Anheften (Favoriten); where='fav' für die Kopie in den Favoriten #}
+{% macro nav_entry(it, where='') -%}
+<li class="nav-item" data-nav-id="{{ it.id }}"><a class="nav-link {{ 'active' if it.active and where != 'fav' }}" href="{{ it.url }}" {% if it.active and where != 'fav' %}aria-current="page"{% endif %} data-label="{{ it.label }}"><i class="fa-solid {{ it.icon }}" aria-hidden="true"></i><span class="nav-label">{{ it.label }}</span>{% if it.badge %}<span class="badge rounded-pill text-bg-danger ms-auto" title="{{ it.badge_title }}">{{ it.badge }}</span>{% endif %}</a><button type="button" class="nav-pin {{ 'is-on' if it.fav }}" data-pin="{{ it.id }}" aria-pressed="{{ 'true' if it.fav else 'false' }}" title="{{ 'Aus Favoriten entfernen' if it.fav else 'Als Favorit anheften' }}" aria-label="{{ it.label }}: {{ 'aus Favoriten entfernen' if it.fav else 'als Favorit anheften' }}"><i class="fa-{{ 'solid' if it.fav else 'regular' }} fa-star" aria-hidden="true"></i></button></li>
+{%- endmacro %}
+
 {# Einklappbare Gruppe im Hauptmenü. Zustand (zu/auf) merkt sich das Cookie jsm_nav_closed – der Server gibt die
    Gruppe gleich richtig aus (kein Flackern). Die Gruppe der aktuellen Seite ist immer offen. #}
 {% macro nav_group(key, label, closed_groups) -%}
