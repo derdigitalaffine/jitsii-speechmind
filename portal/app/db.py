@@ -2108,6 +2108,7 @@ DEFAULT_SETTINGS = {
     # Update-Hinweis für Admins
     "res_club_signup": "0",       # Vereine dürfen sich selbst registrieren (mit Freigabe)
     "res_club_mailbox": "",       # Hinweis auf neue Registrierungen
+    "res_category_colors": "{}",  # Art → Farbe (Karte, Katalog), sonst automatisch
     "update_check": "1",
 
     "update_latest": "",

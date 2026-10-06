@@ -55,9 +55,18 @@
           }
           q.warnings.forEach(function (w) { h += '<div class="small text-warning-emphasis mb-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>' + esc(w) + '</div>'; });
           if (q.lines.length) {
-            h += '<table class="table table-sm small mb-0"><tbody>' + q.lines.map(function (l) {
-              return '<tr' + (l.kind === 'deposit' ? ' class="text-secondary"' : '') + '><td>' + esc(l.label) + (l.qty !== 1 && l.kind === 'rent' ? ' <span class="text-secondary">× ' + esc(l.qty) + '</span>' : '') + '</td><td class="text-end text-nowrap">' + esc(l.money) + '</td></tr>';
-            }).join('') + '</tbody><tfoot><tr class="fw-semibold"><td>Summe</td><td class="text-end text-nowrap">' + esc(q.total) + '</td></tr></tfoot></table>';
+            // Gebühren (Miete, Zusatzleistungen) und Kaution getrennt ausweisen – die Kaution kommt zurück
+            var fees = q.lines.filter(function (l) { return l.kind !== 'deposit'; });
+            var dep = q.lines.filter(function (l) { return l.kind === 'deposit'; });
+            var euro = function (c) { return (c / 100).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' €'; };
+            var feeSum = fees.reduce(function (a, l) { return a + l.cents; }, 0), depSum = dep.reduce(function (a, l) { return a + l.cents; }, 0);
+            h += '<table class="table table-sm small mb-0 res-price"><tbody>' + fees.map(function (l) {
+              return '<tr><td>' + esc(l.label) + (l.qty !== 1 && l.kind === 'rent' ? ' <span class="text-secondary">× ' + esc(String(l.qty).replace('.', ',')) + '</span>' : '') + '</td><td class="text-end text-nowrap">' + esc(l.money) + '</td></tr>';
+            }).join('') + '</tbody><tfoot>' +
+              '<tr class="fw-semibold"><td>' + (depSum ? 'Gebühren' : 'Summe') + '</td><td class="text-end text-nowrap">' + euro(feeSum) + '</td></tr>' +
+              (depSum ? '<tr class="text-secondary"><td><i class="fa-solid fa-rotate-left me-1"></i>Kaution <span class="small">(wird nach der Rückgabe erstattet)</span></td><td class="text-end text-nowrap">' + euro(depSum) + '</td></tr>' +
+                '<tr class="fw-semibold border-top"><td>Zu zahlen</td><td class="text-end text-nowrap">' + esc(q.total) + '</td></tr>' : '') +
+              '</tfoot></table>';
           }
           out.innerHTML = h || '<div class="text-secondary small">Zeitraum wählen – der Preis erscheint hier.</div>';
           var offer = document.getElementById('res-wait-offer');
@@ -97,22 +106,48 @@
       if (d.closed) { freeBox.innerHTML = '<span class="text-danger"><i class="fa-solid fa-ban me-1"></i>An diesem Tag kann nicht gebucht werden.</span>'; return; }
       if (!d.free.length) { freeBox.innerHTML = '<span class="text-danger"><i class="fa-solid fa-circle-xmark me-1"></i>An diesem Tag ist nichts mehr frei.</span>'; return; }
       var slot = +form.dataset.slot || 60, min = Math.max(+form.dataset.min || 0, slot), max = +form.dataset.max || 0;
-      freeBox.innerHTML = '<span class="text-secondary me-1">Frei – Beginn antippen, Ende dann anpassen:</span>' + d.free.map(function (f) {
-        return '<button type="button" class="btn btn-sm btn-outline-success me-1 mb-1 js-free" data-from="' + f[0] + '" data-to="' + f[1] + '">' + esc(f[0]) + '–' + esc(f[1]) + '</button>';
-      }).join('') + (d.busy.length ? '<div class="text-secondary mt-1">Belegt: ' + d.busy.map(function (b) { return esc(b[0]) + '–' + esc(b[1]); }).join(', ') + '</div>' : '');
-      freeBox.querySelectorAll('.js-free').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var from = btn.dataset.from, to = btn.dataset.to;
-          // Beginn auf das Raster runden, Ende = Beginn + Mindestdauer (mind. 1 Std.) – höchstens bis zum Ende der Lücke
-          var start = Math.ceil(minutes(from) / slot) * slot, gap = minutes(to);
-          var end = start + Math.max(min, Math.ceil(60 / slot) * slot);
-          if (max && end - start > max) end = start + max;
-          if (end > gap) end = start + Math.floor((gap - start) / slot) * slot;
-          var t1 = form.querySelector('#r-t1'), t2 = form.querySelector('#r-t2');
-          t1.value = addMinutes('00:00', start); t2.value = addMinutes('00:00', end);
-          quote();
-        });
+      // Zeitleiste: ein Feld je Rasterschritt innerhalb der Buchungszeiten, belegte sind gesperrt.
+      // Erstes Antippen = Beginn (mit Mindestdauer), zweites Antippen danach = Ende.
+      var busy = d.busy.map(function (b) { return [minutes(b[0]), minutes(b[1])]; });
+      var slots = [];
+      d.open.forEach(function (o) {
+        for (var t = minutes(o[0]); t + slot <= minutes(o[1]); t += slot) {
+          slots.push({ t: t, busy: busy.some(function (b) { return b[0] < t + slot && b[1] > t; }) });
+        }
       });
+      var t1 = form.querySelector('#r-t1'), t2 = form.querySelector('#r-t2');
+      function rangeFree(a, b) { return !busy.some(function (x) { return x[0] < b && x[1] > a; }); }
+      function draw(note) {
+        var a = t1.value ? minutes(t1.value) : -1, b = t2.value ? minutes(t2.value) : -1;
+        var hours = b > a && a >= 0 ? (b - a) / 60 : 0;
+        freeBox.innerHTML = '<div class="res-slots" role="group" aria-label="Uhrzeit wählen">' + slots.map(function (sl) {
+          var on = a >= 0 && sl.t >= a && sl.t < b;
+          return '<button type="button" class="res-slot' + (sl.busy ? ' busy' : '') + (on ? ' sel' : '') + (sl.t === a ? ' sel-start' : '') +
+            '" data-t="' + sl.t + '" ' + (sl.busy ? 'disabled' : '') + ' aria-pressed="' + on + '" aria-label="' + addMinutes('00:00', sl.t) + (sl.busy ? ' belegt' : '') + '">' +
+            addMinutes('00:00', sl.t) + '</button>';
+        }).join('') + '</div><div class="small mt-2 ' + (note ? 'text-danger' : 'text-secondary') + '" aria-live="polite">' +
+          (note || (hours ? '<strong class="text-body">' + esc(t1.value) + '–' + esc(t2.value) + ' Uhr</strong> (' + String(+hours.toFixed(2)).replace('.', ',') + ' Std.) · Zum Ändern Beginn neu antippen, Ende danach.'
+            : 'Beginn antippen, danach das Ende. Grau = belegt.')) + '</div>';
+        freeBox.querySelectorAll('.res-slot:not(.busy)').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var t = +btn.dataset.t, a = t1.value ? minutes(t1.value) : -1, b = t2.value ? minutes(t2.value) : -1, note = '';
+            if (a >= 0 && t >= a && b - a === Math.max(min, slot) && t + slot > b) {
+              // Ende nach dem Beginn gewählt
+              var end = t + slot;
+              if (max && end - a > max) { end = a + max; note = 'Höchstens ' + (max / 60) + ' Std. am Stück.'; }
+              if (!rangeFree(a, end)) { note = 'Dazwischen ist schon belegt – bitte eine kürzere Zeit wählen.'; end = b; }
+              t2.value = addMinutes('00:00', end);
+            } else {
+              var e = t + Math.max(min, slot);
+              if (!rangeFree(t, e)) { note = 'Ab hier ist nicht genug Zeit frei (mindestens ' + Math.max(min, slot) + ' Min.).'; }
+              else { t1.value = addMinutes('00:00', t); t2.value = addMinutes('00:00', e); }
+            }
+            draw(note);
+            quote();
+          });
+        });
+      }
+      draw('');
     }).catch(function () {});
   }
 

@@ -580,6 +580,12 @@ Modul **Ressourcenbuchung**, Menü **Ressourcen** (Recht „Ressourcen“ zum An
 
 **Aufbau:** Alle Verwaltungsseiten haben oben dieselbe Leiste (Übersicht, Planer, Buchungen, Auswertung, Vereine, Kalender-Links, Feiertage), darunter den Pfad und den Seitenkopf mit den Aktionen rechts – beim Durchklicken bleibt alles an seinem Platz. Die **Übersicht** zeigt die Ressourcen wahlweise als **Karten** oder als **Tabelle** (sortier- und durchsuchbar, mit offenen Anfragen und nächster Buchung je Ressource); die Wahl merkt sich das Portal. Auch der öffentliche Katalog `/r` lässt sich zwischen Karten und Tabelle umschalten.
 
+**Öffentliche Darstellung:** Jede Ressource hat eine eigene Seite mit Fotogalerie (Vollbild), Eckdaten als Kacheln, Ausstattung als Symbole (aus dem Feld „Ausstattung“, eine Zeile je Merkmal – Stichwörter wie Küche, barrierefrei, Beamer, Parkplatz bekommen passende Symbole), Räumen, Preisübersicht (Miete, Tarife, Zusatzleistungen, Kaution, Storno), Belegungskalender, Karte mit Routenlink und dem **Anbieter** mit Wappen und Kontakt (Reiter Allgemein, aus Verwaltung › Körperschaften). Im Katalog `/r` haben die Kartenpunkte die **Farbe ihrer Art** (Ressourcen › Darstellung, sonst automatisch) mit Legende; ein Klick öffnet ein Info-Fenster mit Foto, Anbieter, Eckdaten und „Ansehen & buchen“. Der Katalog lässt sich nach Anbieter filtern.
+
+**Buchen für Bürger:innen:** Ein Monatskalender zeigt je Tag frei / teilweise frei / belegt / nicht buchbar. Bei ganzen Tagen wird der erste und dann der letzte Tag angetippt; bei Zeitblöcken und stundenweiser Buchung der Tag und darunter die Zeit – stundenweise auf einer Zeitleiste (Beginn antippen, dann Ende; belegte Zeiten sind gesperrt). Die Preisvorschau trennt **Gebühren** und **Kaution** („wird erstattet“) und nennt den Betrag „zu zahlen“.
+
+**Preise einstellen** (Reiter „Räume & Preise“): eine Tabelle mit nur den eingeschalteten Buchungsarten, Wochenend-/Feiertagspreise per Schalter, Teilräume darunter, die Kaution getrennt daneben und eine Vorschau „So sehen es Bürger:innen“. Der Einrichtungsassistent zeigt alle Werte der Vorlage offen (Preise je Buchungsart, Kaution, Zusatzleistungen zum Abwählen) – nichts wird verdeckt übernommen.
+
 **Ressource einrichten** (Reiter im Bearbeiten-Dialog):
 
 | Reiter | Inhalt |

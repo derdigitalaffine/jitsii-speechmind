@@ -77,11 +77,30 @@
   </div></div>
 
   <div class="tab-pane fade" id="preise" role="tabpanel">
-    <div class="card mb-3"><div class="card-header small fw-semibold">Preise {{ 'für die ganze Ressource' if res.parts else '' }} <span class="fw-normal text-secondary">– leer = kostenlos, Wochenende/Feiertag leer = wie werktags</span></div><div class="card-body"><div class="row g-2">
-      {% for k, label in [('price_day', 'je Tag'), ('price_block', 'je Block'), ('price_hour', 'je Stunde'), ('wkd_day', 'Tag Wochenende/Feiertag'), ('wkd_block', 'Block Wochenende/Feiertag'), ('wkd_hour', 'Stunde Wochenende/Feiertag')] %}
-      <div class="col-6 col-md-4 col-xl-2"><label class="form-label small mb-1" for="p-{{ k }}">{{ label }}</label><div class="input-group input-group-sm"><input class="form-control" id="p-{{ k }}" name="{{ k }}" value="{{ price(res[k]) }}" inputmode="decimal"><span class="input-group-text">€</span></div></div>{% endfor %}
-    </div><div class="form-text">Feiertage: <a href="/resources/holidays">gesetzliche Feiertage und eigene Tage</a>.</div></div></div>
-    <div class="card"><div class="card-header small fw-semibold d-flex"><span class="flex-grow-1">Teilräume <span class="fw-normal text-secondary">(einzeln buchbar; die ganze Ressource belegt alle)</span></span></div><div class="card-body" id="ed-units"></div></div>
+    <div class="row g-3">
+      <div class="col-12 col-xl-8">
+        <div class="card mb-3"><div class="card-header fw-semibold d-flex flex-wrap align-items-center gap-2"><span class="flex-grow-1"><i class="fa-solid fa-euro-sign me-2"></i>Mietpreis</span>
+          <div class="form-check form-switch mb-0 small fw-normal"><input class="form-check-input" type="checkbox" role="switch" id="p-wkd-on" {% if res.wkd_day or res.wkd_block or res.wkd_hour or (res.parts | selectattr('wkd_day') | list) or (res.parts | selectattr('wkd_block') | list) or (res.parts | selectattr('wkd_hour') | list) %}checked{% endif %}><label class="form-check-label" for="p-wkd-on">Am Wochenende/Feiertag anderer Preis</label></div></div>
+          <div class="card-body">
+            <div class="table-responsive"><table class="table table-sm align-middle mb-2 res-price-edit">
+              <thead><tr><th scope="col"></th>
+                {% for m, label in (('day', 'je Tag'), ('block', 'je Zeitblock'), ('hour', 'je Stunde')) %}<th scope="col" class="pm pm-{{ m }}">{{ label }}<span class="pw small fw-normal text-secondary d-block">werktags · Wochenende/Feiertag</span></th>{% endfor %}</tr></thead>
+              <tbody><tr><th scope="row" class="small">{{ 'Ganze Ressource' if res.parts else res.name }}</th>
+                {% for m in ('day', 'block', 'hour') %}<td class="pm pm-{{ m }}"><div class="d-flex gap-1">
+                  <div class="input-group input-group-sm"><input class="form-control" id="p-price_{{ m }}" name="price_{{ m }}" value="{{ price(res['price_' ~ m]) }}" inputmode="decimal" placeholder="kostenlos" aria-label="Preis {{ m }} werktags"><span class="input-group-text">€</span></div>
+                  <div class="input-group input-group-sm pw"><input class="form-control" id="p-wkd_{{ m }}" name="wkd_{{ m }}" value="{{ price(res['wkd_' ~ m]) }}" inputmode="decimal" placeholder="wie werktags" aria-label="Preis {{ m }} Wochenende/Feiertag"><span class="input-group-text">€</span></div></div></td>{% endfor %}</tr></tbody>
+            </table></div>
+            <div class="form-text">Es erscheinen nur die Buchungsarten, die unter „Zeiten &amp; Regeln“ eingeschaltet sind. Leer = kostenlos. Tarife (z. B. Vereine −50 %) rechnen von diesem Preis; Feiertage: <a href="/resources/holidays">gesetzliche und eigene Tage</a>.</div>
+          </div></div>
+        <div class="card mb-3"><div class="card-header fw-semibold d-flex"><span class="flex-grow-1"><i class="fa-solid fa-door-open me-2"></i>Teilräume</span><span class="small fw-normal text-secondary">einzeln buchbar, mit eigenem Preis – die ganze Ressource belegt alle</span></div><div class="card-body" id="ed-units"></div></div>
+      </div>
+      <div class="col-12 col-xl-4">
+        <div class="card mb-3"><div class="card-header fw-semibold"><i class="fa-solid fa-rotate-left me-2"></i>Kaution</div><div class="card-body">
+          <div class="input-group"><input class="form-control" id="z-dep" name="deposit_cents" value="{{ price(res.deposit_cents) }}" inputmode="decimal" placeholder="keine"><span class="input-group-text">€</span></div>
+          <div class="form-text">Keine Gebühr: wird zusammen mit der Miete gezahlt und nach der Rückgabe erstattet (bei Schäden ganz oder teilweise einbehalten).</div></div></div>
+        <div class="card res-price-preview"><div class="card-header fw-semibold"><i class="fa-regular fa-eye me-2"></i>So sehen es Bürger:innen</div><div class="card-body small" id="p-preview" aria-live="polite"></div></div>
+      </div>
+    </div>
   </div>
 
   <div class="tab-pane fade" id="extras" role="tabpanel">
@@ -96,7 +115,6 @@
 
   <div class="tab-pane fade" id="zahlung" role="tabpanel"><div class="row g-3">
     <div class="col-lg-6"><div class="card h-100"><div class="card-body row g-2">
-      <div class="col-6"><label class="form-label small mb-1" for="z-dep">Kaution</label><div class="input-group input-group-sm"><input class="form-control" id="z-dep" name="deposit_cents" value="{{ price(res.deposit_cents) }}"><span class="input-group-text">€</span></div></div>
       <div class="col-6"><label class="form-label small mb-1" for="z-days">Zahlfrist (Tage)</label><input class="form-control form-control-sm" type="number" min="1" max="90" id="z-days" name="pay_days" value="{{ res.pay_days }}"></div>
       <div class="col-12"><span class="form-label small d-block mb-1">Zahlarten</span>{% for k in ('paypal', 'transfer', 'cash') %}<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="pay_methods" value="{{ k }}" id="pm-{{ k }}" {% if k in res.pay_methods.split(',') %}checked{% endif %}><label class="form-check-label" for="pm-{{ k }}">{{ pay_methods[k][0] }}</label></div>{% endfor %}
         <div class="form-text">PayPal und Bankverbindung richten Admins unter Verwaltung › PayPal &amp; Bankverbindung ein. Ohne Zahlung bis zur Frist verfällt die Reservierung.</div></div>

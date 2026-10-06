@@ -2,13 +2,13 @@
    1. Modul-Navigation (immer gleiche Position), 2. Pfadzeile (immer vorhanden), 3. Titel und Kurzbeschreibung
    (einzeilig, volle Beschreibung als Tooltip) links, Aktionen rechts.
    Aufruf:  {% call rm.head('bookings', [('Buchungen', '/resources/bookings'), (b.ref, '')], 'Titel', 'Beschreibung') %}…Knöpfe…{% endcall %}
-   tab: home | planner | bookings | stats | clubs | calendars | holidays #}
+   tab: home | planner | bookings | stats | clubs | calendars | holidays | look #}
 {% macro head(tab, crumbs, title, lede='') -%}
 <ul class="nav nav-pills flex-nowrap overflow-auto small res-nav" aria-label="Ressourcen">
   {% for key, href, icon, label, need in (('home', '/resources', 'fa-building', 'Übersicht', ''), ('planner', '/resources/planner', 'fa-table-cells', 'Planer', ''),
      ('bookings', '/resources/bookings', 'fa-list', 'Buchungen', ''), ('stats', '/resources/stats', 'fa-chart-column', 'Auswertung', ''),
      ('clubs', '/resources/clubs', 'fa-people-group', 'Vereine', 'resources'), ('calendars', '/resources/calendars', 'fa-calendar-week', 'Kalender-Links', ''),
-     ('holidays', '/resources/holidays', 'fa-umbrella-beach', 'Feiertage', 'resources')) if not need or user.can(need) %}
+     ('holidays', '/resources/holidays', 'fa-umbrella-beach', 'Feiertage', 'resources'), ('look', '/resources/darstellung', 'fa-palette', 'Darstellung', 'resources')) if not need or user.can(need) %}
   <li class="nav-item"><a class="nav-link text-nowrap {{ 'active' if tab == key }}" href="{{ href }}" {% if tab == key %}aria-current="page"{% endif %}><i class="fa-solid {{ icon }} me-1"></i>{{ label }}</a></li>
   {% endfor %}
 </ul>

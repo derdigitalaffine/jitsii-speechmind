@@ -280,11 +280,11 @@ def conflicts(db, res: Resource, ids: set[int] | None, start: datetime, end: dat
     return out
 
 
-def day_free(db, res: Resource, day: date, ids: set[int] | None, wait_token: str = "") -> dict:
-    """Freie Zeiten eines Tages fürs Antippen: Buchungszeiten, belegte Spannen (mit Rüstzeiten), freie Spannen
-    und je Zeitblock frei/belegt."""
+def busy_spans(db, res: Resource, start: datetime, end: datetime, ids: set[int] | None,
+               wait_token: str = "") -> list[tuple[datetime, datetime]]:
+    """Belegte Spannen (UTC) im Zeitraum: Buchungen mit Rüstzeiten, Sperrzeiten, gehaltene Wartelisten-Angebote."""
     from . import res_wait
-    start, end = _utc(datetime.combine(day, time())), _utc(datetime.combine(day + timedelta(days=1), time()))
+    from .db import ResourceWait
     before, after = timedelta(minutes=res.buffer_before or 0), timedelta(minutes=res.buffer_after or 0)
     busy = []
     for b in _blocking(db, res, start, end):
@@ -294,12 +294,19 @@ def day_free(db, res: Resource, day: date, ids: set[int] | None, wait_token: str
                                                       ResourceClosure.starts_at < end, ResourceClosure.ends_at > start)):
         if _overlap_units(ids, {c.unit_id} if c.unit_id else None):
             busy.append((c.starts_at, c.ends_at))
-    from .db import ResourceWait
     for w in db.scalars(select(ResourceWait).where(
             ResourceWait.resource_id == res.id, ResourceWait.status == "offered", ResourceWait.offer_until > utcnow(),
             ResourceWait.starts_at < end, ResourceWait.ends_at > start, ResourceWait.token != (wait_token or "-"))):
         if _overlap_units(ids, res_wait._units(w)):
             busy.append((w.starts_at, w.ends_at))
+    return busy
+
+
+def day_free(db, res: Resource, day: date, ids: set[int] | None, wait_token: str = "") -> dict:
+    """Freie Zeiten eines Tages fürs Antippen: Buchungszeiten, belegte Spannen (mit Rüstzeiten), freie Spannen
+    und je Zeitblock frei/belegt."""
+    start, end = _utc(datetime.combine(day, time())), _utc(datetime.combine(day + timedelta(days=1), time()))
+    busy = busy_spans(db, res, start, end, ids, wait_token)
     local = lambda t: to_local(t).replace(tzinfo=None)  # noqa: E731
     day0, day1 = datetime.combine(day, time()), datetime.combine(day + timedelta(days=1), time())
     spans = sorted((max(local(a), day0), min(local(b), day1)) for a, b in busy)

@@ -60,10 +60,22 @@ def booking_ctx(db, res: Resource, request=None, club=None) -> dict:
             "max_date": (to_local(utcnow()) + timedelta(days=res.max_advance_days or 365)).date().isoformat()}
 
 
-def _price_from(res: Resource) -> int:
-    values = [v for v in (res.price_day, res.price_block, res.price_hour) if v]
-    values += [v for u in res.parts for v in (u.price_day, u.price_block, u.price_hour) if v]
-    return min(values) if values else 0
+def page_ctx(db, res: Resource, request) -> dict:
+    """Zusätzliche Angaben für die öffentliche Ressourcenseite: Anbieter, Ausstattung als Symbole, Preise,
+    Farbe der Art, Kartenpunkt."""
+    from . import orgs, res_view
+    cats = [c for (c,) in db.execute(select(Resource.category).where(Resource.active.is_(True), Resource.public.is_(True)))]
+    colors = res_view.category_colors(db, cats)
+    feature, geo = None, None
+    if res.lat is not None and res.lon is not None:
+        feature = {"type": "Feature", "geometry": {"type": "Point", "coordinates": [res.lon, res.lat]},
+                   "properties": {"name": res.name, "color": colors.get(res.category, colors[""])}}
+        from .routes_maps import map_bundle
+        geo = map_bundle(db, request, None, None, "forms")
+    return {"provider": res.provider if res.provider and res.provider.active else None, "provider_logo": orgs.logo_url,
+            "facts": res_view.facts(res), "price_rows": res_view.price_rows(res), "price_from": res_view.price_from(res),
+            "price_unit": res_view.price_from_unit(res), "cat_color": colors.get(res.category, colors[""]),
+            "feature": feature, "geo_bundle": geo, "extras_public": [x for x in res.extras if x.active]}
 
 
 # --- Katalog -------------------------------------------------------------------------------
@@ -71,11 +83,15 @@ def _price_from(res: Resource) -> int:
 @app.get("/r")
 def catalog(request: Request, db: Session = Depends(get_db)):
     _module_on()
-    f = {k: request.query_params.get(k, "").strip()[:100] for k in ("q", "category", "date", "persons")}
+    from . import orgs, res_view
+    f = {k: request.query_params.get(k, "").strip()[:100] for k in ("q", "category", "date", "persons", "anbieter")}
     rows = db.scalars(select(Resource).where(Resource.active.is_(True), Resource.public.is_(True))
                       .order_by(Resource.position, Resource.name)).all()
+    all_rows = rows
     if f["category"]:
         rows = [r for r in rows if r.category == f["category"]]
+    if f["anbieter"].isdigit():
+        rows = [r for r in rows if r.provider_id == int(f["anbieter"]) or (r.provider and r.provider.parent_id == int(f["anbieter"]))]
     for word in f["q"].lower().split():
         rows = [r for r in rows if word in f"{r.name} {r.location} {r.description} {r.category}".lower()]
     if f["persons"].isdigit():
@@ -95,8 +111,21 @@ def catalog(request: Request, db: Session = Depends(get_db)):
             else:
                 free[r.id] = "belegt"
     categories = sorted({r.category for r in db.scalars(select(Resource).where(Resource.active.is_(True), Resource.public.is_(True))) if r.category})
-    features = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [r.lon, r.lat]},
-                 "properties": {"name": r.name, "url": f"/r/{r.slug}"}} for r in rows if r.lat is not None and r.lon is not None]
+    colors = res_view.category_colors(db, [r.category for r in all_rows])
+    providers = sorted({r.provider for r in all_rows if r.provider is not None and r.provider.active},
+                       key=lambda o: (o.position, o.name))
+
+    def props(r):
+        pf = res_view.price_from(r)
+        unit = res_view.price_from_unit(r)
+        return {"id": r.id, "name": r.name, "url": f"/r/{r.slug}", "color": colors.get(r.category, colors[""]),
+                "category": r.category, "location": r.location, "capacity": r.capacity or "", "rooms": len(r.parts) or "",
+                "price": (f"ab {pay.money(pf)}" + (f" je {unit}" if unit else "")) if pf else "kostenlos",
+                "provider": r.provider.name if r.provider else "", "logo": orgs.logo_url(r.provider) if r.provider else "",
+                "photo": f"/r/{r.slug}/photo/{r.photos[0].id}" if r.photos else "", "free": free.get(r.id, ""),
+                "teaser": (r.description or "").strip().split("\n")[0][:180]}
+    features = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [r.lon, r.lat]}, "properties": props(r)}
+                for r in rows if r.lat is not None and r.lon is not None]
     geo_bundle = None
     if features:
         from .routes_maps import map_bundle
@@ -106,7 +135,8 @@ def catalog(request: Request, db: Session = Depends(get_db)):
     keep = {k: v for k, v in f.items() if v}
     view_links = {v: "?" + urlencode({**keep, "ansicht": v}) for v in VIEWS}
     response = render(request, "res_catalog.html", None if embed else session_user(request, db), rows=rows, f=f, free=free,
-                      categories=categories, features=features, geo_bundle=geo_bundle, price_from=_price_from, money=pay.money,
+                      categories=categories, features=features, geo_bundle=geo_bundle, price_from=res_view.price_from, money=pay.money,
+                      colors=colors, providers=providers, provider_logo=orgs.logo_url,
                       embed=embed, cart=[] if embed else _cart(request, db), club=None if embed else res_clubs.current(request, db),
                       signup=get_settings(db).get("res_club_signup") == "1", view=view, view_links=view_links)
     return remember_view(response, "jsm_res_catalog_view", view) if chosen else response
@@ -139,6 +169,33 @@ def resource_busy(slug: str, start: str = "", end: str = "", db: Session = Depen
     res = _public_res(db, slug)
     s, e = _range(start, end)
     return JSONResponse(rs.fc_events(rs.calendar_events(db, [res], s, e, "busy", True)), headers={"Cache-Control": "no-store"})
+
+
+@app.get("/r/{slug}/month.json")
+def resource_month(request: Request, slug: str, m: str = "", mode: str = "", db: Session = Depends(get_db)):
+    """Verfügbarkeit je Tag eines Monats (Monatskalender im Buchungsformular)."""
+    rate_limit(request, "res-month", limit=120, window=60)
+    user = session_user(request, db)
+    _module_on()
+    res = db.scalar(select(Resource).where(Resource.slug == slug))
+    if res is None or not (res.active and res.public or user is not None and rs.level(db, user, res) >= 3):
+        raise HTTPException(404)
+    try:
+        year, month = (int(x) for x in m.split("-")) if m else (to_local(utcnow()).year, to_local(utcnow()).month)
+        if not (2000 <= year <= 2100 and 1 <= month <= 12):
+            raise ValueError
+    except ValueError:
+        raise HTTPException(400) from None
+    known = {u.id for u in res.parts}
+    ids = {int(x) for x in request.query_params.getlist("units") if x.isdigit() and int(x) in known} or None
+    if ids is not None and len(ids) == len(known):
+        ids = None
+    from . import res_view
+    data = res_view.month_status(db, res, year, month, ids, mode)
+    if user is not None and rs.level(db, user, res) >= 3 and request.query_params.get("staff") == "1":
+        # Verwaltung trägt auch außerhalb von Vorlauf/Vorausbuchung ein
+        data["days"] = {k: ("free" if v == "off" else v) for k, v in data["days"].items()}
+    return JSONResponse(data, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/r/{slug}/day.json")
@@ -230,7 +287,7 @@ async def resource_book(request: Request, slug: str, db: Session = Depends(get_d
             flash(request, "Bitte die markierten Angaben prüfen.", "error")
         ctx = booking_ctx(db, res, request, club)
         ctx.update(values=fm_values(items, data), errors=field_errors, draft=data, wait=wait)
-        return render(request, "res_public.html", session_user(request, db), **ctx, staff=False)
+        return render(request, "res_public.html", session_user(request, db), **ctx, **page_ctx(db, res, request), staff=False)
     cart = request.session.get(CART) or {}
     more = data.get("action") == "add"
     group = cart.get("group") if _cart(request, db) else ""
@@ -278,7 +335,7 @@ def _join_waitlist(request, db, res, q, data, contact, errors, club):
             flash(request, e, "error")
         ctx = booking_ctx(db, res, request, club)
         ctx.update(draft=data)
-        return render(request, "res_public.html", session_user(request, db), **ctx, staff=False)
+        return render(request, "res_public.html", session_user(request, db), **ctx, **page_ctx(db, res, request), staff=False)
     w = res_wait.add(db, res, q, data, contact, club)
     db.commit()
     return redirect(f"/r/w/{w.token}?neu=1")
@@ -350,7 +407,7 @@ def wait_page(request: Request, token: str, db: Session = Depends(get_db)):
         draft = res_wait.data_of(w)
         draft.update(name=w.name, email=w.email)
         ctx.update(draft=draft, wait=w)
-        return render(request, "res_public.html", session_user(request, db), **ctx, staff=False)
+        return render(request, "res_public.html", session_user(request, db), **ctx, **page_ctx(db, res, request), staff=False)
     return render(request, "res_wait.html", session_user(request, db), w=w, res=res, when=res_wait.when(w),
                   statuses=res_wait.STATUSES, position=res_wait.position(db, w) if w.status == "waiting" else 0,
                   fresh=request.query_params.get("neu") == "1")
@@ -512,7 +569,7 @@ def resource_public(request: Request, slug: str, db: Session = Depends(get_db)):
     contact = (request.session.get(CART) or {}).get("contact") or {}
     if contact and ctx["cart"]:
         ctx["draft"] = rs.FormData(contact)
-    return render(request, "res_public.html", session_user(request, db), **ctx, staff=False)
+    return render(request, "res_public.html", session_user(request, db), **ctx, **page_ctx(db, res, request), staff=False)
 
 
 # --- Buchung verwalten (buchende Person) ----------------------------------------------------

@@ -9,7 +9,7 @@
     <div class="row g-2">
       {% for key, p in presets.items() %}
       <div class="col-12 col-sm-6 col-lg-4"><input type="radio" class="btn-check" name="preset" id="pr-{{ key }}" value="{{ key }}" data-category="{{ p.category }}"
-        data-unit="{{ (p['values'].get('units') or 'day').split(',')[0] }}" {% if loop.first %}checked{% endif %}>
+        data-unit="{{ (p['values'].get('units') or 'day').split(',')[0] }}" data-units="{{ p['values'].get('units') or 'day' }}" data-preset='{{ {"day": p["values"].get("price_day", 0), "block": p["values"].get("price_block", 0), "hour": p["values"].get("price_hour", 0), "deposit": p["values"].get("deposit_cents", 0), "extras": p.get("extras", [])} | tojson }}'  {% if loop.first %}checked{% endif %}>
         <label class="btn btn-outline-primary w-100 h-100 text-start p-3" for="pr-{{ key }}"><i class="fa-solid {{ p.icon }} fa-lg mb-2 d-block"></i><strong>{{ p.label }}</strong><span class="d-block small opacity-75">{{ p.hint }}</span></label></div>
       {% endfor %}
     </div>
@@ -23,8 +23,15 @@
     <div class="col-md-4"><label class="form-label" for="n-cap">Personen (höchstens)</label><input class="form-control" type="number" min="0" id="n-cap" name="capacity"></div>
   </div></div>
   <div class="card mb-3"><div class="card-header fw-semibold"><span class="badge rounded-pill text-bg-primary me-2">3</span>Preis und Zuständigkeit</div><div class="card-body row g-3">
-    <div class="col-md-4"><label class="form-label" for="n-price">Preis <span id="n-unit">je Tag</span></label><div class="input-group"><input class="form-control" id="n-price" name="price" inputmode="decimal" placeholder="Vorlage"><span class="input-group-text">€</span></div>
-      <div class="form-text">Leer = Wert der Vorlage, 0 = kostenlos.</div></div>
+    <div class="col-12"><span class="form-label d-block">Preise <span class="small text-secondary">(aus der Vorlage – bitte anpassen; leer = kostenlos)</span></span>
+      <div class="row g-2">
+        {% for m, label in (('day', 'je Tag'), ('block', 'je Zeitblock'), ('hour', 'je Stunde')) %}
+        <div class="col-6 col-md-3 js-pm" data-m="{{ m }}"><label class="form-label small mb-1" for="n-p-{{ m }}">{{ label }}</label><div class="input-group"><input class="form-control" id="n-p-{{ m }}" name="price_{{ m }}" inputmode="decimal" placeholder="kostenlos"><span class="input-group-text">€</span></div></div>
+        {% endfor %}
+        <div class="col-6 col-md-3"><label class="form-label small mb-1" for="n-dep">Kaution <span class="text-secondary">(wird erstattet)</span></label><div class="input-group"><input class="form-control" id="n-dep" name="deposit" inputmode="decimal" placeholder="keine"><span class="input-group-text">€</span></div></div>
+      </div></div>
+    <div class="col-12 d-none" id="n-extras-box"><span class="form-label d-block">Zusatzleistungen aus der Vorlage</span><div id="n-extras" class="d-flex flex-wrap gap-3"></div>
+      <div class="form-text">Abgewählte werden nicht angelegt. Preise und weitere Leistungen später im Reiter „Tarife &amp; Zusatzleistungen“.</div></div>
     <div class="col-md-4"><label class="form-label" for="n-group">Zuständige Gruppe <span class="text-secondary small">(optional)</span></label><select class="form-select" id="n-group" name="manager_group_id"><option value="">– nur ich –</option>{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select></div>
     <div class="col-md-4"><label class="form-label" for="n-mail">Funktionspostfach <span class="text-secondary small">(optional)</span></label><input class="form-control" type="email" id="n-mail" name="mailbox" placeholder="buergerhaus@…"></div>
     <div class="col-12 form-text">Sie sind zunächst selbst zuständig. Die Ressource ist noch nicht freigeschaltet – eine Checkliste zeigt, was noch fehlt.</div>
@@ -35,12 +42,28 @@
 {% block scripts %}
 <script>
 (function () {
-  var cat = document.getElementById('n-cat'), unit = document.getElementById('n-unit'), touched = false;
+  var cat = document.getElementById('n-cat'), touched = false;
+  var euro = function (c) { return c ? (c / 100).toFixed(2).replace('.', ',') : ''; };
+  var esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   cat.addEventListener('input', function () { touched = true; });
   document.querySelectorAll('input[name="preset"]').forEach(function (r) {
     r.addEventListener('change', function () {
       if (!touched) cat.value = r.dataset.category;
-      unit.textContent = { day: 'je Tag', block: 'je Block', hour: 'je Stunde' }[r.dataset.unit] || 'je Tag';
+      var p = JSON.parse(r.dataset.preset || '{}'), units = (r.dataset.units || 'day').split(',');
+      /* Nur die Buchungsarten der Vorlage zeigen, Werte offen vorbelegen */
+      document.querySelectorAll('.js-pm').forEach(function (box) {
+        var m = box.dataset.m, on = units.indexOf(m) >= 0;
+        box.classList.toggle('d-none', !on);
+        box.querySelector('input').value = on ? euro(p[m]) : '';
+      });
+      document.getElementById('n-dep').value = euro(p.deposit);
+      var ex = p.extras || [], list = document.getElementById('n-extras');
+      document.getElementById('n-extras-box').classList.toggle('d-none', !ex.length);
+      list.innerHTML = ex.map(function (x, i) {
+        var per = { once: 'pauschal', day: 'je Tag', hour: 'je Stunde', piece: 'je Stück' }[x[1]] || '';
+        return '<div class="form-check"><input class="form-check-input" type="checkbox" name="extras_keep" value="' + i + '" id="n-ex-' + i + '" checked>' +
+          '<label class="form-check-label" for="n-ex-' + i + '">' + esc(x[0]) + ' <span class="text-secondary small">' + euro(x[2]) + ' € ' + per + (x[3] ? ', Pflicht' : '') + '</span></label></div>';
+      }).join('');
     });
   });
   var first = document.querySelector('input[name="preset"]:checked');

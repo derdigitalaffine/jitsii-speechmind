@@ -130,10 +130,15 @@ async def resource_create(request: Request, user: User = Depends(res_user), db: 
     from .db import Organization
     res.provider_id = int(pid) if pid.isdigit() and db.get(Organization, int(pid)) else None
     db.add(res)
-    res_admin.apply_preset(res, str(data.get("preset", "empty")))
-    price = pay.parse_amount(data.get("price", "")) if str(data.get("price", "")).strip() else None
-    if price is not None:
-        setattr(res, {"day": "price_day", "block": "price_block", "hour": "price_hour"}[rs.modes(res)[0]], price)
+    keep = [int(x) for x in data.getlist("extras_keep") if str(x).isdigit()]
+    res_admin.apply_preset(res, str(data.get("preset", "empty")), keep_extras=keep if "price_day" in data else None)
+    # Preise und Kaution wie im Assistenten angezeigt übernehmen (leer = kostenlos bzw. keine Kaution)
+    if any(k in data for k in ("price_day", "price_block", "price_hour")):
+        for m in ("day", "block", "hour"):
+            raw = str(data.get(f"price_{m}", "") or "").strip()
+            setattr(res, f"price_{m}", (pay.parse_amount(raw) or 0) if raw else 0)
+        raw = str(data.get("deposit", "") or "").strip()
+        res.deposit_cents = (pay.parse_amount(raw) or 0) if raw else 0
     gid = str(data.get("manager_group_id", ""))
     res.manager_group_id = int(gid) if gid.isdigit() and db.get(Group, int(gid)) else None
     mailbox = str(data.get("mailbox", "")).strip().lower()[:255]
@@ -1091,3 +1096,35 @@ def holidays_delete(request: Request, hid: int, user: User = Depends(res_user), 
         db.delete(h)
         db.commit()
     return redirect("/resources/holidays")
+
+
+# --- Darstellung: Farben je Art (Karte und Katalog) -------------------------------------------
+
+@app.get("/resources/darstellung")
+def resources_look(request: Request, user: User = Depends(res_user), db: Session = Depends(get_db)):
+    _module_on()
+    from . import res_view
+    cats = sorted({r.category for r in db.scalars(select(Resource)) if r.category})
+    try:
+        chosen = json.loads(get_settings(db).get("res_category_colors") or "{}")
+    except ValueError:
+        chosen = {}
+    return render(request, "resource_look.html", user, cats=cats, colors=res_view.category_colors(db, cats), chosen=chosen)
+
+
+@app.post("/resources/darstellung", dependencies=[Depends(check_csrf)])
+async def resources_look_save(request: Request, user: User = Depends(res_user), db: Session = Depends(get_db)):
+    _module_on()
+    from . import res_view
+    data = await request.form()
+    out = {}
+    if data.get("action") != "reset":
+        for key in data.keys():
+            if key.startswith("c_"):
+                cat, color = key[2:][:80], str(data.get(key) or "")
+                if res_view.COLOR_RE.match(color) and data.get("auto_" + key[2:]) != "1":
+                    out[cat] = color
+    set_setting(db, "res_category_colors", json.dumps(out, ensure_ascii=False))
+    db.commit()
+    flash(request, "Farben gespeichert." if data.get("action") != "reset" else "Alle Farben wieder automatisch.")
+    return redirect("/resources/darstellung")

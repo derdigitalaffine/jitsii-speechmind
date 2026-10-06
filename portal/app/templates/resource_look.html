@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% import "_res_macros.html" as rm with context %}
+{% block title %}Darstellung · Ressourcen{% endblock %}
+{% block content %}
+{{ rm.head('look', [('Darstellung', '')], 'Darstellung', 'Farben der Arten auf der Karte und im öffentlichen Katalog.') }}
+<form method="post" action="/resources/darstellung" class="card" style="max-width: 44rem"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="card-header fw-semibold"><i class="fa-solid fa-palette me-2"></i>Farbe je Art</div>
+  <ul class="list-group list-group-flush">
+    {% for cat in cats %}{% set auto = cat not in chosen %}
+    <li class="list-group-item d-flex flex-wrap align-items-center gap-3">
+      <span class="res-dot" style="background: {{ colors[cat] }}"></span><strong class="flex-grow-1">{{ cat }}</strong>
+      <input class="form-control form-control-color" type="color" name="c_{{ cat }}" value="{{ colors[cat] }}" aria-label="Farbe für {{ cat }}">
+      <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" name="auto_{{ cat }}" value="1" id="auto-{{ loop.index }}" {% if auto %}checked{% endif %}><label class="form-check-label small" for="auto-{{ loop.index }}">automatisch</label></div>
+    </li>
+    {% else %}<li class="list-group-item text-secondary">Noch keine Arten – die Art wird bei jeder Ressource unter „Allgemein“ eingetragen.</li>{% endfor %}
+  </ul>
+  <div class="card-footer d-flex gap-2"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
+    <button class="btn btn-outline-secondary" type="submit" name="action" value="reset">Alle automatisch</button></div>
+</form>
+<p class="small text-secondary mt-3" style="max-width: 44rem"><i class="fa-solid fa-circle-info me-1"></i>„Automatisch“ vergibt gut unterscheidbare Farben (auch bei Farbsehschwäche). Eine eigene Farbe gilt, sobald der Schalter aus ist.</p>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('input[type="color"][name^="c_"]').forEach(function (inp) {
+  inp.addEventListener('input', function () {   /* eigene Farbe gewählt: „automatisch“ aus */
+    var sw = inp.closest('li').querySelector('.form-check-input');
+    if (sw) sw.checked = false;
+    var dot = inp.closest('li').querySelector('.res-dot');
+    if (dot) dot.style.background = inp.value;
+  });
+});
+</script>
+{% endblock %}

@@ -1,6 +1,7 @@
 """Ressourcenbuchung: Assistent, Schritte, freie Zeiten, Warteliste, Ändern/Verschieben, Erinnerungen, Auswertung,
 Kopieren/Ex-/Import, Sammelaktionen, Vereine, Merkliste."""
 
+import html
 import json
 import re
 from datetime import datetime, time, timedelta
@@ -83,14 +84,17 @@ def test_setup_assistant_with_preset():
     c = login(*ADMIN)
     page = c.get("/resources/new")
     assert page.status_code == 200 and "Bürgerhaus / Saal" in page.text
+    assert 'data-preset=' in page.text and 'name="deposit"' in page.text      # Vorlagenwerte offen im Formular
     r = c.post("/resources/new", data={"csrf": csrf_of(page.text), "preset": "hall", "name": "Assistent-Saal",
-                                       "location": "Hauptstraße 1", "capacity": "120", "price": "300"})
+                                       "location": "Hauptstraße 1", "capacity": "120", "price_day": "300",
+                                       "price_block": "", "price_hour": "", "deposit": "", "extras_keep": ["0"]})
     assert r.status_code == 303 and r.headers["location"].endswith("?neu=1")
     rid = int(r.headers["location"].split("/")[2])
     with SessionLocal() as db:
         res = db.get(Resource, rid)
-        assert res.units == "day" and res.price_day == 30000 and res.deposit_cents == 20000 and not res.active
-        assert {x.name for x in res.extras} == {"Endreinigung", "Geschirr und Besteck"}
+        # nur, was im Assistenten stand: keine Kaution (Feld leer), nur die angehakte Zusatzleistung
+        assert res.units == "day" and res.price_day == 30000 and res.deposit_cents == 0 and not res.active
+        assert {x.name for x in res.extras} == {"Endreinigung"}
         assert res.category == "Bürgerhaus"
     page = c.get(r.headers["location"])
     assert "Checkliste" in page.text and "Erinnerungen &amp; Warteliste" in page.text
@@ -507,3 +511,46 @@ def test_list_as_table_remembered_and_consistent_head():
     # Öffentlicher Katalog ebenfalls als Tabelle, Filter bleiben in den Umschalt-Links erhalten
     pub = client().get("/r?ansicht=tabelle&q=Tabellen")
     assert "res-table" in pub.text and "ansicht=karten" in pub.text and "q=Tabellen" in pub.text
+
+
+def test_public_page_month_calendar_map_and_provider():
+    from app.db import Organization
+    with SessionLocal() as db:
+        og = Organization(name="Ortsgemeinde Heiligenmoschel", kind="og", phone="06363 1", active=True)
+        db.add(og)
+        db.commit()
+        oid = og.id
+    rid = make_resource("Dorfgemeinschaftshaus", category="Bürgerhaus", provider_id=oid, lat=49.5, lon=7.8,
+                        equipment="Küche\nbarrierefrei", deposit_cents=10000)
+    other = make_resource("Grillhütte", category="Grillplatz", lat=49.51, lon=7.81)
+    slug = slug_of(rid)
+    # Monatskalender: belegte Tage, Ruhetage, außerhalb des Buchungsfensters
+    d = day(10)
+    with SessionLocal() as db:
+        res = db.get(Resource, rid)
+        db.add(ResourceBooking(resource_id=rid, ref="T-1", token="tok-month-1", status="confirmed", mode="day", name="X", email="x@example.org",
+                               starts_at=rs._utc(datetime.combine(d, time())), ends_at=rs._utc(datetime.combine(d + timedelta(days=1), time()))))
+        db.commit()
+    m = client().get(f"/r/{slug}/month.json?m={d:%Y-%m}&mode=day").json()
+    assert m["days"][d.isoformat()] == "busy" and m["mode"] == "day"
+    assert m["days"][(d + timedelta(days=1)).isoformat()] in ("free", "off")
+    assert client().get(f"/r/{slug}/month.json?m=1999-13").status_code == 400
+    # Ressourcenseite: Anbieter mit Kontakt, Ausstattung als Symbole, Kaution getrennt, Karte
+    page = client().get(f"/r/{slug}").text
+    assert "Ortsgemeinde Heiligenmoschel" in page and "06363 1" in page and "fa-wheelchair" in page and "fa-kitchen-set" in page
+    assert "Kaution, wird erstattet" in page and 'id="res-pick"' in page and "js-res-map" in page
+    # Katalog: Kartenpunkte mit Infos, Farben je Art, Anbieter-Filter
+    cat = client().get("/r").text
+    feats = {f["properties"]["name"]: f["properties"] for f in json.loads(html.unescape(re.search(r"data-features='([^']+)'", cat).group(1)))}
+    assert feats["Dorfgemeinschaftshaus"]["provider"] == "Ortsgemeinde Heiligenmoschel"
+    assert feats["Dorfgemeinschaftshaus"]["color"] != feats["Grillhütte"]["color"]          # Farbe je Art
+    only = client().get(f"/r?anbieter={oid}").text
+    assert "Dorfgemeinschaftshaus" in only and "Grillhütte" not in only.split("Ergebnis")[1]
+    # Farbe je Art einstellbar
+    c = login(*ADMIN)
+    look = c.get("/resources/darstellung")
+    assert look.status_code == 200 and "Grillplatz" in look.text
+    c.post("/resources/darstellung", data={"csrf": csrf_of(look.text), "c_Grillplatz": "#123456"})
+    cat = client().get("/r").text
+    feats = {f["properties"]["name"]: f["properties"] for f in json.loads(html.unescape(re.search(r"data-features='([^']+)'", cat).group(1)))}
+    assert feats["Grillhütte"]["color"] == "#123456"
