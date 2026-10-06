@@ -45,13 +45,20 @@ def _groups(db):
 
 @app.get("/tasks")
 def tasks_page(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    _module_on()
-    tasks = wf.my_tasks(db, user)
+    """Meine Aufgaben: Arbeitsschritte aus Online-Anträgen und Aufgaben aus der Ressourcenbuchung."""
+    mods = enabled_modules()
+    if "applications" not in mods and "resources" not in mods:
+        raise HTTPException(404, "Aufgaben gibt es nur mit Online-Anträgen oder der Ressourcenbuchung.")
+    tasks = wf.my_tasks(db, user) if "applications" in mods else []
     now = utcnow()
-    return render(request, "tasks.html", user, tasks=tasks, waiting=wf.waiting_requests(db, user), now=now,
-                  types=wf.STEP_TYPES, statuses=apps.STATUSES,
+    from . import resources as rs
+    bookings = rs.booking_tasks(db, user) if "resources" in mods else []
+    return render(request, "tasks.html", user, tasks=tasks, now=now,
+                  waiting=wf.waiting_requests(db, user) if "applications" in mods else [],
+                  types=wf.STEP_TYPES, statuses=apps.STATUSES, apps_on="applications" in mods,
                   mine=[t for t in tasks if t.assignee_id == user.id],
-                  pool=[t for t in tasks if t.assignee_id != user.id])
+                  pool=[t for t in tasks if t.assignee_id != user.id], bookings=bookings,
+                  when=rs.when_text)
 
 
 # --- Arbeitsschritte im Vorgang -----------------------------------------------------------

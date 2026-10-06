@@ -738,7 +738,7 @@ Die antragstellende Person bekommt eine Mail und sieht auf ihrer Statusseite obe
 
 Ist dem Antragsformular ein **Prozess** zugeordnet (Reiter „Antrag“ › Bearbeitungsprozess; Prozesse gestalten Kolleg:innen mit dem Recht „Prozesse“ unter **Prozesse**), läuft jeder Antrag durch festgelegte Schritte:
 
-- **Meine Aufgaben** (Navigation, die Zahl zeigt offene Schritte) listet alles, was Ihnen oder Ihren Gruppen zugewiesen ist – nach Frist sortiert. Bei Gruppenaufgaben **Übernehmen** klicken, damit niemand doppelt arbeitet.
+- **Meine Aufgaben** (Navigation, die Zahl zeigt offene Schritte) listet alles, was Ihnen oder Ihren Gruppen zugewiesen ist – nach Frist sortiert. Bei Gruppenaufgaben **Übernehmen** klicken, damit niemand doppelt arbeitet. Wer Ressourcen verwaltet, sieht dort außerdem einen Abschnitt **Ressourcenbuchung**: offene **Anfragen**, **Kautionsfreigaben** nach Abnahme durch Hausmeister:innen, **Übergaben** heute und morgen, fehlende **Abnahmen** mit nicht abgerechneter Kaution und **überfällige Zahlungen** – jeweils mit Link zur Buchung, wo wie gewohnt entschieden wird. Die Zahl im Menü zählt Anfragen, Freigaben, überfällige Zahlungen und alles Überfällige; ohne Modul Online-Anträge steht „Meine Aufgaben“ im Menü unter Ressourcen.
 - Im Vorgang zeigt oben die **Schrittleiste**, wo der Antrag steht (✓ erledigt, blau = aktuell, durchgestrichen = übersprungen).
 - **Aufgabe:** Prüfpunkte abhaken, interne Angaben (z. B. Gebühr) eintragen, optional Vermerk, **Erledigt**. Der Knopf wird erst aktiv, wenn alle Prüfpunkte abgehakt sind.
 - **Freigabe:** **Genehmigen** oder **Ablehnen/Zurückgeben** (mit Begründung). Beim Vier-Augen-Prinzip darf nicht freigeben, wer den Schritt davor erledigt hat.

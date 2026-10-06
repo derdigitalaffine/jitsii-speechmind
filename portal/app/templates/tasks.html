@@ -21,16 +21,37 @@
 </li>
 {% endmacro %}
 {% block content %}
-{% call m.page_head('Meine Aufgaben', 'Arbeitsschritte aus Online-Anträgen, die Ihnen oder Ihren Gruppen zugewiesen sind – nach Frist sortiert.') %}
-<a class="btn btn-outline-secondary" href="/forms/applications"><i class="fa-solid fa-file-signature me-1"></i>Antragseingang</a>
+{% call m.page_head('Meine Aufgaben', 'Arbeitsschritte aus Online-Anträgen und offene Arbeit an Buchungen Ihrer Ressourcen – nach Frist sortiert.') %}
+{% if apps_on %}<a class="btn btn-outline-secondary" href="/forms/applications"><i class="fa-solid fa-file-signature me-1"></i>Antragseingang</a>{% endif %}
+{% if bookings %}<a class="btn btn-outline-secondary" href="/resources/bookings"><i class="fa-solid fa-calendar-check me-1"></i>Buchungen</a>{% endif %}
 {% endcall %}
 
 <div class="row g-3 mb-4">
+  {% if apps_on %}
   <div class="col-6 col-xl-3">{{ m.stat('fa-user-check', mine | length, 'mir zugewiesen') }}</div>
   <div class="col-6 col-xl-3">{{ m.stat('fa-users', pool | length, 'für meine Gruppen') }}</div>
-  <div class="col-6 col-xl-3">{{ m.stat('fa-triangle-exclamation', tasks | selectattr('due_at') | selectattr('due_at', 'lt', now) | list | length, 'überfällig') }}</div>
-  <div class="col-6 col-xl-3">{{ m.stat('fa-hourglass-half', waiting | length, 'warten auf Antragsteller:innen') }}</div>
+  {% endif %}
+  <div class="col-6 col-xl-3">{{ m.stat('fa-triangle-exclamation', (tasks | selectattr('due_at') | selectattr('due_at', 'lt', now) | list | length) + (bookings | selectattr('late') | list | length), 'überfällig') }}</div>
+  {% if bookings or not apps_on %}<div class="col-6 col-xl-3">{{ m.stat('fa-building', bookings | length, 'zu Buchungen') }}</div>
+  {% else %}<div class="col-6 col-xl-3">{{ m.stat('fa-hourglass-half', waiting | length, 'warten auf Antragsteller:innen') }}</div>{% endif %}
 </div>
+
+{% if bookings %}
+<div class="card mb-4" id="buchungen"><div class="card-header"><i class="fa-solid fa-building me-2"></i>Ressourcenbuchung</div>
+  <ul class="list-group list-group-flush">{% for t in bookings %}{% set b = t.booking %}
+  <li class="list-group-item d-flex flex-wrap align-items-center gap-3 {{ 'bg-danger-subtle' if t.late }}">
+    <span class="pe-icon text-{{ t.color }}" title="{{ t.label }}"><i class="fa-solid {{ t.icon }}"></i></span>
+    <div class="flex-grow-1" style="min-width: 14rem">
+      <a class="fw-semibold" href="{{ t.href }}">{{ t.label }}: {{ b.resource.name }}</a>
+      <div class="small text-secondary"><span class="font-monospace">{{ b.ref }}</span> · {{ when(b) }} · {{ b.name }}{% if t.note %} · {{ t.note }}{% endif %}</div>
+    </div>
+    <div class="small text-nowrap {{ 'text-danger fw-semibold' if t.late else 'text-secondary' }}">{% if t.due %}<i class="fa-regular fa-calendar me-1"></i>{{ 'überfällig seit ' if t.late else 'bis ' }}{{ t.due | local('%d.%m.%Y') }}{% else %}ohne Frist{% endif %}</div>
+    <a class="btn btn-sm btn-primary" href="{{ t.href }}">Öffnen<i class="fa-solid fa-arrow-right ms-1"></i></a>
+  </li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+{% if apps_on %}
 
 <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-user-check me-2"></i>Mir zugewiesen</div>
   {% if mine %}<ul class="list-group list-group-flush">{% for t in mine %}{{ task_row(t, false) }}{% endfor %}</ul>
@@ -41,6 +62,8 @@
 <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-users me-2"></i>Für meine Gruppen <span class="small text-secondary fw-normal">– übernehmen Sie eine Aufgabe, damit niemand doppelt arbeitet</span></div>
   <ul class="list-group list-group-flush">{% for t in pool %}{{ task_row(t, true) }}{% endfor %}</ul>
 </div>
+{% endif %}
+
 {% endif %}
 
 {% if waiting %}

@@ -128,7 +128,7 @@
             {{ m.nav_item('/forms/inbox', 'fa-inbox', 'Zum Ausfüllen', path.startswith('/forms/inbox')) }}
             {% if user.can('formblocks') %}{{ m.nav_item('/forms/blocks', 'fa-cubes', 'Datenblöcke', path.startswith('/forms/blocks')) }}{% endif %}
             {% if 'applications' in modules %}
-            {{ m.nav_item('/tasks', 'fa-list-check', 'Meine Aufgaben', path.startswith('/tasks'), task_badge, (task_badge ~ ' offene Arbeitsschritte') if task_badge else '') }}
+            {{ m.nav_item('/tasks', 'fa-list-check', 'Meine Aufgaben', path.startswith('/tasks'), task_badge, (task_badge ~ ' offene Aufgaben') if task_badge else '') }}
             {{ m.nav_item('/forms/applications', 'fa-file-signature', 'Antragseingang', '/applications' in path) }}
             {% if user.can('processes') %}{{ m.nav_item('/processes', 'fa-diagram-project', 'Prozesse', path.startswith('/processes')) }}{% endif %}
             {% endif %}
@@ -146,6 +146,7 @@
             {{ m.nav_item('/resources', 'fa-building', 'Ressourcen & Belegung', path == '/resources' or (path.startswith('/resources/') and not path.startswith('/resources/bookings') and not path.startswith('/resources/planner'))) }}
             {{ m.nav_item('/resources/planner', 'fa-table-cells', 'Planer', path.startswith('/resources/planner')) }}
             {{ m.nav_item('/resources/bookings', 'fa-calendar-check', 'Buchungen', path.startswith('/resources/bookings')) }}
+            {% if 'applications' not in modules or 'forms' not in modules %}{{ m.nav_item('/tasks', 'fa-list-check', 'Meine Aufgaben', path.startswith('/tasks'), task_badge, (task_badge ~ ' offene Aufgaben') if task_badge else '') }}{% endif %}
             {% endcall %}
             {% endif %}
             {% if krank_nav %}
