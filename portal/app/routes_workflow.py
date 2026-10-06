@@ -57,7 +57,8 @@ def tasks_page(request: Request, user: User = Depends(current_user), db: Session
                   waiting=wf.waiting_requests(db, user) if "applications" in mods else [],
                   types=wf.STEP_TYPES, statuses=apps.STATUSES, apps_on="applications" in mods,
                   mine=[t for t in tasks if t.assignee_id == user.id],
-                  pool=[t for t in tasks if t.assignee_id != user.id], bookings=bookings,
+                  deputy=[t for t in tasks if t.assignee_id and t.assignee_id != user.id],
+                  pool=[t for t in tasks if not t.assignee_id], bookings=bookings,
                   when=rs.when_text)
 
 

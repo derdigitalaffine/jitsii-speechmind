@@ -71,6 +71,14 @@ def _tasks_badge(c: Ctx) -> tuple[int, str]:
     return c.task_badge, (f"{c.task_badge} offene Aufgaben" if c.task_badge else "")
 
 
+def _absence_badge(c: Ctx) -> tuple[int, str]:
+    from sqlalchemy import func, select
+    from .db import Absence, SessionLocal
+    with SessionLocal() as db:
+        n = db.scalar(select(func.count(Absence.id)).where(Absence.substitute_id == c.user.id, Absence.status == "pending")) or 0
+    return n, (f"{n} Bitte(n) um Vertretung" if n else "")
+
+
 def _krank_badge(c: Ctx) -> tuple[int, str]:
     n = c.krank_nav.get("badge", 0)
     return n, (f"{n} neue Meldungen bzw. offene eAU-Abrufe" if n else "")
@@ -81,6 +89,8 @@ ITEMS: list[Item] = [
     Item("tasks", "work", "/tasks", "fa-list-check", "Meine Aufgaben",
          lambda c: _apps(c) or c.res_nav, _pre("/tasks"), _tasks_badge),
     Item("inbox", "work", "/forms/inbox", "fa-inbox", "Zum Ausfüllen", lambda c: "forms" in c.modules, _pre("/forms/inbox")),
+    Item("absences", "work", "/abwesenheiten", "fa-umbrella-beach", "Abwesenheiten", lambda c: True,
+         _pre("/abwesenheiten"), lambda c: _absence_badge(c)),
     Item("krank_me", "work", "/krank", "fa-notes-medical", "Krank melden", lambda c: bool(c.krank_nav),
          lambda p: p == "/krank" or (p.startswith("/krank/") and not p.startswith("/krank/meine"))),
     Item("krank_mine", "work", "/krank/meine", "fa-folder-open", "Meine Krankmeldungen", lambda c: bool(c.krank_nav),

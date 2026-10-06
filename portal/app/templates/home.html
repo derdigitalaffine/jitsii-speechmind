@@ -106,6 +106,15 @@
       {% if d['items'] %}<div class="card-body"><div class="row row-cols-2 g-2">{% for f in d['items'] %}<div class="col"><a class="btn btn-outline-secondary w-100 text-start btn-sm text-truncate" href="{{ f.url }}"><i class="fa-solid {{ f.icon }} fa-fw me-1"></i>{{ f.label }}</a></div>{% endfor %}</div></div>
       {% else %}<div class="card-body small text-secondary">Heften Sie Menüeinträge mit dem <i class="fa-regular fa-star"></i> an – sie erscheinen dann hier und oben im Menü.</div>{% endif %}
       <div class="card-footer small"><a href="/profile/menu">Menü anpassen <i class="fa-solid fa-arrow-right"></i></a></div>
+    {% elif t.key == 'absence' %}
+      <ul class="list-group list-group-flush small">
+        {% if d.own %}<li class="list-group-item"><i class="fa-solid fa-plane-departure me-1 text-secondary"></i>{% if d.own.starts_on <= top.today %}Sie sind {{ d.label(d.own) }}{% else %}Ihre nächste Abwesenheit: {{ d.span(d.own) }}{% if d.own.substitute %}, Vertretung: {{ d.own.substitute.name }}{% endif %}{% endif %}{% if d.own.status == 'pending' %} <span class="badge text-bg-warning">Vertretung angefragt</span>{% endif %}</li>{% endif %}
+        {% for a in d.pending %}<li class="list-group-item d-flex gap-2"><i class="fa-solid fa-hand text-warning mt-1"></i><a class="flex-grow-1" href="/abwesenheiten">Bitte um Vertretung für {{ a.user.name }} ({{ d.span(a) }})</a></li>{% endfor %}
+        {% for a in d.representing %}<li class="list-group-item"><i class="fa-solid fa-people-arrows me-1 text-primary"></i>Sie vertreten <strong>{{ a.user.name }}</strong> bis {{ d.span(a).split('–')[-1] }}{% if a.note %}<div class="text-secondary">{{ a.note }}</div>{% endif %}</li>{% endfor %}
+        {% for a in d.away %}<li class="list-group-item text-secondary">{{ a.user.name }}: {{ d.label(a) }}</li>{% endfor %}
+        {% if not d.own and not d.pending and not d.representing and not d.away %}<li class="list-group-item text-secondary">Niemand aus Ihren Gruppen ist abwesend.</li>{% endif %}
+      </ul>
+      <div class="card-footer small d-flex gap-3"><a href="/abwesenheiten"><i class="fa-solid fa-plus me-1"></i>Abwesenheit eintragen</a><a href="/abwesenheiten">Übersicht <i class="fa-solid fa-arrow-right"></i></a></div>
     {% elif t.key == 'votes' %}
       <ul class="list-group list-group-flush small">{% for v in d['items'] %}<li class="list-group-item d-flex gap-2"><a class="flex-grow-1 text-truncate" href="/votes/{{ v.id }}">{{ v.title }}</a><span class="badge {{ 'text-bg-success' if v.status == 'open' else 'text-bg-light border' }}">{{ 'läuft' if v.status == 'open' else 'Entwurf' }}</span></li>{% else %}<li class="list-group-item text-secondary">Keine laufenden Abstimmungen.</li>{% endfor %}</ul>
       <div class="card-footer small d-flex gap-3"><a href="/votes/new"><i class="fa-solid fa-plus me-1"></i>Neu</a><a href="/votes">Alle Abstimmungen <i class="fa-solid fa-arrow-right"></i></a></div>

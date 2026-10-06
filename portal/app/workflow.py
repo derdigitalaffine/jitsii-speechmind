@@ -24,7 +24,7 @@ from sqlalchemy import or_, select
 from . import applications as apps, forms as fm, mailtpl, notify
 from .config import settings
 from .db import (
-    ApplicationDocument, ApplicationRequest, ApplicationTask, Form, FormResponse, Group, GroupMember, Process,
+    ApplicationDocument, ApplicationRequest, ApplicationTask, Form, FormResponse, Group, Process,
     ProcessVersion, RequestTemplate, SessionLocal, User, to_local, utcnow,
 )
 from .planning import EMAIL_RE
@@ -464,13 +464,21 @@ def evaluate(cond: dict | None, resp: FormResponse) -> bool:
 # --- Zuständigkeit und Zugriff ----------------------------------------------------------------
 
 def _group_ids(db, user: User) -> set[int]:
-    return set(db.scalars(select(GroupMember.group_id).where(GroupMember.user_id == user.id)))
+    """Gruppen der Person – während einer Vertretung auch die der vertretenen Person."""
+    from . import absence
+    return set(absence.acting_group_ids(db, user))
+
+
+def _user_ids(db, user: User) -> list[int]:
+    """Die Person selbst und alle, die sie heute vertritt (absence.py)."""
+    from . import absence
+    return absence.acting_ids(db, user)
 
 
 def can_work(db, user: User, task: ApplicationTask) -> bool:
     if task.state not in ("open", "waiting"):
         return False
-    if user.is_admin or task.assignee_id == user.id or (task.group_id and task.group_id in _group_ids(db, user)):
+    if user.is_admin or task.assignee_id in _user_ids(db, user) or (task.group_id and task.group_id in _group_ids(db, user)):
         return True
     if task.kind != "approval" and not task.assignee_id and not task.group_id:
         return apps.access(db, user, task.response) >= 2
@@ -1104,10 +1112,11 @@ def remind_request(db, resp: FormResponse, req: ApplicationRequest) -> bool:
 # --- Aufgabenlisten -------------------------------------------------------------------------
 
 def my_tasks(db, user: User) -> list[ApplicationTask]:
-    """Offene Schritte für die Person: direkt zugewiesen oder über eine Gruppe (noch nicht übernommen)."""
+    """Offene Schritte für die Person: direkt zugewiesen oder über eine Gruppe (noch nicht übernommen) – während
+    einer Vertretung auch die der vertretenen Person."""
     groups = _group_ids(db, user)
     q = select(ApplicationTask).join(FormResponse).where(ApplicationTask.state == "open", FormResponse.closed_at.is_(None))
-    q = q.where(or_(ApplicationTask.assignee_id == user.id,
+    q = q.where(or_(ApplicationTask.assignee_id.in_(_user_ids(db, user)),
                     (ApplicationTask.group_id.in_(groups or [-1])) & ApplicationTask.assignee_id.is_(None)))
     tasks = db.scalars(q).all()
     return sorted(tasks, key=lambda t: (t.due_at is None, t.due_at or utcnow(), t.id))
@@ -1118,7 +1127,7 @@ def task_count(db, user: User) -> int:
     groups = _group_ids(db, user)
     q = select(func.count(ApplicationTask.id)).join(FormResponse).where(
         ApplicationTask.state == "open", FormResponse.closed_at.is_(None),
-        or_(ApplicationTask.assignee_id == user.id,
+        or_(ApplicationTask.assignee_id.in_(_user_ids(db, user)),
             (ApplicationTask.group_id.in_(groups or [-1])) & ApplicationTask.assignee_id.is_(None)))
     return db.scalar(q) or 0
 

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Abwesenheiten{% endblock %}
+{% macro row(a, who=True, can_delete=True, answer=False) -%}
+{% set st = status[a.status] %}
+<li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+  <span class="text-nowrap fw-semibold" style="min-width: 9.5rem">{{ span(a) }}</span>
+  {% if who %}<span>{{ a.user.name }}</span>{% endif %}
+  <span class="text-secondary small">{% if a.substitute %}Vertretung: {{ a.substitute.name }}{% else %}ohne Vertretung{% endif %}</span>
+  <span class="badge text-bg-{{ st[1] }}">{{ st[0] }}</span>
+  {% if a.starts_on <= today <= a.ends_on and a.status == 'confirmed' %}<span class="badge text-bg-primary">läuft</span>{% elif a.ends_on < today %}<span class="badge text-bg-light border">vorbei</span>{% endif %}
+  {% if a.note and (a.substitute_id == user.id or a.user_id == user.id or a.created_by == user.id) %}<span class="small text-secondary w-100"><i class="fa-regular fa-note-sticky me-1"></i>{{ a.note }}</span>{% endif %}
+  <span class="ms-auto d-flex gap-1">
+    {% if answer and a.status == 'pending' %}
+    <form method="post" action="/abwesenheiten/{{ a.id }}/antwort"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-success" name="accept" value="1" type="submit"><i class="fa-solid fa-check me-1"></i>Zustimmen</button></form>
+    <form method="post" action="/abwesenheiten/{{ a.id }}/antwort"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" name="accept" value="0" type="submit">Ablehnen</button></form>
+    {% endif %}
+    {% if can_delete %}
+    {% if a.starts_on <= today <= a.ends_on and a.status == 'confirmed' %}<form method="post" action="/abwesenheiten/ende/{{ a.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-secondary" type="submit" title="Früher zurück: endet mit gestern">Zurück</button></form>{% endif %}
+    <form method="post" action="/abwesenheiten/{{ a.id }}/loeschen"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger" type="submit" aria-label="Abwesenheit {{ span(a) }} löschen" data-confirm="Abwesenheit {{ span(a) }} löschen?" data-confirm-button="Löschen"><i class="fa-regular fa-trash-can"></i></button></form>
+    {% endif %}
+  </span>
+</li>
+{%- endmacro %}
+{% macro subst_select(id, exclude=None) -%}
+<select class="form-select" id="{{ id }}" name="substitute_id"><option value="">– ohne Vertretung –</option>
+  {% for c in colleagues if c.id != exclude %}<option value="{{ c.id }}">{{ c.name }}{% if c.id in away %} (abwesend bis {{ fmt(away[c.id].ends_on) }}){% endif %}{% if c.sub_confirm %} – bestätigt selbst{% endif %}</option>{% endfor %}
+</select>
+{%- endmacro %}
+{% block content %}
+{% call m.page_head('Abwesenheiten & Vertretungen', 'Während einer Abwesenheit sieht die Vertretung Ihre Aufgaben und Anträge unter „Meine Aufgaben“ und bekommt Benachrichtigungen in Kopie. Andere sehen nur „abwesend bis …, Vertretung: …“ – nie einen Grund.') %}
+<a class="btn btn-outline-secondary" href="/profile#vertretung"><i class="fa-solid fa-user-gear me-1"></i>Zustimmung im Profil</a>
+{% endcall %}
+
+{% set pending = for_me | selectattr('status', 'equalto', 'pending') | list %}
+{% if pending %}
+<div class="card border-warning mb-4"><div class="card-header"><i class="fa-solid fa-hand me-2 text-warning"></i>Bitte um Ihre Zustimmung</div>
+  <ul class="list-group list-group-flush">{% for a in pending %}{{ row(a, True, False, True) }}{% endfor %}</ul></div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-12 col-xl-6">
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-umbrella-beach me-2"></i>Eigene Abwesenheit eintragen</div>
+      <form class="card-body row g-3" method="post" action="/abwesenheiten">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="col-6"><label class="form-label" for="own-from">Von</label><input class="form-control" type="date" id="own-from" name="starts_on" min="{{ today }}" required></div>
+        <div class="col-6"><label class="form-label" for="own-to">Bis einschließlich</label><input class="form-control" type="date" id="own-to" name="ends_on" min="{{ today }}" required></div>
+        <div class="col-12"><label class="form-label" for="own-sub">Vertretung</label>{{ subst_select('own-sub', user.id) }}</div>
+        <div class="col-12"><label class="form-label" for="own-note">Notiz für die Vertretung <span class="small text-secondary">(optional, nur für sie und Sie sichtbar)</span></label>
+          <textarea class="form-control" id="own-note" name="note" rows="2" maxlength="2000" placeholder="z. B. laufende Vorgänge, wo Unterlagen liegen"></textarea></div>
+        <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-plus me-1"></i>Eintragen</button></div>
+      </form></div>
+    <div class="card mb-4"><div class="card-header"><i class="fa-regular fa-calendar me-2"></i>Meine Abwesenheiten</div>
+      <ul class="list-group list-group-flush">{% for a in mine %}{{ row(a, False) }}{% else %}<li class="list-group-item text-secondary small">Keine eingetragen.</li>{% endfor %}</ul></div>
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-people-arrows me-2"></i>Ich vertrete</div>
+      <ul class="list-group list-group-flush">{% for a in for_me if a.status != 'pending' %}{{ row(a, True, False) }}{% else %}<li class="list-group-item text-secondary small">Zurzeit keine Vertretungen.</li>{% endfor %}</ul></div>
+  </div>
+
+  {% if people %}
+  <div class="col-12 col-xl-6">
+    <div class="card mb-4 border-primary-subtle"><div class="card-header"><i class="fa-solid fa-user-clock me-2"></i>Für andere eintragen <span class="small text-secondary fw-normal">– {% if manage_all %}alle Mitarbeitenden{% else %}Ihre Gruppe{{ 'n' if led | length > 1 }}: {{ led | map(attribute='name') | join(', ') }}{% endif %}</span></div>
+      <form class="card-body row g-3" method="post" action="/abwesenheiten">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="col-12"><label class="form-label" for="o-user">Abwesende Person</label>
+          <select class="form-select" id="o-user" name="user_id" required><option value="">– wählen –</option>{% for p in people %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></div>
+        <div class="col-6"><label class="form-label" for="o-from">Von</label><input class="form-control" type="date" id="o-from" name="starts_on" value="{{ today }}" required></div>
+        <div class="col-6"><label class="form-label" for="o-to">Bis einschließlich (voraussichtlich)</label><input class="form-control" type="date" id="o-to" name="ends_on" value="{{ today }}" required></div>
+        <div class="col-12"><label class="form-label" for="o-sub">Vertretung</label>{{ subst_select('o-sub') }}</div>
+        <div class="col-12"><label class="form-label" for="o-note">Notiz für die Vertretung <span class="small text-secondary">(optional – keinen Grund wie Krankheit eintragen)</span></label>
+          <textarea class="form-control" id="o-note" name="note" rows="2" maxlength="2000"></textarea></div>
+        <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-plus me-1"></i>Eintragen</button></div>
+      </form></div>
+    <div class="card"><div class="card-header"><i class="fa-solid fa-users me-2"></i>Abwesenheiten Ihres Bereichs</div>
+      <ul class="list-group list-group-flush">{% for a in others %}{{ row(a) }}{% else %}<li class="list-group-item text-secondary small">Keine eingetragen.</li>{% endfor %}</ul></div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -22,7 +22,7 @@ from sqlalchemy import or_, select
 from . import forms as fm, icons, links, mailtpl, notify
 from .config import settings
 from .db import (
-    ApplicationEvent, ApplicationTask, Form, FormResponse, GroupMember, SessionLocal, User, get_settings, to_local, utcnow,
+    ApplicationEvent, ApplicationTask, Form, FormResponse, SessionLocal, User, get_settings, to_local, utcnow,
 )
 from .planning import EMAIL_RE
 
@@ -114,17 +114,28 @@ def checksum(resp: FormResponse) -> str:
 # --- Zugriff im Portal -------------------------------------------------------------------
 
 def _group_ids(db, user: User) -> list[int]:
-    return list(db.scalars(select(GroupMember.group_id).where(GroupMember.user_id == user.id)))
+    """Gruppen der Person – während einer Vertretung auch die der vertretenen Person."""
+    from . import absence
+    return absence.acting_group_ids(db, user)
+
+
+def _user_ids(db, user: User) -> list[int]:
+    from . import absence
+    return absence.acting_ids(db, user)
 
 
 def access(db, user: User, resp: FormResponse) -> int:
-    """0 = kein Zugriff, 1 = ansehen, 2 = bearbeiten (Status, Nachrichten, Notizen, Zuweisung)."""
+    """0 = kein Zugriff, 1 = ansehen, 2 = bearbeiten (Status, Nachrichten, Notizen, Zuweisung). Eine Vertretung
+    arbeitet wie die vertretene Person an deren Vorgängen mit."""
     level = fm.access_level(db, resp.form, user)
     groups = _group_ids(db, user)
-    if level >= fm.INVITE or resp.assignee_id == user.id or (resp.group_id and resp.group_id in groups):
+    ids = _user_ids(db, user)
+    if level >= fm.INVITE or resp.assignee_id in ids or (resp.group_id and resp.group_id in groups):
+        return 2
+    if resp.form.owner_id in ids[1:]:
         return 2
     # Wer einen Arbeitsschritt im Vorgang hat (offen oder erledigt), arbeitet mit
-    if any(t.assignee_id == user.id or (t.group_id and t.group_id in groups) for t in resp.tasks):
+    if any(t.assignee_id in ids or (t.group_id and t.group_id in groups) for t in resp.tasks):
         return 2
     return 1 if level >= fm.VIEW else 0
 
@@ -135,10 +146,11 @@ def inbox_query(db, user: User):
     if user.is_admin:
         return q
     groups = _group_ids(db, user)
+    ids = _user_ids(db, user)
     shared_forms = [f.id for f, _lvl in fm.shared_with(db, user)]
     task_cases = select(ApplicationTask.response_id).where(
-        or_(ApplicationTask.assignee_id == user.id, ApplicationTask.group_id.in_(groups or [-1])))
-    return q.where(or_(Form.owner_id == user.id, FormResponse.assignee_id == user.id,
+        or_(ApplicationTask.assignee_id.in_(ids), ApplicationTask.group_id.in_(groups or [-1])))
+    return q.where(or_(Form.owner_id.in_(ids), FormResponse.assignee_id.in_(ids),
                        FormResponse.group_id.in_(groups or [-1]), Form.id.in_(shared_forms or [-1]),
                        FormResponse.id.in_(task_cases)))
 

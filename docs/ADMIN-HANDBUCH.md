@@ -93,6 +93,7 @@ Jede Person bekommt einzeln die Bereiche freigeschaltet, die sie braucht:
 | **Rechtstexte** | Gesetze, Satzungen und Verordnungen einstellen, ändern, veröffentlichen und den Rechtsbaum (Ebenen) pflegen. Lesen kann jede:r ohne Anmeldung unter `/recht` |
 | **Krankmeldungen** | Krankmeldungen der Arbeitgeber bearbeiten, für die die Person oder ihre Gruppe zuständig ist (siehe [Krankmelder](#blueotter-krankmelder)) |
 | **Krankmelder verwalten** | Alle Krankmeldungen; Arbeitgeber, Zuständige, Zugang, Texte, Löschfrist, Import, Zugriffsprotokoll |
+| **Vertretungen verwalten** | Abwesenheiten mit Vertretung für alle Mitarbeitenden eintragen (z. B. bei Krankheit) – ohne Grund, siehe [Abwesenheiten & Vertretungen](#abwesenheiten--vertretungen) |
 | **Benutzerverwaltung** | Benutzer und Gruppen anlegen, bearbeiten, sperren, löschen – aber keine Admin-Konten ändern und niemanden zum Admin machen |
 | **Administrator:in** | Alles, auch Systemeinstellungen (Mail, HTTPS, Design, SpeechMind, Module, Zwei-Faktor) und alle Aufnahmen, Kurzlinks und Formulare |
 
@@ -156,6 +157,18 @@ Kasten **Gruppen** unten: **Neue Gruppe**, Name, Beschreibung und Mitglieder wä
 - **Formulare im Portal freizugeben** (gilt für alle, die gerade Mitglied sind).
 
 Eine Person kann in mehreren Gruppen sein. Gruppen gibt es auch im Bearbeiten-Dialog der Person. Das Löschen einer Gruppe löscht keine Konten.
+
+Jede Gruppe kann eine **Gruppenleitung** haben: Sie darf Abwesenheiten und Vertretungen für die Mitglieder ihrer Gruppe eintragen.
+
+### Abwesenheiten & Vertretungen
+
+Menü **Mein Arbeitsplatz › Abwesenheiten**. Jede:r plant eigene Abwesenheiten (z. B. Urlaub) mit Zeitraum, Vertretung und einer Notiz zur Übergabe. Für andere tragen Abwesenheiten ein: Admins, Personen mit dem Recht **Vertretungen verwalten** (alle Mitarbeitenden) und **Gruppenleitungen** (Mitglieder ihrer Gruppen) – etwa bei einer Krankmeldung. Ein **Grund wird nie erfasst**; sichtbar ist nur „abwesend bis …, Vertretung: …“ (Benutzerverwaltung, Kachel auf der Übersicht, Auswahl der Vertretung).
+
+- **Zustimmung:** Wer im Profil „Wenn mich jemand als Vertretung einträgt, möchte ich erst zustimmen“ einschaltet, bekommt eine Anfrage per Mail und unter Abwesenheiten (sowie im Handlungsbedarf der Übersicht); erst nach Zustimmung gilt die Vertretung. Ohne Haken gilt sie sofort, die Vertretung wird per Mail informiert. Die eintragende Person erfährt die Antwort per Mail.
+- **Während der Abwesenheit** sieht die Vertretung die Arbeitsschritte der vertretenen Person unter **Meine Aufgaben › Als Vertretung**, deren Anträge im Antragseingang (auch Gruppen-Aufgaben ihrer Gruppen) und bearbeitet sie wie diese. Neue Zuweisungen an die abwesende Person erscheinen dort automatisch.
+- **Benachrichtigungen** an die abwesende Person zu Aufgaben, Anträgen, Formularantworten, Terminbuchungen, Terminumfragen, Besprechungsantworten und Ressourcen gehen in Kopie an die Vertretung („[Vertretung für …]“). Sicherheitsmails (Anmeldecodes, Passwörter) und Krankmeldungen werden nie weitergeleitet.
+- **Früher zurück:** „Zurück“ beendet eine laufende Abwesenheit mit dem gestrigen Tag.
+- Mailvorlagen: Verwaltung › E-Mail-Vorlagen › Abwesenheiten.
 
 ### Passwort vergessen
 

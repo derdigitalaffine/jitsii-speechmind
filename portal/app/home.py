@@ -24,6 +24,7 @@ TILES = {
     "resources": ("Ressourcen", "fa-building"),
     "krank": ("Krankmeldungen", "fa-notes-medical"),
     "favorites": ("Meine Favoriten", "fa-star"),
+    "absence": ("Abwesenheit & Vertretung", "fa-umbrella-beach"),
     "votes": ("Abstimmungen", "fa-check-to-slot"),
     "laws": ("Ortsrecht – zuletzt geändert", "fa-scale-balanced"),
     "shortlinks": ("Kurzlinks", "fa-link"),
@@ -139,6 +140,11 @@ def _favorites(db, user, ctx=None):
     return {"items": [entries[i] for i in nav.prefs(user)["fav"] if i in entries]}
 
 
+def _absence(db, user):
+    from . import absence
+    return absence.dashboard(db, user)
+
+
 def _votes(db, user):
     rows = db.scalars(select(Vote).where(Vote.owner_id == user.id, Vote.status != "closed")
                       .order_by(Vote.updated_at.desc()).limit(5)).all()
@@ -215,6 +221,7 @@ def tiles(db, user: User, modules: set, ctx=None, cache: dict | None = None) -> 
         from . import krank
         if krank.uses_module(db, user):
             available.append("krank")
+    available.append("absence")
     available.append("favorites")
     if "polls" in modules and user.can("votes"):
         available.append("votes")
@@ -228,7 +235,7 @@ def tiles(db, user: User, modules: set, ctx=None, cache: dict | None = None) -> 
     loaders = {"tasks": _tasks, "applications": _applications, "meetings": _meetings, "polls": _polls,
                "bookings": _bookings, "inbox": _inbox, "responses": _responses, "dms": _dms,
                "resources": _resources, "krank": _krank, "votes": _votes, "laws": _laws, "shortlinks": _shortlinks,
-               "favorites": lambda d, u: _favorites(d, u, ctx)}
+               "favorites": lambda d, u: _favorites(d, u, ctx), "absence": _absence}
     out = []
     for key in order:
         title, icon = TILES[key]
@@ -298,7 +305,9 @@ def overview(db, user: User, modules: set) -> tuple[dict, dict]:
             if to_local(b.starts_at).date() == today:
                 agenda.append({"at": b.starts_at, "label": b.name, "sub": b.page.title, "url": f"/bookings/{b.page_id}",
                                "icon": "fa-calendar-plus"})
+    ab = cache["absence"] = _absence(db, user)
+    act(len(ab["pending"]), "Bitten um Vertretung", "/abwesenheiten", "fa-people-arrows", "warning")
     order = {"danger": 0, "warning": 1, "primary": 2, "secondary": 3}
     actions.sort(key=lambda x: order.get(x["level"], 9))
     agenda.sort(key=lambda x: x["at"])
-    return {"actions": actions, "agenda": agenda, "now": now}, cache
+    return {"actions": actions, "agenda": agenda, "now": now, "today": today.isoformat()}, cache

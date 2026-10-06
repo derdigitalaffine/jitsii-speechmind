@@ -84,6 +84,7 @@ class User(Base):
     email_code_expires: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Krankmelder: eigene Meldungen unter „Meine Krankmeldungen“ führen (freiwillig, siehe krank.py)
     krank_history: Mapped[bool] = mapped_column(Boolean, default=False)
+    sub_confirm: Mapped[bool] = mapped_column(Boolean, default=False)   # Vertretungen für mich erst nach Zustimmung
 
     meetings: Mapped[list["Meeting"]] = relationship(back_populates="owner")
     groups: Mapped[list["Group"]] = relationship(secondary="group_members", back_populates="members",
@@ -117,6 +118,7 @@ PERMISSIONS = {
     "krank": ("Krankmeldungen", "fa-notes-medical", "Krankmeldungen der Arbeitgeber bearbeiten, für die man (oder die eigene Gruppe) zuständig ist"),
     "krank_admin": ("Krankmelder verwalten", "fa-user-nurse", "Alle Krankmeldungen sehen; Arbeitgeber, Empfänger, Zuständige, Zugang, Texte, Löschfrist und Import verwalten"),
     "orgs": ("Körperschaften (Stammdaten)", "fa-landmark-flag", "Gebietskörperschaften, Zweckverbände und ihre Einrichtungen (Abteilungen, Kitas …) mit Wappen und Kontakt pflegen – genutzt von Ressourcen, Krankmelder, Rechtstexten und Anträgen"),
+    "absences": ("Vertretungen verwalten", "fa-user-clock", "Abwesenheiten (z. B. Krankheit) mit Vertretung für andere eintragen – ohne Angabe eines Grundes"),
     "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
 }
 
@@ -135,10 +137,35 @@ class Group(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120), unique=True)
     description: Mapped[str] = mapped_column(String(255), default="")
+    # Gruppenleitung: darf Abwesenheiten und Vertretungen für die Mitglieder eintragen
+    lead_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     members: Mapped[list[User]] = relationship(secondary="group_members", back_populates="groups",
                                                order_by="User.name")
+    lead: Mapped[User | None] = relationship(foreign_keys=[lead_id])
+
+
+class Absence(Base):
+    """Abwesenheit mit Vertretung (absence.py). Sichtbar ist nur „abwesend bis …, Vertretung: …“ – kein Grund."""
+    __tablename__ = "absences"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    substitute_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
+                                                      index=True)
+    starts_on: Mapped[str] = mapped_column(String(10))          # JJJJ-MM-TT (einschließlich)
+    ends_on: Mapped[str] = mapped_column(String(10))            # JJJJ-MM-TT (einschließlich)
+    status: Mapped[str] = mapped_column(String(10), default="confirmed")   # pending | confirmed | declined
+    note: Mapped[str] = mapped_column(Text, default="")         # Notiz für die Vertretung (z. B. Übergabe)
+    auto_reply: Mapped[str] = mapped_column(Text, default="")   # Abwesenheitsnotiz in Mails an Bürger:innen
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+    substitute: Mapped[User | None] = relationship(foreign_keys=[substitute_id])
+    creator: Mapped[User | None] = relationship(foreign_keys=[created_by])
 
 
 class UserSession(Base):
@@ -2215,6 +2242,7 @@ DEFAULT_SETTINGS = {
 
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)
 _NEW_COLUMNS = {
+    "groups": {"lead_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL"},
     "booking_pages": {"listed": "BOOLEAN NOT NULL DEFAULT 0"},
     "votes": {"chart": "VARCHAR(8) NOT NULL DEFAULT 'bar'"},
     "resource_extras": {"per_n": "INTEGER NOT NULL DEFAULT 0", "tiers_json": "TEXT NOT NULL DEFAULT '[]'",
@@ -2230,7 +2258,7 @@ _NEW_COLUMNS = {
         "totp_secret_enc": "TEXT", "totp_enabled": "BOOLEAN NOT NULL DEFAULT 0", "totp_last_step": "INTEGER",
         "mfa_email": "BOOLEAN NOT NULL DEFAULT 0", "recovery_json": "TEXT", "email_code_hash": "VARCHAR(64)",
         "email_code_expires": "DATETIME", "dashboard_json": "TEXT NOT NULL DEFAULT ''", "nav_json": "TEXT NOT NULL DEFAULT ''",
-        "krank_history": "BOOLEAN NOT NULL DEFAULT 0",
+        "krank_history": "BOOLEAN NOT NULL DEFAULT 0", "sub_confirm": "BOOLEAN NOT NULL DEFAULT 0",
     },
     "recordings": {"audio_path": "VARCHAR(1024)", "audio_max_db": "FLOAT", "media_deleted_at": "DATETIME",
                    "chat_json": "TEXT", "polls_json": "TEXT"},

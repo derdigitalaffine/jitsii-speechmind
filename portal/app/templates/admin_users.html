@@ -113,7 +113,7 @@
     <td>{% if u.is_admin %}<span class="badge text-bg-primary"><i class="fa-solid fa-user-shield me-1"></i>Admin</span>
         {% else %}{% for key, p in permissions.items() if key in u.perms %}<span class="badge text-bg-light border me-1" title="{{ p[2] }}"><i class="fa-solid {{ p[1] }} me-1"></i>{{ p[0] }}</span>{% else %}<span class="text-secondary small">keine</span>{% endfor %}{% endif %}</td>
     <td>{% for g in u.groups %}<span class="badge text-bg-secondary me-1">{{ g.name }}</span>{% endfor %}</td>
-    <td>{% if u.totp_enabled or u.mfa_email %}<i class="fa-solid fa-shield-halved text-success me-1" title="Zwei-Faktor eingerichtet"></i>{% endif %}{% if not u.active %}<span class="badge text-bg-danger">gesperrt</span>{% elif not u.password_set %}<span class="badge text-bg-warning">eingeladen</span>{% else %}<span class="badge text-bg-success">aktiv</span>{% endif %}</td>
+    <td>{% if u.totp_enabled or u.mfa_email %}<i class="fa-solid fa-shield-halved text-success me-1" title="Zwei-Faktor eingerichtet"></i>{% endif %}{% if u.id in away %}<span class="badge text-bg-secondary me-1" title="{{ away_label(away[u.id]) }}"><i class="fa-solid fa-plane-departure me-1"></i>{{ away_label(away[u.id]) }}</span>{% endif %}{% if not u.active %}<span class="badge text-bg-danger">gesperrt</span>{% elif not u.password_set %}<span class="badge text-bg-warning">eingeladen</span>{% else %}<span class="badge text-bg-success">aktiv</span>{% endif %}</td>
     <td data-order="{{ u.created_at.isoformat() }}">{{ u.created_at | local('%d.%m.%Y') }}</td>
     <td class="col-actions">
       {% if user.is_admin or not u.is_admin %}
@@ -169,7 +169,7 @@
   {% for g in groups %}
   <tr>
     <td class="fw-semibold">{{ g.name }}</td>
-    <td class="small text-secondary">{{ g.description }}</td>
+    <td class="small text-secondary">{{ g.description }}{% if g.lead %}<div><i class="fa-solid fa-user-tie me-1"></i>Leitung: {{ g.lead.name }}</div>{% endif %}</td>
     <td data-order="{{ g.members|length }}">{% for mbr in g.members[:6] %}<span class="avatar avatar-sm me-1" title="{{ mbr.name }}">{{ m.initials(mbr.name) }}</span>{% endfor %}{% if g.members|length > 6 %}<span class="small text-secondary">+{{ g.members|length - 6 }}</span>{% endif %}
       <span class="small text-secondary ms-1">({{ g.members|length }})</span></td>
     <td class="col-actions"><form method="post" action="/admin/groups/{{ g.id }}" class="d-inline-flex gap-1">
@@ -194,6 +194,10 @@
     <div class="modal-body row g-3">
       <div class="col-md-6"><label class="form-label" for="{{ id }}-n">Name</label><input class="form-control" id="{{ id }}-n" name="name" maxlength="120" required value="{{ g.name if g else '' }}"></div>
       <div class="col-md-6"><label class="form-label" for="{{ id }}-d">Beschreibung</label><input class="form-control" id="{{ id }}-d" name="description" maxlength="255" value="{{ g.description if g else '' }}"></div>
+      <div class="col-md-6"><label class="form-label" for="{{ id }}-l">Gruppenleitung</label>
+        <select class="form-select" id="{{ id }}-l" name="lead_id"><option value="">– keine –</option>
+          {% for u in users %}<option value="{{ u.id }}" {% if g and g.lead_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}</select>
+        <div class="form-text">Darf Abwesenheiten und Vertretungen für die Mitglieder eintragen.</div></div>
       <div class="col-12"><label class="form-label" for="{{ id }}-m">Mitglieder</label>
         <select class="form-select js-select" id="{{ id }}-m" name="members" multiple data-search="1">
           {% for u in users %}<option value="{{ u.id }}" {% if g and u in g.members %}selected{% endif %}>{{ u.name }} ({{ u.email }})</option>{% endfor %}
