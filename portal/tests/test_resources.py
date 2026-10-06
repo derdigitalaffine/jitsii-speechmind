@@ -488,3 +488,22 @@ def test_photo_and_terms_upload():
         res = db.get(Resource, rid)
         assert len(res.photos) == 1 and res.terms_file.endswith(".pdf")
     assert client().get(f"/r/{slug_of(rid)}/nutzungsordnung.pdf").content.startswith(b"%PDF")
+
+
+def test_list_as_table_remembered_and_consistent_head():
+    rid = make_resource("Tabellenhalle")
+    c = login(*ADMIN)
+    r = c.get("/resources?ansicht=tabelle")
+    assert r.status_code == 200 and "res-table" in r.text and "Tabellenhalle" in r.text
+    assert "jsm_res_view=tabelle" in r.headers.get("set-cookie", "")
+    assert "res-table" in c.get("/resources").text                      # Wahl wird gemerkt
+    assert "res-table" not in c.get("/resources?ansicht=karten").text
+    # Jede Verwaltungsseite hat denselben Kopf (Navigation, Pfad, Titel)
+    for url in ("/resources", "/resources/planner", "/resources/bookings", "/resources/stats", f"/resources/{rid}",
+                f"/resources/{rid}/edit", f"/resources/{rid}/book", "/resources/new", "/resources/calendars"):
+        html = c.get(url).text
+        assert html.count('class="nav nav-pills flex-nowrap overflow-auto small res-nav"') == 1, url
+        assert 'class="res-crumbs' in html and 'class="res-head"' in html, url
+    # Öffentlicher Katalog ebenfalls als Tabelle, Filter bleiben in den Umschalt-Links erhalten
+    pub = client().get("/r?ansicht=tabelle&q=Tabellen")
+    assert "res-table" in pub.text and "ansicht=karten" in pub.text and "q=Tabellen" in pub.text

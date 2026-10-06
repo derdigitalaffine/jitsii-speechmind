@@ -1,8 +1,11 @@
 {% extends "base.html" %}
+{% import "_res_macros.html" as rm with context %}
 {% block title %}{{ res.name }} · intern eintragen{% endblock %}
 {% block content %}
-<nav aria-label="Pfad" class="small mb-2"><a href="/resources">Ressourcen</a> › <a href="/resources/{{ res.id }}">{{ res.name }}</a> › intern eintragen</nav>
+{% call rm.head('home', [(res.name, '/resources/' ~ res.id), ('Intern eintragen', '')], 'Intern eintragen', res.name ~ (' · ' ~ res.location if res.location else '')) %}
+  <a class="btn btn-outline-secondary" href="/resources/{{ res.id }}"><i class="fa-solid fa-calendar-days me-1"></i>Belegung</a>
+{% endcall %}
 <div class="row g-4"><div class="col-12 col-xl-8">{% include "_res_booking_form.html" %}</div>
-  <div class="col-12 col-xl-4"><div class="alert alert-light border small">Interne Einträge sind sofort bestätigt – ohne E-Mail-Bestätigung, Vorlaufzeit und Höchstdauer. Mit E-Mail-Adresse und Preis geht eine Bestätigung mit Zahlungsaufforderung raus; „kostenlos“ für eigene Veranstaltungen oder Vereine mit Nutzungsvertrag.</div></div></div>
+  <div class="col-12 col-xl-4"><div class="card"><div class="card-header"><i class="fa-solid fa-circle-info me-2"></i>Gut zu wissen</div><div class="card-body small">Interne Einträge sind sofort bestätigt – ohne E-Mail-Bestätigung, Vorlaufzeit und Höchstdauer. Mit E-Mail-Adresse und Preis geht eine Bestätigung mit Zahlungsaufforderung raus; „kostenlos“ für eigene Veranstaltungen oder Vereine mit Nutzungsvertrag.</div></div></div></div>
 {% endblock %}
 {% block scripts %}<script src="/static/form-fill.js"></script><script src="/static/resource-book.js"></script>{% endblock %}

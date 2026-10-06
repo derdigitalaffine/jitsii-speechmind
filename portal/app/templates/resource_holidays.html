@@ -1,10 +1,9 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
+{% import "_res_macros.html" as rm with context %}
 {% block title %}Feiertage{% endblock %}
 {% block content %}
-{{ m.page_head('Feiertage', 'Für Wochenend-/Feiertagspreise: gesetzliche Feiertage des Bundeslands (automatisch berechnet) und eigene Tage wie die Kerwe.') }}
-
-{% set res_tab = 'holidays' %}{% include "_res_nav.html" %}
+{{ rm.head('holidays', [('Feiertage', '')], 'Feiertage', 'Für Wochenend-/Feiertagspreise: gesetzliche Feiertage des Bundeslands (automatisch berechnet) und eigene Tage wie die Kerwe.') }}
 <div class="row g-4">
   <div class="col-lg-6"><div class="card"><div class="card-header d-flex align-items-center"><span class="flex-grow-1">Feiertage {{ year }}</span>
     <a class="btn btn-sm btn-outline-secondary me-1" href="?year={{ year - 1 }}" aria-label="Vorjahr"><i class="fa-solid fa-chevron-left"></i></a><a class="btn btn-sm btn-outline-secondary" href="?year={{ year + 1 }}" aria-label="Folgejahr"><i class="fa-solid fa-chevron-right"></i></a></div>

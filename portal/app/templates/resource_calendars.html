@@ -1,10 +1,9 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
+{% import "_res_macros.html" as rm with context %}
 {% block title %}Belegungskalender teilen{% endblock %}
 {% block content %}
-{{ m.page_head('Belegungskalender teilen', 'Geheime Links für Kalender-Abos (Outlook, Google, Handy) und eine Web-Ansicht – in drei Detailstufen. Ein Link lässt sich jederzeit widerrufen.') }}
-
-{% set res_tab = 'calendars' %}{% include "_res_nav.html" %}
+{{ rm.head('calendars', [('Kalender-Links', '')], 'Belegungskalender teilen', 'Geheime Links für Kalender-Abos (Outlook, Google, Handy) und eine Web-Ansicht – in drei Detailstufen. Ein Link lässt sich jederzeit widerrufen.') }}
 <form method="post" action="/resources/calendars" class="card mb-4"><div class="card-body row g-3"><input type="hidden" name="csrf" value="{{ csrf }}">
   <div class="col-md-4"><label class="form-label" for="k-name">Name</label><input class="form-control" id="k-name" name="name" placeholder="z. B. Hausmeisterei Bürgerhäuser" required></div>
   <div class="col-md-8"><label class="form-label" for="k-res">Ressourcen <span class="small text-secondary">(mehrere = Sammelkalender)</span></label><select class="form-select js-select" id="k-res" name="resources" multiple required>{% for r, lvl in items %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></div>

@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
+{% import "_res_macros.html" as rm with context %}
 {% block title %}Planer{% endblock %}
 {% block content %}
-{% call m.page_head('Planer', 'Alle Ressourcen auf einen Blick – Buchungen per Ziehen auf einen anderen Tag oder eine andere Ressource verschieben.') %}
+{% call rm.head('planner', [('Planer', '')], 'Planer', 'Alle Ressourcen auf einen Blick – Buchungen per Ziehen auf einen anderen Tag oder eine andere Ressource verschieben.') %}
   <div class="btn-group"><a class="btn btn-outline-secondary" href="?start={{ prev }}&category={{ category | urlencode }}" aria-label="Vorige Woche"><i class="fa-solid fa-chevron-left"></i></a>
     <a class="btn btn-outline-secondary" href="?category={{ category | urlencode }}">Heute</a>
     <a class="btn btn-outline-secondary" href="?start={{ next }}&category={{ category | urlencode }}" aria-label="Nächste Woche"><i class="fa-solid fa-chevron-right"></i></a></div>
 {% endcall %}
-{% set res_tab = 'planner' %}{% include "_res_nav.html" %}
 <div class="d-flex flex-wrap gap-2 align-items-center mb-2 small">
   <strong>{{ days[0].strftime('%d.%m.') }} – {{ days[-1].strftime('%d.%m.%Y') }}</strong>
   {% if categories %}<form method="get" class="ms-auto d-flex gap-1"><input type="hidden" name="start" value="{{ days[0].isoformat() }}">

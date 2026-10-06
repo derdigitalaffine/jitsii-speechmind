@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
+{% import "_res_macros.html" as rm with context %}
 {% block title %}Buchungen{% endblock %}
 {% block content %}
-{% call m.page_head('Buchungen', 'Anfragen und Buchungen aller Ressourcen, die Sie sehen dürfen.') %}
+{% call rm.head('bookings', [('Buchungen', '')], 'Buchungen', 'Anfragen und Buchungen aller Ressourcen, die Sie sehen dürfen.') %}
   <a class="btn btn-outline-secondary" href="/resources/bookings?{{ query }}{{ '&' if query }}format=csv"><i class="fa-solid fa-file-csv me-1"></i>CSV (Excel)</a>
 {% endcall %}
-{% set res_tab = 'bookings' %}{% include "_res_nav.html" %}
 <form method="get" class="card mb-3"><div class="card-body row g-2 align-items-end">
   <div class="col-12 col-md-3"><label class="form-label small mb-1" for="b-q">Suche</label><input class="form-control form-control-sm" id="b-q" name="q" value="{{ f.q }}" placeholder="Nummer, Name, Anlass" type="search"></div>
   <div class="col-6 col-md-2"><label class="form-label small mb-1" for="b-r">Ressource</label><select class="form-select form-select-sm" id="b-r" name="resource"><option value="">alle</option>{% for rid, (r, lvl) in items.items() %}<option value="{{ rid }}" {% if f.resource == rid | string %}selected{% endif %}>{{ r.name }}</option>{% endfor %}</select></div>

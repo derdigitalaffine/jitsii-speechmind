@@ -562,6 +562,8 @@ Menü **Terminbuchung** (Recht „Terminbuchung“). Vergleichbar mit Microsoft 
 
 Modul **Ressourcenbuchung**, Menü **Ressourcen** (Recht „Ressourcen“ zum Anlegen). Bürger:innen buchen über den öffentlichen Katalog `/r` (einbettbar mit `/r-embed`).
 
+**Aufbau:** Alle Verwaltungsseiten haben oben dieselbe Leiste (Übersicht, Planer, Buchungen, Auswertung, Vereine, Kalender-Links, Feiertage), darunter den Pfad und den Seitenkopf mit den Aktionen rechts – beim Durchklicken bleibt alles an seinem Platz. Die **Übersicht** zeigt die Ressourcen wahlweise als **Karten** oder als **Tabelle** (sortier- und durchsuchbar, mit offenen Anfragen und nächster Buchung je Ressource); die Wahl merkt sich das Portal. Auch der öffentliche Katalog `/r` lässt sich zwischen Karten und Tabelle umschalten.
+
 **Ressource einrichten** (Reiter im Bearbeiten-Dialog):
 
 | Reiter | Inhalt |

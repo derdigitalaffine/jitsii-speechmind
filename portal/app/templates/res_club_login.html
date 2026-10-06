@@ -1,10 +1,10 @@
 {% extends "base.html" %}
+{% import "_res_macros.html" as rm with context %}
 {% block title %}Vereinszugang{% endblock %}
 {% block content %}
-<div class="mx-auto" style="max-width: 30rem">
+{{ rm.pub_head([('Vereinszugang', '')], 'Vereinszugang', 'Für Vereine und regelmäßige Nutzer: ohne Passwort anmelden, ohne erneute Angaben buchen, eigene Buchungen im Blick.') }}
+<div class="res-narrow" style="max-width: 30rem">
   <div class="card"><div class="card-body p-4">
-    <h1 class="h4 mb-1"><i class="fa-solid fa-people-group me-2"></i>Vereinszugang</h1>
-    <p class="text-secondary small">Für Vereine und regelmäßige Nutzer: ohne Passwort anmelden, ohne erneute Angaben buchen, eigene Buchungen im Blick.</p>
     {% if confirm_token %}
     <p>Fast geschafft – bitte bestätigen Sie die Anmeldung auf diesem Gerät.</p>
     <form method="post" action="/r/login/{{ confirm_token | urlencode }}"><input type="hidden" name="csrf" value="{{ csrf }}">
@@ -26,6 +26,5 @@
       {% if signup %}Noch nicht registriert? <a href="/r/verein">Als Verein registrieren</a>.{% else %}Noch kein Zugang? Bitte wenden Sie sich an die Verwaltung.{% endif %}</p>
     {% endif %}
   </div></div>
-  <p class="text-center mt-3"><a href="/r">Zurück zu Räume & Plätze</a></p>
 </div>
 {% endblock %}

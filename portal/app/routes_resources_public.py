@@ -4,6 +4,7 @@ einer Buchung über die Merkliste), Warteliste, Vereinszugang, Buchung verwalten
 import json
 import secrets
 from datetime import datetime, time, timedelta
+from urllib.parse import urlencode
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -17,7 +18,7 @@ from .db import (
     to_local, utcnow,
 )
 from .main import app, check_csrf, enabled_modules, flash, get_db, rate_limit, redirect, render, session_user
-from .routes_resources import _range, files_dir
+from .routes_resources import VIEWS, _range, files_dir, list_view, remember_view
 
 CART = "res_cart"   # Sitzung: {"group": …, "contact": {…}} solange eine Sammelbuchung zusammengestellt wird
 
@@ -101,10 +102,14 @@ def catalog(request: Request, db: Session = Depends(get_db)):
         from .routes_maps import map_bundle
         geo_bundle = map_bundle(db, request, None, None, "forms")
     embed = request.url.path.startswith("/r-embed")
-    return render(request, "res_catalog.html", None if embed else session_user(request, db), rows=rows, f=f, free=free,
-                  categories=categories, features=features, geo_bundle=geo_bundle, price_from=_price_from, money=pay.money,
-                  embed=embed, cart=[] if embed else _cart(request, db), club=None if embed else res_clubs.current(request, db),
-                  signup=get_settings(db).get("res_club_signup") == "1")
+    view, chosen = list_view(request, "jsm_res_catalog_view")
+    keep = {k: v for k, v in f.items() if v}
+    view_links = {v: "?" + urlencode({**keep, "ansicht": v}) for v in VIEWS}
+    response = render(request, "res_catalog.html", None if embed else session_user(request, db), rows=rows, f=f, free=free,
+                      categories=categories, features=features, geo_bundle=geo_bundle, price_from=_price_from, money=pay.money,
+                      embed=embed, cart=[] if embed else _cart(request, db), club=None if embed else res_clubs.current(request, db),
+                      signup=get_settings(db).get("res_club_signup") == "1", view=view, view_links=view_links)
+    return remember_view(response, "jsm_res_catalog_view", view) if chosen else response
 
 
 app.add_api_route("/r-embed", catalog, methods=["GET"], include_in_schema=False)

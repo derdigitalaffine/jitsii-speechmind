@@ -1,14 +1,10 @@
 {% extends "base.html" %}
+{% import "_res_macros.html" as rm with context %}
 {% block title %}{{ res.name }} buchen{% endblock %}
 {% block content %}
-<nav aria-label="Pfad" class="small mb-2 d-flex flex-wrap gap-2"><span class="flex-grow-1"><a href="/r">Räume & Plätze</a> › {{ res.name }}</span>
-  {% if cart %}<a href="/r/merkliste"><i class="fa-solid fa-basket-shopping me-1"></i>Merkliste ({{ cart | length }})</a>{% endif %}
-  {% if club %}<a href="/r/mein"><i class="fa-solid fa-people-group me-1"></i>{{ club.name }}</a>{% else %}<a href="/r/login"><i class="fa-solid fa-right-to-bracket me-1"></i>Vereinszugang</a>{% endif %}</nav>
+{% set lede = [res.category, res.location, ('bis ' ~ res.capacity ~ ' Personen') if res.capacity else '', 'sofort buchbar' if res.mode == 'instant' else ''] | select | join(' · ') %}
+{{ rm.pub_head([(res.name, '')], res.name, lede) }}
 <div class="row g-4">
-  <div class="col-12">
-    <h1 class="h3 mb-1">{{ res.name }}</h1>
-    <div class="text-secondary">{% if res.category %}{{ res.category }} · {% endif %}{% if res.location %}<i class="fa-solid fa-location-dot me-1"></i>{{ res.location }}{% endif %}{% if res.capacity %} · <i class="fa-solid fa-users me-1"></i>bis {{ res.capacity }} Personen{% endif %}{% if res.mode == 'instant' %} · <span class="text-success"><i class="fa-solid fa-bolt me-1"></i>sofort buchbar</span>{% endif %}</div>
-  </div>
   <div class="col-12 col-xl-5 order-2 order-xl-1">
     {% if res.photos %}
     <div id="res-photos" class="carousel slide mb-3" data-bs-ride="false"><div class="carousel-inner">

@@ -424,7 +424,7 @@ Menü **Abstimmungen** (Recht „Abstimmungen“) – im selben Bereich wie die 
 
 ### Für Bürger:innen
 
-Unter `/r` (oder über die Homepage) stehen alle buchbaren Ressourcen – mit Fotos, Karte und Suche „Frei am …“ für einen bestimmten Tag.
+Unter `/r` (oder über die Homepage) stehen alle buchbaren Ressourcen – mit Fotos, Karte und Suche „Frei am …“ für einen bestimmten Tag. Oben rechts lässt sich zwischen **Karten** und einer kompakten **Tabelle** (Personen, Preis, frei/belegt am gewählten Tag) wechseln.
 
 1. Ressource öffnen: oben Fotos und Eckdaten, darunter gleich das **Buchungsformular**; Beschreibung, Preise und der **Belegungskalender** (schraffiert = vorgemerkt; Tippen auf einen Tag übernimmt ihn) sind aufklappbar.
 2. Gebucht wird in **drei Schritten**:

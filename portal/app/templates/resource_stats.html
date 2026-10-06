@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
+{% import "_res_macros.html" as rm with context %}
 {% block title %}Auswertung Ressourcen{% endblock %}
 {% block content %}
-{% call m.page_head('Auswertung ' ~ year, 'Bestätigte Buchungen je Ressource und Monat: Anzahl, Belegungstage, Auslastung und Einnahmen (ohne Kaution).') %}
+{% call rm.head('stats', [('Auswertung', '')], 'Auswertung ' ~ year, 'Bestätigte Buchungen je Ressource und Monat: Anzahl, Belegungstage, Auslastung und Einnahmen (ohne Kaution).') %}
   <div class="btn-group"><a class="btn btn-outline-secondary" href="?year={{ year - 1 }}" aria-label="Vorjahr"><i class="fa-solid fa-chevron-left"></i></a><span class="btn btn-outline-secondary disabled">{{ year }}</span><a class="btn btn-outline-secondary" href="?year={{ year + 1 }}" aria-label="Folgejahr"><i class="fa-solid fa-chevron-right"></i></a></div>
   <a class="btn btn-outline-secondary" href="?year={{ year }}&format=csv"><i class="fa-solid fa-file-csv me-1"></i>CSV (Excel)</a>
 {% endcall %}
-{% set res_tab = 'stats' %}{% include "_res_nav.html" %}
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body"><div class="small text-secondary">Buchungen</div><div class="fs-3 fw-semibold">{{ data.totals.bookings }}</div></div></div></div>
   <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body"><div class="small text-secondary">Einnahmen</div><div class="fs-3 fw-semibold">{{ money(data.totals.revenue) }}</div></div></div></div>
