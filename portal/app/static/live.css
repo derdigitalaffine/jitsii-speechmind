@@ -35,3 +35,11 @@
 .live-present.hide-results .live-p-result { visibility: hidden; }
 .live-present .live-p-controls .btn { --bs-btn-padding-y: .2rem; }
 @media (max-width: 900px) { .live-present { padding: 1rem; } .live-present .live-p-body { flex-direction: column; } }
+
+/* Wortwolke und Tabelle */
+.live-cloud { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .2rem .9rem; line-height: 1.15; padding: .5rem 0; }
+.live-cloud > span { display: inline-block; transition: font-size .4s ease; }
+.live-cloud.is-big { gap: .3rem 1.6rem; max-height: 62vh; overflow: hidden; }
+.live-table { max-height: 62vh; overflow: auto; }
+.live-present .live-table { font-size: 1.4rem; }
+.live-words input { font-size: 1.1rem; }

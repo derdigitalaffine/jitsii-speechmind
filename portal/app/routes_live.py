@@ -49,7 +49,8 @@ def live_edit(request: Request, poll_id: int, user: User = Depends(vote_user), d
     poll = _poll(db, poll_id, user)
     return render(request, "live_edit.html", user, poll=poll, kinds=lv.KINDS, charts=lv.CHARTS, pacing=lv.PACING,
                   show_results=lv.SHOW_RESULTS, statuses=lv.STATUSES, opts=lv.opts, settings_of=lv.settings,
-                  join=join_url(poll), counts={q.id: lv.tally(db, q)["total"] for q in poll.questions})
+                  join=join_url(poll), counts={q.id: lv.tally(db, q)["total"] for q in poll.questions},
+                  words={q.id: lv.raw_words(db, q) for q in poll.questions if q.kind == "words"})
 
 
 @app.post("/votes/live/{poll_id:int}/settings", dependencies=[Depends(check_csrf)])
@@ -100,6 +101,25 @@ def _question(poll: LivePoll, qid: int) -> LiveQuestion:
     return q
 
 
+@app.post("/votes/live/{poll_id:int}/fragen/{qid:int}/woerter", dependencies=[Depends(check_csrf)])
+async def live_words(request: Request, poll_id: int, qid: int, user: User = Depends(vote_user),
+                     db: Session = Depends(get_db)):
+    """Wortwolke moderieren: Begriff ausblenden, wieder zeigen, zusammenfassen."""
+    poll = _poll(db, poll_id, user)
+    q = _question(poll, qid)
+    if q.kind != "words":
+        raise HTTPException(400)
+    data = await request.form()
+    error = lv.moderate(q, str(data.get("action", "")), str(data.get("key", "")), str(data.get("into", "")))
+    if error:
+        flash(request, error, "error")
+    else:
+        db.commit()
+    if request.headers.get("accept", "").startswith("application/json"):
+        return JSONResponse({"ok": not error, "error": error, "words": lv.raw_words(db, q)})
+    return redirect(f"/votes/live/{poll.id}#frage-{q.id}")
+
+
 @app.post("/votes/live/{poll_id:int}/fragen/{qid:int}/{action}", dependencies=[Depends(check_csrf)])
 async def live_question_action(request: Request, poll_id: int, qid: int, action: str, user: User = Depends(vote_user),
                                db: Session = Depends(get_db)):
@@ -136,6 +156,25 @@ async def live_question_action(request: Request, poll_id: int, qid: int, action:
     if request.headers.get("accept", "").startswith("application/json"):
         return JSONResponse(lv.state(db, poll, staff=True))
     return redirect(f"/votes/live/{poll.id}#frage-{q.id}" if action != "delete" else f"/votes/live/{poll.id}")
+
+
+@app.get("/votes/live/{poll_id:int}/fragen/{qid:int}/export.csv")
+def live_export_csv(poll_id: int, qid: int, user: User = Depends(vote_user), db: Session = Depends(get_db)):
+    poll = _poll(db, poll_id, user)
+    q = _question(poll, qid)
+    return Response(lv.to_csv(db, q), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="live-frage-{q.id}.csv"'})
+
+
+@app.get("/votes/live/{poll_id:int}/fragen/{qid:int}/wolke.png")
+def live_cloud_png(poll_id: int, qid: int, dunkel: str = "", user: User = Depends(vote_user),
+                   db: Session = Depends(get_db)):
+    poll = _poll(db, poll_id, user)
+    q = _question(poll, qid)
+    if q.kind != "words":
+        raise HTTPException(400)
+    return Response(lv.cloud_png(db, q, dark=dunkel == "1"), media_type="image/png",
+                    headers={"Content-Disposition": f'attachment; filename="wortwolke-{q.id}.png"'})
 
 
 @app.post("/votes/live/{poll_id:int}/status", dependencies=[Depends(check_csrf)])

@@ -12,6 +12,8 @@
 
   function load() {
     if (busy) return;
+    var ae = document.activeElement;
+    if (ae && ae.classList && ae.classList.contains('js-word')) return;   // nicht beim Tippen neu zeichnen
     fetch('/l/' + token + '/state.json', { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.json(); }).then(render).catch(function () { /* nächster Versuch */ });
   }
@@ -49,6 +51,15 @@
     return out + '</div>' + ((s.low || s.high) ? '<div class="d-flex justify-content-between small text-secondary mt-1"><span>' + esc(s.low) + '</span><span>' + esc(s.high) + '</span></div>' : '');
   }
 
+  function wordInputs(q) {
+    var s = q.settings, mine = (q.mine || {}).w || [], out = '<div class="live-words">';
+    for (var i = 0; i < s.max_words; i++) {
+      out += '<input class="form-control mb-2 js-word" data-q="' + q.id + '" maxlength="' + s.max_len + '" value="' + esc(drafts[q.id] ? drafts[q.id][i] || '' : (mine[i] || '')) +
+        '" placeholder="' + (i === 0 ? 'Ihr Begriff' : 'weiterer Begriff (optional)') + '" aria-label="Begriff ' + (i + 1) + '" autocomplete="off">';
+    }
+    return out + '<button type="button" class="btn btn-primary js-send-words" data-q="' + q.id + '">' + (mine.length ? 'Begriffe ändern' : 'Absenden') + '</button></div>';
+  }
+
   function render(state) {
     var key = JSON.stringify(state) + JSON.stringify(drafts);
     if (key === last) return;
@@ -66,7 +77,7 @@
     var focusKey = focus ? focus.dataset.q + '|' + (focus.dataset.o || focus.dataset.n || '') : '';
     box.innerHTML = state.questions.map(function (q) {
       var inner = q.locked ? '<p class="text-secondary mb-0"><i class="fa-solid fa-lock me-1"></i>Für diese Frage sind keine Antworten mehr möglich.</p>'
-        : (['single', 'multi', 'yesno'].indexOf(q.kind) >= 0 ? choiceButtons(q) : scaleButtons(q));
+        : (['single', 'multi', 'yesno'].indexOf(q.kind) >= 0 ? choiceButtons(q) : (q.kind === 'words' ? wordInputs(q) : scaleButtons(q)));
       return '<section class="card live-q mb-3" aria-labelledby="lq-' + q.id + '"><div class="card-body">' +
         '<h2 class="h5 mb-3" id="lq-' + q.id + '">' + esc(q.title) + '</h2>' + inner +
         (q.answered ? '<p class="live-done mt-3 mb-0"><i class="fa-solid fa-circle-check me-1"></i>Antwort gespeichert – ändern ist möglich.</p>' : '') +
@@ -95,6 +106,7 @@
         if (!d.ok) { var e = box.querySelector('.js-err[data-q="' + qid + '"]'); if (e) e.textContent = d.error || 'Das hat nicht geklappt.'; return; }
         delete drafts[qid];
         last = '';
+        if (document.activeElement) document.activeElement.blur();
         render(d);
       })
       .catch(function () { busy = false; var e = box.querySelector('.js-err[data-q="' + qid + '"]'); if (e) e.textContent = 'Keine Verbindung – bitte erneut versuchen.'; });
@@ -117,9 +129,18 @@
       last = '';
       load();
     } else if (b.classList.contains('js-send-multi')) send(qid, { o: drafts[qid] || [] });
-    else if (b.classList.contains('js-send-range')) send(qid, { n: +box.querySelector('.js-range[data-q="' + qid + '"]').value });
+    else if (b.classList.contains('js-send-words')) {
+      var words = Array.prototype.map.call(box.querySelectorAll('.js-word[data-q="' + qid + '"]'), function (x) { return x.value; })
+        .filter(function (w) { return w.trim(); });
+      send(qid, { w: words });
+    } else if (b.classList.contains('js-send-range')) send(qid, { n: +box.querySelector('.js-range[data-q="' + qid + '"]').value });
   });
   box.addEventListener('input', function (e) {
+    if (e.target.classList.contains('js-word')) {
+      var q = e.target.dataset.q;
+      drafts[q] = Array.prototype.map.call(box.querySelectorAll('.js-word[data-q="' + q + '"]'), function (x) { return x.value; });
+      return;
+    }
     if (!e.target.classList.contains('js-range')) return;
     busy = true;   // während des Schiebens nicht neu zeichnen
     var out = e.target.parentNode.querySelector('output');

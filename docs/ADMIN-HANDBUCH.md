@@ -573,7 +573,8 @@ Unter **Abstimmungen › Neu** wählen Sie zwischen einer **förmlichen Abstimmu
 
 - **Ablauf:** *moderiert* – alle sehen die Frage, die Sie gerade zeigen; oder *frei* – alle Fragen auf einmal.
 - **Fragearten:** Auswahl (eine oder mehrere Antworten, „höchstens …“), Ja/Nein, Skala (z. B. 1–5 mit Texten links/rechts), Sterne, Schieberegler (Zahl mit Einheit).
-- **Darstellung** je Frage: Balken liegend, Säulen, Torte, Ring oder Kennzahlen (Durchschnitt, Median, Spanne) – im Präsentationsmodus umschaltbar.
+- **Wortwolke** (Begriffe sammeln wie bei Mentimeter): je Person bis zu 1–10 Begriffe (einstellbar, z. B. 3), Höchstlänge. Begriffe werden vereinheitlicht (Groß-/Kleinschreibung, Leerzeichen, Satzzeichen am Rand), Dubletten je Person zählen einmal, ein **Schimpfwortfilter** (abschaltbar) weist grobe Begriffe ab. Darstellung als **bunte Wortwolke** (je mehr Nennungen, desto größer und fetter), als **Tabelle** mit Begriff und Anzahl der Nennungen oder als Balken. **Moderation** unter „Begriffe moderieren“: einzelne Begriffe ausblenden oder Schreibvarianten zusammenfassen („Radwege“ → „Radweg“), jederzeit rückgängig. **Export:** Wortwolke als PNG, Ergebnis jeder Frage als CSV (Excel).
+- **Darstellung** je Frage: Balken liegend, Säulen, Torte, Ring, Kennzahlen, Wortwolke oder Tabelle (Durchschnitt, Median, Spanne) – im Präsentationsmodus umschaltbar.
 - **Ergebnis für Teilnehmende** je Frage: sofort nach der Antwort, erst nach Freigabe oder nie (nur Beamer).
 - **Präsentationsmodus** (Beamer): Frage groß, Ergebnis live, QR-Code mit Kurzadresse, Logo aus dem Design; Pfeiltasten wechseln die Frage, R blendet das Ergebnis aus/ein, Q den QR-Code, F schaltet Vollbild.
 - Steuerung je Frage: jetzt zeigen, Ergebnis freigeben, Antworten sperren, Antworten zurücksetzen, Reihenfolge, löschen.
