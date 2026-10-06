@@ -121,3 +121,45 @@ def test_free_pacing_multi_slider_and_presenter():
     admin.post(f"/votes/live/{pid}/loeschen", data={"csrf": csrf_of(edit.text)})
     with SessionLocal() as db:
         assert db.get(LivePoll, pid) is None
+
+
+def test_word_cloud_normalize_filter_moderate_export():
+    admin = login(*ADMIN)
+    page = admin.get("/votes")
+    r = admin.post("/votes/live/new", data={"csrf": csrf_of(page.text), "title": "Ideen", "pacing": "free"})
+    pid = int(r.headers["location"].rsplit("/", 1)[1])
+    edit = admin.get(f"/votes/live/{pid}")
+    tok = csrf_of(edit.text)
+    admin.post(f"/votes/live/{pid}/fragen", data={"csrf": tok, "kind": "words", "title": "Was fällt Ihnen ein?",
+                                                  "max_words": "3", "filter": "1", "chart": "cloud"})
+    admin.post(f"/votes/live/{pid}/status", data={"csrf": tok, "action": "open"})
+    with SessionLocal() as db:
+        poll = db.get(LivePoll, pid)
+        qid, token = poll.questions[0].id, poll.public_token
+    c1, d1 = join(token)
+    c2, d2 = join(token)
+    c3, d3 = join(token)
+    assert answer(c1, token, d1, qid, {"w": ["Radweg", "Café", "Spielplatz", "Bank"]}).status_code == 400   # höchstens 3
+    assert answer(c1, token, d1, qid, {"w": ["Radweg", " radweg ", "Café!"]}).json()["ok"]
+    assert answer(c2, token, d2, qid, {"w": "radweg, Radwege; café"}).json()["ok"]
+    assert answer(c3, token, d3, qid, {"w": ["Idiot"]}).json()["error"] == "Bitte einen anderen Begriff wählen."
+    assert answer(c3, token, d3, qid, {"w": ["Bänke", "Scheiße"]}).json()["ok"]                   # Schimpfwort fällt weg
+    with SessionLocal() as db:
+        q = db.get(LivePoll, pid).questions[0]
+        rows = lv.tally(db, q)["rows"]
+        assert [(r["label"], r["count"]) for r in rows] == [("Café", 2), ("Radweg", 2), ("Bänke", 1), ("Radwege", 1)]
+    # Moderation: Radwege → Radweg, Bänke ausblenden
+    admin.post(f"/votes/live/{pid}/fragen/{qid}/woerter", data={"csrf": tok, "action": "merge", "key": "radwege", "into": "Radweg"})
+    admin.post(f"/votes/live/{pid}/fragen/{qid}/woerter", data={"csrf": tok, "action": "hide", "key": "Bänke"})
+    with SessionLocal() as db:
+        q = db.get(LivePoll, pid).questions[0]
+        assert [(r["label"], r["count"]) for r in lv.tally(db, q)["rows"]] == [("Radweg", 3), ("Café", 2)]
+        assert {w["key"]: w["hidden"] for w in lv.raw_words(db, q)}["bänke"] is True
+    edit = admin.get(f"/votes/live/{pid}")
+    assert "Begriffe moderieren" in edit.text and "→ radweg" in edit.text
+    csv = admin.get(f"/votes/live/{pid}/fragen/{qid}/export.csv")
+    assert csv.text.startswith("﻿") and "Radweg;3;" in csv.text
+    png = admin.get(f"/votes/live/{pid}/fragen/{qid}/wolke.png")
+    assert png.headers["content-type"] == "image/png" and png.content[:8] == b"\x89PNG\r\n\x1a\n"
+    st = c1.get(f"/l/{token}/state.json").json()
+    assert st["questions"][0]["mine"] == {"w": ["Radweg", "Café"]} and st["questions"][0]["results"]["rows"][0]["label"] == "Radweg"
