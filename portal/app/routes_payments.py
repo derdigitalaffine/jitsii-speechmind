@@ -1,6 +1,5 @@
 """Zahlungen: öffentliche Zahlseite, PayPal-Rückkehr und -Webhook, Übersicht für die Kasse, Einstellungen."""
 
-import csv
 import io
 from datetime import datetime, timedelta, timezone
 
@@ -9,9 +8,9 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from . import payments as pay
+from . import csvsafe, payments as pay
 from .db import LOCAL_TZ, Payment, User, get_settings, set_setting, to_local
-from .main import admin_user, app, check_csrf, flash, get_db, rate_limit, redirect, render, require, safe_next, session_user
+from .main import admin_user, app, check_csrf, current_user, flash, get_db, rate_limit, redirect, render, require, safe_next, session_user
 from .security import encrypt
 
 payments_user = require("payments")
@@ -139,7 +138,7 @@ def payments_list(request: Request, user: User = Depends(payments_user), db: Ses
 def payments_export(request: Request, user: User = Depends(payments_user), db: Session = Depends(get_db)):
     f = {k: request.query_params.get(k, "") for k in FILTERS}
     buf = io.StringIO()
-    w = csv.writer(buf, delimiter=";")
+    w = csvsafe.writer(buf, delimiter=";")
     w.writerow(["Zahlungsnummer", "Angelegt", "Bezahlt am", "Art", "Zweck", "Zahlende Person", "E-Mail", "Kostenstelle",
                 "Betrag", "davon Kaution", "Erstattet", "Zahlart", "Status", "PayPal-Transaktion"])
     eur = lambda c: f"{c / 100:.2f}".replace(".", ",")  # noqa: E731
@@ -163,10 +162,8 @@ def _managed(db, user: User | None, pid: int) -> Payment:
 
 
 def _user(request: Request, db) -> User:
-    user = session_user(request, db)
-    if user is None:
-        raise HTTPException(401, "Bitte anmelden.")
-    return user
+    # wie überall: auch Passwortwechsel- und Zwei-Faktor-Pflicht durchsetzen
+    return current_user(request, db)
 
 
 @app.get("/payments/{pid:int}")

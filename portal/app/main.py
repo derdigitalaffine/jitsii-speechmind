@@ -1,10 +1,12 @@
 import asyncio
+import ipaddress
 import json
 import re
 import logging
 import secrets
 import shutil
 import time
+from collections import OrderedDict
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -22,7 +24,7 @@ from sqlalchemy.orm import Session, joinedload
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import access, branding, chat, links, mailtpl, modhosts, notify, planning, proxy, sessions, twofa, worker
+from . import access, branding, chat, csp, links, mailtpl, modhosts, notify, planning, proxy, sessions, twofa, worker
 from .planning import EMAIL_RE, name_from_email
 from .config import settings
 from .db import (
@@ -106,6 +108,9 @@ app.add_middleware(
 )
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")
+templates.env.add_extension(csp.NonceExtension)
+templates.env.globals["csp_nonce"] = csp.current_nonce
+_HANDLER_HASHES = " ".join(csp.handler_hashes(BASE / "templates"))
 templates.env.globals.update(brand=settings.brand_name, product=settings.brand_product)
 templates.env.globals["themes"] = branding.THEMES
 templates.env.globals["permissions"] = PERMISSIONS
@@ -187,14 +192,16 @@ def module_for_path(path: str) -> str | None:
 _MEET_ORIGIN = "{0.scheme}://{0.netloc}".format(urlparse(settings.meet_base_url)) if settings.meet_base_url else ""
 
 
-def build_csp(frame_ancestors: str = "'none'", hosts: list[str] | tuple = ()) -> str:
+def build_csp(frame_ancestors: str = "'none'", hosts: list[str] | tuple = (), nonce: str = "") -> str:
     """Content-Security-Policy für Portalseiten. Alle Bibliotheken liegen lokal, daher nur 'self'.
-    Inline-Skripte sind (noch) nötig; die Richtlinie verhindert trotzdem fremde Skripte, Datenabfluss
-    zu fremden Servern, <base>/<object>-Tricks und Formulare an fremde Ziele.
+    Inline-Skripte nur mit der Nonce dieser Antwort (siehe csp.py), Inline-Handler nur mit bekanntem Hash.
+    Die Richtlinie verhindert so eingeschleuste Skripte, Datenabfluss zu fremden Servern, <base>/<object>-Tricks
+    und Formulare an fremde Ziele.
     hosts: zusätzliche Herkünfte für Bilder und Abrufe (direkt geladene Kartendienste)."""
     form_targets = " ".join(x for x in ("'self'", _MEET_ORIGIN) if x)
     extra = "".join(" " + h for h in hosts if re.fullmatch(r"https?://[A-Za-z0-9.-]+(:\d+)?", h))
-    return ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+    scripts = "'self'" + (f" 'nonce-{nonce}'" if nonce else "") + (f" 'unsafe-hashes' {_HANDLER_HASHES}" if _HANDLER_HASHES else "")
+    return (f"default-src 'self'; script-src {scripts}; style-src 'self' 'unsafe-inline'; "
             f"img-src 'self' data: blob:{extra}; font-src 'self' data:; connect-src 'self'{extra}; "
             "media-src 'self' blob:; frame-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; "
             f"form-action {form_targets}; frame-ancestors {frame_ancestors}")
@@ -234,6 +241,7 @@ SECURITY_HEADERS = {
 @app.middleware("http")
 async def _security_headers(request: Request, call_next):
     """Schutz-Header für alle Antworten (zusätzlich zu denen des Reverse Proxys)."""
+    nonce = csp.new_nonce()
     response = await call_next(request)
     for key, value in SECURITY_HEADERS.items():
         response.headers.setdefault(key, value)
@@ -251,10 +259,12 @@ async def _security_headers(request: Request, call_next):
     if "content-security-policy" not in response.headers and \
             response.headers.get("content-type", "").startswith("text/html"):
         response.headers["Content-Security-Policy"] = build_csp(frame_ancestors,
-                                                                getattr(request.state, "csp_hosts", ()))
-    if request.url.path.startswith(("/admin", "/profile", "/login", "/invite", "/laws")) and \
-            response.headers.get("content-type", "").startswith("text/html"):
-        response.headers.setdefault("Cache-Control", "no-store")   # keine Verwaltungsseiten im Browser-Cache
+                                                                getattr(request.state, "csp_hosts", ()), nonce)
+    logged_in = bool(request.scope.get("session", {}).get("uid")) if "session" in request.scope else False
+    if (logged_in or request.url.path.startswith(("/admin", "/profile", "/login", "/invite", "/laws"))) and \
+            response.headers.get("content-type", "").startswith(("text/html", "application/json")):
+        # Seiten mit persönlichen Daten nicht im Browser-Cache ablegen (gemeinsam genutzte Rechner, Zurück-Taste)
+        response.headers.setdefault("Cache-Control", "no-store")
     if request.url.path.startswith("/static/"):
         # Eigene Skripte/Stile nach einem Update sofort neu laden (Browser fragt mit ETag nach, meist 304);
         # Bibliotheken unter vendor/ ändern sich selten und dürfen einen Tag im Cache bleiben.
@@ -385,23 +395,69 @@ def home_for(user: User) -> str:
     return "/"
 
 
-_attempts: dict[str, list[float]] = {}
+_attempts: "OrderedDict[str, list[float]]" = OrderedDict()
+_ATTEMPTS_MAX = 20000
 
 
 _DUMMY_HASH = hash_password(secrets.token_urlsafe(16))
 
 
+def client_ip(request: Request) -> str:
+    """Adresse der Gegenstelle. Uvicorn setzt sie hinter Caddy aus X-Forwarded-For (Caddy überschreibt den
+    Kopf mit der echten Adresse); IPv6-Adressen werden auf ihr /64-Netz gekürzt, weil ein Anschluss meist ein
+    ganzes /64 hat."""
+    host = request.client.host if request.client else "?"
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return host
+    if ip.version == 6:
+        if ip.ipv4_mapped:
+            return str(ip.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{ip}/64", strict=False))
+    return str(ip)
+
+
 def rate_limit(request: Request, bucket: str, limit: int = 10, window: int = 600, key: str | None = None) -> None:
     """Einfache Bremse gegen Passwort-Raten und Mail-Fluten (pro IP-Adresse oder eigenem Schlüssel, im Speicher)."""
-    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0].strip()
-    key, now = f"{bucket}:{key if key is not None else ip}", time.monotonic()
+    key, now = f"{bucket}:{key if key is not None else client_ip(request)}", time.monotonic()
     hits = [t for t in _attempts.get(key, []) if now - t < window]
     if len(hits) >= limit:
+        _attempts[key] = hits
+        _attempts.move_to_end(key)
         raise HTTPException(429, "Zu viele Versuche. Bitte in einigen Minuten erneut versuchen.")
     hits.append(now)
     _attempts[key] = hits
-    if len(_attempts) > 5000:
-        _attempts.clear()
+    _attempts.move_to_end(key)
+    # Älteste Einträge verwerfen statt alles zu leeren (sonst ließe sich die Bremse durch viele Schlüssel zurücksetzen)
+    while len(_attempts) > _ATTEMPTS_MAX:
+        _attempts.popitem(last=False)
+
+
+_stash: "OrderedDict[tuple[str, str], tuple[float, object]]" = OrderedDict()
+STASH_SECONDS = 1800
+
+
+def stash_put(request: Request, name: str, value) -> None:
+    """Geheimnisse (TOTP-Schlüssel, Wiederherstellungscodes, Einladungslinks) für die nächste Seite im Speicher
+    des Servers ablegen statt im Sitzungscookie – das ist nur signiert, nicht verschlüsselt."""
+    sid = request.session.get("_stash") or secrets.token_urlsafe(16)
+    request.session["_stash"] = sid
+    _stash[(sid, name)] = (time.monotonic(), value)
+    _stash.move_to_end((sid, name))
+    while len(_stash) > 5000:
+        _stash.popitem(last=False)
+
+
+def stash_get(request: Request, name: str, pop: bool = False):
+    sid = request.session.get("_stash")
+    if not sid:
+        return None
+    item = _stash.pop((sid, name), None) if pop else _stash.get((sid, name))
+    if item is None or time.monotonic() - item[0] > STASH_SECONDS:
+        _stash.pop((sid, name), None)
+        return None
+    return item[1]
 
 
 async def check_csrf(request: Request) -> None:
@@ -534,8 +590,13 @@ def unique_room(db: Session, base: str) -> str:
             return room
 
 
-def join_url(user: User, room: str, recording: bool = True) -> str:
-    return f"{settings.meet_base_url}/{room}?{urlencode({'jwt': jitsi_token(user, room, recording)})}"
+def join_url(user: User, room: str, recording: bool = True, moderator: bool = True) -> str:
+    return f"{settings.meet_base_url}/{room}?{urlencode({'jwt': jitsi_token(user, room, recording, moderator)})}"
+
+
+def hosts(user: User, meeting: Meeting | None) -> bool:
+    """Moderiert die Person die Konferenz? Freie Räume: wer sie eröffnet; Portal-Räume: Gastgeber:in und Admins."""
+    return meeting is None or user.is_admin or meeting.owner_id == user.id
 
 
 def guest_join_url(name: str, room: str, uid: str, email: str = "") -> str:
@@ -642,6 +703,14 @@ def login_2fa(request: Request, code: str = Form(""), method: str = Form("totp")
     if user is None:
         flash(request, "Die Anmeldung ist abgelaufen. Bitte erneut anmelden.", "error")
         return redirect("/login")
+    # Fehlversuche je Konto auf dem Server zählen – der Zähler im Sitzungscookie ließe sich durch ein
+    # früheres Cookie bzw. eine neue Anmeldung zurücksetzen.
+    fails_key = f"mfa-fail:{user.id}"
+    fails = [t for t in _attempts.get(fails_key, []) if time.monotonic() - t < 900]
+    if len(fails) >= twofa.MAX_TRIES * 2:
+        request.session.clear()
+        flash(request, "Zu viele falsche Codes. Bitte warten Sie 15 Minuten und melden Sie sich dann erneut an.", "error")
+        return redirect("/login")
     found = twofa.methods(user, get_settings(db))
     ok = False
     if method == "totp" and "totp" in found:
@@ -655,6 +724,9 @@ def login_2fa(request: Request, code: str = Form(""), method: str = Form("totp")
     if not ok:
         tries = int(request.session.get("mfa_tries", 0)) + 1
         request.session["mfa_tries"] = tries
+        _attempts[fails_key] = fails + [time.monotonic()]
+        if tries >= twofa.MAX_TRIES or len(fails) + 1 >= twofa.MAX_TRIES * 2:
+            user.email_code_hash = user.email_code_expires = None  # Mail-Code verfällt nach zu vielen Versuchen
         db.commit()
         if tries >= twofa.MAX_TRIES:
             request.session.clear()
@@ -784,7 +856,7 @@ def jitsi_auth(request: Request, room: str = "", db: Session = Depends(get_db)):
     if not user.can("video"):
         raise HTTPException(403, "Für Videokonferenzen fehlt die Berechtigung.")
     # Aufnehmen nur in Portal-Räumen
-    return redirect(join_url(user, room, recording=meeting is not None))
+    return redirect(join_url(user, room, recording=meeting is not None, moderator=hosts(user, meeting)))
 
 
 def _display_hash(name: str) -> str:
@@ -828,7 +900,7 @@ def join_personal(request: Request, token: str, db: Session = Depends(get_db)):
         return render(request, "guest.html", session_user(request, db), mode="cancelled", meeting=meeting)
     user = session_user(request, db)
     if user is not None and user.email == inv.email and user.can("video"):
-        return redirect(join_url(user, meeting.room))
+        return redirect(join_url(user, meeting.room, moderator=hosts(user, meeting)))
     return redirect(guest_join_url(inv.name or inv.email, meeting.room, f"guest-{inv.id}", inv.email))
 
 
@@ -880,7 +952,7 @@ def join_guest_form(request: Request, token: str, db: Session = Depends(get_db))
     if meeting is None:
         return render(request, "guest.html", user, mode="invalid")
     if user is not None and user.can("video"):
-        return redirect(join_url(user, meeting.room))
+        return redirect(join_url(user, meeting.room, moderator=hosts(user, meeting)))
     return render(request, "guest.html", None, mode="form", meeting=meeting, token=token)
 
 
@@ -1506,13 +1578,13 @@ def profile_security(request: Request, user: User = Depends(current_user), db: S
     cfg = get_settings(db)
     setup = None
     if request.query_params.get("setup") == "totp" or (twofa.needs_setup(user, cfg) and not user.totp_enabled):
-        secret = request.session.get("totp_setup") or twofa.new_secret()
-        request.session["totp_setup"] = secret
+        secret = stash_get(request, "totp_setup") or twofa.new_secret()
+        stash_put(request, "totp_setup", secret)
         uri = twofa.provisioning_uri(secret, user)
         setup = {"secret": " ".join(secret[i:i + 4] for i in range(0, len(secret), 4)), "qr": twofa.qr_svg(uri)}
     return render(request, "profile_security.html", user, allowed=twofa.allowed(cfg), required=twofa.required(user, cfg),
                   methods=twofa.methods(user, cfg), setup=setup, recovery_left=twofa.recovery_left(user),
-                  new_codes=request.session.pop("recovery_codes", None), mail_ready=notify.mail_configured(cfg),
+                  new_codes=stash_get(request, "recovery_codes", pop=True), mail_ready=notify.mail_configured(cfg),
                   my_sessions=sessions.rows(request, sessions.for_user(db, user.id)))
 
 
@@ -1529,7 +1601,9 @@ def profile_totp(request: Request, action: str = Form(...), code: str = Form("")
     user = db.get(User, user.id)
     cfg = get_settings(db)
     if action == "enable":
-        secret = request.session.get("totp_setup")
+        if user.totp_enabled and not _confirm_password(request, user, password):
+            return redirect("/profile/security?setup=totp")  # Gerät ersetzen nur mit Passwort
+        secret = stash_get(request, "totp_setup")
         step = twofa.check_totp(secret, code) if secret and twofa.allowed(cfg)["totp"] else None
         if step is None:
             flash(request, "Der Code stimmt nicht. Prüfen Sie die Uhrzeit des Telefons und geben Sie den aktuellen "
@@ -1537,10 +1611,10 @@ def profile_totp(request: Request, action: str = Form(...), code: str = Form("")
             return redirect("/profile/security?setup=totp")
         twofa.enable_totp(user, secret)
         user.totp_last_step = step
-        request.session.pop("totp_setup", None)
+        stash_get(request, "totp_setup", pop=True)
         request.session.pop("mfa_setup", None)
         if not twofa.recovery_left(user):
-            request.session["recovery_codes"] = twofa.new_recovery_codes(user)
+            stash_put(request, "recovery_codes", twofa.new_recovery_codes(user))
         flash(request, "Authenticator-App eingerichtet. Ab der nächsten Anmeldung wird ein Code abgefragt.")
     elif action == "disable" and _confirm_password(request, user, password):
         if twofa.required(user, cfg) and not (twofa.allowed(cfg)["email"]):
@@ -1563,7 +1637,7 @@ def profile_mfa_email(request: Request, enable: str = Form(""), password: str = 
         raise HTTPException(403)
     user.mfa_email = enable == "1"
     if user.mfa_email and not twofa.recovery_left(user):
-        request.session["recovery_codes"] = twofa.new_recovery_codes(user)
+        stash_put(request, "recovery_codes", twofa.new_recovery_codes(user))
     db.commit()
     flash(request, "Code per E-Mail eingeschaltet." if user.mfa_email else "Code per E-Mail ausgeschaltet.")
     return redirect("/profile/security")
@@ -1574,7 +1648,7 @@ def profile_recovery(request: Request, password: str = Form(""), user: User = De
                      db: Session = Depends(get_db)):
     user = db.get(User, user.id)
     if _confirm_password(request, user, password):
-        request.session["recovery_codes"] = twofa.new_recovery_codes(user)
+        stash_put(request, "recovery_codes", twofa.new_recovery_codes(user))
         db.commit()
         flash(request, "Neue Wiederherstellungscodes erzeugt. Die alten gelten nicht mehr.")
     return redirect("/profile/security#wiederherstellung")
@@ -1671,16 +1745,23 @@ def flash_link_result(request: Request, target: User, link: str, queued: bool) -
         flash(request, f"E-Mail an {target.email} wird versendet.")
     else:
         # Ohne Mailversand muss der Link von Hand weitergegeben werden
-        request.session["invite_links"] = [{"email": target.email, "link": link}]
+        stash_put(request, "invite_links", [{"email": target.email, "link": link}])
 
 
-def _perm_value(selected: list[str]) -> str:
-    return ",".join(p for p in PERMISSIONS if p in selected)
+def _perm_value(selected: list[str], actor: User | None = None, before: set[str] | None = None) -> str:
+    """Rechte als Text. Ohne Admin-Rolle lassen sich nur Rechte vergeben oder entziehen, die man selbst hat;
+    alle anderen bleiben, wie sie waren (keine Rechteausweitung über „Benutzer verwalten“)."""
+    chosen = set(selected)
+    if actor is not None and not actor.is_admin:
+        own = actor.perms
+        chosen = {p for p in chosen if p in own} | {p for p in (before or set()) if p not in own}
+    return ",".join(p for p in PERMISSIONS if p in chosen)
 
 
 def _can_manage(actor: User, target: User) -> bool:
-    """Wer Benutzer verwalten darf, aber kein Admin ist, ändert keine Admin-Konten."""
-    return actor.is_admin or not target.is_admin
+    """Wer Benutzer verwalten darf, aber kein Admin ist, ändert keine Admin-Konten und keine Konten mit Rechten,
+    die er selbst nicht hat (sonst ließe sich z. B. über einen Zurücksetzen-Link ein mächtigeres Konto übernehmen)."""
+    return actor.is_admin or (not target.is_admin and (target.id == actor.id or target.perms <= actor.perms))
 
 
 def _set_groups(db: Session, target: User, group_ids: list[str]) -> None:
@@ -1693,7 +1774,7 @@ def admin_users(request: Request, user: User = Depends(users_manager), db: Sessi
     users = db.scalars(select(User).options(joinedload(User.groups)).order_by(User.name)).unique().all()
     groups = db.scalars(select(Group).options(joinedload(Group.members)).order_by(Group.name)).unique().all()
     return render(request, "admin_users.html", user, users=users, groups=groups,
-                  invite_links=request.session.pop("invite_links", None),
+                  invite_links=stash_get(request, "invite_links", pop=True),
                   mail_ready=notify.mail_configured(get_settings(db)),
                   invite_ttl=settings.invite_ttl_hours,
                   allow_anonymous=anonymous_allowed(db), cfg=get_settings(db), mfa_required=twofa.REQUIRED)
@@ -1705,7 +1786,7 @@ async def admin_users_create(request: Request, emails: str = Form(...), name: st
                              db: Session = Depends(get_db)):
     """Lädt eine oder mehrere Personen ein (Adressen durch Komma, Semikolon oder Leerzeichen getrennt)."""
     form = await request.form()
-    perms = _perm_value(form.getlist("perm"))
+    perms = _perm_value(form.getlist("perm"), user)
     group_ids = form.getlist("groups")
     addresses = list(dict.fromkeys(a.lower() for a in re.split(r"[,;\s]+", emails) if a))
     bad = [a for a in addresses if not EMAIL_RE.match(a)]
@@ -1730,7 +1811,7 @@ async def admin_users_create(request: Request, emails: str = Form(...), name: st
     db.commit()
     worker.wake()
     if links:
-        request.session["invite_links"] = links
+        stash_put(request, "invite_links", links)
     if created:
         flash(request, f"{len(created)} Einladung(en) angelegt: " + ", ".join(created))
     return redirect("/admin/users")
@@ -1788,7 +1869,7 @@ def admin_users_import_apply(request: Request, token: str = Form(...), invite: s
     db.commit()
     worker.wake()
     if links:
-        request.session["invite_links"] = links[:200]
+        stash_put(request, "invite_links", links[:200])
     parts = [f"{len(created)} Konto/Konten angelegt"]
     if added:
         parts.append(f"{added} Gruppenmitgliedschaft(en) ergänzt")
@@ -1808,7 +1889,8 @@ async def admin_users_update(request: Request, uid: int, action: str = Form(...)
     if target is None:
         raise HTTPException(404)
     if not _can_manage(user, target):
-        flash(request, "Konten von Administrator:innen kann nur ein Admin ändern.", "error")
+        flash(request, "Konten von Administrator:innen und Konten mit Rechten, die Sie selbst nicht haben, kann "
+                       "nur ein Admin ändern.", "error")
         return redirect("/admin/users")
     if target.id == user.id and action in ("toggle_admin", "toggle_active", "delete"):
         flash(request, "Das eigene Konto lässt sich hier nicht ändern.", "error")
@@ -1825,7 +1907,7 @@ async def admin_users_update(request: Request, uid: int, action: str = Form(...)
         perms = form.getlist("perm")
         if target.id == user.id and not user.is_admin and "users" not in perms:
             perms.append("users")  # sich nicht selbst aussperren
-        target.permissions = _perm_value(perms)
+        target.permissions = _perm_value(perms, user, target.perms)
         _set_groups(db, target, form.getlist("groups"))
         flash(request, f"{target.email} gespeichert.")
     elif action == "reset_2fa":

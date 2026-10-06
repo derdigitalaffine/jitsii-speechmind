@@ -14,20 +14,28 @@
 x-jitsi-common: &jitsi-common
   restart: ${RESTART_POLICY:-unless-stopped}
   env_file: .env
+  security_opt:
+    - no-new-privileges:true
   networks:
     meet.jitsi:
 
+# Die Jitsi-Dienste lesen ihre Werte aus .env. Geheimnisse des Portals brauchen sie nicht – die werden in
+# jedem Dienst unten wieder geleert (environment hat Vorrang vor env_file).
+
 services:
   caddy:
-    image: caddy:2
+    image: caddy:${CADDY_IMAGE_VERSION:-2.11.7}
     restart: ${RESTART_POLICY:-unless-stopped}
+    security_opt:
+      - no-new-privileges:true
     # Startet mit der Datei, die das Portal verwaltet (Admin > HTTPS & Zertifikat) und lädt sie
     # bei Änderungen selbst neu. Beim allerersten Start dient caddy/Caddyfile als Vorlage
-    # (selbst signiertes Zertifikat).
+    # (selbst signiertes Zertifikat). Das öffentliche Root-Zertifikat der internen CA wird regelmäßig nach
+    # /conf kopiert – so muss das Portal den Datenordner mit den privaten Schlüsseln nicht einbinden.
     command:
       - sh
       - -c
-      - "[ -f /conf/Caddyfile ] || cp /etc/caddy/Caddyfile /conf/Caddyfile; exec caddy run --config /conf/Caddyfile --adapter caddyfile --watch"
+      - "[ -f /conf/Caddyfile ] || cp /etc/caddy/Caddyfile /conf/Caddyfile; (while true; do cp -f /data/caddy/pki/authorities/local/root.crt /conf/root.crt 2>/dev/null; sleep 300; done) & exec caddy run --config /conf/Caddyfile --adapter caddyfile --watch"
     ports:
       - "80:80"
       - "443:443"
@@ -49,8 +57,10 @@ services:
 
   web:
     <<: *jitsi-common
-    image: jitsi/web:${JITSI_IMAGE_VERSION:-stable}
+    image: jitsi/web:${JITSI_IMAGE_VERSION:-stable-11031}
     environment:
+      - PORTAL_SECRET_KEY=
+      - PORTAL_ADMIN_PASSWORD=
       # TLS macht Caddy, der Container spricht nur HTTP.
       - DISABLE_HTTPS=1
       # Ohne Gast-Domain: wer keinen Token hat, verbindet sich direkt (Räume ohne Anmeldung)
@@ -73,12 +83,14 @@ services:
 
   prosody:
     <<: *jitsi-common
-    image: jitsi/prosody:${JITSI_IMAGE_VERSION:-stable}
+    image: jitsi/prosody:${JITSI_IMAGE_VERSION:-stable-11031}
     expose:
       - "5222"
       - "5347"
       - "5280"
     environment:
+      - PORTAL_SECRET_KEY=
+      - PORTAL_ADMIN_PASSWORD=
       # Räume ohne Anmeldung: Verbindungen ohne Token zulassen. Welche Räume trotzdem eine
       # Anmeldung verlangen (Portal-Räume) und wer aufnehmen darf, regeln die Portal-Module.
       - JWT_ALLOW_EMPTY=1
@@ -100,8 +112,10 @@ services:
 
   jicofo:
     <<: *jitsi-common
-    image: jitsi/jicofo:${JITSI_IMAGE_VERSION:-stable}
+    image: jitsi/jicofo:${JITSI_IMAGE_VERSION:-stable-11031}
     environment:
+      - PORTAL_SECRET_KEY=
+      - PORTAL_ADMIN_PASSWORD=
       - ENABLE_GUESTS=0
     volumes:
       - ${CONFIG}/jicofo:/config:Z
@@ -110,7 +124,10 @@ services:
 
   jvb:
     <<: *jitsi-common
-    image: jitsi/jvb:${JITSI_IMAGE_VERSION:-stable}
+    image: jitsi/jvb:${JITSI_IMAGE_VERSION:-stable-11031}
+    environment:
+      - PORTAL_SECRET_KEY=
+      - PORTAL_ADMIN_PASSWORD=
     ports:
       - "${JVB_PORT:-10000}:${JVB_PORT:-10000}/udp"
     volumes:
@@ -120,11 +137,16 @@ services:
 
   jibri:
     <<: *jitsi-common
-    image: jitsi/jibri:${JITSI_IMAGE_VERSION:-stable}
+    image: jitsi/jibri:${JITSI_IMAGE_VERSION:-stable-11031}
     shm_size: "2gb"
+    # Jibri braucht SYS_ADMIN für Chrome und das virtuelle Audiogerät; no-new-privileges verträgt sich nicht
+    # mit dem sudo im Image, deshalb hier ohne.
+    security_opt: []
     cap_add:
       - SYS_ADMIN
     environment:
+      - PORTAL_SECRET_KEY=
+      - PORTAL_ADMIN_PASSWORD=
       - DISPLAY=:0
       - JIBRI_RECORDING_DIR=/config/recordings
       - JIBRI_FINALIZE_RECORDING_SCRIPT_PATH=/config/finalize.sh
@@ -150,6 +172,14 @@ services:
     build: ./portal
     image: ${PORTAL_IMAGE:-jitsi-speechmind-portal:local}
     restart: ${RESTART_POLICY:-unless-stopped}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
     environment:
       - TZ
       - PORTAL_BASE_URL=https://${PORTAL_DOMAIN}
@@ -170,12 +200,11 @@ services:
       - CADDY_CONF_DIR=/caddyconf
       - PORTAL_ROOMS_FILE=/portal-rooms/rooms.json
       - PORTAL_CHAT_DIR=/portal-chat
-      - CADDY_DATA_DIR=/caddydata
     volumes:
       - ${CONFIG}/portal:/data
       # Proxy-Steuerung aus der Admin-Oberfläche: Konfiguration schreiben, Root-Zertifikat lesen
+      # (Caddys Datenordner mit den privaten Schlüsseln bleibt bewusst außen vor)
       - ${CONFIG}/caddy/conf:/caddyconf
-      - ${CONFIG}/caddy/data:/caddydata:ro
       # Zugriffsregeln für Prosody und Chatprotokolle aus Portal-Räumen
       - ${CONFIG}/portal-rooms:/portal-rooms
       - ${CONFIG}/portal-chat:/portal-chat

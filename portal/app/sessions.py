@@ -25,7 +25,8 @@ def _hash(sid: str) -> str:
 
 
 def client_ip(request) -> str:
-    return request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0].strip()
+    # Hinter Caddy setzt Uvicorn (--proxy-headers) die echte Adresse; den Kopf selbst nicht auswerten (fälschbar)
+    return request.client.host if request.client else "?"
 
 
 def establish(request, db, user: User, method: str = "password") -> None:

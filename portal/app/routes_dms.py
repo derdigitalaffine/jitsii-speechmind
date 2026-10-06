@@ -1,6 +1,5 @@
 """Ablage (DMS): Recherche, Eintrag, manuelle Ablage, Aktenplan mit Rechten, Löschfristen."""
 
-import csv
 import io
 import re
 from datetime import datetime
@@ -11,7 +10,7 @@ from fastapi.responses import FileResponse, Response
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from . import applications as apps, dms, forms as fm
+from . import csvsafe, applications as apps, dms, forms as fm
 from .db import (
     LOCAL_TZ, DmsAccess, DmsArea, DmsLog, DmsRecord, DmsSearch, Group, Person, User, utcnow,
 )
@@ -79,7 +78,7 @@ def dms_export(request: Request, user: User = Depends(current_user), db: Session
     records, _total = dms.search(db, user, _filters(request), limit=10000)
     by_id = {a.id: a for a in dms.areas(db)}
     buf = io.StringIO()
-    w = csv.writer(buf, delimiter=";")
+    w = csvsafe.writer(buf, delimiter=";")
     w.writerow(["Aktenzeichen", "Titel", "Art", "Antragsteller:in", "E-Mail", "Straße", "PLZ", "Ort", "Ortsteil", "Eingang",
                 "Status", "Abschluss", "Bereich", "Aufbewahren bis"])
     for r in records:

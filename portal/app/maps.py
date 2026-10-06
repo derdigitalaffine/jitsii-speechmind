@@ -21,6 +21,7 @@ import re
 import secrets
 import socket
 import time
+import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
@@ -234,9 +235,28 @@ def check_public_url(url: str) -> None:
         raise BlockedAddress(f"Der Server „{host}“ ist nicht bekannt.") from exc
     for info in infos:
         ip = ipaddress.ip_address(info[4][0])
-        if (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved
-                or ip.is_unspecified or getattr(ip, "is_site_local", False)):
+        if _internal(ip):
             raise BlockedAddress(f"„{host}“ zeigt auf eine interne Adresse ({ip}) und ist hier nicht erlaubt.")
+
+
+def _internal(ip) -> bool:
+    """Alles, was nicht global erreichbar ist (inkl. 100.64/10, IPv4 in IPv6 verpackt)."""
+    if ip.version == 6 and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return not ip.is_global or ip.is_multicast
+
+
+def _check_peer(resp, url: str) -> None:
+    """Nach dem Verbindungsaufbau die tatsächlich verbundene Adresse prüfen – schützt vor DNS-Rebinding
+    (Name zeigt bei der Prüfung nach außen, beim Verbinden nach innen)."""
+    if urllib.request.getproxies().get(urlparse(url).scheme):
+        return  # über einen eingerichteten Proxy: der löst den Namen auf, die Vorabprüfung muss genügen
+    stream = resp.extensions.get("network_stream")
+    addr = stream.get_extra_info("server_addr") if stream is not None else None
+    if not addr:
+        raise BlockedAddress("Die Gegenstelle ließ sich nicht prüfen.")
+    if _internal(ipaddress.ip_address(addr[0])):
+        raise BlockedAddress(f"„{urlparse(url).hostname}“ zeigt auf eine interne Adresse und ist hier nicht erlaubt.")
 
 
 def fetch(url: str, *, guard: bool, accept: str = "*/*") -> tuple[int, bytes, str]:
@@ -247,6 +267,8 @@ def fetch(url: str, *, guard: bool, accept: str = "*/*") -> tuple[int, bytes, st
             if guard:
                 check_public_url(url)
             with client.stream("GET", url) as resp:
+                if guard:
+                    _check_peer(resp, url)
                 if resp.status_code in (301, 302, 303, 307, 308) and resp.headers.get("location"):
                     url = urljoin(url, resp.headers["location"])
                     continue

@@ -109,10 +109,10 @@
 <script type="application/json" id="map-bundle">{{ bundle | tojson }}</script>
 {% endblock %}
 {% block scripts %}
-<script src="/static/vendor/maplibre/maplibre-gl.js"></script>
+<script type="module" src="/static/maplibre-global.js"></script>
 <script src="/static/vendor/sortablejs/Sortable.min.js"></script>
-<script src="/static/map-core.js"></script>
-<script>
+<script type="module" src="/static/map-core.js"></script>
+<script type="module">
 (function () {
   var csrf = document.querySelector('meta[name="csrf"]').content;
   function post(url, fields) {

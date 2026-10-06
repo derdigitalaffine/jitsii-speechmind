@@ -31,7 +31,7 @@ Für alle, die das Portal der Verbandsgemeinde Otterbach-Otterberg betreuen: Vid
 15. [Aufnahme ohne Ton](#aufnahme-ohne-ton)
 16. [Admin-Passwort vergessen](#admin-passwort-vergessen)
 17. [Alltag: Start, Stopp, Logs, Update](#alltag-start-stopp-logs-update)
-18. [Sicherung und Wiederherstellung](#sicherung-und-wiederherstellung)
+18. [Sicherung und Wiederherstellung](#sicherung-und-wiederherstellung) (Sicherheitsaudit: [SICHERHEITSAUDIT-2026-10.md](SICHERHEITSAUDIT-2026-10.md))
 19. [Speicherplatz](#speicherplatz)
 20. [Wenn etwas nicht geht](#wenn-etwas-nicht-geht)
 
@@ -182,9 +182,13 @@ Weitere Schutzmechanismen, die immer aktiv sind:
 
 - Passwörter als Argon2-Hash; die Anmeldung antwortet für bekannte und unbekannte Adressen gleich schnell (verrät nicht, welche Konten existieren).
 - Bremse gegen Passwort-Raten: je IP-Adresse 10 Versuche in 10 Minuten **und je Konto 20 Versuche in 30 Minuten** (auch wenn die Versuche von vielen Adressen kommen), danach „Zu viele Versuche“.
-- Höchstens fünf falsche Codes je Anmeldung, jeder App-Code ist nur einmal gültig.
+- Höchstens fünf falsche Codes je Anmeldung und zehn je Konto in 15 Minuten (auf dem Server gezählt, auch über neue Anmeldungen hinweg); danach verfällt auch ein per Mail geschickter Code. Jeder App-Code ist nur einmal gültig. Ein neues Gerät ersetzt das bisherige nur nach Eingabe des Passworts.
 - Alle Formulare mit CSRF-Schutz; Weiterleitungen nach der Anmeldung nur auf Seiten dieses Servers.
-- **Sicherheits-Header** auf allen Seiten: Content-Security-Policy (nur eigene Skripte, Bilder und Verbindungen; keine fremden Server, keine `<object>`/`<base>`-Tricks, Formulare nur an Portal und Konferenzserver), `X-Frame-Options: DENY` (Ausnahme: `/recht-embed`), `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy` (kein Zugriff auf Kamera, Mikrofon oder Standort für das Portal – die Konferenz läuft auf der eigenen Konferenz-Domain), `Cross-Origin-Opener-Policy`. Verwaltungs- und Anmeldeseiten werden nicht im Browser-Cache abgelegt.
+- Die IP-Adresse für die Bremsen liefert Caddy; ein mitgeschickter `X-Forwarded-For`-Kopf wird nicht ausgewertet. IPv6-Anschlüsse zählen je /64-Netz.
+- **Benutzer verwalten** (ohne Admin-Rolle) darf nur Rechte vergeben oder entziehen, die man selbst hat, und keine Konten ändern oder zurücksetzen, die mehr Rechte haben.
+- In Konferenzen von Portal-Räumen **moderieren nur Gastgeber:in und Admins**; andere Angemeldete nehmen ohne Moderationsrechte (und ohne Aufnahme) teil.
+- **Sicherheits-Header** auf allen Seiten: Content-Security-Policy (nur eigene Skripte – Inline-Skripte nur mit einer für jede Antwort neuen Nonce, eingeschleuste Skripte und Handler werden blockiert –, Bilder und Verbindungen; keine fremden Server, keine `<object>`/`<base>`-Tricks, Formulare nur an Portal und Konferenzserver), `X-Frame-Options: DENY` (Ausnahme: `/recht-embed`), `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy` (kein Zugriff auf Kamera, Mikrofon oder Standort für das Portal – die Konferenz läuft auf der eigenen Konferenz-Domain), `Cross-Origin-Opener-Policy`. Seiten angemeldeter Personen sowie Verwaltungs- und Anmeldeseiten werden nicht im Browser-Cache abgelegt. Mit Let's-Encrypt-Zertifikat sendet Caddy auf allen Domains HSTS.
+- CSV-Exporte entschärfen Zellen, die mit `=`, `+`, `-` oder `@` beginnen (keine Formeln aus Eingaben in Excel). Eingangsbestätigungen gehen höchstens fünfmal je Stunde an dieselbe Adresse. Eigene Prüfmuster in Formularen laufen mit Zeitlimit. Kartenebenen ohne Proxy-Server können keine internen Adressen abfragen (auch nicht über DNS-Tricks).
 - Hochgeladene Dateien aus Formularen werden immer als Download ausgeliefert, nie als Webseite; unbekannte Dateitypen als `application/octet-stream`.
 
 ## Module ein- und ausschalten
@@ -942,7 +946,15 @@ Die Datenbank wird beim Start automatisch auf das neue Format gebracht. Vorher b
 
 **Hat sich etwas an den Prosody-Modulen geändert** (Ordner `prosody/`, z. B. beim Update auf die Version mit Umfragen), zusätzlich `docker compose restart prosody`. Laufende Konferenzen werden dabei kurz getrennt – am besten außerhalb der Arbeitszeit. **Hat sich die Proxy-Vorlage geändert** (`caddy/Caddyfile`), übernimmt das Portal die Änderung beim Start automatisch in die verwaltete Konfiguration.
 
-**Jitsi aktualisieren:** In `.env` bei `JITSI_IMAGE_VERSION` die neue Version eintragen (Liste: <https://github.com/jitsi/docker-jitsi-meet/releases>), dann `docker compose pull && docker compose up -d`.
+**Jitsi aktualisieren:** In `.env` bei `JITSI_IMAGE_VERSION` die neue Version eintragen (Liste: <https://github.com/jitsi/docker-jitsi-meet/releases>), dann `docker compose pull && docker compose up -d`. Die Images sind fest versioniert (Jitsi `stable-11031`, Caddy `2.11.7`, Python `3.12.15-slim`), damit ein Neustart nie unbemerkt eine andere Version zieht. Steht in einer älteren `.env` noch `JITSI_IMAGE_VERSION=stable`, bitte auf eine feste Version ändern. Caddy lässt sich über `CADDY_IMAGE_VERSION` in `.env` anheben.
+
+**Sicherheitsupdates prüfen:** Python-Pakete stehen fest in `portal/requirements.txt`, Browser-Bibliotheken in `portal/app/static/vendor/` (Versionen in `vendor/README.md`). Prüfen z. B. mit `pip-audit -r portal/requirements.txt`; für die Bibliotheken die Sicherheitshinweise der Projekte (GitHub Advisories) ansehen.
+
+**Härtung der Container (ab Version 2026.10.1):** Die Jitsi-Container bekommen das Portal-Geheimnis und das Admin-Passwort nicht mehr; das Portal läuft mit minimalen Linux-Rechten und bindet den Datenordner von Caddy (private Schlüssel) nicht mehr ein – das öffentliche Root-Zertifikat kopiert Caddy alle 5 Minuten nach `data/caddy/conf/root.crt`. Bei bestehenden Installationen nach dem Update einmal `docker compose up -d --force-recreate` und die Dateirechte nachziehen:
+
+```bash
+chmod 750 data && chmod 700 data/portal data/caddy/data
+```
 
 ## Sicherung und Wiederherstellung
 

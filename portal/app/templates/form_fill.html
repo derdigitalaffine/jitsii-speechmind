@@ -55,10 +55,10 @@
 {% block scripts %}
 {% if geo_bundle %}
 <script type="application/json" id="geo-bundle">{{ geo_bundle | tojson }}</script>
-<script src="/static/vendor/maplibre/maplibre-gl.js"></script>
-<script src="/static/map-core.js"></script>
-<script src="/static/map-draw.js"></script>
-<script src="/static/form-geo.js"></script>
+<script type="module" src="/static/maplibre-global.js"></script>
+<script type="module" src="/static/map-core.js"></script>
+<script type="module" src="/static/map-draw.js"></script>
+<script type="module" src="/static/form-geo.js"></script>
 {% endif %}
 <script src="/static/form-address.js"></script>
 <script src="/static/form-fill.js"></script>

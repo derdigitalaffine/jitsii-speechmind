@@ -200,7 +200,8 @@ def notify_applicant(db, form: Form, resp: FormResponse, key: str, extra: dict |
     subject, body = mailtpl.render(db, key, values)
     staff = _staff_addresses(db, form, resp)
     return notify.enqueue(db, to, subject, body, key, attachments=_pdf_attachment(form, resp) if attach_pdf else None,
-                          reply_to=resp.route_email or (staff[0] if staff else None))
+                          reply_to=resp.route_email or (staff[0] if staff else None),
+                          per_hour=5 if key == "app_received" else None)
 
 
 def notify_staff(db, form: Form, resp: FormResponse, key: str, extra: dict | None = None, attach_pdf: bool = False,

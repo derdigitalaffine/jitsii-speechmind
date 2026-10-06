@@ -18,8 +18,8 @@ Datenschutz (Gesundheitsdaten, Art. 9 DSGVO):
 """
 
 import base64
-import csv
 import hashlib
+import hmac
 import io
 import json
 import logging
@@ -36,7 +36,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from sqlalchemy import func, or_, select
 
-from . import links, mailtpl, notify
+from . import csvsafe, links, mailtpl, notify
 from .config import settings
 from .db import (
     DmsArea, DmsRecord, GroupMember, KrankAccess, KrankEmployer, KrankEvent, KrankFeedback, KrankFile, KrankReport,
@@ -211,17 +211,24 @@ def _serializer(salt: str) -> URLSafeTimedSerializer:
 TICKET_HOURS = 12
 
 
-def make_ticket() -> str:
+def _ticket_generation(cfg: dict[str, str]) -> str:
+    """Ändert sich mit Passwort und Zugangslink – neue Zugangsdaten machen alte Tickets ungültig."""
+    raw = f"{cfg.get('krank_password_hash') or ''}|{cfg.get('krank_access_token_enc') or ''}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def make_ticket(cfg: dict[str, str]) -> str:
     """Nachweis für den öffentlichen Zugang (Passwort oder Zugangslink geprüft). Wird als verstecktes Feld
     mitgeschickt und funktioniert damit auch eingebettet (iframe), wo Browser keine Cookies senden."""
-    return _serializer("krank-access").dumps("ok")
+    return _serializer("krank-access").dumps(_ticket_generation(cfg))
 
 
-def ticket_valid(ticket: str | None) -> bool:
+def ticket_valid(ticket: str | None, cfg: dict[str, str]) -> bool:
     if not ticket:
         return False
     try:
-        return _serializer("krank-access").loads(ticket, max_age=TICKET_HOURS * 3600) == "ok"
+        return hmac.compare_digest(str(_serializer("krank-access").loads(ticket, max_age=TICKET_HOURS * 3600)),
+                                   _ticket_generation(cfg))
     except (BadSignature, SignatureExpired):
         return False
 
@@ -886,12 +893,12 @@ def pdf(report: KrankReport) -> bytes:
             continue
         total = len(e["reader"].pages)
         for i, page in enumerate(e["reader"].pages, start=1):
+            added = writer.add_page(page)   # erst übernehmen, dann stempeln (pypdf 7 verlangt die Seite im Writer)
             try:
-                w, h = float(page.mediabox.width), float(page.mediabox.height)
-                page.merge_page(PdfReader(io.BytesIO(_stamp(f"{report.ref_no} · Anlage {e['n']} · Seite {i}/{total}", w, h))).pages[0])
+                w, h = float(added.mediabox.width), float(added.mediabox.height)
+                added.merge_page(PdfReader(io.BytesIO(_stamp(f"{report.ref_no} · Anlage {e['n']} · Seite {i}/{total}", w, h))).pages[0])
             except Exception:  # noqa: BLE001
                 pass
-            writer.add_page(page)
     out = io.BytesIO()
     writer.write(out)
     return out.getvalue()
@@ -974,7 +981,7 @@ CSV_HEAD = ["Aktenzeichen", "Eingang", "Art", "Status", "Arbeitgeber", "Nachname
 
 def csv_export(reports: list[KrankReport]) -> str:
     buf = io.StringIO()
-    w = csv.writer(buf, delimiter=";")
+    w = csvsafe.writer(buf, delimiter=";")
     w.writerow(CSV_HEAD)
     for r in reports:
         d = data(r)
@@ -1071,6 +1078,8 @@ def import_archive(db, archive: Path, user: User | None) -> dict:
         db_member = next((m for m in members if PurePosixPath(m.filename).name == "krankmeldungen.db"), None)
         if db_member is None:
             raise ValueError("In der ZIP-Datei fehlt krankmeldungen.db (aus dem Ordner data/ des Krankmelders).")
+        if db_member.file_size > 1024 ** 3 or sum(m.file_size for m in members) > 20 * 1024 **3:
+            raise ValueError("Die ZIP-Datei ist entpackt zu groß (Datenbank höchstens 1 GB, insgesamt 20 GB).")
         uploads = {PurePosixPath(m.filename).name: m for m in members
                    if "uploads" in PurePosixPath(m.filename).parts[:-1] and m.file_size <= 50 * 1024 * 1024}
         with tempfile.TemporaryDirectory() as tmp:

@@ -73,10 +73,11 @@ def _access(request: Request, db: Session, ticket: str | None) -> tuple[User | N
     user = session_user(request, db)
     if user is not None:
         return user, None
-    if not krank.public_open(get_settings(db)):
+    cfg = get_settings(db)
+    if not krank.public_open(cfg):
         return None, None
     for t in (ticket, request.session.get("krank_ticket")):
-        if krank.ticket_valid(t):
+        if krank.ticket_valid(t, cfg):
             return None, t
     return None, None
 
@@ -118,7 +119,7 @@ async def _login(request: Request, embed: bool, db: Session):
     if cfg.get("krank_public") != "1" or not krank.check_password(cfg, str(form.get("password") or "")):
         flash(request, "Das Passwort ist nicht korrekt.", "error")
         return redirect(R + ("?fehler=1" if embed else ""))
-    ticket = krank.make_ticket()
+    ticket = krank.make_ticket(cfg)
     request.session["krank_ticket"] = ticket
     return redirect(_with_k(R, ticket, embed))
 
@@ -139,7 +140,7 @@ def _token_login(request: Request, token: str, embed: bool, db: Session):
     cfg = get_settings(db)
     if cfg.get("krank_public") != "1" or not krank.token_matches(cfg, token):
         raise HTTPException(404, "Dieser Zugangslink ist nicht (mehr) gültig. Bitte wenden Sie sich an die Personalverwaltung.")
-    ticket = krank.make_ticket()
+    ticket = krank.make_ticket(cfg)
     request.session["krank_ticket"] = ticket
     return redirect(_with_k(EMBED if embed else PUBLIC, ticket, embed))
 

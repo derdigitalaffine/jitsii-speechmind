@@ -6,14 +6,13 @@ Zeitfenster selbst, bekommen eine Bestätigung mit Kalendereintrag und einem Lin
 Termin verschieben oder absagen können. Optional entsteht je Buchung eine eigene Videokonferenz.
 """
 
-import csv
 import io
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 from sqlalchemy import select
 
-from . import ics, links, mailtpl, notify, planning
+from . import csvsafe, ics, links, mailtpl, notify, planning
 from .config import settings
 from .db import (
     LOCAL_TZ, Booking, BookingInvite, BookingPage, BookingWindow, Group, Meeting, SessionLocal, User,
@@ -438,7 +437,7 @@ def _row(b: Booking) -> dict:
 def to_csv(page: BookingPage, items: list[Booking] | None = None) -> str:
     items = page.bookings if items is None else items
     buf = io.StringIO()
-    w = csv.writer(buf, delimiter=";")
+    w = csvsafe.writer(buf, delimiter=";")
     w.writerow(["Datum", "Beginn", "Ende", "Name", "E-Mail", "Telefon", "Nachricht", "Status", "Gebucht am",
                 "Abgesagt von", "Grund"])
     for b in items:

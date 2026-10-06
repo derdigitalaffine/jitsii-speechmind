@@ -896,7 +896,9 @@ def booking_file(bid: int, name: str, user: User = Depends(current_user), db: Se
         raise HTTPException(404)
     label = next((f["name"] for v in rs.answers_of(b).values() if isinstance(v, list) for f in v
                   if isinstance(f, dict) and f.get("file") == name), name)
-    return FileResponse(path, filename=label, headers={"Content-Disposition": f'attachment; filename="{label}"'})
+    # Dateiname stammt aus dem Upload: Starlette kodiert ihn korrekt (RFC 5987); Inhalt nie im Portal ausführen
+    return FileResponse(path, filename=label, media_type="application/octet-stream",
+                        headers={"Content-Security-Policy": "default-src 'none'; sandbox", "X-Content-Type-Options": "nosniff"})
 
 
 # --- Interne Buchung / Serie ---------------------------------------------------------------

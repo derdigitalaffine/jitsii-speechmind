@@ -10,7 +10,6 @@ Antworten werden je Frage unter ihrer ID gespeichert, Auswahlen als Text der Opt
 alte Antworten lesbar, wenn das Formular später geändert wird.
 """
 
-import csv
 import io
 import json
 import re
@@ -20,9 +19,10 @@ from collections import Counter
 from datetime import date, datetime, time as dtime
 from pathlib import Path
 
+import regex
 from sqlalchemy import select
 
-from . import links, mailtpl, notify
+from . import csvsafe, links, mailtpl, notify
 from .config import settings
 from .db import Form, FormInvite, FormResponse, FormShare, Group, GroupMember, User, get_settings, to_local, utcnow
 from .planning import EMAIL_RE
@@ -119,8 +119,8 @@ def clean_schema(raw) -> list[dict]:
             if item["subtype"] == "regex":
                 pattern = _str(src.get("pattern"), 300)
                 try:
-                    re.compile(pattern)
-                except re.error:
+                    regex.compile(pattern)
+                except regex.error:
                     pattern = ""
                 item["pattern"] = pattern
                 item["pattern_hint"] = _str(src.get("pattern_hint"), 200)
@@ -457,9 +457,13 @@ def _validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
                         errors[qid] = f"Die Zahl darf höchstens {item['max']:g} sein."
                 elif raw and sub == "regex" and item.get("pattern"):
                     try:
-                        ok = re.fullmatch(item["pattern"], raw) is not None
-                    except re.error:
+                        # Muster legt die Formular-Redaktion fest: mit Zeitlimit prüfen, damit ein ungünstiger
+                        # Ausdruck (katastrophales Backtracking) den Server nicht blockiert
+                        ok = regex.fullmatch(item["pattern"], raw[:2000], timeout=0.25) is not None
+                    except regex.error:
                         ok = True
+                    except TimeoutError:
+                        ok = False
                     if not ok:
                         errors[qid] = item.get("pattern_hint") or "Die Eingabe hat nicht das erwartete Format."
             elif kind == "long":
@@ -884,7 +888,7 @@ def to_csv(form: Form, responses: list[FormResponse]) -> str:
     """CSV für Excel: Semikolon, UTF-8 mit BOM."""
     items = questions(schema(form))
     buf = io.StringIO()
-    writer = csv.writer(buf, delimiter=";")
+    writer = csvsafe.writer(buf, delimiter=";")
     writer.writerow(["Nr.", "Eingang", "Von (Name)", "Von (E-Mail)", *_headers(items)])
     for n, resp in enumerate(responses, start=1):
         answers = resp.answers
@@ -1088,7 +1092,7 @@ def confirm_to_respondent(db, form: Form, resp: FormResponse, email: str, name: 
     subject, body = mailtpl.render(db, "form_confirmation", {
         "name": name or email, "titel": form.title, "antworten": answers_text(form, resp),
         "zeitpunkt": to_local(resp.created_at).strftime("%d.%m.%Y, %H:%M Uhr")})
-    notify.enqueue(db, email, subject, body, "form_confirmation")
+    notify.enqueue(db, email, subject, body, "form_confirmation", per_hour=5)
 
 
 def respondent_email(form: Form, answers: dict) -> str:

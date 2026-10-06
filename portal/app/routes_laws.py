@@ -463,7 +463,10 @@ def law_publish(request: Request, law_id: int, user: User = Depends(law_user), d
     db.commit()
     lx.invalidate_refs()
     flash(request, f"„{law.title}“ ist jetzt " + ("öffentlich sichtbar." if law.published else "nicht mehr öffentlich."))
-    return redirect(request.headers.get("referer") or "/laws")
+    from urllib.parse import urlparse
+    from .main import safe_next
+    ref = urlparse(request.headers.get("referer") or "")
+    return redirect(safe_next(ref.path + (f"?{ref.query}" if ref.query else "")) if ref.path else "/laws")
 
 
 @app.post("/laws/{law_id}/delete", dependencies=[Depends(check_csrf)])

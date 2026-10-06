@@ -20,8 +20,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 
-from . import links, mailtpl, notify
-from .config import settings
+from . import csvsafe, links, mailtpl, notify
 from .db import Group, User, Vote, VoteBallot, VoteQuestion, VoteVoter, get_settings, to_local, utcnow
 from .planning import EMAIL_RE
 from .security import new_link_token
@@ -453,9 +452,8 @@ def frozen(vote: Vote) -> list[dict] | None:
 
 
 def to_csv(db, vote: Vote) -> str:
-    import csv
     buf = io.StringIO()
-    w = csv.writer(buf, delimiter=";")
+    w = csvsafe.writer(buf, delimiter=";")
     qs = vote.questions
     head = ["Stimmzettel"] + (["Name", "E-Mail"] if vote.secrecy == "open" else []) + [q.title for q in qs]
     w.writerow(head)
