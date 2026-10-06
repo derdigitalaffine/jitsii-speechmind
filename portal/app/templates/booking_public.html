@@ -2,13 +2,13 @@
 {% block title %}{{ page.title if page else 'Terminbuchung' }}{% endblock %}
 {% macro header(page) %}
 <div class="card mb-3 border-top border-primary border-4"><div class="card-body">
-  <div class="small text-secondary mb-1"><i class="fa-solid fa-calendar-plus me-1"></i>Terminbuchung{% if page.owner %} bei {{ page.owner.name }}{% endif %}</div>
+  <div class="small text-secondary mb-1"><i class="fa-solid fa-calendar-plus me-1"></i>Terminbuchung{% if page.owner and not page.extended %} bei {{ page.owner.name }}{% endif %}</div>
   <h1 class="h3 mb-2">{{ page.title }}</h1>
   {% if page.description %}<div class="text-secondary mb-2">{{ page.description | richtext }}</div>{% endif %}
-  <div class="small text-secondary d-flex flex-wrap gap-3">
+  {% if not page.extended %}<div class="small text-secondary d-flex flex-wrap gap-3">
     <span><i class="fa-regular fa-clock me-1"></i>{{ page.slot_minutes }} Minuten</span>
     {% if page.online %}<span><i class="fa-solid fa-video me-1"></i>Videokonferenz im Browser</span>{% elif page.location %}<span><i class="fa-solid fa-location-dot me-1"></i>{{ page.location }}</span>{% endif %}
-  </div>
+  </div>{% endif %}
 </div></div>
 {% endmacro %}
 {% block content %}
@@ -21,13 +21,43 @@
 {% elif mode == 'invite_only' %}
   {{ header(page) }}<div class="alert alert-info"><i class="fa-solid fa-envelope me-1"></i>Diese Termine sind nur mit persönlicher Einladung buchbar. Bitte verwenden Sie den Link aus Ihrer Einladungsmail.</div>
 
+{% elif mode == 'types' %}
+  {{ header(page) }}
+  <h2 class="h5 mb-3"><span class="badge rounded-pill text-bg-primary me-2">1</span>Worum geht es?</h2>
+  {% if types %}
+  <div class="row g-3 mb-5">{% for t in types %}
+    <div class="col-md-6"><a class="card h-100 text-reset text-decoration-none pub-tile" href="?art={{ t.id }}{% if invite %}&i={{ invite.token }}{% endif %}">
+      <div class="card-body"><h3 class="h6 mb-1">{{ t.name }}</h3>
+        <div class="small text-secondary mb-2"><i class="fa-regular fa-clock me-1"></i>{{ summary(t) }}{% if t.approval %} · Bestätigung durch uns{% endif %}</div>
+        {% if t.description %}<p class="small mb-0">{{ t.description | truncate(220) }}</p>{% endif %}</div>
+      <div class="card-footer small text-primary">Termin wählen <i class="fa-solid fa-arrow-right"></i></div></a></div>
+  {% endfor %}</div>
+  {% else %}<div class="alert alert-warning">Zurzeit werden hier keine Termine angeboten.</div>{% endif %}
+
 {% elif mode == 'book' %}
   {{ header(page) }}
+  {% if bt %}
+  <div class="card mb-3"><div class="card-body d-flex flex-wrap gap-3 align-items-start">
+    <div class="flex-grow-1"><div class="small text-secondary">Terminart</div><div class="fw-semibold">{{ bt.name }}</div>
+      <div class="small text-secondary"><i class="fa-regular fa-clock me-1"></i>{{ summary(bt) }}{% if bt.approval %} · Wir bestätigen Ihren Termin nach Prüfung per E-Mail.{% endif %}</div>
+      {% if bt.description %}<div class="small mt-1">{{ bt.description | richtext }}</div>{% endif %}
+      {% if bt.docs_hint %}<div class="alert alert-info small py-2 mt-2 mb-0"><i class="fa-solid fa-folder-open me-1"></i><strong>Bitte mitbringen:</strong> {{ bt.docs_hint | richtext }}</div>{% endif %}</div>
+    {% if types | length > 1 %}<a class="btn btn-sm btn-outline-secondary" href="?{% if invite %}i={{ invite.token }}{% endif %}"><i class="fa-solid fa-arrow-left me-1"></i>andere Terminart</a>{% endif %}
+  </div>
+  {% if bt.choose_provider and bt.providers | length > 1 %}
+  <form method="get" class="card-footer d-flex flex-wrap gap-2 align-items-center"><input type="hidden" name="art" value="{{ bt.id }}">{% if invite %}<input type="hidden" name="i" value="{{ invite.token }}">{% endif %}
+    <label class="small" for="bk-person">Ansprechperson</label>
+    <select class="form-select form-select-sm w-auto" id="bk-person" name="person"><option value="">egal – erster freier Termin</option>{% for p in bt.providers if p.active %}<option value="{{ p.id }}" {% if person == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
+    <button class="btn btn-sm btn-outline-primary" type="submit">Termine zeigen</button></form>
+  {% endif %}
+  </div>
+  {% endif %}
   {% if not days %}
   <div class="alert alert-warning"><i class="fa-regular fa-calendar-xmark me-1"></i>Zurzeit sind alle Termine vergeben. Bitte versuchen Sie es später noch einmal{% if page.owner %} oder melden Sie sich bei {{ page.owner.name }}{% endif %}.</div>
   {% else %}
   <form method="post" class="mb-5" id="bk-form">
     <input type="hidden" name="csrf" value="{{ csrf }}">{% if invite %}<input type="hidden" name="i" value="{{ invite.token }}">{% endif %}
+    {% if bt %}<input type="hidden" name="art" value="{{ bt.id }}">{% if person %}<input type="hidden" name="person" value="{{ person }}">{% endif %}{% endif %}
     <div class="d-none" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
     <div class="card mb-3"><div class="card-header fw-semibold"><span class="badge rounded-pill text-bg-primary me-2">1</span>Termin wählen</div><div class="card-body">
       <div class="d-flex flex-wrap gap-1 mb-3" role="navigation" aria-label="Tage">
@@ -39,7 +69,7 @@
         <div class="d-flex flex-wrap gap-2 bk-slot">
           {% for s in d.slots %}{% set val = s.iso ~ '+00:00' %}
           <input type="radio" class="btn-check" name="slot" id="s-{{ loop.index }}-{{ d.key }}" value="{{ val }}" required {% if selected == val %}checked{% endif %}>
-          <label class="btn btn-outline-primary" for="s-{{ loop.index }}-{{ d.key }}">{{ s.time }}{% if page.capacity > 1 %}<span class="d-block small">{{ s.free }} frei</span>{% endif %}</label>
+          <label class="btn btn-outline-primary" for="s-{{ loop.index }}-{{ d.key }}">{{ s.time }}{% if page.capacity > 1 and not bt %}<span class="d-block small">{{ s.free }} frei</span>{% endif %}</label>
           {% endfor %}
         </div>
       </div>
@@ -49,10 +79,11 @@
       <div class="col-md-6"><label class="form-label" for="bn">Name</label><input class="form-control" id="bn" name="name" required maxlength="120" autocomplete="name" value="{{ invite.name if invite else (member.name if member else '') }}"></div>
       <div class="col-md-6"><label class="form-label" for="be">E-Mail <span class="text-secondary">(für die Bestätigung)</span></label>
         <input class="form-control" id="be" name="email" type="email" required maxlength="255" autocomplete="email" value="{{ invite.email if invite else (member.email if member else '') }}" {% if invite %}readonly{% endif %}></div>
-      {% if page.ask_phone %}<div class="col-md-6"><label class="form-label" for="bp">Telefon</label><input class="form-control" id="bp" name="phone" type="tel" required maxlength="60" autocomplete="tel"></div>{% endif %}
+      {% set phone_mode = bt.phone_mode if bt else ('required' if page.ask_phone else 'none') %}
+      {% if phone_mode != 'none' %}<div class="col-md-6"><label class="form-label" for="bp">Telefon{% if phone_mode == 'optional' %} <span class="text-secondary">(optional)</span>{% endif %}</label><input class="form-control" id="bp" name="phone" type="tel" {% if phone_mode == 'required' %}required{% endif %} maxlength="60" autocomplete="tel"></div>{% endif %}
       <div class="col-12"><label class="form-label" for="bno">Nachricht <span class="text-secondary">(optional)</span></label><textarea class="form-control" id="bno" name="note" rows="2" maxlength="2000"></textarea></div>
       <div class="col-12 small text-secondary"><i class="fa-solid fa-shield-halved me-1"></i>Ihre Angaben werden nur für diesen Termin verwendet. Absagen oder Verschieben ist bis {{ page.cancel_hours }} Stunden vorher über den Link in der Bestätigung möglich.</div>
-      <div class="col-12"><button class="btn btn-primary btn-lg" type="submit"><i class="fa-solid fa-calendar-check me-1"></i>Termin verbindlich buchen</button></div>
+      <div class="col-12"><button class="btn btn-primary btn-lg" type="submit"><i class="fa-solid fa-calendar-check me-1"></i>{{ 'Termin anfragen' if bt and bt.approval else 'Termin verbindlich buchen' }}</button></div>
     </div></div>
   </form>
   {% endif %}
@@ -65,12 +96,14 @@
   {% else %}
   <div class="card mb-3 {{ 'border-success' if fresh }}"><div class="card-body d-flex flex-wrap align-items-center gap-3">
     <i class="fa-regular fa-calendar-check fa-2x text-success"></i>
-    <div class="flex-grow-1"><div class="small text-secondary">{{ 'Gebucht – vielen Dank!' if fresh else 'Ihr Termin' }}</div><div class="h5 mb-0">{{ label(booking.starts_at, booking.ends_at) }}</div>
-      <div class="small text-secondary">{{ booking.name }} · {{ booking.email }}</div></div>
+    <div class="flex-grow-1"><div class="small text-secondary">{% if booking.status == 'requested' %}{{ 'Angefragt – vielen Dank!' if fresh else 'Ihre Terminanfrage' }} <span class="badge text-bg-warning">wartet auf Bestätigung</span>{% else %}{{ 'Gebucht – vielen Dank!' if fresh else 'Ihr Termin' }}{% endif %}</div><div class="h5 mb-0">{{ label(booking.starts_at, booking.ends_at) }}</div>
+      <div class="small text-secondary">{% if booking.type %}{{ booking.type.name }}{% if booking.provider %} bei {{ booking.provider.name }}{% endif %} · {% endif %}{{ booking.name }} · {{ booking.email }}</div></div>
     {% if join %}<a class="btn btn-success" href="{{ join }}"><i class="fa-solid fa-video me-1"></i>Zur Videokonferenz</a>{% endif %}
   </div>
-  {% if fresh %}<div class="card-footer small">Die Bestätigung mit Kalendereintrag ist per E-Mail unterwegs. <strong>Bewahren Sie diese Seite (Link) auf</strong> – hier können Sie den Termin verschieben oder absagen.</div>{% endif %}
+  {% if fresh and booking.status == 'requested' %}<div class="card-footer small">Sie erhalten eine Eingangsbestätigung per E-Mail und, sobald wir den Termin bestätigt haben, eine weitere Mail mit Kalendereintrag.</div>
+  {% elif fresh %}<div class="card-footer small">Die Bestätigung mit Kalendereintrag ist per E-Mail unterwegs. <strong>Bewahren Sie diese Seite (Link) auf</strong> – hier können Sie den Termin verschieben oder absagen.</div>{% endif %}
   {% if page.confirm_text %}<div class="card-footer small">{{ page.confirm_text | richtext }}</div>{% endif %}
+  {% if booking.type and booking.type.docs_hint %}<div class="card-footer small"><i class="fa-solid fa-folder-open me-1"></i><strong>Bitte mitbringen:</strong> {{ booking.type.docs_hint | richtext }}</div>{% endif %}
   </div>
 
   {% if can_cancel %}

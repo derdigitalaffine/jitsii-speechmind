@@ -285,6 +285,7 @@ Menü **Terminbuchung** (Recht „Terminbuchung“). Sie reservieren einen Zeitr
    | Erinnerung … Stunden vorher | automatische Erinnerungsmail an den Gast (0 = keine) |
    | Termine je Person | wie viele anstehende Termine eine E-Mail-Adresse gleichzeitig haben darf |
    | Nur mit persönlicher Einladung | **empfohlen für Vorstellungsgespräche**: nur Eingeladene können buchen |
+   | Mehrere Terminarten anbieten | erweiterter Umfang: Terminarten mit eigener Dauer, zuständigen Kolleg:innen und Sprechzeiten – Bürger:innen wählen erst das Thema, dann den Termin; auf Wunsch Bestätigung vor dem Termin |
    | Öffentlich unter „Termine buchen“ zeigen | die Seite erscheint im öffentlichen Verzeichnis `/b`, auf der Startseite und in der Suche – z. B. für Bürgersprechstunden |
    | Als Videokonferenz | für jede Buchung entsteht ein eigener, geschützter Konferenzraum; der Gast bekommt seinen Einwahllink (Recht „Videokonferenzen“ nötig) |
    | Telefonnummer verlangen, Zusatztext | z. B. „Bitte bringen Sie Ihre Zeugnisse mit“ |

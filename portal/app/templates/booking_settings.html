@@ -42,6 +42,15 @@
       {{ sw('notify_owner', 'Mich bei jeder Buchung, Verschiebung und Absage per Mail informieren', page.notify_owner if page else True) }}
     </div>
   </div></div></div>
+  <div class="col-12"><div class="card border-primary-subtle"><div class="card-header"><i class="fa-solid fa-layer-group me-2"></i>Erweiterter Umfang: Terminarten</div><div class="card-body row g-3">
+    <input type="hidden" name="extended_form" value="1">
+    <div class="col-12">{{ sw('extended', 'Mehrere Terminarten anbieten', page.extended if page else False, 'Z. B. „Bauberatung 45 Min.“, „Gewerbeanmeldung 15 Min.“ – je Art eigene Dauer, Puffer, Vorlauf, Ort oder Videokonferenz, zuständige Mitarbeitende mit wiederkehrenden Sprechzeiten und auf Wunsch Bestätigung vor dem Termin. Bürger:innen wählen erst das Thema, dann den Termin. Die Zeitbereiche im Kalender oben gelten dann nicht.') }}</div>
+    <div class="col-sm-4"><label class="form-label" for="n-days_ahead">Buchbar im Voraus</label>
+      <div class="input-group"><input class="form-control" type="number" id="n-days_ahead" name="days_ahead" min="1" max="730" value="{{ page.days_ahead if page else 60 }}"><span class="input-group-text">Tage</span></div></div>
+    <div class="col-sm-4"><label class="form-label" for="n-step">Raster der Beginnzeiten</label>
+      <select class="form-select" id="n-step" name="step_minutes">{% for st in [5, 10, 15, 20, 30, 60] %}<option value="{{ st }}" {% if (page.step_minutes if page else 15) == st %}selected{% endif %}>alle {{ st }} Minuten</option>{% endfor %}</select></div>
+    <div class="col-sm-4 d-flex align-items-end">{{ sw('holidays_closed', 'An Feiertagen keine Termine', page.holidays_closed if page else True) }}</div>
+  </div></div></div>
   <div class="col-12"><button class="btn btn-primary btn-lg" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>{{ 'Speichern' if page else 'Anlegen und Zeiten festlegen' }}</button></div>
 </form>
 {% endblock %}
