@@ -3,8 +3,20 @@
 {{- (parts[0][0] ~ (parts[-1][0] if parts | length > 1 else '')) | upper -}}
 {%- endmacro %}
 
-{% macro nav_item(href, icon, label, active) -%}
-<li class="nav-item"><a class="nav-link {{ 'active' if active }}" href="{{ href }}" {% if active %}aria-current="page"{% endif %}><i class="fa-solid {{ icon }}"></i><span>{{ label }}</span></a></li>
+{% macro nav_item(href, icon, label, active, badge=0, badge_title='') -%}
+<li class="nav-item"><a class="nav-link {{ 'active' if active }}" href="{{ href }}" {% if active %}aria-current="page"{% endif %} data-label="{{ label | striptags }}"><i class="fa-solid {{ icon }}" aria-hidden="true"></i><span class="nav-label">{{ label }}</span>{% if badge %}<span class="badge rounded-pill text-bg-danger ms-auto" title="{{ badge_title }}">{{ badge }}</span>{% endif %}</a></li>
+{%- endmacro %}
+
+{# Einklappbare Gruppe im Hauptmenü. Zustand (zu/auf) merkt sich das Cookie jsm_nav_closed – der Server gibt die
+   Gruppe gleich richtig aus (kein Flackern). Die Gruppe der aktuellen Seite ist immer offen. #}
+{% macro nav_group(key, label, closed_groups) -%}
+{%- set inner = caller() -%}
+{%- set has_active = 'aria-current="page"' in inner -%}
+{%- set open = has_active or key not in closed_groups -%}
+<li class="nav-group {{ 'is-open' if open }}{{ ' has-active' if has_active }}" data-group="{{ key }}">
+  <button class="nav-group-toggle" type="button" aria-expanded="{{ 'true' if open else 'false' }}" aria-controls="ng-{{ key }}"><span>{{ label }}</span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
+  <div class="nav-group-body" id="ng-{{ key }}"><ul class="nav flex-column">{{ inner }}</ul></div>
+</li>
 {%- endmacro %}
 
 {% macro flashes(messages) -%}

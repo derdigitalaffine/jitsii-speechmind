@@ -4,6 +4,8 @@ Für alle, die im Portal der Verbandsgemeinde Otterbach-Otterberg arbeiten: Vide
 
 > Welche Bereiche Sie sehen, legt die Verwaltung des Portals fest (Rechte „Videokonferenzen“, „Kurzlinks“, „Formulare“, „Terminumfragen“, „Terminbuchung“, „Benutzerverwaltung“). Fehlt Ihnen ein Menüpunkt, den Sie brauchen, wenden Sie sich an sie.
 
+**Das Menü links:** Die Bereiche lassen sich mit einem Klick auf ihre Überschrift ein- und ausklappen – das Portal merkt sich die Auswahl, der Bereich der aktuellen Seite bleibt immer offen. Oben im Menü finden Sie jeden Punkt über die **Suche** (Taste `/` oder `Strg`+`K`, Enter öffnet den ersten Treffer, Pfeiltasten wechseln). Mit dem Doppelpfeil daneben wird das Menü auf Symbole verkleinert (Name beim Darüberfahren); ein weiterer Klick klappt es wieder aus. Das Menü bleibt beim Seitenwechsel an seiner Stelle stehen.
+
 ## Inhalt
 
 1. [Anmelden](#1-anmelden)
