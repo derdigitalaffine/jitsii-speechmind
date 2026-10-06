@@ -47,6 +47,16 @@ def _group_ids(user: User):
     return select(GroupMember.group_id).where(GroupMember.user_id == user.id)
 
 
+# Während einer Vertretung (absence.py): höchste Stufe über die vertretene Person – Buchungsseiten und Ressourcen
+# wie diese (Besitz → Bearbeiten), Terminumfragen und Abstimmungen nur lesend
+DEPUTY_CAP = {"booking": EDIT, "resource": EDIT, "poll": VIEW, "vote": VIEW}
+
+
+def _represented(db, user: User) -> list[int]:
+    from . import absence
+    return absence.represented(db, user)
+
+
 def access_level(db, kind: str, obj, user: User) -> int:
     """0 = kein Zugriff, 1–3 = Freigabestufe, 4 = Besitzer:in oder Admin."""
     if obj is None:
@@ -57,7 +67,15 @@ def access_level(db, kind: str, obj, user: User) -> int:
     levels = db.scalars(select(model.level).where(
         getattr(model, column) == obj.id,
         (model.user_id == user.id) | (model.group_id.in_(_group_ids(user)))))
-    return max(levels, default=0)
+    best = max(levels, default=0)
+    rep = _represented(db, user)
+    if rep and best < DEPUTY_CAP[kind]:
+        deputy = EDIT if obj.owner_id in rep else max(db.scalars(select(model.level).where(
+            getattr(model, column) == obj.id,
+            model.user_id.in_(rep) | model.group_id.in_(select(GroupMember.group_id).where(GroupMember.user_id.in_(rep)))
+        )), default=0)
+        best = max(best, min(deputy, DEPUTY_CAP[kind]))
+    return best
 
 
 def shared_with(db, kind: str, user: User) -> list[tuple[object, int]]:
@@ -68,6 +86,16 @@ def shared_with(db, kind: str, user: User) -> list[tuple[object, int]]:
     best: dict[int, int] = {}
     for obj_id, level in rows:
         best[obj_id] = max(level, best.get(obj_id, 0))
+    rep = _represented(db, user)
+    if rep:   # Vertretung: Objekte der vertretenen Person und Freigaben an sie
+        cap = DEPUTY_CAP[kind]
+        rep_groups = select(GroupMember.group_id).where(GroupMember.user_id.in_(rep))
+        for obj_id, level in db.execute(select(getattr(model, column), model.level).where(
+                model.user_id.in_(rep) | model.group_id.in_(rep_groups))).all():
+            best[obj_id] = max(min(level, cap), best.get(obj_id, 0))
+        if cap >= EDIT:
+            for obj_id in db.scalars(select(target.id).where(target.owner_id.in_(rep))):
+                best[obj_id] = max(EDIT, best.get(obj_id, 0))
     if not best:
         return []
     found = db.scalars(select(target).where(target.id.in_(best),

@@ -162,3 +162,50 @@ def test_profile_setting_and_dashboard_tile():
     with SessionLocal() as db:
         assert db.scalar(select(User).where(User.email == "ben@example.org")).sub_confirm
     assert 'data-key="absence"' in b.get("/").text
+
+
+def test_deputy_access_bookings_resources_dms_and_citizen_note():
+    from datetime import timedelta as td
+
+    from app import bookings as bk, dms, resources as rs, shares as sh
+    from app.db import BookingPage, BookingWindow, DmsAccess, DmsArea, Poll, PollShare, Resource, utcnow
+    anna = person("anna@example.org", "Anna Abwesend")
+    ben = person("ben@example.org", "Ben Vertretung", sub_confirm=False)
+    with SessionLocal() as db:
+        for model, col, val in ((BookingPage, BookingPage.title, "Sprechstunde Anna"), (Poll, Poll.title, "Umfrage Anna"),
+                                (Resource, Resource.slug, "raum-anna"), (DmsArea, DmsArea.name, "Akten Anna")):
+            db.execute(delete(model).where(col == val))
+        page = BookingPage(title="Sprechstunde Anna", owner_id=anna, public_token="anna-sprechstunde-token-1",
+                           min_notice_hours=0)
+        db.add(page)
+        poll = Poll(title="Umfrage Anna")
+        db.add(poll)
+        res = Resource(name="Raum Anna", slug="raum-anna", manager_user_id=anna)
+        db.add(res)
+        area = DmsArea(name="Akten Anna")
+        db.add(area)
+        db.flush()
+        db.add(PollShare(poll_id=poll.id, user_id=anna, level=sh.EDIT))
+        db.add(DmsAccess(area_id=area.id, user_id=anna, level=dms.WRITE))
+        start = (utcnow() + td(days=1)).replace(minute=0, second=0, microsecond=0)
+        db.add(BookingWindow(page_id=page.id, starts_at=start, ends_at=start + td(hours=1)))
+        benu = db.get(User, ben)
+        before = (sh.access_level(db, "booking", page, benu), rs.level(db, benu, res), dms.levels(db, benu).get(area.id, 0))
+        assert before == (0, 0, 0)
+        ab.create(db, db.get(User, anna), db.get(User, anna), day(0), day(3), benu,
+                  auto_reply="Ich bin im Urlaub. Bitte wenden Sie sich an Ben.")
+        db.commit()
+        assert sh.access_level(db, "booking", page, benu) == sh.EDIT
+        assert any(p.id == page.id for p, _ in sh.shared_with(db, "booking", benu))
+        assert sh.access_level(db, "poll", poll, benu) == sh.VIEW              # Umfragen nur lesend
+        assert rs.level(db, benu, res) == 3
+        assert dms.levels(db, benu)[area.id] == dms.READ                    # Ablage nur lesend
+        # Bürger-Mail: Hinweis oben, Antwort an die Vertretung
+        b, err = bk.book(db, db.get(BookingPage, page.id), start, "Bürgerin", "buergerin@example.org")
+        db.commit()
+        assert not err
+        mail = db.scalar(select(Notification).where(Notification.to_addr == "buergerin@example.org"))
+        assert mail.body.startswith("Ich bin im Urlaub.") and mail.reply_to == "ben@example.org"
+        owner_copy = db.scalar(select(Notification).where(Notification.to_addr == "ben@example.org",
+                                                          Notification.kind == "booking_owner_vt"))
+        assert owner_copy is not None

@@ -803,7 +803,7 @@ Mit dem Recht „Krankmeldungen“ und als Zuständige:r eines Arbeitgebers: Men
 
 ## 12a. Abwesenheiten und Vertretungen
 
-Unter **Abwesenheiten** (Menü „Mein Arbeitsplatz“) tragen Sie Urlaub oder andere planbare Abwesenheiten ein: Zeitraum, **Vertretung** und eine Notiz zur Übergabe, die nur Sie und die Vertretung sehen. Kolleg:innen sehen nur „abwesend bis …, Vertretung: …“ – nie einen Grund. Während Ihrer Abwesenheit sieht die Vertretung Ihre Aufgaben unter „Meine Aufgaben › Als Vertretung“ und Ihre Anträge im Antragseingang und bekommt Benachrichtigungen in Kopie.
+Unter **Abwesenheiten** (Menü „Mein Arbeitsplatz“) tragen Sie Urlaub oder andere planbare Abwesenheiten ein: Zeitraum, **Vertretung**, eine Notiz zur Übergabe, die nur Sie und die Vertretung sehen, und auf Wunsch eine **Abwesenheitsnotiz für Bürger:innen** – sie steht während Ihrer Abwesenheit oben in Mails zu Ihren Anträgen und Terminbuchungen, Antworten gehen an Ihre Vertretung. Die Vertretung kann Ihre Buchungsseiten und Ressourcen wie Sie bearbeiten und Ihre Ablage lesen. Kolleg:innen sehen nur „abwesend bis …, Vertretung: …“ – nie einen Grund. Während Ihrer Abwesenheit sieht die Vertretung Ihre Aufgaben unter „Meine Aufgaben › Als Vertretung“ und Ihre Anträge im Antragseingang und bekommt Benachrichtigungen in Kopie.
 
 Werden Sie selbst als Vertretung eingetragen, bekommen Sie eine Mail. Möchten Sie jeder Vertretung vorher zustimmen, schalten Sie das im **Profil** unter „Vertretungen“ ein – Anfragen erscheinen dann unter Abwesenheiten und auf der Übersicht zum **Zustimmen** oder **Ablehnen**. Bei Krankheit tragen Gruppenleitungen bzw. die Personalstelle die Abwesenheit für Sie ein. Sind Sie früher zurück, beendet „Zurück“ die Abwesenheit.
 

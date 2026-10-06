@@ -95,7 +95,19 @@ def target_area_id(db, resp: FormResponse) -> int:
 
 def levels(db, user: User) -> dict[int, int]:
     """Bereich → Rechtestufe der Person (vererbt an Unterbereiche; Admins: alles schreibend).
-    Wer den Aktenplan verwaltet, darf „Nicht einsortiert“ bearbeiten, um Vorgänge einzusortieren."""
+    Wer den Aktenplan verwaltet, darf „Nicht einsortiert“ bearbeiten, um Vorgänge einzusortieren.
+    Während einer Vertretung kommt lesender Zugriff auf die Bereiche der vertretenen Person hinzu."""
+    result = _own_levels(db, user)
+    from . import absence
+    for rid in absence.represented(db, user):
+        other = db.get(User, rid)
+        if other is not None:
+            for area_id in _own_levels(db, other):
+                result[area_id] = max(result.get(area_id, 0), READ)
+    return result
+
+
+def _own_levels(db, user: User) -> dict[int, int]:
     all_areas = areas(db)
     if user.is_admin:
         return {a.id: WRITE for a in all_areas}

@@ -290,9 +290,13 @@ def level(db, user: User | None, res: Resource) -> int:
     if user is None or res is None:
         return 0
     lvl = sh.access_level(db, "resource", res, user)
-    if lvl < 3 and (res.manager_user_id == user.id or (res.manager_group_id and db.scalar(
-            select(GroupMember.user_id).where(GroupMember.group_id == res.manager_group_id, GroupMember.user_id == user.id)))):
-        lvl = 3
+    if lvl < 3:
+        from . import absence
+        ids = absence.acting_ids(db, user)   # während einer Vertretung auch Zuständigkeiten der vertretenen Person
+        if res.manager_user_id in ids or (res.manager_group_id and db.scalar(
+                select(GroupMember.user_id).where(GroupMember.group_id == res.manager_group_id,
+                                                  GroupMember.user_id.in_(ids)).limit(1))):
+            lvl = 3
     return lvl
 
 
