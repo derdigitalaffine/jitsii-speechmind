@@ -2357,6 +2357,7 @@ def _drop_brand_file(db: Session, key: str) -> None:
 def admin_design(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
     cfg = get_settings(db)
     return render(request, "admin_design.html", user, cfg=cfg, navbars=branding.NAVBARS,
+                  photos=branding.photo_sizes(cfg), thumb_ratios=branding.THUMB_RATIOS,
                   radii=branding.RADII, default_primary=branding.DEFAULT_PRIMARY,
                   logo_url=branding._file(cfg, "ui_logo")[1], favicon_url=branding._file(cfg, "ui_favicon")[1],
                   favicon_auto_url=branding._file(cfg, "ui_favicon_auto")[1] if cfg.get("ui_logo") else "")
@@ -2371,6 +2372,8 @@ async def admin_design_save(
     remove_favicon: str = Form(""),
     ui_brand_name: str = Form(""), ui_product: str = Form(""), ui_login_text: str = Form(""),
     ui_footer_text: str = Form(""), ui_imprint_url: str = Form(""), ui_privacy_url: str = Form(""),
+    ui_gallery_h: str = Form(""), ui_gallery_h_mobile: str = Form(""), ui_thumb_ratio: str = Form(""),
+    ui_photo_fit: str = Form(""),
     logo: UploadFile | None = File(None), favicon: UploadFile | None = File(None),
     user: User = Depends(admin_user), db: Session = Depends(get_db),
 ):
@@ -2387,6 +2390,12 @@ async def admin_design_save(
     set_setting(db, "ui_logo_height", ui_logo_height if ui_logo_height.isdigit() else "32")
     set_setting(db, "ui_show_name", "1" if ui_show_name == "1" else "0")
     set_setting(db, "ui_jitsi", "1" if ui_jitsi == "1" else "0")
+    photos = branding.photo_sizes({"ui_gallery_h": ui_gallery_h, "ui_gallery_h_mobile": ui_gallery_h_mobile,
+                                   "ui_thumb_ratio": ui_thumb_ratio, "ui_photo_fit": ui_photo_fit})
+    set_setting(db, "ui_gallery_h", str(photos["gallery"]))
+    set_setting(db, "ui_gallery_h_mobile", str(photos["gallery_mobile"]))
+    set_setting(db, "ui_thumb_ratio", photos["ratio"])
+    set_setting(db, "ui_photo_fit", photos["fit"])
 
     errors, notes = [], []
     for key, upload, remove, allowed in (("ui_logo", logo, remove_logo, branding.LOGO_TYPES),

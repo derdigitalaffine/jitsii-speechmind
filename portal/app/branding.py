@@ -167,8 +167,33 @@ def build(cfg: dict) -> dict:
         b["favicon"] = _file(cfg, "ui_favicon")[1] or (_file(cfg, "ui_favicon_auto")[1] if b["logo"] else "")
     nav_bg = {"primary": b["primary"], "dark": "#1b2430"}.get(b["navbar"], "")
     b["navbar_dark"] = (on_color(nav_bg) == "#ffffff") if nav_bg else False
-    b["css"] = theme_css(b)
+    b["photos"] = photo_sizes(cfg)
+    b["css"] = theme_css(b) + photo_css(b["photos"])
     return b
+
+
+# Fotos der Räume & Plätze (gilt immer, auch ohne eigenes Design)
+THUMB_RATIOS = {"16 / 9": "breit (16:9)", "4 / 3": "normal (4:3)", "21 / 9": "flach (21:9)", "3 / 1": "sehr flach (3:1)"}
+PHOTO_DEFAULTS = {"gallery": 360, "gallery_mobile": 240, "ratio": "16 / 9", "fit": "cover"}
+
+
+def _bounded(cfg: dict, key: str, low: int, high: int, default: int) -> int:
+    try:
+        return max(low, min(high, int(cfg.get(key) or default)))
+    except ValueError:
+        return default
+
+
+def photo_sizes(cfg: dict) -> dict:
+    return {"gallery": _bounded(cfg, "ui_gallery_h", 120, 640, PHOTO_DEFAULTS["gallery"]),
+            "gallery_mobile": _bounded(cfg, "ui_gallery_h_mobile", 100, 480, PHOTO_DEFAULTS["gallery_mobile"]),
+            "ratio": cfg.get("ui_thumb_ratio") if cfg.get("ui_thumb_ratio") in THUMB_RATIOS else PHOTO_DEFAULTS["ratio"],
+            "fit": "contain" if cfg.get("ui_photo_fit") == "contain" else "cover"}
+
+
+def photo_css(p: dict) -> str:
+    return (f"\n:root {{ --res-gallery-h: {p['gallery']}px; --res-gallery-h-sm: {p['gallery_mobile']}px; "
+            f"--res-thumb-ratio: {p['ratio']}; --res-photo-fit: {p['fit']}; }}\n")
 
 
 def load() -> dict:
