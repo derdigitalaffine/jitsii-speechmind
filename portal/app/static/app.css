@@ -540,3 +540,12 @@ a.dash-num:hover > span { text-decoration: underline; }
 .pub-tile:hover, .pub-tile:focus-visible { transform: translateY(-2px); box-shadow: var(--bs-box-shadow-sm); border-color: rgba(var(--bs-primary-rgb), .5); }
 .pub-tile-icon { width: 3rem; height: 3rem; display: inline-grid; place-items: center; border-radius: 50%; background: rgba(var(--bs-primary-rgb), .12); color: var(--bs-primary); font-size: 1.25rem; flex: none; }
 .pub-contact { white-space: pre-line; }
+
+/* Übersicht: Handlungsbedarf als Zähler-Kacheln */
+.dash-action { display: inline-flex; align-items: center; gap: .45rem; padding: .45rem .75rem; border-radius: var(--bs-border-radius);
+  border: 1px solid var(--bs-border-color); text-decoration: none; color: var(--bs-body-color); background: var(--bs-body-bg); }
+.dash-action:hover { background: var(--bs-tertiary-bg); }
+.dash-action-n { font-weight: 700; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.dash-action-danger { border-color: rgba(var(--bs-danger-rgb), .45); } .dash-action-danger i, .dash-action-danger .dash-action-n { color: var(--bs-danger); }
+.dash-action-warning { border-color: rgba(var(--bs-warning-rgb), .6); } .dash-action-warning i { color: #b8860b; }
+.dash-action-primary i, .dash-action-primary .dash-action-n { color: var(--bs-primary); }
