@@ -111,7 +111,14 @@ def _build(cfg: dict[str, str], to_addr: str, subject: str, body: str,
     msg["Date"] = formatdate(localtime=True)
     msg["Message-ID"] = make_msgid(domain=cfg["mail_from"].rsplit("@", 1)[-1] or None)
     msg.set_content(body)
-    msg.add_alternative(text_to_html(body), subtype="html")
+    frame = mail_frame(cfg)
+    msg.add_alternative(text_to_html(body, frame), subtype="html")
+    if frame and frame.get("logo"):
+        # Logo als eingebettetes Bild (cid:) – wird ohne Nachladen aus dem Netz angezeigt
+        html_part = msg.get_payload()[-1]
+        data, sub_type = frame["logo"]
+        html_part.add_related(data, maintype="image", subtype=sub_type, cid=f"<{frame['cid']}>", disposition="inline",
+                              filename=f"logo.{sub_type}")
     for att in attachments or []:
         method = att.get("calendar_method")
         if method:
@@ -140,13 +147,56 @@ def _build(cfg: dict[str, str], to_addr: str, subject: str, body: str,
 _URL = re.compile(r"(https?://[^\s<>\"]+)")
 
 
-def text_to_html(text: str) -> str:
-    """Einfache HTML-Fassung des Mailtexts: Absätze, anklickbare Links."""
+def _abs(url: str) -> str:
+    return settings.portal_base_url.rstrip("/") + url if url.startswith("/") else url
+
+
+def mail_frame(cfg: dict[str, str]) -> dict | None:
+    """Erscheinungsbild der HTML-Mails (Design & Branding › E-Mails): Farbe, Logo, Name, Fußzeile. None = schlicht."""
+    if cfg.get("ui_mail_frame", "1") != "1":
+        return None
+    from . import branding
+    b = branding.build(cfg)
+    frame = {"color": b["primary"], "name": b["name"], "footer": b["footer_text"] or f"© {b['name']}",
+             "imprint": _abs(b["imprint_url"]), "privacy": _abs(b["privacy_url"]), "logo": None, "cid": "logo@portal"}
+    for key in ("ui_logo", "ui_favicon_auto"):
+        name, _url = branding._file(cfg, key) if b["custom"] else (None, "")
+        ext = (name or "").rsplit(".", 1)[-1].lower()
+        if name and ext in ("png", "jpg", "jpeg", "gif"):
+            try:
+                frame["logo"] = ((branding.BRAND_DIR / name).read_bytes(), "jpeg" if ext == "jpg" else ext)
+            except OSError:
+                continue
+            break
+    return frame
+
+
+def text_to_html(text: str, frame: dict | None = None) -> str:
+    """HTML-Fassung des Mailtexts: Absätze, anklickbare Links; mit frame im Rahmen der Organisation
+    (Kopfzeile mit Logo und Name in der Hauptfarbe, Fußzeile mit Impressum/Datenschutz). Tabellenlayout mit
+    Inline-Stilen, weil viele Mailprogramme kein CSS kennen."""
     escaped = html.escape(text)
-    linked = _URL.sub(lambda m: f'<a href="{m.group(1)}">{m.group(1)}</a>', escaped)
-    paragraphs = "".join(f"<p>{p.replace(chr(10), '<br>')}</p>" for p in linked.split("\n\n") if p.strip())
-    return ('<!doctype html><html><body style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;'
-            f'line-height:1.5;color:#1f2328">{paragraphs}</body></html>')
+    linked = _URL.sub(lambda m: f'<a href="{m.group(1)}" style="color:{(frame or {}).get("color", "#0b57d0")}">{m.group(1)}</a>', escaped)
+    paragraphs = "".join(f'<p style="margin:0 0 14px">{p.replace(chr(10), "<br>")}</p>' for p in linked.split("\n\n") if p.strip())
+    font = "font-family:Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.5;color:#1f2328"
+    if not frame:
+        return f'<!doctype html><html><body style="{font}">{paragraphs}</body></html>'
+    color, name = frame["color"], html.escape(frame["name"])
+    from .branding import on_color
+    fg = on_color(color)
+    logo = (f'<img src="cid:{frame["cid"]}" alt="" height="36" style="height:36px;max-width:180px;vertical-align:middle;'
+            f'margin-right:10px;border:0">' if frame.get("logo") else "")
+    links = " · ".join(f'<a href="{html.escape(u)}" style="color:#57606a">{label}</a>'
+                       for label, u in (("Impressum", frame.get("imprint")), ("Datenschutz", frame.get("privacy"))) if u)
+    return (f'<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
+            f'</head><body style="margin:0;padding:0;background:#f3f4f6;{font}">'
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6"><tr><td align="center" style="padding:24px 12px">'
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb">'
+            f'<tr><td style="background:{color};color:{fg};padding:14px 20px;font-size:16px;font-weight:600">{logo}{name}</td></tr>'
+            f'<tr><td style="padding:22px 20px 8px">{paragraphs}</td></tr>'
+            f'<tr><td style="padding:12px 20px 18px;border-top:1px solid #e5e7eb;color:#57606a;font-size:12px">'
+            f'{html.escape(frame["footer"])}{"<br>" + links if links else ""}</td></tr>'
+            f'</table></td></tr></table></body></html>')
 
 
 def _save_to_sent(cfg: dict[str, str], msg: EmailMessage) -> None:

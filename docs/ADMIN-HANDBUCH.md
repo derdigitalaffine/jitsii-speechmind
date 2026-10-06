@@ -782,6 +782,8 @@ Menü **Verwaltung › Löschen & Papierkorb** (nur Administrator:innen). Bereic
 
 Menü **Design & Branding**. Links stellen Sie ein, rechts sehen Sie sofort eine **Vorschau**. Erst **Design speichern** übernimmt die Änderungen.
 
+**E-Mails** – gilt immer: Mails gehen als HTML im Erscheinungsbild der Organisation raus (Kopfzeile in der Hauptfarbe mit Logo und Name, Fußzeile mit Fußzeilentext, Impressum und Datenschutz); die reine Textfassung bleibt unverändert. Das Logo wird eingebettet (PNG/JPG; bei einem SVG-Logo das daraus erzeugte Symbol), Farbe und Logo nur mit „Eigenes Design“. Abschaltbar; „Vorschau“ zeigt eine Beispielmail.
+
 **Fotos (Räume & Plätze)** – gilt immer, auch ohne eigenes Design: Höhe der Fotogalerie auf der Ressourcenseite (Standard 360 px) und auf dem Handy (240 px), Seitenverhältnis der Vorschaubilder im Katalog und im Karten-Info-Fenster (16:9, 4:3, 21:9, 3:1) und ob Fotos vollständig gezeigt statt zugeschnitten werden.
 
 **Gilt immer (auch bei ausgeschaltetem Design):** Name der Organisation, Produktbezeichnung, Hinweistext auf der Anmeldeseite, Fußzeile, Links zu Impressum und Datenschutzerklärung. Der Name erscheint auch in E-Mails. Lassen Sie ein Feld leer, gilt die Voreinstellung (`BRAND_NAME`/`BRAND_PRODUCT` aus der `.env`).
