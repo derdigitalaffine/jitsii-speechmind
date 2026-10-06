@@ -84,7 +84,7 @@ def checklist(res: Resource) -> list[tuple[str, bool, str]]:
         ("Zeitblöcke festgelegt", "block" not in rs.modes(res) or bool(rs.blocks(res)), "zeiten"),
         ("Preise (oder bewusst kostenlos)", priced, "preise"),
         ("Zuständigkeit (Person, Gruppe oder Postfach)", bool(res.manager_user_id or res.manager_group_id or res.mailbox), "zustaendig"),
-        ("Nutzungsbedingungen", bool(res.terms_text or res.terms_file), "fotos"),
+        ("Nutzungsbedingungen", bool(res.terms_text or res.terms_file or rs.legal_raw(res)), "fotos"),
         ("Freigeschaltet", res.active, "allgemein"),
     ]
 
@@ -182,7 +182,7 @@ def copy(db, src: Resource, owner) -> Resource:
     zunächst nicht freigeschaltet."""
     dst = Resource(owner_id=owner.id, slug=rs.unique_slug(db, src.name + " Kopie"), active=False,
                    manager_user_id=src.manager_user_id, manager_group_id=src.manager_group_id, mailbox=src.mailbox,
-                   dms_area_id=src.dms_area_id, position=src.position + 1,
+                   dms_area_id=src.dms_area_id, position=src.position + 1, legal_json=src.legal_json,
                    **{k: getattr(src, k) for k in FIELDS})
     dst.name = (src.name + " (Kopie)")[:200]
     db.add(dst)
@@ -202,8 +202,22 @@ def copy(db, src: Resource, owner) -> Resource:
     return dst
 
 
+def _legal_export(db, res: Resource) -> list[dict]:
+    """Verknüpfte Rechtstexte über die Adresse (slug) – IDs sind auf einem anderen Server andere."""
+    from .db import LawText
+    out = []
+    for r in rs.legal_raw(res):
+        law = db.get(LawText, r["law_id"])
+        if law is not None:
+            out.append({"slug": law.slug, "title": law.title, "para": r.get("para", ""), "role": r.get("role", "other"),
+                        "accept": bool(r.get("accept"))})
+    return out
+
+
 def export(res: Resource) -> bytes:
+    from sqlalchemy.orm import object_session
     data = {"format": FORMAT, "exported_at": utcnow().isoformat(timespec="seconds"),
+            "legal": _legal_export(object_session(res), res),
             "resource": {k: getattr(res, k) for k in FIELDS},
             "provider": res.provider.name if res.provider else "",
             "parts": [{k: getattr(u, k) for k in UNIT_FIELDS} for u in res.parts],
@@ -257,6 +271,14 @@ def import_(db, raw: bytes, owner) -> Resource:
     if data.get("provider"):   # Anbieter auf diesem Server per Name wiederfinden
         from .db import Organization
         res.provider = db.scalar(select(Organization).where(Organization.name == str(data["provider"])[:200]))
+    legal = [r for r in (data.get("legal") or []) if isinstance(r, dict)]
+    if legal:   # Rechtstexte auf diesem Server über die Adresse wiederfinden (fehlende entfallen)
+        from .db import LawText
+        found = [(db.scalar(select(LawText).where(LawText.slug == str(r.get("slug", ""))[:120])), r) for r in legal[:10]]
+        found = [(law, r) for law, r in found if law is not None]
+        res.legal_json = json.dumps(rs.clean_legal(
+            db, [str(law.id) for law, _ in found], [str(r.get("para") or "") for _, r in found],
+            [str(r.get("role") or "") for _, r in found], [str(i) for i, (_, r) in enumerate(found) if r.get("accept")]))
     res.mode = res.mode if res.mode in ("request", "instant") else "request"
     res.units = ",".join(m for m in rs.MODES if m in str(res.units or "").split(",")) or "day"
     for key, default in (("blocks_json", "[]"), ("hours_json", "{}"), ("fields_json", "[]")):

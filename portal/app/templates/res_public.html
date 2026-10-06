@@ -57,7 +57,10 @@
       {% if extras_public %}<p class="small mb-1"><strong>Zusatzleistungen:</strong></p><ul class="small mb-2">{% for x in extras_public %}<li>{{ x.name }}: {{ extra_price(x) }}{% if x.cancel_rule != 'only' and x.mandatory %} <span class="badge text-bg-secondary">immer dabei</span>{% endif %}{% if x.cancel_rule in ('keep', 'only', 'refund') %} <span class="text-secondary">– {{ extra_cancel(x) }}</span>{% endif %}</li>{% endfor %}</ul>{% endif %}
       {% if res.deposit_cents %}<p class="small mb-2"><strong>Kaution:</strong> {{ money(res.deposit_cents) }} – wird zusammen mit der Gebühr gezahlt und nach der Rückgabe erstattet.</p>{% endif %}
       <p class="small mb-0"><strong>Stornierung:</strong> {{ cancel_rules }}</p>
-      {% if res.terms_file %}<p class="small mt-2 mb-0"><a href="/r/{{ res.slug }}/nutzungsordnung.pdf" target="_blank"><i class="fa-regular fa-file-pdf me-1"></i>Nutzungsordnung (PDF)</a></p>{% endif %}
+      {% if legal or res.terms_file %}<ul class="list-unstyled small mt-2 mb-0 res-legal">
+        {% for r in legal %}<li><i class="fa-solid fa-scale-balanced fa-fw me-1 text-secondary"></i>{{ r.role_label }}: <a class="law-ref" href="{{ r.url }}" data-preview="{{ r.url }}" target="_blank" rel="noopener" title="{{ r.title }}">{{ r.title }}{% if r.para %}, {{ r.para }}{% endif %}</a></li>{% endfor %}
+        {% if res.terms_file %}<li><i class="fa-regular fa-file-pdf fa-fw me-1 text-secondary"></i><a href="/r/{{ res.slug }}/nutzungsordnung.pdf" target="_blank">Nutzungsordnung (PDF)</a></li>{% endif %}
+      </ul>{% endif %}
     </section>
 
     <section class="res-section" aria-labelledby="rs-cal"><h2 class="h5" id="rs-cal"><i class="fa-solid fa-calendar-days"></i>Belegung</h2>

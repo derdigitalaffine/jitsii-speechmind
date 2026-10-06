@@ -187,6 +187,54 @@ def extra_cancel_text(ex: ResourceExtra) -> str:
     return ""
 
 
+# --- Verknüpfte Rechtstexte (Benutzungsordnung, Gebührenordnung, Satzung) ---------------------
+
+LEGAL_ROLES = {"terms": "Benutzungsordnung", "fees": "Gebühren-/Entgeltordnung", "statute": "Satzung",
+               "other": "Rechtsgrundlage"}
+
+
+def clean_legal(db, law_ids: list, paras: list, roles: list, accepts: list) -> list[dict]:
+    """Auswahl im Editor → gespeicherte Liste. accepts: Positionen (0, 1, …) der Texte, die beim Buchen
+    bestätigt werden müssen."""
+    from . import laws
+    rows = []
+    for i, (law_id, para, role) in enumerate(zip(law_ids, paras, roles)):
+        ref = laws.clean_form_refs(db, [law_id], [para])
+        if not ref:
+            continue
+        ref[0]["role"] = role if role in LEGAL_ROLES else "other"
+        ref[0]["accept"] = str(i) in accepts
+        if not any(r["law_id"] == ref[0]["law_id"] and r["anchor"] == ref[0]["anchor"] for r in rows):
+            rows.append(ref[0])
+    return rows[:10]
+
+
+def legal_raw(res: Resource) -> list[dict]:
+    return [r for r in _json(res.legal_json, []) if isinstance(r, dict) and isinstance(r.get("law_id"), int)]
+
+
+def legal_refs(db, res: Resource, base: str = "/recht") -> list[dict]:
+    """Verknüpfte Rechtstexte zum Anzeigen – immer die aktuelle Fassung, nur veröffentlichte und nur mit
+    eingeschaltetem Modul Rechtstexte: [{label, title, url, role, role_label, accept}]."""
+    from .main import enabled_modules
+    raw = legal_raw(res)
+    if not raw or "laws" not in enabled_modules():
+        return []
+    from .db import LawText
+    out = []
+    for r in raw:
+        law = db.get(LawText, r["law_id"])
+        if law is None or not law.published:
+            continue
+        anchors = {sec.anchor for sec in law.sections}
+        url = f"{base}/{law.slug}" + (f"/{r['anchor']}" if r.get("anchor") in anchors else "")
+        role = r.get("role") if r.get("role") in LEGAL_ROLES else "other"
+        out.append({"label": (f"{r['para']} " if r.get("para") else "") + (law.short_title or law.title), "title": law.title,
+                    "para": r.get("para") or "",
+                    "url": url, "role": role, "role_label": LEGAL_ROLES[role], "accept": bool(r.get("accept"))})
+    return out
+
+
 def answers_of(b: ResourceBooking) -> dict:
     return _json(b.answers_json, {})
 
@@ -1231,6 +1279,10 @@ def confirmation_pdf(db, b: ResourceBooking) -> bytes:
                 txt += f"\nÜberweisung an {cfg.get('pay_recipient', '')}, IBAN {cfg.get('pay_iban')}, Verwendungszweck {p.ref}."
         story += [Spacer(1, 4 * mm), P(txt)]
     story += [Spacer(1, 4 * mm), P("Stornierung: " + cancel_rules_text(res))]
+    refs = legal_refs(db, res, base=settings.portal_base_url.rstrip("/") + "/recht")
+    if refs:
+        story += [Spacer(1, 3 * mm), P("Es gelten in der jeweils gültigen Fassung:", "Heading4")]
+        story += [P(f"{r['role_label']}: {r['title']}{', ' + r['para'] if r['para'] else ''} – {r['url']}") for r in refs]
     if res.terms_text:
         story += [Spacer(1, 3 * mm), P("Nutzungsbedingungen:", "Heading4"), P(res.terms_text[:4000])]
     story += [Spacer(1, 6 * mm), P(f"Ihre Buchung online: {manage_link(b)}")]

@@ -216,7 +216,12 @@ def resource_edit(request: Request, rid: int, user: User = Depends(current_user)
         "subtypes": fm.SUBTYPES,
     }
     from . import orgs
-    return render(request, "resource_edit.html", user, res=res, level=lvl, photo_list=_photo_list(res), editor=editor, modes=rs.MODES, users=_users(db),
+    laws_list = []
+    if "laws" in enabled_modules():
+        from .db import LawText
+        laws_list = db.scalars(select(LawText).order_by(LawText.title)).all()
+    return render(request, "resource_edit.html", user, res=res, level=lvl, photo_list=_photo_list(res),
+                  laws=laws_list, legal=rs.legal_raw(res), legal_roles=rs.LEGAL_ROLES, editor=editor, modes=rs.MODES, users=_users(db),
                   org_options=orgs.options(db),
                   checklist=res_admin.checklist(res), fresh=request.query_params.get("neu") == "1",
                   groups=_groups(db), dms_areas=dms_areas, price=rs.money_input, pay_methods=pay.METHODS,
@@ -281,6 +286,9 @@ async def resource_save(request: Request, rid: int, user: User = Depends(current
     res.cancel_free_days = _int(data.get("cancel_free_days"), 0, 365, 14)
     res.cancel_fee_percent = _int(data.get("cancel_fee_percent"), 0, 100, 0)
     res.terms_text = str(data.get("terms_text", "")).replace("\r\n", "\n").strip()[:20000]
+    if "legal_law" in data:
+        res.legal_json = json.dumps(rs.clean_legal(db, data.getlist("legal_law"), data.getlist("legal_para"),
+                                                   data.getlist("legal_role"), data.getlist("legal_accept")))
     res.remind_days = _int(data.get("remind_days"), 0, 30, 2)
     res.remind_staff_days = _int(data.get("remind_staff_days"), 0, 30, 1)
     res.remind_text = str(data.get("remind_text", "")).replace("\r\n", "\n").strip()[:5000]
