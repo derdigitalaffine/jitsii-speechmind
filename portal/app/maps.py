@@ -12,6 +12,7 @@ oder direkt beim Anbieter geladen. Eigene Layer von Benutzer:innen laufen immer 
 einer vom Server signierten Beschreibung und mit Schutz vor Zugriffen ins interne Netz (SSRF).
 """
 
+import asyncio
 import hashlib
 import html
 import ipaddress
@@ -20,9 +21,11 @@ import os
 import re
 import secrets
 import socket
+import threading
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
@@ -39,9 +42,15 @@ FORMATS = ["image/png", "image/jpeg", "image/png8", "image/webp"]
 USER_AGENT = "VerwaltungsPortal-Karten/1.0 (+{})"
 MAX_BYTES = 15 * 1024 * 1024
 TIMEOUT = httpx.Timeout(20.0, connect=6.0)
+TILE_TIMEOUT = httpx.Timeout(8.0, connect=4.0)      # Kacheln: lieber leer lassen als den Server blockieren
+MAX_PARALLEL = 8                                    # gleichzeitige Abrufe beim Anbieter (alle Layer zusammen)
+MAX_QUEUE = 200                                     # mehr wartende Abrufe → sofort leere Kachel
+QUEUE_WAIT = 6.0                                    # länger gewartet → nicht mehr abrufen (längst weitergezoomt)
+FAIL_SECONDS = 60                                   # fehlgeschlagene Adressen so lange nicht erneut abrufen
+MAX_WFS_SPAN = 300_000                              # WFS nur für Ausschnitte bis 300 km Kantenlänge
 TRANSPARENT_PNG = bytes.fromhex(
     "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
-    "1f15c4890000000d49444154789c6360000002000154a24f5f0000000049454e44ae426082")
+    "1f15c4890000000b49444154789c6360000200000500017a5eab3f0000000049454e44ae426082")
 _signer = URLSafeSerializer(str(settings.secret_key), salt="map-custom-layer")
 
 
@@ -259,10 +268,10 @@ def _check_peer(resp, url: str) -> None:
         raise BlockedAddress(f"„{urlparse(url).hostname}“ zeigt auf eine interne Adresse und ist hier nicht erlaubt.")
 
 
-def fetch(url: str, *, guard: bool, accept: str = "*/*") -> tuple[int, bytes, str]:
+def fetch(url: str, *, guard: bool, accept: str = "*/*", timeout: httpx.Timeout = TIMEOUT) -> tuple[int, bytes, str]:
     """Holt eine Adresse (höchstens 3 Weiterleitungen, jede geprüft). Gibt (Status, Inhalt, Content-Type)."""
     headers = {"User-Agent": USER_AGENT.format(settings.portal_base_url), "Accept": accept}
-    with httpx.Client(timeout=TIMEOUT, follow_redirects=False, headers=headers) as client:
+    with httpx.Client(timeout=timeout, follow_redirects=False, headers=headers) as client:
         for _ in range(4):
             if guard:
                 check_public_url(url)
@@ -282,9 +291,77 @@ def fetch(url: str, *, guard: bool, accept: str = "*/*") -> tuple[int, bytes, st
     raise httpx.HTTPError("Zu viele Weiterleitungen")
 
 
+# --- Abrufe begrenzen -----------------------------------------------------------------
+# Beim Herauszoomen fordert der Browser Dutzende Kacheln auf einmal an, und große Ausschnitte rendern WMS-Dienste
+# langsam. Früher belegte jede wartende Kachel einen Arbeitsplatz des Servers (und eine Datenbankverbindung),
+# bis das ganze Portal stand. Jetzt laufen Abrufe in einem eigenen kleinen Pool (MAX_PARALLEL), das Warten kostet
+# keinen Arbeitsplatz, gleiche Adressen werden nur einmal geholt, Fehlschläge kurz gemerkt, und was zu lange in
+# der Warteschlange lag (der Browser hat längst weitergezoomt), wird gar nicht mehr abgerufen.
+
+class Busy(Exception):
+    """Kein Abruf möglich (Warteschlange voll oder zu lange gewartet) – die Anfrage bekommt eine leere Antwort."""
+
+
+_pool = ThreadPoolExecutor(MAX_PARALLEL, thread_name_prefix="map-fetch")
+_inflight: dict[str, asyncio.Future] = {}
+_queued = {"n": 0}
+_failed: dict[str, float] = {}
+
+
+def recently_failed(key: str) -> bool:
+    until = _failed.get(key)
+    if until and until > time.monotonic():
+        return True
+    _failed.pop(key, None)
+    return False
+
+
+def mark_failed(key: str) -> None:
+    if len(_failed) > 5000:
+        now = time.monotonic()
+        for k in [k for k, v in _failed.items() if v <= now] or list(_failed)[:2500]:
+            _failed.pop(k, None)
+    _failed[key] = time.monotonic() + FAIL_SECONDS
+
+
+def _fetch_if_fresh(queued_at: float, url: str, guard: bool, timeout: httpx.Timeout) -> tuple[int, bytes, str]:
+    if time.monotonic() - queued_at > QUEUE_WAIT:
+        raise Busy()
+    return fetch(url, guard=guard, timeout=timeout)
+
+
+async def queued_fetch(key: str, url: str, *, guard: bool, timeout: httpx.Timeout = TIMEOUT) -> tuple[int, bytes, str]:
+    """fetch() über den begrenzten Pool. Läuft dieselbe Adresse schon, wird auf deren Ergebnis gewartet.
+    Wirft Busy bei voller Warteschlange; Fehler des Abrufs (httpx.HTTPError, BlockedAddress) gehen durch."""
+    running = _inflight.get(key)
+    if running is None:
+        if _queued["n"] >= MAX_QUEUE:
+            raise Busy()
+        loop = asyncio.get_running_loop()
+        running = loop.run_in_executor(_pool, _fetch_if_fresh, time.monotonic(), url, guard, timeout)
+        _inflight[key] = running
+        _queued["n"] += 1
+
+        def done(_f, key=key):
+            _inflight.pop(key, None)
+            _queued["n"] -= 1
+        running.add_done_callback(done)
+    return await asyncio.shield(running)
+
+
+def bbox_span(bbox: str) -> float:
+    """Größere Kantenlänge eines Ausschnitts „minx,miny,maxx,maxy“ (EPSG:3857, Meter)."""
+    try:
+        x0, y0, x1, y1 = (float(v) for v in bbox.split(","))
+    except ValueError:
+        return 0.0
+    return max(abs(x1 - x0), abs(y1 - y0))
+
+
 # --- Zwischenspeicher ----------------------------------------------------------------
 
 _last_prune = {"at": 0.0}
+_prune_lock = threading.Lock()
 
 
 def cache_dir() -> Path:
@@ -309,13 +386,29 @@ def cache_get(key: str, max_age_hours: int) -> tuple[bytes, str] | None:
 
 def cache_put(key: str, body: bytes, ctype: str, limit_mb: int) -> None:
     folder = cache_dir() / key[:2]
-    folder.mkdir(exist_ok=True)
-    tmp = folder / (key + ".tmp")
-    tmp.write_bytes(ctype.encode("ascii", "ignore")[:100] + b"\n" + body)
-    os.replace(tmp, folder / key)
+    tmp = folder / f"{key}.{secrets.token_hex(4)}.tmp"     # eigener Name je Schreibvorgang (parallele Anfragen)
+    try:
+        folder.mkdir(exist_ok=True)
+        tmp.write_bytes(ctype.encode("ascii", "ignore")[:100] + b"\n" + body)
+        os.replace(tmp, folder / key)
+    except OSError:
+        tmp.unlink(missing_ok=True)   # Zwischenspeicher ist nur eine Beschleunigung – Fehler nicht weiterreichen
+        return
     if time.time() - _last_prune["at"] > 600:
         _last_prune["at"] = time.time()
+        # Aufräumen durchläuft den ganzen Ordner – nicht in der Anfrage, sondern nebenher
+        threading.Thread(target=_prune_once, args=(limit_mb,), name="mapcache-prune", daemon=True).start()
+
+
+def _prune_once(limit_mb: int) -> None:
+    if not _prune_lock.acquire(blocking=False):
+        return
+    try:
         prune(limit_mb)
+    except OSError:
+        pass
+    finally:
+        _prune_lock.release()
 
 
 def cache_stats() -> tuple[int, int]:
