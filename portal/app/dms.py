@@ -266,6 +266,26 @@ def archive(db, record: DmsRecord, resp: FormResponse) -> None:
             _store(record, f"{doc.name}.pdf", src.read_bytes(), "dokument", "Ablage", "erzeugt im Vorgang", "application/pdf")
 
 
+def store_request(db, resp: FormResponse, req) -> None:
+    """Nachgereichte Angaben sofort als eigenes PDF in die Ablage legen (das Antrags-PDF enthält sie ohnehin)."""
+    from . import workflow
+    record = sync(db, resp)
+    if record is None:
+        return
+    sec = next((x for x in apps.request_sections(resp.form, resp) if x["id"] == req.id), None)
+    if sec is None:
+        return
+    body = (f"Nachforderung vom {to_local(sec['requested_at']).strftime('%d.%m.%Y')}" + (f": {sec['message']}" if sec["message"] else "")
+            + "\n\n" + "\n\n".join(f"{q}:\n{v or '–'}" + (f"\n({note})" if note else "") for q, v, note in sec["rows"]))
+    try:
+        data = workflow.document_pdf(resp, f"Nachgereichte Angaben – {sec['title']}", body)
+    except Exception:  # noqa: BLE001  (Ablage darf die Antwort nicht verhindern)
+        return
+    when = to_local(sec["answered_at"]).strftime("%d.%m.%Y %H:%M")
+    _store(record, f"{resp.ref_no} Nachreichung {sec['title']}.pdf"[:200], data, "nachreichung", "Ablage",
+           f"nachgereicht am {when}", "application/pdf")
+
+
 def reconcile() -> int:
     """Hintergrunddienst: Einträge mit neueren Ereignissen im Vorgang aktualisieren (z. B. Nachgereichtes)."""
     n = 0

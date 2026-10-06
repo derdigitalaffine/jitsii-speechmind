@@ -96,7 +96,7 @@
             <a class="flex-grow-1 text-break" href="{{ base }}/files/{{ f.id }}">{{ f.name }}</a>
             <span class="text-secondary text-nowrap">{{ f.size | filesize }}</span>
             {% if level >= 2 and f.kind == 'upload' %}<form method="post" action="{{ base }}/files/{{ f.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger p-0" type="submit" title="Löschen" aria-label="Datei löschen" data-confirm-title="Datei löschen?" data-confirm="Die Löschung wird protokolliert." data-confirm-button="Löschen"><i class="fa-regular fa-trash-can"></i></button></form>{% endif %}</div>
-          <div class="text-secondary">{{ {'abschluss': 'Abschlussstand', 'dokument': 'Dokument aus dem Vorgang', 'upload': 'abgelegt'}.get(f.kind, f.kind) }} · {{ f.created_at | local }} · {{ f.uploaded_by }}{% if f.note %} · {{ f.note }}{% endif %}</div>
+          <div class="text-secondary">{{ {'abschluss': 'Abschlussstand', 'dokument': 'Dokument aus dem Vorgang', 'nachreichung': 'Nachreichung', 'upload': 'abgelegt'}.get(f.kind, f.kind) }} · {{ f.created_at | local }} · {{ f.uploaded_by }}{% if f.note %} · {{ f.note }}{% endif %}</div>
           <div class="text-secondary font-monospace text-truncate" title="SHA-256">SHA-256 {{ f.sha256 }}</div>
         </li>
         {% else %}{% if not resp or not resp.documents %}<li class="list-group-item small text-secondary">{% if record.kind == 'antrag' and not record.closed_at %}Beim Abschluss legt das Portal hier den Endstand ab.{% else %}Keine Dateien.{% endif %}</li>{% endif %}{% endfor %}

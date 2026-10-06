@@ -1043,6 +1043,8 @@ async def answer_request(db, resp: FormResponse, req: ApplicationRequest, data, 
     answers.update(stored)   # Dateien liegen unter forms/<id>/<antrag>/req<nr>/
     req.answers_json = json.dumps(answers, ensure_ascii=False)
     req.state, req.answered_at = "answered", utcnow()
+    from . import dms
+    dms.store_request(db, resp, req)
     who_name = resp.name or resp.email or "Antragsteller:in"
     _event(resp, "reply", f"Nachgereicht: {req.title}", public=True, actor_name=who_name)
     lines = []

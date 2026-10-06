@@ -484,6 +484,37 @@ def pdf(form: Form, resp: FormResponse, with_attachments: bool = True) -> bytes:
     return out.getvalue()
 
 
+def request_sections(form: Form, resp: FormResponse) -> list[dict]:
+    """Nachgereichte Angaben je beantworteter Nachforderung (für PDF und Ablage):
+    [{title, message, requested_at, answered_at, by, rows: [(Frage, Wert, Hinweis)]}]. Korrigierte Antragsfelder
+    stehen mit dem bisherigen Wert daneben."""
+    by_id = {q["id"]: q for q in fm.questions(fm.schema(form))}
+    out = []
+    for req in sorted(resp.requests, key=lambda r: r.answered_at or r.created_at):
+        if req.state != "answered":
+            continue
+        answers, rows = req.answers, []
+        for item in req.items:
+            if not fm.TYPES.get(item.get("type"), ("", "", False))[2]:
+                continue
+            rows.append((item.get("title") or fm.TYPES[item["type"]][0], _shown(item, answers.get(item["id"])), ""))
+        for qid in req.reopen:
+            q = by_id.get(qid)
+            if q is None:
+                continue
+            before = _shown(q, resp.answers.get(qid))
+            rows.append((q.get("title") or "Angabe", _shown(q, answers.get(qid)), f"korrigiert – bisher: {before or '–'}"))
+        out.append({"title": req.title, "message": req.message, "requested_at": req.created_at, "answered_at": req.answered_at,
+                    "by": req.created_by, "rows": rows, "id": req.id})
+    return out
+
+
+def _shown(item: dict, value) -> str:
+    if item.get("type") == "file" and isinstance(value, list):
+        return "\n".join(f"{f.get('name')} ({max(int(f.get('size', 0)) // 1024, 1)} kB)" for f in value if isinstance(f, dict))
+    return fm.display(item, value) or ""
+
+
 def _base_pdf(form: Form, resp: FormResponse, parts: list[dict]) -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
@@ -512,6 +543,7 @@ def _base_pdf(form: Form, resp: FormResponse, parts: list[dict]) -> bytes:
     story += [meta_table, Spacer(1, 6 * mm)]
     rows = []
     answers = resp.answers
+    corrected = {qid for r in resp.requests if r.state == "answered" for qid in r.reopen}
     for item in fm.schema(form):
         if item.get("type") in ("heading", "subheading", "pagebreak"):
             if item.get("title"):
@@ -524,14 +556,31 @@ def _base_pdf(form: Form, resp: FormResponse, parts: list[dict]) -> bytes:
             shown = "\n".join(f"{f.get('name')} ({max(int(f.get('size', 0)) // 1024, 1)} kB)" for f in value if isinstance(f, dict))
         else:
             shown = fm.display(item, value)
+        if item["id"] in corrected:
+            shown = (shown or "–") + "\n(später korrigiert – siehe Nachgereichte Angaben)"
         rows.append([p(item.get("title") or fm.TYPES[item["type"]][0], bold), p(shown or "–")])
     if rows:
         table = Table(rows, colWidths=[60 * mm, 105 * mm], repeatRows=0)
         table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LINEBELOW", (0, 0), (-1, -1), 0.25, colors.HexColor("#d0d5dd")),
                                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4), ("TOPPADDING", (0, 0), (-1, -1), 4)]))
         story.append(table)
+    h2 = ParagraphStyle("h2", parent=bold, fontSize=12, leading=15, spaceAfter=3)
+    sections = request_sections(form, resp)
+    if sections:
+        story += [Spacer(1, 6 * mm), p("Nachgereichte Angaben", h2)]
+    for sec in sections:
+        when = to_local(sec["answered_at"]).strftime("%d.%m.%Y, %H:%M Uhr") if sec["answered_at"] else "–"
+        story += [Spacer(1, 2 * mm), p(f"{sec['title']} – nachgereicht am {when}", bold),
+                  p(f"Angefordert am {to_local(sec['requested_at']).strftime('%d.%m.%Y')}" + (f" von {sec['by']}" if sec["by"] else "")
+                    + (f": {sec['message']}" if sec["message"] else ""), small), Spacer(1, 1.5 * mm)]
+        srows = [[p(q, bold), p((v or "–") + (f"\n({note})" if note else ""))] for q, v, note in sec["rows"]] or [[p("–"), p("")]]
+        st = Table(srows, colWidths=[60 * mm, 105 * mm])
+        st.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LINEBELOW", (0, 0), (-1, -1), 0.25, colors.HexColor("#d0d5dd")),
+                                ("BOTTOMPADDING", (0, 0), (-1, -1), 4), ("TOPPADDING", (0, 0), (-1, -1), 4),
+                                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fbfaf4"))]))
+        story.append(st)
     if parts:
-        story += [Spacer(1, 6 * mm), p("Anlagen", ParagraphStyle("h2", parent=bold, fontSize=12, leading=15, spaceAfter=3))]
+        story += [Spacer(1, 6 * mm), p("Anlagen", h2)]
         arows = [[p("Nr.", bold), p("Datei", bold), p("Zu", bold), p("Seite", bold)]]
         for e in parts:
             arows.append([p(str(e["n"])), p(e["name"] + (f"\n({e['note']})" if e["note"] else "")), p(e["label"]),
