@@ -523,7 +523,7 @@ Menü **Terminumfragen** (Recht „Terminumfragen“). Ein Doodle-Pendant auf de
 - Antworten Ja / Wenn nötig (abschaltbar) / Nein, Kommentar; Optionen: nur ein Termin, Plätze je Termin (Terminbuchung), verdeckte Umfrage, E-Mail Pflicht, Frist.
 - Teilnahme über einen öffentlichen Link (mit Name, ohne Konto, Spam-Schutz und Begrenzung je Adresse) oder per persönlicher Einladung an Benutzer, Gruppen und Gäste mit Erinnerungen. Jede Person kann ihre Antwort über ihren persönlichen Link ändern; ein Cookie merkt sich das im selben Browser 180 Tage.
 - Termin festlegen: Mail mit Kalenderdatei an alle oder **direkt eine Besprechung anlegen** (Raum, Outlook-Einladungen, persönliche Einwahllinks – wie unter „Besprechung planen“).
-- Export als CSV; Kopie anlegen.
+- Export als CSV; Kopie anlegen; als Datei ex- und importieren (mit Prozess, Datenblöcken und auf Wunsch Einsendungen – siehe Benutzerhandbuch).
 - Mail-Vorlagen in der Gruppe „Terminumfragen“: Einladung, Erinnerung, neue Antwort (an die planende Person), Termin steht fest.
 - **Teilen im Portal** (Abschnitt „Im Portal freigeben“ unten auf der Umfrage, nur Besitzer:in/Admins): 1 Ergebnisse einsehen (Raster, Teilnehmende, Export) · 2 zusätzlich einladen, erinnern, Link verwalten · 3 zusätzlich Vorschläge/Einstellungen ändern, Termin festlegen, Teilnehmende entfernen, löschen.
 - Jede Person sieht ihre eigenen und die mit ihr geteilten Umfragen, Admins über „Alle anzeigen“ alle. Gehört eine Umfrage einer gelöschten Person, sehen sie nur noch Admins.
