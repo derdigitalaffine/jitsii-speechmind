@@ -44,6 +44,7 @@ def _apply(vote: Vote, data) -> None:
     vote.access = ",".join(sorted(set(modes)))
     vote.results = data.get("results") if data.get("results") in vt.RESULTS else "after_end"
     vote.allow_change = data.get("allow_change") == "1" and vote.secrecy == "open"
+    vote.chart = "column" if data.get("chart") == "column" else "bar"
     vote.ends_at = vt.parse_local(str(data.get("ends_at", "")))
 
 
@@ -324,7 +325,7 @@ async def vote_to_dms(request: Request, vote_id: int, user: User = Depends(curre
 def vote_copy(request: Request, vote_id: int, user: User = Depends(vote_user), db: Session = Depends(get_db)):
     vote, _ = _vote(db, vote_id, user, sh.VIEW)
     clone = Vote(owner_id=user.id, title=(vote.title + " (Kopie)")[:255], description=vote.description,
-                 secrecy=vote.secrecy, access=vote.access, results=vote.results, allow_change=vote.allow_change,
+                 secrecy=vote.secrecy, access=vote.access, results=vote.results, allow_change=vote.allow_change, chart=vote.chart,
                  public_token=new_link_token())
     db.add(clone)
     vt.set_questions(db, clone, [{**q, "id": None} for q in vt.editor_data(vote)])
