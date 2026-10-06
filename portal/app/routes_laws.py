@@ -8,10 +8,10 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import law_io, laws as lx, links, sessions
+from . import law_io, laws as lx, laws_meta, links, sessions
 from .db import Form as FormModel
 from .db import (
-    LawAttachment, LawLevel, LawSection, LawText, LawVersion, User, get_settings, set_setting,
+    LawAttachment, LawLevel, LawSection, LawText, LawVersion, SessionLocal, User, get_settings, set_setting,
 )
 from .main import app, check_csrf, flash, get_db, redirect, render, require, session_user
 from .main import embed_enabled as main_embed_enabled
@@ -362,6 +362,21 @@ async def _read_md(file: UploadFile | None, fallback: str) -> tuple[str, str | N
     return fallback, None
 
 
+def _take_meta(db: Session, md: str, data) -> tuple[str, dict, list[str]]:
+    """Stammdaten-Kopf im Text (YAML zwischen „---“ oder „Schlüssel: Wert“-Zeilen) übernehmen: Werte aus dem Kopf
+    gehen vor, der Kopf wird aus dem gespeicherten Text entfernt. Ohne Haken „read_meta“ bleibt alles, wie es ist."""
+    values = dict(data)
+    if data.get("read_meta", "1") != "1":
+        return md, values, []
+    raw, body, notes = laws_meta.split(md)
+    if not raw:
+        return md, values, notes
+    found, more = laws_meta.clean(db, raw)
+    values.update(found)
+    taken = [laws_meta.LABELS.get(k if k != "level_id" else "level", k) for k in found]
+    return body, values, ([f"Aus dem Kopf übernommen: {', '.join(taken)}."] if taken else []) + notes + more
+
+
 def _apply(db: Session, law: LawText, data, md: str, user: User) -> str | None:
     """Felder übernehmen; gibt eine Fehlermeldung zurück oder None."""
     parsed = lx.parse(md)
@@ -404,6 +419,7 @@ async def law_create(request: Request, file: UploadFile | None = File(None), use
                      db: Session = Depends(get_db)):
     data = await request.form()
     md, error = await _read_md(file, data.get("body_md", ""))
+    md, data, notes = _take_meta(db, md, data)
     law = LawText(created_by=user.id)
     error = error or _apply(db, law, data, md, user)
     if error:
@@ -416,6 +432,8 @@ async def law_create(request: Request, file: UploadFile | None = File(None), use
     lx.invalidate_refs()
     flash(request, f"„{law.title}“ gespeichert: {parsed.norms} Paragrafen/Artikel in {parsed.groups} Gliederungsebenen erkannt."
           + ("" if law.published else " Der Text ist noch nicht veröffentlicht."))
+    for note in notes:
+        flash(request, note, "ok" if note.startswith("Aus dem Kopf") else "error")
     return redirect(f"/laws/{law.id}/edit")
 
 
@@ -441,6 +459,7 @@ async def law_update(request: Request, law_id: int, file: UploadFile | None = Fi
     law = _law(db, law_id)
     data = await request.form()
     md, error = await _read_md(file, data.get("body_md", ""))
+    md, data, notes = _take_meta(db, md, data)
     error = error or _apply(db, law, data, md, user)
     if error:
         db.rollback()
@@ -450,7 +469,27 @@ async def law_update(request: Request, law_id: int, file: UploadFile | None = Fi
     db.commit()
     lx.invalidate_refs()
     flash(request, f"Gespeichert: {parsed.norms} Paragrafen/Artikel, {parsed.groups} Gliederungsebenen.")
+    for note in notes:
+        flash(request, note, "ok" if note.startswith("Aus dem Kopf") else "error")
     return redirect(f"/laws/{law.id}/edit")
+
+
+def _level_names(db: Session) -> list[str]:
+    return [lv.name for lv in db.scalars(select(LawLevel).order_by(LawLevel.position, LawLevel.name))][:30]
+
+
+@app.get("/laws/muster.md")
+def law_template(user: User = Depends(law_user), db: Session = Depends(get_db)):
+    """Musterdatei mit Stammdaten-Kopf und Gliederung – Vorlage für eigene Texte und für KI-Werkzeuge."""
+    return Response(laws_meta.template(_level_names(db)), media_type="text/markdown; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="rechtstext-muster.md"'})
+
+
+@app.get("/laws/prompt.txt")
+def law_prompt(user: User = Depends(law_user), db: Session = Depends(get_db)):
+    """Fertiger Prompt für ein LLM: Rechtstext ins Portal-Format bringen (Ebenen dieses Portals eingesetzt)."""
+    return Response(laws_meta.prompt(_level_names(db)), media_type="text/plain; charset=utf-8",
+                    headers={"Content-Disposition": 'inline; filename="rechtstext-prompt.txt"'})
 
 
 @app.post("/laws/preview", dependencies=[Depends(check_csrf)])
@@ -459,9 +498,20 @@ async def law_preview(request: Request, file: UploadFile | None = File(None), us
     md, error = await _read_md(file, data.get("body_md", ""))
     if error:
         return JSONResponse({"ok": False, "error": error})
+    meta_raw, meta_body, meta_notes = laws_meta.split(md)
+    with SessionLocal() as mdb:
+        meta, more = laws_meta.clean(mdb, meta_raw) if meta_raw else ({}, [])
+        level_names = {str(lv.id): lv.name for lv in mdb.scalars(select(LawLevel))}
+    if meta_raw:
+        md = meta_body
     parsed = lx.parse(md)
     full = data.get("html") == "1"
+    shown_meta = {laws_meta.LABELS["level" if k == "level_id" else k]:
+                  (level_names.get(v, v) if k == "level_id" else lx.DOC_TYPES.get(v, v) if k == "doc_type"
+                   else ("ja" if v == "1" else "nein") if k == "published"
+                   else _fmt_date(v) if k in ("issued_on", "valid_from", "valid_until") else v) for k, v in meta.items()}
     return JSONResponse({"ok": True, "title": parsed.title, "norms": parsed.norms, "groups": parsed.groups,
+                         "meta": shown_meta, "meta_raw": meta, "meta_notes": meta_notes + more,
                          "body_md": md if file is not None and file.filename else None,
                          "warnings": lx.check_outline(parsed) + [
                              f"Verweis {r} führt ins Leere – Kürzel bzw. Paragraf prüfen (z. B. [[§ 4]] oder [[GemO § 24]])."

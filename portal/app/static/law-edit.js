@@ -26,6 +26,31 @@
   view(saved);
   document.querySelectorAll('input[name="law-view"]').forEach(function (r) { r.addEventListener('change', function () { view(r.value); if (r.value !== 'edit') check(false); }); });
 
+  // --- Stammdaten aus dem Kopf: Formularfelder gleich mitfüllen (beim Speichern gilt ohnehin der Kopf) --------
+  function fillMeta(meta) {
+    var on = document.getElementById('read_meta');
+    if (!on || !on.checked) return;
+    Object.keys(meta).forEach(function (k) {
+      var el = form.querySelector('[name="' + k + '"]');
+      if (!el) return;
+      if (el.type === 'checkbox') el.checked = meta[k] === '1';
+      else if (el.value !== meta[k]) el.value = meta[k];
+    });
+  }
+  var insertBtn = document.getElementById('law-insert-template');
+  if (insertBtn) insertBtn.addEventListener('click', function () {
+    if (text.value.trim() && !window.confirm('Den vorhandenen Text durch das Muster ersetzen?')) return;
+    fetch('/laws/muster.md', { credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (t) {
+      text.value = t; dirty = true; check(false);
+    });
+  });
+  var promptBox = document.getElementById('law-prompt-box');
+  if (promptBox) promptBox.addEventListener('show.bs.collapse', function () {
+    var ta = document.getElementById('law-prompt');
+    if (ta.value) return;
+    fetch('/laws/prompt.txt', { credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (t) { ta.value = t; });
+  });
+
   // --- Vorschau und Gliederung --------------------------------------------------------------
   var timer = null, seq = 0;
   function check(withFile) {
@@ -47,7 +72,15 @@
         }
         var title = document.getElementById('title');
         if (d.title && !title.value) title.placeholder = d.title;
-        var html = '<div class="mb-2">' + (d.title ? 'Titel: <strong>' + esc(d.title) + '</strong><br>' : '') +
+        var metaHtml = '';
+        var metaKeys = Object.keys(d.meta || {});
+        if (metaKeys.length || (d.meta_notes && d.meta_notes.length)) {
+          metaHtml = '<div class="border rounded p-2 mb-2 bg-body-tertiary"><div class="fw-semibold mb-1"><i class="fa-solid fa-tags me-1"></i>Stammdaten im Kopf erkannt</div>' +
+            (metaKeys.length ? '<dl class="row mb-1 small">' + metaKeys.map(function (k) { return '<dt class="col-5 fw-normal text-secondary">' + esc(k) + '</dt><dd class="col-7 mb-0">' + esc(d.meta[k] || '–') + '</dd>'; }).join('') + '</dl>' : '') +
+            (d.meta_notes && d.meta_notes.length ? '<ul class="mb-0 ps-3 text-warning-emphasis small">' + d.meta_notes.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>' : '') + '</div>';
+          fillMeta(d.meta_raw || {});
+        }
+        var html = metaHtml + '<div class="mb-2">' + (d.title ? 'Titel: <strong>' + esc(d.title) + '</strong><br>' : '') +
           '<span class="badge text-bg-primary">' + d.norms + ' §§ / Artikel</span> <span class="badge text-bg-secondary">' + d.groups + ' Gliederungseinheiten</span></div>';
         if (d.warnings && d.warnings.length) {
           html += '<div class="alert alert-warning py-1 px-2 small mb-2"><ul class="mb-0 ps-3">' + d.warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul></div>';
