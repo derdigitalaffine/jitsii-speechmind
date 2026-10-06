@@ -92,6 +92,12 @@ async def lifespan(_app: FastAPI):
     with SessionLocal() as db:
         proxy.sync(get_settings(db))
         access.sync(db)
+        try:
+            from . import laws as _laws
+            _laws.reparse_all(db)
+        except Exception:   # noqa: BLE001 – ein fehlerhafter Text darf den Start nicht verhindern
+            db.rollback()
+            logging.getLogger("portal").exception("Rechtstexte: Neuzerlegen der Gliederung fehlgeschlagen")
     chat.prepare_dir()
     task = asyncio.create_task(worker.run_forever())
     yield

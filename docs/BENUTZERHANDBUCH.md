@@ -340,7 +340,7 @@ Die Stufe lässt sich in der Liste jederzeit ändern, das ✕ entfernt die Freig
 - **Volltext** zeigt den ganzen Text in gewohnter Gesetzesform (zentrierte Paragrafenüberschriften, nummerierte Absätze). Links steht die **Inhaltsübersicht** als Baum (Teile und Abschnitte auf-/zuklappbar, Filterfeld); beim Scrollen ist der aktuelle Paragraf markiert.
 - **Einzelne Abschnitte** zeigt einen Paragrafen bzw. Abschnitt für sich, mit Vor/Zurück-Blättern.
 - Fährt man über eine Paragrafenüberschrift, erscheinen Knöpfe für **„einzeln anzeigen“** und **„Link kopieren“** (z. B. `…/recht/hauptsatzung/p3` für § 3 – ideal für Mails und Bescheide).
-- **Zu einem Paragrafen springen:** Nummer ins Feld „§“ tippen (z. B. `5`, `5a` oder `Art 3`).
+- **Zu einem Paragrafen springen:** Nummer ins Feld „§“ tippen (z. B. `5`, `5a` oder `Art 3`); bei Verträgen und Regeln heißt das Feld „Nr.“ (z. B. `3`, `3.2` oder `Ziffer 4`).
 - **Schriftgröße** mit A− / A+ (wird im Browser gemerkt). Auf dem Handy lässt sich die Inhaltsübersicht ein- und ausblenden.
 - **Verweise**, die die Verwaltung gesetzt hat, sind verlinkt; beim Zeigen (oder ersten Antippen) erscheint eine **Vorschau** des Paragrafen.
 - **Fassungen:** Über „Fassungen“ lassen sich frühere Fassungen öffnen, mit „Welche Fassung galt am …“ die an einem Tag gültige finden und mit **Änderungen vergleichen** zwei Fassungen gegenüberstellen – Neues grün, Entfallenes rot durchgestrichen, je Paragraf als „geändert“, „neu“ oder „entfallen“ markiert.
@@ -364,7 +364,7 @@ Die Stufe lässt sich in der Liste jederzeit ändern, das ✕ entfernt die Freig
    (2) Zweiter Absatz …
    ```
 
-   Ohne `#` erkennt das Portal Zeilen wie „§ 1 Name“, „Artikel 2“ oder „Zweiter Abschnitt“ selbst.
+   Ohne `#` erkennt das Portal Zeilen wie „§ 1 Name“, „Artikel 2“ oder „Zweiter Abschnitt“ selbst. Texte ohne § (Verträge, Hausordnungen) gliedern Sie mit ihrer eigenen Zählung – „## 3. Haftung“, „### 3.2 Schäden“ oder „### Ziffer 3 Haftung“; die tiefste Stufe wird automatisch wie ein Paragraf behandelt (Feld **Unterste Ebene** zum Festlegen), Verweise darauf schreiben Sie als `[[Ziffer 3]]` oder `[[3.2]]`.
 3. Die **geteilte Ansicht** zeigt neben dem Text sofort die Vorschau, rechts die erkannte Gliederung mit **Hinweisen** (z. B. „Nach § 4 folgt § 6“, doppelte Nummern, leere Paragrafen).
 4. **Öffentlich sichtbar** einschalten, wenn der Text erscheinen soll; sonst bleibt er ein Entwurf, den nur Bearbeiter:innen sehen.
 5. Ändert eine Änderungssatzung den Text, beim Speichern **„Als neue Fassung speichern“** ankreuzen und „In Kraft seit“ anpassen – die bisherige Fassung bleibt öffentlich abrufbar. Ohne Haken gilt die Änderung als Korrektur.
