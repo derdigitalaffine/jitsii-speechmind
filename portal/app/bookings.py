@@ -177,8 +177,10 @@ def _send_guest(db, b: Booking, key: str, method: str, extra: dict | None = None
     subject, body = mailtpl.render(db, key, _values(db, b, extra), cfg)
     att = [{"filename": "absage.ics" if method == "CANCEL" else "termin.ics", "content": calendar(db, b, method),
             "calendar_method": method}]
-    return notify.enqueue(db, b.email, subject, body, key, cfg,
-                          reply_to=b.page.owner.email if b.page.owner else None, attachments=att)
+    from . import absence
+    note, deputy = absence.citizen_note(db, b.page.owner)   # Anbieter:in abwesend → Hinweis, Antwort an Vertretung
+    return notify.enqueue(db, b.email, subject, note + body, key, cfg,
+                          reply_to=deputy or (b.page.owner.email if b.page.owner else None), attachments=att)
 
 
 def _notify_owner(db, b: Booking, event: str) -> None:

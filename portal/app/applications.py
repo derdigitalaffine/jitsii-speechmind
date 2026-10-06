@@ -211,8 +211,10 @@ def notify_applicant(db, form: Form, resp: FormResponse, key: str, extra: dict |
     values = {**_common(form, resp), "name": resp.name or to, **(extra or {})}
     subject, body = mailtpl.render(db, key, values)
     staff = _staff_addresses(db, form, resp)
-    return notify.enqueue(db, to, subject, body, key, attachments=_pdf_attachment(form, resp) if attach_pdf else None,
-                          reply_to=resp.route_email or (staff[0] if staff else None),
+    from . import absence
+    note, deputy = absence.citizen_note(db, resp.assignee)   # zuständige Person abwesend → Hinweis, Antwort an Vertretung
+    return notify.enqueue(db, to, subject, note + body, key, attachments=_pdf_attachment(form, resp) if attach_pdf else None,
+                          reply_to=deputy or resp.route_email or (staff[0] if staff else None),
                           per_hour=5 if key == "app_received" else None)
 
 

@@ -7,7 +7,11 @@ etwa bei Krankheit. Ein Grund wird nie gespeichert oder angezeigt – sichtbar i
 Wer in seinem Profil „Vertretungen für mich bestätigen“ einschaltet, muss jeder Vertretung zustimmen; bis dahin ist
 sie „angefragt“ und wirkt noch nicht. Während einer bestätigten Abwesenheit
   * sieht die Vertretung die Aufgaben und Anträge der abwesenden Person (Meine Aufgaben, Antragseingang),
-  * bekommt sie Benachrichtigungen an die abwesende Person in Kopie (notify.enqueue, siehe FORWARD_KINDS).
+  * bekommt sie Benachrichtigungen an die abwesende Person in Kopie (notify.enqueue, siehe FORWARD_KINDS),
+  * hat sie befristet Zugriff wie die Person: Buchungsseiten und Ressourcen, die diese besitzt oder verwaltet,
+    Freigaben an sie (Terminumfragen und Abstimmungen nur lesend) und die Ablage (nur lesend),
+  * bekommen Bürger:innen in Mails zu Vorgängen der Person einen Hinweis auf die Abwesenheit, Antworten gehen an
+    die Vertretung (citizen_note).
 """
 
 import re
@@ -238,3 +242,21 @@ def dashboard(db, user: User) -> dict:
                                             Absence.status == "confirmed", Absence.starts_on <= day,
                                             Absence.ends_on >= day).order_by(Absence.ends_on)).all()
     return {"own": own, "representing": representing, "pending": pending, "away": away[:8], "label": label, "span": span}
+
+
+def citizen_note(db, user: User | None) -> tuple[str, str | None]:
+    """Hinweis für Mails an Bürger:innen, wenn die zuständige Person heute abwesend ist: (Text, Antwortadresse).
+    Ohne Abwesenheit ("", None). Nennt nie einen Grund – nur die eigene Abwesenheitsnotiz oder ein Standardtext."""
+    if user is None:
+        return "", None
+    a = current(db, user.id)
+    if a is None:
+        return "", None
+    sub = a.substitute if a.substitute and a.substitute.active else None
+    if a.auto_reply:
+        text = a.auto_reply
+    else:
+        text = f"Hinweis: {user.name} ist bis einschließlich {fmt(a.ends_on)} nicht im Dienst."
+        if sub:
+            text += f" Ihre Anfrage bearbeitet in dieser Zeit {sub.name} ({sub.email})."
+    return text.strip() + "\n\n", (sub.email if sub else None)

@@ -48,6 +48,9 @@
         <div class="col-12"><label class="form-label" for="own-sub">Vertretung</label>{{ subst_select('own-sub', user.id) }}</div>
         <div class="col-12"><label class="form-label" for="own-note">Notiz für die Vertretung <span class="small text-secondary">(optional, nur für sie und Sie sichtbar)</span></label>
           <textarea class="form-control" id="own-note" name="note" rows="2" maxlength="2000" placeholder="z. B. laufende Vorgänge, wo Unterlagen liegen"></textarea></div>
+        <div class="col-12"><label class="form-label" for="own-reply">Abwesenheitsnotiz für Bürger:innen <span class="small text-secondary">(optional)</span></label>
+          <textarea class="form-control" id="own-reply" name="auto_reply" rows="2" maxlength="1000" placeholder="Leer = „Hinweis: … ist bis … nicht im Dienst. Ihre Anfrage bearbeitet in dieser Zeit …“"></textarea>
+          <div class="form-text">Steht während der Abwesenheit oben in Mails zu Ihren Anträgen und Terminbuchungen; Antworten gehen an die Vertretung.</div></div>
         <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-plus me-1"></i>Eintragen</button></div>
       </form></div>
     <div class="card mb-4"><div class="card-header"><i class="fa-regular fa-calendar me-2"></i>Meine Abwesenheiten</div>
