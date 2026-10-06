@@ -542,9 +542,15 @@ def tree_of(markdown: str) -> tuple[list[View], list[View]]:
 _TOKEN_RE = re.compile(r"\s+|\w+|[^\w\s]")
 
 
+_DIFF_TOKENS = 20000
+
+
 def _word_diff(a: str, b: str) -> Markup:
     import difflib
     ta, tb = _TOKEN_RE.findall(a), _TOKEN_RE.findall(b)
+    if len(ta) > _DIFF_TOKENS or len(tb) > _DIFF_TOKENS:
+        # Riesige Abschnitte nicht Wort für Wort vergleichen (Rechenzeit wächst quadratisch; die Seite ist öffentlich)
+        return Markup("<del>") + escape(a) + Markup("</del> <ins>") + escape(b) + Markup("</ins>")
     out = Markup("")
     for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, ta, tb, autojunk=False).get_opcodes():
         if op == "equal":

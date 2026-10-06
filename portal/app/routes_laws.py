@@ -212,6 +212,8 @@ def _version(db: Session, law_slug: str, version_id: int, user) -> tuple[LawText
 
 
 def _compare(request: Request, db: Session, embed: bool, slug: str, a: str, b: str):
+    from .main import rate_limit
+    rate_limit(request, "law-compare", limit=60, window=600)
     user, ctx = _ctx(db, request, embed)
     law = _visible_law(db, slug, user)
     versions = lx.public_versions(law) if not ctx["editor"] else list(law.versions)

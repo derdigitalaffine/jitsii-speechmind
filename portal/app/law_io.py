@@ -74,6 +74,8 @@ def _heading_level(p, styles: dict[str, int]) -> int:
 def _styles(zf: zipfile.ZipFile) -> dict[str, int]:
     """Formatvorlagen-ID → Überschriftenebene (auch deutsche Namen wie „Überschrift 2“)."""
     try:
+        if zf.getinfo("word/styles.xml").file_size > 5 * 1024 * 1024:
+            return {}
         root = ET.fromstring(zf.read("word/styles.xml"))
     except (KeyError, ET.ParseError):
         return {}
@@ -92,7 +94,8 @@ def _styles(zf: zipfile.ZipFile) -> dict[str, int]:
 def docx_to_markdown(data: bytes) -> str:
     try:
         zf = zipfile.ZipFile(io.BytesIO(data))
-        if sum(i.file_size for i in zf.infolist()) > 200 * 1024 * 1024:
+        # Entpackte Größe begrenzen (ZIP-Bombe): der Text eines Rechtstexts ist weit kleiner
+        if sum(i.file_size for i in zf.infolist()) > 200 * 1024 * 1024 or zf.getinfo("word/document.xml").file_size > 30 * 1024 * 1024:
             raise LawImportError("Die Word-Datei ist zu groß.")
         root = ET.fromstring(zf.read("word/document.xml"))
     except (zipfile.BadZipFile, KeyError, ET.ParseError):
