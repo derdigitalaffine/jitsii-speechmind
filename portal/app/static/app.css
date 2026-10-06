@@ -263,3 +263,12 @@ a.dash-num:hover > span { text-decoration: underline; }
 .res-ev.res-closure { background-color: var(--bs-secondary) !important; border-color: var(--bs-secondary) !important; }
 .res-photo { aspect-ratio: 4 / 3; object-fit: cover; width: 100%; border-radius: var(--bs-border-radius); }
 .res-thumb { aspect-ratio: 16 / 9; object-fit: cover; width: 100%; }
+
+/* Querverweise und Vorschau */
+a.law-ref { text-decoration: underline dotted; text-underline-offset: .15em; }
+.law-pop { position: absolute; z-index: 1080; max-width: min(32rem, calc(100vw - 2rem)); max-height: 22rem; overflow: auto; padding: .75rem 1rem;
+  background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: var(--bs-border-radius); box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.15);
+  font-size: .9rem; line-height: 1.5; }
+.law-pop .law-pop-head { font-weight: 600; margin-bottom: .35rem; }
+.law-pop p { margin-bottom: .5rem; }
+

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Neue Fassung · {{ law.title }}{% endblock %}
+{% block content %}
+{% set v = v or {} %}
+{% call m.page_head('Neue Fassung vorbereiten', law.title) %}
+<a class="btn btn-outline-secondary" href="/laws/{{ law.id }}/edit"><i class="fa-solid fa-arrow-left me-1"></i>Zum Rechtstext</a>
+{% endcall %}
+<div class="alert alert-light border small"><i class="fa-regular fa-calendar-check me-1 text-primary"></i>
+  Die vorbereitete Fassung wird <strong>am Tag des Inkrafttretens automatisch</strong> übernommen und veröffentlicht (sofern der Text veröffentlicht ist).
+  Die bisherige Fassung bleibt dann als frühere Fassung abrufbar – mit Geltungszeitraum bis zu diesem Tag; Bürger:innen können beide vergleichen.
+  Bis dahin sehen nur Bearbeiter:innen den Hinweis auf die kommende Fassung.</div>
+<form method="post" enctype="multipart/form-data" action="/laws/{{ law.id }}/plan" id="plan-form"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="card mb-3"><div class="card-body row g-3">
+    <div class="col-md-3"><label class="form-label" for="p-from">Gilt ab</label><input class="form-control" type="date" id="p-from" name="valid_from" value="{{ v.get('valid_from') or law.planned_valid_from }}" required></div>
+    <div class="col-md-6"><label class="form-label" for="p-note">Stand / Fassung</label><input class="form-control" id="p-note" name="version_note" value="{{ v.get('version_note') or law.planned_note }}" maxlength="255" placeholder="z. B. Fassung der 2. Änderungssatzung vom …"></div>
+    <div class="col-md-3"><label class="form-label" for="p-file">oder Datei laden</label><input class="form-control" type="file" id="p-file" name="file" accept=".docx,.pdf,.md,.markdown,.txt"></div>
+  </div></div>
+  <div class="card mb-3"><div class="card-header small fw-semibold">Text der neuen Fassung <span class="fw-normal text-secondary">– vorbefüllt mit der {{ 'vorbereiteten' if law.planned_md else 'aktuellen' }} Fassung</span></div>
+    <textarea class="form-control border-0 rounded-0 font-monospace" name="body_md" rows="26" style="font-size: .88rem">{{ body }}</textarea></div>
+  <div class="d-flex flex-wrap gap-2">
+    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-calendar-check me-1"></i>Vorbereiten</button>
+    {% if law.planned_valid_from %}<button class="btn btn-outline-danger ms-auto" type="submit" name="action" value="delete" formnovalidate data-confirm="Die vorbereitete Fassung verwerfen?">Verwerfen</button>{% endif %}
+  </div>
+</form>
+{% endblock %}

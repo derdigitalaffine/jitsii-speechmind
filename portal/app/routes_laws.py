@@ -4,13 +4,15 @@ import re
 from datetime import date
 
 from fastapi import Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import laws as lx, links, sessions
-from .config import settings
-from .db import LawLevel, LawSection, LawText, LawVersion, User, get_settings, set_setting
+from . import law_io, laws as lx, links, sessions
+from .db import Form as FormModel
+from .db import (
+    LawAttachment, LawLevel, LawSection, LawText, LawVersion, User, get_settings, set_setting,
+)
 from .main import app, check_csrf, flash, get_db, redirect, render, require, session_user
 from .main import embed_enabled as main_embed_enabled
 
@@ -40,7 +42,24 @@ def _fmt_date(value: str) -> str:
 
 def _common(db: Session, user: User | None) -> dict:
     return {"kinds": lx.LEVEL_KINDS, "doc_types": lx.DOC_TYPES, "editor": _editor(user), "fmt_date": _fmt_date,
-            "level_path": lx.level_path, "level_ids": lx.descendant_ids}
+            "level_path": lx.level_path, "level_ids": lx.descendant_ids, "expired": lx.expired}
+
+
+def related_forms(db: Session, law: LawText) -> list[FormModel]:
+    """Online-Anträge im Katalog, die diesen Text als Rechtsgrundlage nennen."""
+    out = []
+    import json
+    rows = db.scalars(select(FormModel).where(FormModel.kind == "application", FormModel.app_catalog.is_(True),
+                                              FormModel.active.is_(True), FormModel.public_token.is_not(None),
+                                              FormModel.legal_json.like("%law_id%"))).all()
+    for form in rows:
+        try:
+            refs = json.loads(form.legal_json or "[]")
+        except ValueError:
+            continue
+        if any(isinstance(r, dict) and r.get("law_id") == law.id for r in refs):
+            out.append(form)
+    return out
 
 
 # --- Öffentlich ----------------------------------------------------------------
@@ -79,27 +98,47 @@ def _index(request: Request, db: Session, embed: bool):
         q = q.where(LawText.published.is_(True))
     all_laws = list(db.scalars(q))
     by_level: dict[int | None, list[LawText]] = {}
+    archived = [law for law in all_laws if lx.expired(law)]
     for law in all_laws:
-        by_level.setdefault(law.level_id, []).append(law)
-    recent = sorted((x for x in all_laws if x.published), key=lambda x: x.updated_at, reverse=True)[:6]
+        if not lx.expired(law):
+            by_level.setdefault(law.level_id, []).append(law)
+    recent = sorted((x for x in all_laws if x.published and not lx.expired(x)), key=lambda x: x.updated_at, reverse=True)[:6]
     return _cookieless(request, render(request, "recht.html", user, roots=lx.level_tree(db), by_level=by_level,
                   counts=lx.law_counts(db, published_only=not editor), recent=[] if embed else recent,
-                  total=len(all_laws), **ctx))
+                  total=len(all_laws), archived=archived, **ctx))
 
 
-def _search(request: Request, db: Session, embed: bool, q: str, ebene: int | None, gesetz: str):
+def _search(request: Request, db: Session, embed: bool, q: str, ebene: int | None, gesetz: str, art: str = "",
+            alle: str = ""):
     user, ctx = _ctx(db, request, embed)
     level = db.get(LawLevel, ebene) if ebene else None
     law = db.scalar(select(LawText).where(LawText.slug == gesetz)) if gesetz else None
     if law is not None and not law.published and not ctx["editor"]:
         law = None
-    found_laws, hits = lx.search(db, q, published_only=not ctx["editor"], level=level, law=law)
+    opts = {"published_only": not ctx["editor"], "level": level, "law": law, "doc_type": art,
+            "in_force_only": alle != "1" and law is None}
+    found_laws, hits = lx.search(db, q, **opts)
+    corrected = ""
+    if q and not hits and not found_laws:
+        corrected = lx.did_you_mean(db, q)
+        if corrected:   # gleich mit der Korrektur suchen und das anzeigen
+            found_laws, hits = lx.search(db, corrected, **opts)
     grouped: dict[int, dict] = {}
     for section, snip in hits:
         grouped.setdefault(section.law_id, {"law": section.law, "hits": []})["hits"].append((section, snip))
     return _cookieless(request, render(request, "recht_search.html", user, q=q, level=level, law=law, found_laws=found_laws,
-                  grouped=list(grouped.values()), hit_count=len(hits), words=lx.terms(q),
-                  level_options=lx.level_options(db), **ctx))
+                  grouped=list(grouped.values()), hit_count=len(hits), words=lx.terms(corrected or q),
+                  corrected=corrected, art=art, alle=alle, level_options=lx.level_options(db), **ctx))
+
+
+def _suggest(request: Request, db: Session, embed: bool, q: str):
+    user, ctx = _ctx(db, request, embed)
+    from .main import rate_limit
+    rate_limit(request, "recht-suggest", limit=300, window=60)
+    items = lx.quick(db, q, published_only=not ctx["editor"])
+    R = ctx["R"]
+    return JSONResponse([{"label": i["label"], "url": f"{R}/{i['slug']}" + (f"/{i['anchor']}" if i["anchor"] else "")}
+                         for i in items], headers={"Cache-Control": "no-store"})
 
 
 def _level(request: Request, db: Session, embed: bool, level_id: int):
@@ -111,10 +150,14 @@ def _level(request: Request, db: Session, embed: bool, level_id: int):
     if not ctx["editor"]:
         q = q.where(LawText.published.is_(True))
     by_level: dict[int | None, list[LawText]] = {}
+    archived = []
     for law in db.scalars(q):
-        by_level.setdefault(law.level_id, []).append(law)
+        if lx.expired(law):
+            archived.append(law)
+        else:
+            by_level.setdefault(law.level_id, []).append(law)
     return _cookieless(request, render(request, "recht.html", user, roots=[level], by_level=by_level, focus=level,
-                  counts=lx.law_counts(db, published_only=not ctx["editor"]), recent=[],
+                  counts=lx.law_counts(db, published_only=not ctx["editor"]), recent=[], archived=archived,
                   total=sum(len(v) for v in by_level.values()), **ctx))
 
 
@@ -126,20 +169,68 @@ def _markdown(request: Request, db: Session, embed: bool, slug: str):
                     headers={"Content-Disposition": f'attachment; filename="{law.slug}.md"'})
 
 
-def _law_page(request: Request, db: Session, embed: bool, slug: str, anchor: str | None):
+def _law_page(request: Request, db: Session, embed: bool, slug: str, anchor: str | None, version: LawVersion | None = None):
     user, ctx = _ctx(db, request, embed)
     law = _visible_law(db, slug, user)
-    roots, flat = lx.tree(law)
+    day = request.query_params.get("am", "")
+    if version is None and DATE_RE.match(day):
+        found = lx.version_for_date(law, day)
+        if found is not None:
+            return redirect(f"{ctx['R']}/{law.slug}/fassung/{found.id}" + (f"#{anchor}" if anchor else ""))
+    roots, flat = lx.tree_of(version.body_md) if version is not None else lx.tree(law)
     current = None
     if anchor is not None:
         current = next((v for v in flat if v.section.anchor == anchor), None)
         if current is None:
             raise HTTPException(404, "Diesen Abschnitt gibt es in diesem Rechtstext nicht.")
+    if request.query_params.get("format") == "json":   # Vorschau für Verweise (Formulare, Querverweise)
+        target = current or (flat[0] if flat else None)
+        return JSONResponse({"title": law.title, "short_title": law.short_title,
+                             "label": target.label if current else (law.short_title or law.title),
+                             "html": lx.link_refs(target.section.html, law.slug, set(), ctx["R"]) if target and current else "",
+                             "url": f"{ctx['R']}/{law.slug}" + (f"/{current.section.anchor}" if current else "")},
+                            headers={"Cache-Control": "no-store"})
+    anchors = {v.section.anchor for v in flat}
     idx = flat.index(current) if current else -1
+    versions = lx.public_versions(law)
     return _cookieless(request, render(request, "recht_law.html", user, law=law, roots=roots, flat=flat, current=current,
                   prev=flat[idx - 1] if current and idx > 0 else None,
                   next=flat[idx + 1] if current and idx + 1 < len(flat) else None,
-                  path=lx.level_path(law.level), q=request.query_params.get("q", ""), **ctx))
+                  path=lx.level_path(law.level), q=request.query_params.get("q", ""), version=version,
+                  versions=versions, is_expired=lx.expired(law), forms=[] if embed else related_forms(db, law),
+                  base=f"{ctx['R']}/{law.slug}" + (f"/fassung/{version.id}" if version else ""),
+                  link=lambda v: lx.link_refs(v.section.html, law.slug, anchors, ctx["R"]) if version is None else v.html,
+                  **ctx))
+
+
+def _version(db: Session, law_slug: str, version_id: int, user) -> tuple[LawText, LawVersion]:
+    law = _visible_law(db, law_slug, user)
+    version = db.get(LawVersion, version_id)
+    if version is None or version.law_id != law.id or not (version.public or _editor(user)):
+        raise HTTPException(404, "Diese Fassung gibt es nicht.")
+    return law, version
+
+
+def _compare(request: Request, db: Session, embed: bool, slug: str, a: str, b: str):
+    user, ctx = _ctx(db, request, embed)
+    law = _visible_law(db, slug, user)
+    versions = lx.public_versions(law) if not ctx["editor"] else list(law.versions)
+
+    def pick(key: str):
+        if key in ("", "aktuell"):
+            return None, law.body_md
+        v = next((x for x in versions if str(x.id) == key), None)
+        if v is None:
+            raise HTTPException(404, "Diese Fassung gibt es nicht.")
+        return v, v.body_md
+    if not a and versions:
+        a = str(versions[0].id)
+    old_v, old_md = pick(a)
+    new_v, new_md = pick(b)
+    rows = lx.compare(old_md, new_md)
+    changed = [r for r in rows if r["status"] != "same"]
+    return _cookieless(request, render(request, "recht_compare.html", user, law=law, rows=rows, changed=changed,
+                  old_v=old_v, new_v=new_v, a=a, b=b or "aktuell", versions=versions, **ctx))
 
 
 for _prefix, _embed in (("/recht", False), (EMBED, True)):
@@ -149,9 +240,13 @@ for _prefix, _embed in (("/recht", False), (EMBED, True)):
             return _index(request, db, embed)
 
         @app.get(prefix + "/suche", name=f"recht_search{'_embed' if embed else ''}")
-        def search(request: Request, q: str = "", ebene: int | None = None, gesetz: str = "",
-                   db: Session = Depends(get_db)):
-            return _search(request, db, embed, q, ebene, gesetz)
+        def search(request: Request, q: str = "", ebene: int | None = None, gesetz: str = "", art: str = "",
+                   alle: str = "", db: Session = Depends(get_db)):
+            return _search(request, db, embed, q, ebene, gesetz, art, alle)
+
+        @app.get(prefix + "/suche.json", name=f"recht_suggest{'_embed' if embed else ''}")
+        def suggest(request: Request, q: str = "", db: Session = Depends(get_db)):
+            return _suggest(request, db, embed, q)
 
         @app.get(prefix + "/ebene/{level_id}", name=f"recht_level{'_embed' if embed else ''}")
         def level(request: Request, level_id: int, db: Session = Depends(get_db)):
@@ -165,11 +260,42 @@ for _prefix, _embed in (("/recht", False), (EMBED, True)):
         def law(request: Request, slug: str, db: Session = Depends(get_db)):
             return _law_page(request, db, embed, slug, None)
 
+        @app.get(prefix + "/{slug}/vergleich", name=f"recht_compare{'_embed' if embed else ''}")
+        def compare(request: Request, slug: str, a: str = "", b: str = "", db: Session = Depends(get_db)):
+            return _compare(request, db, embed, slug, a, b)
+
+        @app.get(prefix + "/{slug}/fassung/{version_id:int}", name=f"recht_version{'_embed' if embed else ''}")
+        def version(request: Request, slug: str, version_id: int, db: Session = Depends(get_db)):
+            user, _ = _ctx(db, request, embed)
+            _law_obj, ver = _version(db, slug, version_id, user)
+            return _law_page(request, db, embed, slug, None, ver)
+
+        @app.get(prefix + "/{slug}/fassung/{version_id:int}/{anchor}", name=f"recht_version_section{'_embed' if embed else ''}")
+        def version_section(request: Request, slug: str, version_id: int, anchor: str, db: Session = Depends(get_db)):
+            user, _ = _ctx(db, request, embed)
+            _law_obj, ver = _version(db, slug, version_id, user)
+            return _law_page(request, db, embed, slug, anchor, ver)
+
+        @app.get(prefix + "/{slug}/anlage/{att_id:int}", name=f"recht_attachment{'_embed' if embed else ''}")
+        def attachment(request: Request, slug: str, att_id: int, db: Session = Depends(get_db)):
+            user, _ = _ctx(db, request, embed)
+            law_obj = _visible_law(db, slug, user)
+            att = db.get(LawAttachment, att_id)
+            if att is None or att.law_id != law_obj.id or not (law_io.files_dir(law_obj.id) / att.file).is_file():
+                raise HTTPException(404, "Diese Anlage gibt es nicht.")
+            return FileResponse(law_io.files_dir(law_obj.id) / att.file, media_type="application/pdf",
+                                headers={"Content-Disposition": f'inline; filename="{_ascii(att.name)}"',
+                                         "X-Content-Type-Options": "nosniff"})
+
         @app.get(prefix + "/{slug}/{anchor}", name=f"recht_section{'_embed' if embed else ''}")
         def section(request: Request, slug: str, anchor: str, db: Session = Depends(get_db)):
             return _law_page(request, db, embed, slug, anchor)
 
     _register(_prefix, _embed)
+
+
+def _ascii(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._ -]", "_", name)[:120] or "Anlage.pdf"
 
 
 # --- Pflege: Rechtstexte -----------------------------------------------------
@@ -200,13 +326,22 @@ def law_new(request: Request, level: int | None = None, user: User = Depends(law
     return _form_page(request, db, user, None, {"level_id": level, "doc_type": "satzung"})
 
 
+MAX_UPLOAD = 25 * 1024 * 1024   # Word/PDF dürfen größer sein; der Text daraus muss unter 2 MB bleiben
+
+
 async def _read_md(file: UploadFile | None, fallback: str) -> tuple[str, str | None]:
-    """(Markdown, Fehlermeldung). Eine hochgeladene Datei hat Vorrang vor dem Textfeld."""
+    """(Markdown, Fehlermeldung). Eine hochgeladene Datei (Markdown, Text, Word, PDF) hat Vorrang vor dem Textfeld."""
     if file is not None and file.filename:
-        data = await file.read(lx.MAX_SIZE + 1)
-        if len(data) > lx.MAX_SIZE:
-            return fallback, "Die Datei ist größer als 2 MB."
-        return lx.decode_upload(data), None
+        data = await file.read(MAX_UPLOAD + 1)
+        if len(data) > MAX_UPLOAD:
+            return fallback, "Die Datei ist größer als 25 MB."
+        try:
+            md = law_io.to_markdown(file.filename, data)
+        except law_io.LawImportError as exc:
+            return fallback, str(exc)
+        if len(md.encode()) > lx.MAX_SIZE:
+            return fallback, "Der Text ist größer als 2 MB."
+        return md, None
     if len(fallback.encode()) > lx.MAX_SIZE:
         return fallback, "Der Text ist größer als 2 MB."
     return fallback, None
@@ -225,9 +360,11 @@ def _apply(db: Session, law: LawText, data, md: str, user: User) -> str | None:
         if value and not DATE_RE.match(value):
             return "Bitte Datumsangaben im Format TT.MM.JJJJ wählen."
     if law.id and law.body_md and law.body_md != md:
-        db.add(LawVersion(law_id=law.id, saved_by=law.editor.name if law.editor else "", body_md=law.body_md,
-                          version_note=law.version_note, saved_at=law.updated_at))
-        old = db.scalars(select(LawVersion).where(LawVersion.law_id == law.id)
+        # „Neue Fassung“: der bisherige Stand bleibt mit Geltungszeitraum öffentlich abrufbar; sonst interne Sicherung
+        new_version = data.get("new_version") == "1"
+        until = (data.get("valid_from") or "").strip() if new_version else ""
+        lx.snapshot(db, law, public=new_version, valid_until=until if DATE_RE.match(until) else lx.today_iso())
+        old = db.scalars(select(LawVersion).where(LawVersion.law_id == law.id, LawVersion.public.is_(False))
                          .order_by(LawVersion.saved_at.desc()).offset(MAX_VERSIONS - 1)).all()
         for v in old:
             db.delete(v)
@@ -261,6 +398,7 @@ async def law_create(request: Request, file: UploadFile | None = File(None), use
     db.flush()
     parsed = lx.store(db, law)
     db.commit()
+    lx.invalidate_refs()
     flash(request, f"„{law.title}“ gespeichert: {parsed.norms} Paragrafen/Artikel in {parsed.groups} Gliederungsebenen erkannt."
           + ("" if law.published else " Der Text ist noch nicht veröffentlicht."))
     return redirect(f"/laws/{law.id}/edit")
@@ -295,6 +433,7 @@ async def law_update(request: Request, law_id: int, file: UploadFile | None = Fi
         return _form_page(request, db, user, law, {**dict(data), "body_md": md})
     parsed = lx.store(db, law)
     db.commit()
+    lx.invalidate_refs()
     flash(request, f"Gespeichert: {parsed.norms} Paragrafen/Artikel, {parsed.groups} Gliederungsebenen.")
     return redirect(f"/laws/{law.id}/edit")
 
@@ -306,10 +445,12 @@ async def law_preview(request: Request, file: UploadFile | None = File(None), us
     if error:
         return JSONResponse({"ok": False, "error": error})
     parsed = lx.parse(md)
+    full = data.get("html") == "1"
     return JSONResponse({"ok": True, "title": parsed.title, "norms": parsed.norms, "groups": parsed.groups,
                          "body_md": md if file is not None and file.filename else None,
+                         "warnings": lx.check_outline(parsed),
                          "toc": [{"depth": n.depth, "kind": n.kind, "label": n.label, "anchor": n.anchor,
-                                  "chars": len(n.plain)} for n in parsed.nodes]})
+                                  "chars": len(n.plain), **({"html": n.html} if full else {})} for n in parsed.nodes]})
 
 
 @app.post("/laws/{law_id}/publish", dependencies=[Depends(check_csrf)])
@@ -318,6 +459,7 @@ def law_publish(request: Request, law_id: int, user: User = Depends(law_user), d
     law.published = not law.published
     law.updated_by = user.id
     db.commit()
+    lx.invalidate_refs()
     flash(request, f"„{law.title}“ ist jetzt " + ("öffentlich sichtbar." if law.published else "nicht mehr öffentlich."))
     return redirect(request.headers.get("referer") or "/laws")
 
@@ -326,8 +468,11 @@ def law_publish(request: Request, law_id: int, user: User = Depends(law_user), d
 def law_delete(request: Request, law_id: int, user: User = Depends(law_user), db: Session = Depends(get_db)):
     law = _law(db, law_id)
     title = law.title
+    import shutil
     db.delete(law)
     db.commit()
+    shutil.rmtree(law_io.files_dir(law_id), ignore_errors=True)
+    lx.invalidate_refs()
     flash(request, f"„{title}“ wurde gelöscht.")
     return redirect("/laws")
 
@@ -374,16 +519,23 @@ async def laws_upload(request: Request, files: list[UploadFile] = File(...), lev
     for upload in files[:50]:
         if not upload.filename:
             continue
-        data = await upload.read(lx.MAX_SIZE + 1)
-        if len(data) > lx.MAX_SIZE:
-            problems.append(f"{upload.filename}: größer als 2 MB")
+        data = await upload.read(MAX_UPLOAD + 1)
+        if len(data) > MAX_UPLOAD:
+            problems.append(f"{upload.filename}: größer als 25 MB")
             continue
-        md = lx.decode_upload(data)
+        try:
+            md = law_io.to_markdown(upload.filename, data)
+        except law_io.LawImportError as exc:
+            problems.append(f"{upload.filename}: {exc}")
+            continue
+        if len(md.encode()) > lx.MAX_SIZE:
+            problems.append(f"{upload.filename}: Text größer als 2 MB")
+            continue
         if not md.strip():
             problems.append(f"{upload.filename}: Datei ist leer")
             continue
         parsed = lx.parse(md)
-        stem = re.sub(r"\.(md|markdown|txt)$", "", upload.filename, flags=re.I)
+        stem = re.sub(r"\.(md|markdown|txt|docx|pdf)$", "", upload.filename, flags=re.I)
         law = LawText(created_by=user.id)
         error = _apply(db, law, {"title": parsed.title or stem.replace("_", " "), "level_id": level_id,
                                  "doc_type": doc_type, "published": published, "slug": stem}, md, user)
@@ -395,10 +547,109 @@ async def laws_upload(request: Request, files: list[UploadFile] = File(...), lev
         lx.store(db, law)
         created.append(f"{law.title} ({parsed.norms} §§/Art.)")
     db.commit()
+    lx.invalidate_refs()
     if created:
         flash(request, f"{len(created)} Rechtstext(e) übernommen: " + "; ".join(created))
     if problems:
         flash(request, "Nicht übernommen: " + "; ".join(problems), "error")
+    return redirect("/laws")
+
+
+# --- Pflege: geplante Fassung, Anlagen, Ex-/Import ---------------------------------------
+
+@app.get("/laws/{law_id}/plan")
+def law_plan(request: Request, law_id: int, user: User = Depends(law_user), db: Session = Depends(get_db)):
+    law = _law(db, law_id)
+    return render(request, "law_plan.html", user, law=law, body=law.planned_md or law.body_md, **_common(db, user))
+
+
+@app.post("/laws/{law_id}/plan", dependencies=[Depends(check_csrf)])
+async def law_plan_save(request: Request, law_id: int, file: UploadFile | None = File(None), user: User = Depends(law_user),
+                        db: Session = Depends(get_db)):
+    law = _law(db, law_id)
+    data = await request.form()
+    if data.get("action") == "delete":
+        law.planned_md, law.planned_valid_from, law.planned_note = "", "", ""
+        db.commit()
+        flash(request, "Die vorbereitete Fassung wurde verworfen.")
+        return redirect(f"/laws/{law.id}/edit")
+    md, error = await _read_md(file, str(data.get("body_md", "")))
+    day = str(data.get("valid_from", "")).strip()
+    if not error and not DATE_RE.match(day):
+        error = "Bitte das Datum des Inkrafttretens angeben."
+    elif not error and day <= lx.today_iso():
+        error = "Das Datum muss in der Zukunft liegen – für sofort geltende Änderungen den Text direkt bearbeiten."
+    if error:
+        flash(request, error, "error")
+        return render(request, "law_plan.html", user, law=law, body=md, v=dict(data), **_common(db, user))
+    law.planned_md, law.planned_valid_from = md, day
+    law.planned_note = " ".join(str(data.get("version_note", "")).split())[:255]
+    db.commit()
+    flash(request, f"Neue Fassung vorbereitet – sie gilt automatisch ab {_fmt_date(day)}; die bisherige bleibt als frühere Fassung abrufbar.")
+    return redirect(f"/laws/{law.id}/edit")
+
+
+@app.post("/laws/{law_id}/attachments", dependencies=[Depends(check_csrf)])
+async def law_attachment_add(request: Request, law_id: int, user: User = Depends(law_user), db: Session = Depends(get_db)):
+    law = _law(db, law_id)
+    data = await request.form()
+    n = 0
+    for f in data.getlist("files"):
+        if not hasattr(f, "read") or not getattr(f, "filename", ""):
+            continue
+        content = await f.read(law_io.MAX_ATTACHMENT + 1)
+        if not content.startswith(b"%PDF") or len(content) > law_io.MAX_ATTACHMENT:
+            flash(request, f"„{f.filename}“ übersprungen – nur PDF bis 20 MB.", "error")
+            continue
+        name = " ".join(str(data.get("name", "")).split())[:255] if len(data.getlist("files")) == 1 and data.get("name") else f.filename
+        law_io.add_attachment(law, name, content)
+        n += 1
+    db.commit()
+    if n:
+        flash(request, f"{n} Anlage(n) hinzugefügt.")
+    return redirect(f"/laws/{law.id}/edit#anlagen")
+
+
+@app.post("/laws/{law_id}/attachments/{att_id}/delete", dependencies=[Depends(check_csrf)])
+def law_attachment_delete(request: Request, law_id: int, att_id: int, user: User = Depends(law_user), db: Session = Depends(get_db)):
+    law = _law(db, law_id)
+    att = db.get(LawAttachment, att_id)
+    if att is not None and att.law_id == law.id:
+        (law_io.files_dir(law.id) / att.file).unlink(missing_ok=True)
+        db.delete(att)
+        db.commit()
+        flash(request, "Anlage entfernt.")
+    return redirect(f"/laws/{law.id}/edit#anlagen")
+
+
+@app.get("/laws/export")
+def laws_export(level: int | None = None, versions: str = "1", attachments: str = "1", user: User = Depends(law_user),
+                db: Session = Depends(get_db)):
+    q = select(LawText).order_by(LawText.title)
+    selected = db.get(LawLevel, level) if level else None
+    if selected is not None:
+        q = q.where(LawText.level_id.in_(lx.descendant_ids(selected)))
+    body = law_io.export(db, list(db.scalars(q)), versions=versions == "1", attachments=attachments == "1")
+    name = lx.slugify(selected.name, 40) if selected else "alle"
+    return Response(body, media_type="application/json",
+                    headers={"Content-Disposition": f'attachment; filename="rechtstexte-{name}-{lx.today_iso()}.json"'})
+
+
+@app.post("/laws/import", dependencies=[Depends(check_csrf)])
+async def laws_import(request: Request, user: User = Depends(law_user), db: Session = Depends(get_db)):
+    data = await request.form()
+    f = data.get("file")
+    try:
+        if not hasattr(f, "read"):
+            raise law_io.LawImportError("Bitte eine Exportdatei wählen.")
+        created, updated = law_io.import_(db, await f.read(500 * 1024 * 1024), user,
+                                          update_existing=data.get("update") == "1")
+    except law_io.LawImportError as exc:
+        db.rollback()
+        flash(request, str(exc), "error")
+        return redirect("/laws")
+    db.commit()
+    flash(request, f"Import: {created} neu angelegt, {updated} als neue Fassung aktualisiert. Ebenen wurden bei Bedarf angelegt.")
     return redirect("/laws")
 
 

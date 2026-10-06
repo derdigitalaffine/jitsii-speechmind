@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 from . import applications as apps, fees, forms as fm, payments, shortlinks as sl, worker
 from .db import LOCAL_TZ, SessionLocal, Form, FormInvite, FormResponse, FormShare, Group, User, get_settings, to_local, utcnow
 from .main import (
-    app, check_csrf, current_user, flash, get_db, rate_limit, redirect, render, require, session_user,
+    app, check_csrf, current_user, enabled_modules, flash, get_db, rate_limit, redirect, render, require, session_user,
 )
 from .planning import parse_emails
 from .security import new_link_token
@@ -461,8 +461,13 @@ def _fill_page(request: Request, form: Form, *, preview: bool = False, action: s
         from .routes_maps import map_bundle   # Grundkarten für GPS-Fragen (Kartenlayer „für Formulare“)
         with SessionLocal() as db:
             geo_bundle = map_bundle(db, request, None, purpose="forms")
+    legal = []
+    if form.kind == "application" and "laws" in enabled_modules():
+        from . import laws
+        with SessionLocal() as db:
+            legal = laws.form_refs(db, form)
     response = render(request, "form_fill.html", None, form=form, pages=page_list, preview=preview, action=action,
-                      review=form.review and len(fm.questions(items)) >= 3,
+                      review=form.review and len(fm.questions(items)) >= 3, legal=legal,
                       invite=invite, values=values or {}, errors=errors or {}, page_index=page_index,
                       types=fm.TYPES, other=fm.OTHER, geo_bundle=geo_bundle)
     response.status_code = status

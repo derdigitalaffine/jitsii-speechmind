@@ -7,6 +7,7 @@
   <div class="card mb-3 border-top border-primary border-4"><div class="card-body">
     <h1 class="h3 mb-2">{{ form.title }}</h1>
     {% if form.description %}<div class="text-secondary">{{ form.description | richtext }}</div>{% endif %}
+    {% if legal %}<div class="small mt-2"><i class="fa-solid fa-scale-balanced me-1 text-secondary"></i>Rechtsgrundlage: {% for r in legal %}<a class="law-ref" href="{{ r.url }}" data-preview="{{ r.url }}" target="_blank" rel="noopener" title="{{ r.title }}">{{ r.label }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
     <div class="small text-secondary mt-2">
       {% if invite %}<i class="fa-regular fa-user me-1"></i>{{ invite.name or invite.email }}{% if form.anonymous %} · Ihre Antwort wird anonym gespeichert{% endif %}{% elif form.anonymous %}<i class="fa-solid fa-user-secret me-1"></i>Anonymes Formular{% endif %}
       {% if form.expires_at %}<span class="ms-2"><i class="fa-regular fa-hourglass-half me-1"></i>bis {{ form.expires_at | local }} Uhr</span>{% endif %}

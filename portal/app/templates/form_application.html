@@ -78,6 +78,18 @@
         {% else %}<p class="text-secondary small mb-0">Das Formular hat noch keine Fragen.</p>{% endif %}
       </div></div></div>
 
+    {% if laws %}
+    <div class="col-12"><div class="card" id="rechtsgrundlage"><div class="card-header"><i class="fa-solid fa-scale-balanced me-2"></i>Rechtsgrundlage <span class="small text-secondary fw-normal">– erscheint im Katalog und oben im Formular, mit Vorschau des Paragrafen; der Rechtstext zeigt umgekehrt diesen Antrag</span></div>
+      <div class="card-body">
+        {% for r in legal + [{}, {}] %}
+        <div class="row g-2 mb-2">
+          <div class="col-md-8"><select class="form-select form-select-sm" name="legal_law" aria-label="Rechtstext"><option value="">–</option>{% for l in laws %}<option value="{{ l.id }}" {% if r.law_id == l.id %}selected{% endif %}>{{ l.title }}{% if l.short_title %} ({{ l.short_title }}){% endif %}{% if not l.published %} – nicht veröffentlicht{% endif %}</option>{% endfor %}</select></div>
+          <div class="col-md-4"><input class="form-control form-control-sm" name="legal_para" value="{{ r.para or '' }}" placeholder="z. B. § 4 Abs. 2 (optional)" aria-label="Paragraf"></div>
+        </div>
+        {% endfor %}
+        <div class="form-text">Tipp: In Beschreibungen und Hinweisen lassen sich Paragrafen direkt verlinken – <code>[[HStS § 4]]</code> (Abkürzung oder Adresse des Rechtstexts) wird zum Link mit Vorschau.</div>
+      </div></div></div>
+    {% endif %}
     <div class="col-12"><div class="card"><div class="card-header"><i class="fa-solid fa-list me-2"></i>Antragskatalog (öffentlich)</div><div class="card-body"><div class="row g-3">
       <div class="col-md-8 d-flex align-items-center"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="a-cat" name="app_catalog" value="1" {% if form.app_catalog %}checked{% endif %}>
         <label class="form-check-label" for="a-cat">Im öffentlichen Antragskatalog zeigen (<a href="{{ catalog_url }}" target="_blank">{{ catalog_url }}</a>)</label></div></div>

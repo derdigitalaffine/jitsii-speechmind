@@ -60,3 +60,24 @@
   .lex { max-width: none; font-size: 11pt; }
   .lex-unit { break-inside: avoid-page; }
 }
+
+/* Vergleich zweier Fassungen */
+.lex-diff ins, .lex-diff-legend ins { background: rgba(25, 135, 84, .2); text-decoration: none; border-radius: .15rem; }
+.lex-diff del, .lex-diff-legend del { background: rgba(220, 53, 69, .18); text-decoration: line-through; border-radius: .15rem; }
+.lex-diff-item { padding: .75rem 1rem; border-left: 4px solid var(--bs-border-color); margin-bottom: .75rem; background: var(--bs-body-bg); }
+.lex-diff-changed { border-left-color: var(--bs-warning); }
+.lex-diff-added { border-left-color: var(--bs-success); }
+.lex-diff-removed { border-left-color: var(--bs-danger); }
+.lex-diff p { text-align: left; white-space: pre-line; }
+
+/* Schriftgröße */
+.lex.lex-size-1 { font-size: 1.15rem; } .lex.lex-size-2 { font-size: 1.28rem; } .lex.lex-size--1 { font-size: .95rem; }
+
+/* Suche: Vorschläge */
+.lex-suggest { position: absolute; z-index: 1070; left: 0; right: 0; top: 100%; max-height: 20rem; overflow: auto; }
+
+/* Editor: geteilte Ansicht */
+.law-split .law-src textarea { min-height: 32rem; resize: vertical; }
+.law-split .law-prev { max-height: 40rem; overflow: auto; background: var(--bs-body-bg); }
+.law-split .law-prev .lex { max-width: none; }
+.law-toolbar .btn { --bs-btn-padding-y: .15rem; }

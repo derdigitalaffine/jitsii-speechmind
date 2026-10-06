@@ -338,12 +338,19 @@ Die Stufe lässt sich in der Liste jederzeit ändern, das ✕ entfernt die Freig
 - **Volltext** zeigt den ganzen Text in gewohnter Gesetzesform (zentrierte Paragrafenüberschriften, nummerierte Absätze). Links steht die **Inhaltsübersicht** als Baum (Teile und Abschnitte auf-/zuklappbar, Filterfeld); beim Scrollen ist der aktuelle Paragraf markiert.
 - **Einzelne Abschnitte** zeigt einen Paragrafen bzw. Abschnitt für sich, mit Vor/Zurück-Blättern.
 - Fährt man über eine Paragrafenüberschrift, erscheinen Knöpfe für **„einzeln anzeigen“** und **„Link kopieren“** (z. B. `…/recht/hauptsatzung/p3` für § 3 – ideal für Mails und Bescheide).
-- **Drucken** liefert eine saubere Druckfassung ohne Menüs; **Markdown** lädt den Text herunter.
+- **Zu einem Paragrafen springen:** Nummer ins Feld „§“ tippen (z. B. `5`, `5a` oder `Art 3`).
+- **Schriftgröße** mit A− / A+ (wird im Browser gemerkt). Auf dem Handy lässt sich die Inhaltsübersicht ein- und ausblenden.
+- **Verweise** wie „§ 2 GemO“ oder „§ 3 Abs. 2“ sind verlinkt, wenn der Text im Portal steht; beim Zeigen (oder ersten Antippen) erscheint eine **Vorschau** des Paragrafen.
+- **Fassungen:** Über „Fassungen“ lassen sich frühere Fassungen öffnen, mit „Welche Fassung galt am …“ die an einem Tag gültige finden und mit **Änderungen vergleichen** zwei Fassungen gegenüberstellen – Neues grün, Entfallenes rot durchgestrichen, je Paragraf als „geändert“, „neu“ oder „entfallen“ markiert.
+- **Außer Kraft getretene Texte** stehen auf der Startseite gesammelt unter „Außer Kraft getretene Texte“, tragen einen Hinweis und erscheinen in der Suche nur mit „auch außer Kraft getretene Texte“.
+- **Suche:** Filter nach Art (Satzung, Gesetz …) und Ebene; bei Tippfehlern („Hundsteuer“) sucht das Portal automatisch nach dem ähnlichsten Wort; beim Tippen erscheinen Vorschläge (Titel und Paragrafen wie „§ 4 HStS“).
+- **Anlagen** (Pläne, Gebührentabellen als PDF) und **zugehörige Online-Anträge** (z. B. „Hund anmelden“ bei der Hundesteuersatzung) stehen unter dem Text.
+- **Drucken / PDF** liefert eine saubere Druckfassung ohne Menüs (im Druckdialog „Als PDF speichern“); der Pfeil lädt den Text als Markdown herunter.
 
 **Pflegen – mit dem Recht „Rechtstexte“:** Menü **Rechtstexte › Rechtstexte pflegen**.
 
 1. **Neuer Rechtstext**: Titel (oder leer lassen und den Text mit `# Titel` beginnen), Abkürzung, Art, **Ebene** (z. B. „Ortsgemeinde Katzweiler“), Stand/Fassung, Daten.
-2. Text einfügen oder **Datei laden** (.md oder .txt). Aus Word oder einer Webseite kopierter Text geht auch. Gliedern Sie so:
+2. Text einfügen oder **Datei laden** – **Word (.docx)**, **PDF** (mit Textebene), Markdown oder Text. Bei Word werden Überschriften-Formatvorlagen zu Gliederungsebenen. Die Werkzeugleiste fügt Abschnitt, **Paragraf mit fortlaufender Nummer** und Absatz ein. Gliedern Sie so:
 
    ```
    # Hauptsatzung der Ortsgemeinde Musterdorf
@@ -356,8 +363,13 @@ Die Stufe lässt sich in der Liste jederzeit ändern, das ✕ entfernt die Freig
    ```
 
    Ohne `#` erkennt das Portal Zeilen wie „§ 1 Name“, „Artikel 2“ oder „Zweiter Abschnitt“ selbst.
-3. **Gliederung prüfen** zeigt rechts, was erkannt wurde – noch vor dem Speichern.
+3. Die **geteilte Ansicht** zeigt neben dem Text sofort die Vorschau, rechts die erkannte Gliederung mit **Hinweisen** (z. B. „Nach § 4 folgt § 6“, doppelte Nummern, leere Paragrafen).
 4. **Öffentlich sichtbar** einschalten, wenn der Text erscheinen soll; sonst bleibt er ein Entwurf, den nur Bearbeiter:innen sehen.
+5. Ändert eine Änderungssatzung den Text, beim Speichern **„Als neue Fassung speichern“** ankreuzen und „In Kraft seit“ anpassen – die bisherige Fassung bleibt öffentlich abrufbar. Ohne Haken gilt die Änderung als Korrektur.
+6. **Neue Fassung vorbereiten:** Text und Datum des Inkrafttretens eintragen – am Stichtag übernimmt das Portal die Fassung automatisch.
+7. **Anlagen** (PDF) laden Sie rechts auf der Bearbeitungsseite hoch.
+
+**Rechtstexte in Formularen und Anträgen:** In Beschreibungen und Hinweistexten verlinkt `[[HStS § 4]]` (Abkürzung oder Adresse des Rechtstexts, optional mit Paragraf) den Paragrafen mit Vorschau. Bei Online-Anträgen wählen Sie im Reiter **Antrag › Rechtsgrundlage** Rechtstexte und Paragrafen aus; sie erscheinen im Antragskatalog und oben im Formular – und der Rechtstext zeigt umgekehrt den Antrag.
 5. **Speichern.** Bei jeder Änderung wird die vorige Fassung aufbewahrt (rechts unter „Frühere Fassungen“ ansehen und wiederherstellen).
 
 **In die Homepage einbinden:** **Link & Einbinden** erzeugt den öffentlichen Link und den Code für einen Rahmen (iframe) – für alle Texte, eine Ebene (z. B. nur Ihre Ortsgemeinde) oder einen einzelnen Text, mit Vorschau. Den Code fügt die Webredaktion im CMS als HTML-Baustein ein.

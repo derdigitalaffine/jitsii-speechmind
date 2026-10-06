@@ -6,27 +6,32 @@
 <h1 class="h3 mb-3"><i class="fa-solid fa-magnifying-glass me-2 text-primary"></i>Suche in Rechtstexten</h1>
 <form action="{{ R }}/suche" method="get" role="search" class="card card-body mb-4">
   <div class="row g-2 align-items-end">
-    <div class="col-12 col-lg-6"><label class="form-label small" for="q">Suchbegriffe</label>
-      <input class="form-control" id="q" type="search" name="q" value="{{ q }}" placeholder="z. B. Bekanntmachung oder § 5" {% if not embed %}autofocus{% endif %}></div>
+    <div class="col-12 col-lg-5"><label class="form-label small" for="q">Suchbegriffe</label>
+      <div class="input-group"><input class="form-control" id="q" type="search" name="q" value="{{ q }}" data-suggest="{{ R }}/suche.json" placeholder="z. B. Bekanntmachung oder § 5" {% if not embed %}autofocus{% endif %}></div></div>
     {% if law %}
     <div class="col-12 col-lg-4"><label class="form-label small">Nur in</label>
       <div class="input-group"><span class="form-control text-truncate">{{ law.short_title or law.title }}</span>
         <input type="hidden" name="gesetz" value="{{ law.slug }}"><a class="btn btn-outline-secondary" href="{{ R }}/suche?q={{ q | urlencode }}" title="In allen Texten suchen"><i class="fa-solid fa-xmark"></i></a></div></div>
     {% else %}
-    <div class="col-12 col-lg-4"><label class="form-label small" for="ebene">Bereich</label>
+    <div class="col-6 col-lg-2"><label class="form-label small" for="art">Art</label>
+      <select class="form-select" id="art" name="art"><option value="">alle</option>{% for k, l in doc_types.items() %}<option value="{{ k }}" {% if art == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-lg-3"><label class="form-label small" for="ebene">Bereich</label>
       <select class="form-select" id="ebene" name="ebene"><option value="">alle Ebenen</option>
         {% for lv, depth in level_options %}<option value="{{ lv.id }}" {% if level and level.id == lv.id %}selected{% endif %}>{{ '  ' * depth }}{{ lv.name }}</option>{% endfor %}
       </select></div>
     {% endif %}
     <div class="col-12 col-lg-2"><button class="btn btn-primary w-100" type="submit">Suchen</button></div>
   </div>
-  <div class="form-text">Alle Wörter müssen vorkommen. Paragrafen lassen sich direkt suchen, z. B. „§ 3 Hauptsatzung“.</div>
+  <div class="d-flex flex-wrap gap-3 align-items-center mt-2">
+    {% if not law %}<div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="alle" value="1" id="alle" {% if alle == '1' %}checked{% endif %}><label class="form-check-label small" for="alle">auch außer Kraft getretene Texte</label></div>{% endif %}
+    <div class="form-text mt-0">Alle Wörter müssen vorkommen. Paragrafen lassen sich direkt suchen, z. B. „§ 3 Hauptsatzung“.</div></div>
 </form>
 
 {% if q and not words %}
 <div class="alert alert-light border">Bitte mindestens zwei Zeichen eingeben.</div>
 {% elif words %}
-<p class="text-secondary">{{ hit_count }} Fundstelle{{ 'n' if hit_count != 1 }}{% if found_laws %} und {{ found_laws | length }} Titel{% endif %} für „{{ q }}“{% if level %} in {{ level.name }}{% endif %}{% if law %} in {{ law.short_title or law.title }}{% endif %}.</p>
+{% if corrected %}<div class="alert alert-info py-2"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>Keine Treffer für „{{ q }}“ – gezeigt werden Treffer für <strong>„{{ corrected }}“</strong>.</div>{% endif %}
+<p class="text-secondary">{{ hit_count }} Fundstelle{{ 'n' if hit_count != 1 }}{% if found_laws %} und {{ found_laws | length }} Titel{% endif %} für „{{ corrected or q }}“{% if level %} in {{ level.name }}{% endif %}{% if law %} in {{ law.short_title or law.title }}{% endif %}.</p>
 
 {% if found_laws %}
 <div class="card mb-4"><div class="card-header fw-semibold"><i class="fa-regular fa-file-lines me-2"></i>Treffer im Titel</div>
@@ -41,14 +46,15 @@
 {% for g in grouped %}
 <div class="card mb-3">
   <div class="card-header d-flex flex-wrap gap-2 align-items-center">
-    <a class="fw-semibold" href="{{ R }}/{{ g.law.slug }}?q={{ q | urlencode }}">{{ g.law.title }}</a>
+    <a class="fw-semibold" href="{{ R }}/{{ g.law.slug }}?q={{ (corrected or q) | urlencode }}">{{ g.law.title }}</a>
     {% if g.law.level %}<span class="small text-secondary">{{ g.law.level.name }}</span>{% endif %}
+    {% if expired(g.law) %}<span class="badge text-bg-secondary">außer Kraft</span>{% endif %}
     <span class="badge rounded-pill text-bg-secondary ms-auto">{{ g.hits | length }}</span>
   </div>
   <div class="card-body py-2">
     {% for s, snip in g.hits %}
     <div class="lex-hit py-2">
-      <a class="fw-semibold" href="{{ R }}/{{ g.law.slug }}/{{ s.anchor }}?q={{ q | urlencode }}">{{ s.number or ('Eingangsformel' if s.kind == 'intro' else '') }}{% if s.title %} {{ s.title }}{% endif %}</a>
+      <a class="fw-semibold" href="{{ R }}/{{ g.law.slug }}/{{ s.anchor }}?q={{ (corrected or q) | urlencode }}">{{ s.number or ('Eingangsformel' if s.kind == 'intro' else '') }}{% if s.title %} {{ s.title }}{% endif %}</a>
       <div class="small text-secondary lex" style="font-size: .9rem">{{ snip }}</div>
     </div>
     {% endfor %}
@@ -60,3 +66,4 @@
 {% endif %}
 {% endif %}
 {% endblock %}
+{% block scripts %}<script src="/static/laws.js"></script>{% endblock %}

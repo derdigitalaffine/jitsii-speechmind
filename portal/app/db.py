@@ -415,6 +415,7 @@ class Form(Base):
     process_id: Mapped[int | None] = mapped_column(ForeignKey("processes.id", ondelete="SET NULL"), nullable=True)
     dms_area_id: Mapped[int | None] = mapped_column(ForeignKey("dms_areas.id", ondelete="SET NULL"), nullable=True)
     fee_json: Mapped[str] = mapped_column(Text, default="{}")        # Gebühr beim Absenden (siehe fees.py)
+    legal_json: Mapped[str] = mapped_column(Text, default="[]")      # Rechtsgrundlagen: [{"law_id", "anchor"}]
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -1627,6 +1628,12 @@ class LawText(Base):
                                                         order_by="LawSection.position", passive_deletes=True)
     versions: Mapped[list["LawVersion"]] = relationship(back_populates="law", cascade="all, delete-orphan",
                                                         order_by="LawVersion.saved_at.desc()", passive_deletes=True)
+    attachments: Mapped[list["LawAttachment"]] = relationship(back_populates="law", cascade="all, delete-orphan",
+                                                              order_by="LawAttachment.position", passive_deletes=True)
+    # Vorbereitete neue Fassung: wird am Tag des Inkrafttretens automatisch übernommen (siehe laws.apply_planned)
+    planned_md: Mapped[str] = mapped_column(Text, default="")
+    planned_valid_from: Mapped[str] = mapped_column(String(10), default="")
+    planned_note: Mapped[str] = mapped_column(String(255), default="")
 
 
 class LawSection(Base):
@@ -1658,8 +1665,28 @@ class LawVersion(Base):
     saved_by: Mapped[str] = mapped_column(String(255), default="")
     version_note: Mapped[str] = mapped_column(String(255), default="")
     body_md: Mapped[str] = mapped_column(Text, default="")
+    # Öffentlich abrufbare frühere Fassung mit Geltungszeitraum (sonst nur interne Sicherung einer Korrektur)
+    public: Mapped[bool] = mapped_column(Boolean, default=False)
+    title: Mapped[str] = mapped_column(String(400), default="")
+    valid_from: Mapped[str] = mapped_column(String(10), default="")
+    valid_until: Mapped[str] = mapped_column(String(10), default="")
 
     law: Mapped[LawText] = relationship(back_populates="versions")
+
+
+class LawAttachment(Base):
+    """Anlage zu einem Rechtstext (Plan, Gebührentabelle …) als PDF."""
+    __tablename__ = "law_attachments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    law_id: Mapped[int] = mapped_column(ForeignKey("law_texts.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    file: Mapped[str] = mapped_column(String(80))
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    law: Mapped[LawText] = relationship(back_populates="attachments")
 
 
 # --- BlueOtter Krankmelder (Modul „krank“) -------------------------------------------------------
@@ -1984,7 +2011,7 @@ _NEW_COLUMNS = {
               "process_id": "INTEGER REFERENCES processes(id) ON DELETE SET NULL",
               "review": "BOOLEAN NOT NULL DEFAULT 1",
               "dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL",
-              "fee_json": "TEXT NOT NULL DEFAULT '{}'"},
+              "fee_json": "TEXT NOT NULL DEFAULT '{}'", "legal_json": "TEXT NOT NULL DEFAULT '[]'"},
     "form_responses": {"ref_no": "VARCHAR(40)", "status": "VARCHAR(16) NOT NULL DEFAULT ''", "status_at": "DATETIME",
                        "assignee_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
                        "group_id": "INTEGER REFERENCES groups(id) ON DELETE SET NULL",
@@ -2000,6 +2027,10 @@ _NEW_COLUMNS = {
     "processes": {"dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL"},
     "invitees": {"rsvp_status": "VARCHAR(16)", "rsvp_at": "DATETIME", "rsvp_comment": "TEXT",
                  "join_token": "VARCHAR(64)"},
+    "law_texts": {"planned_md": "TEXT NOT NULL DEFAULT ''", "planned_valid_from": "VARCHAR(10) NOT NULL DEFAULT ''",
+                  "planned_note": "VARCHAR(255) NOT NULL DEFAULT ''"},
+    "law_versions": {"public": "BOOLEAN NOT NULL DEFAULT 0", "title": "VARCHAR(400) NOT NULL DEFAULT ''",
+                     "valid_from": "VARCHAR(10) NOT NULL DEFAULT ''", "valid_until": "VARCHAR(10) NOT NULL DEFAULT ''"},
 }
 
 

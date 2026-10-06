@@ -43,7 +43,7 @@
     {% if focus %}<input type="hidden" name="ebene" value="{{ focus.id }}">{% endif %}
     <div class="input-group input-group-lg">
       <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
-      <input class="form-control" type="search" name="q" placeholder="{{ 'In ' ~ focus.name ~ ' suchen' if focus else 'Suchbegriff oder § 5 Hauptsatzung' }} …" aria-label="Rechtstexte durchsuchen" {% if not embed %}autofocus{% endif %}>
+      <input class="form-control" type="search" name="q" data-suggest="{{ R }}/suche.json" placeholder="{{ 'In ' ~ focus.name ~ ' suchen' if focus else 'Suchbegriff oder § 5 Hauptsatzung' }} …" aria-label="Rechtstexte durchsuchen" {% if not embed %}autofocus{% endif %}>
       <button class="btn btn-primary" type="submit">Suchen</button>
     </div>
   </form>
@@ -63,6 +63,11 @@
       {% if by_level.get(None) and not focus %}
       <div class="fw-semibold mt-3"><i class="fa-regular fa-folder-open me-2"></i>Ohne Zuordnung</div>
       <ul class="lex-tree">{% for law in by_level[None] %}{{ doc_item(law) }}{% endfor %}</ul>
+      {% endif %}
+      {% if archived %}
+      <details class="mt-3"><summary class="fw-semibold text-secondary"><i class="fa-solid fa-box-archive me-2"></i>Außer Kraft getretene Texte ({{ archived | length }})</summary>
+        <ul class="lex-tree mt-2">{% for law in archived %}<li class="lex-doc"><a href="{{ R }}/{{ law.slug }}">{{ law.title }}</a>{% if law.short_title %} <span class="text-secondary">({{ law.short_title }})</span>{% endif %}
+          <span class="badge text-bg-secondary">außer Kraft seit {{ fmt_date(law.valid_until) }}</span></li>{% endfor %}</ul></details>
       {% endif %}
       {% else %}
       <div class="text-center text-secondary py-5"><i class="fa-regular fa-file-lines fa-3x mb-3"></i><p class="mb-0">Hier sind noch keine Rechtstexte veröffentlicht.</p></div>
@@ -86,3 +91,4 @@
   {% endif %}
 </div>
 {% endblock %}
+{% block scripts %}<script src="/static/laws.js"></script>{% endblock %}
