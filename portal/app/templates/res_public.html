@@ -1,32 +1,48 @@
 {% extends "base.html" %}
 {% block title %}{{ res.name }} buchen{% endblock %}
 {% block content %}
-<nav aria-label="Pfad" class="small mb-2"><a href="/r">Räume & Plätze</a> › {{ res.name }}</nav>
+<nav aria-label="Pfad" class="small mb-2 d-flex flex-wrap gap-2"><span class="flex-grow-1"><a href="/r">Räume & Plätze</a> › {{ res.name }}</span>
+  {% if cart %}<a href="/r/merkliste"><i class="fa-solid fa-basket-shopping me-1"></i>Merkliste ({{ cart | length }})</a>{% endif %}
+  {% if club %}<a href="/r/mein"><i class="fa-solid fa-people-group me-1"></i>{{ club.name }}</a>{% else %}<a href="/r/login"><i class="fa-solid fa-right-to-bracket me-1"></i>Vereinszugang</a>{% endif %}</nav>
 <div class="row g-4">
-  <div class="col-12 col-xl-5">
+  <div class="col-12">
     <h1 class="h3 mb-1">{{ res.name }}</h1>
-    <div class="text-secondary mb-3">{% if res.category %}{{ res.category }} · {% endif %}{% if res.location %}<i class="fa-solid fa-location-dot me-1"></i>{{ res.location }}{% endif %}{% if res.capacity %} · bis {{ res.capacity }} Personen{% endif %}</div>
+    <div class="text-secondary">{% if res.category %}{{ res.category }} · {% endif %}{% if res.location %}<i class="fa-solid fa-location-dot me-1"></i>{{ res.location }}{% endif %}{% if res.capacity %} · <i class="fa-solid fa-users me-1"></i>bis {{ res.capacity }} Personen{% endif %}{% if res.mode == 'instant' %} · <span class="text-success"><i class="fa-solid fa-bolt me-1"></i>sofort buchbar</span>{% endif %}</div>
+  </div>
+  <div class="col-12 col-xl-5 order-2 order-xl-1">
     {% if res.photos %}
     <div id="res-photos" class="carousel slide mb-3" data-bs-ride="false"><div class="carousel-inner">
-      {% for p in res.photos %}<div class="carousel-item {{ 'active' if loop.first }}"><img src="/r/{{ res.slug }}/photo/{{ p.id }}" class="res-photo" alt="{{ p.name or res.name }}"></div>{% endfor %}</div>
+      {% for p in res.photos %}<div class="carousel-item {{ 'active' if loop.first }}"><img src="/r/{{ res.slug }}/photo/{{ p.id }}" class="res-photo" alt="{{ p.name or res.name }}" {% if not loop.first %}loading="lazy"{% endif %}></div>{% endfor %}</div>
       {% if res.photos | length > 1 %}<button class="carousel-control-prev" type="button" data-bs-target="#res-photos" data-bs-slide="prev" aria-label="Vorheriges Foto"><span class="carousel-control-prev-icon"></span></button>
       <button class="carousel-control-next" type="button" data-bs-target="#res-photos" data-bs-slide="next" aria-label="Nächstes Foto"><span class="carousel-control-next-icon"></span></button>{% endif %}</div>
     {% endif %}
-    {% if res.description %}<div class="mb-3" style="white-space: pre-line">{{ res.description }}</div>{% endif %}
-    {% if res.equipment %}<h2 class="h6">Ausstattung</h2><ul class="small">{% for line in res.equipment.split('\n') if line.strip() %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
-    {% if res.parts %}<h2 class="h6">Räume</h2><ul class="small">{% for u in res.parts %}<li><strong>{{ u.name }}</strong>{% if u.capacity %} – bis {{ u.capacity }} Personen{% endif %}{% if u.description %}: {{ u.description }}{% endif %}</li>{% endfor %}</ul>{% endif %}
-    <h2 class="h6">Preise</h2>
-    <table class="table table-sm small"><thead><tr><th></th>{% for m in res_modes %}<th class="text-end">{{ {'day': 'je Tag', 'block': 'je Block', 'hour': 'je Std.'}[m] }}</th>{% endfor %}</tr></thead><tbody>
-      {% for t in ([res] + res.parts) %}<tr><td>{{ (res.name ~ (' (gesamt)' if res.parts else '')) if loop.first else t.name }}</td>{% for m in res_modes %}{% set base = t['price_' ~ m] %}{% set wk = t['wkd_' ~ m] %}<td class="text-end text-nowrap">{{ money(base) if base else 'frei' }}{% if wk and wk != base %}<div class="text-secondary">Wochenende/Feiertag {{ money(wk) }}</div>{% endif %}</td>{% endfor %}</tr>{% endfor %}
-    </tbody></table>
-    {% if res.tariffs | length > 1 %}<p class="small text-secondary">Tarife: {% for t in res.tariffs %}{{ t.name }} {{ t.percent }} %{{ ', ' if not loop.last }}{% endfor %}.</p>{% endif %}
-    {% if res.deposit_cents %}<p class="small">Kaution: {{ money(res.deposit_cents) }} (wird nach der Rückgabe erstattet).</p>{% endif %}
-    {% if res.terms_file %}<p><a href="/r/{{ res.slug }}/nutzungsordnung.pdf" target="_blank"><i class="fa-regular fa-file-pdf me-1"></i>Nutzungsordnung</a></p>{% endif %}
-    <h2 class="h6 mt-4">Belegung</h2>
-    <div class="js-res-cal small" data-src="/r/{{ res.slug }}/busy.json" data-views="0" data-pick="{{ '#r-from' if res_modes[0] == 'day' else ('#r-bdate' if res_modes[0] == 'block' else '#r-hdate') }}"></div>
-    <div class="small text-secondary mt-1"><span class="badge text-bg-primary">belegt</span> <span class="badge text-bg-primary res-ev res-tentative">vorgemerkt</span> · Klick auf einen Tag übernimmt ihn ins Formular.</div>
+    <div class="accordion mb-3" id="res-info">
+      {% if res.description or res.equipment or res.parts %}
+      <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#ri-desc">Beschreibung & Ausstattung</button></h2>
+        <div id="ri-desc" class="accordion-collapse collapse show"><div class="accordion-body small">
+          {% if res.description %}<div class="mb-2" style="white-space: pre-line">{{ res.description }}</div>{% endif %}
+          {% if res.equipment %}<ul class="mb-2">{% for line in res.equipment.split('\n') if line.strip() %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
+          {% if res.parts %}<strong>Räume</strong><ul class="mb-0">{% for u in res.parts %}<li><strong>{{ u.name }}</strong>{% if u.capacity %} – bis {{ u.capacity }} Personen{% endif %}{% if u.description %}: {{ u.description }}{% endif %}</li>{% endfor %}</ul>{% endif %}
+        </div></div></div>
+      {% endif %}
+      <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#ri-price">Preise{% if res.deposit_cents %} & Kaution{% endif %}</button></h2>
+        <div id="ri-price" class="accordion-collapse collapse"><div class="accordion-body small">
+          <table class="table table-sm small"><thead><tr><th></th>{% for m in res_modes %}<th class="text-end">{{ {'day': 'je Tag', 'block': 'je Block', 'hour': 'je Std.'}[m] }}</th>{% endfor %}</tr></thead><tbody>
+            {% for t in ([res] + res.parts) %}<tr><td>{{ (res.name ~ (' (gesamt)' if res.parts else '')) if loop.first else t.name }}</td>{% for m in res_modes %}{% set base = t['price_' ~ m] %}{% set wk = t['wkd_' ~ m] %}<td class="text-end text-nowrap">{{ money(base) if base else 'frei' }}{% if wk and wk != base %}<div class="text-secondary">Wochenende/Feiertag {{ money(wk) }}</div>{% endif %}</td>{% endfor %}</tr>{% endfor %}
+          </tbody></table>
+          {% if res.tariffs | length > 1 %}<p class="mb-1">Tarife: {% for t in res.tariffs %}{{ t.name }} {{ t.percent }} %{{ ', ' if not loop.last }}{% endfor %}.</p>{% endif %}
+          {% if res.deposit_cents %}<p class="mb-1">Kaution: {{ money(res.deposit_cents) }} (wird nach der Rückgabe erstattet).</p>{% endif %}
+          <p class="mb-0">Stornierung: {{ cancel_rules }}</p>
+        </div></div></div>
+      <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#ri-cal">Belegungskalender</button></h2>
+        <div id="ri-cal" class="accordion-collapse collapse"><div class="accordion-body">
+          <div class="js-res-cal small" data-src="/r/{{ res.slug }}/busy.json" data-views="0" data-pick="{{ '#r-from' if res_modes[0] == 'day' else ('#r-bdate' if res_modes[0] == 'block' else '#r-hdate') }}"></div>
+          <div class="small text-secondary mt-1"><span class="badge text-bg-primary">belegt</span> <span class="badge text-bg-primary res-ev res-tentative">vorgemerkt</span> · Tippen auf einen Tag übernimmt ihn ins Formular.</div>
+        </div></div></div>
+    </div>
+    {% if res.terms_file %}<p class="small"><a href="/r/{{ res.slug }}/nutzungsordnung.pdf" target="_blank"><i class="fa-regular fa-file-pdf me-1"></i>Nutzungsordnung</a></p>{% endif %}
   </div>
-  <div class="col-12 col-xl-7">{% include "_res_booking_form.html" %}</div>
+  <div class="col-12 col-xl-7 order-1 order-xl-2">{% include "_res_booking_form.html" %}</div>
 </div>
 {% endblock %}
 {% block scripts %}

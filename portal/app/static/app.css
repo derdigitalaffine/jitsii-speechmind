@@ -263,3 +263,35 @@ a.dash-num:hover > span { text-decoration: underline; }
 .res-ev.res-closure { background-color: var(--bs-secondary) !important; border-color: var(--bs-secondary) !important; }
 .res-photo { aspect-ratio: 4 / 3; object-fit: cover; width: 100%; border-radius: var(--bs-border-radius); }
 .res-thumb { aspect-ratio: 16 / 9; object-fit: cover; width: 100%; }
+
+/* Ressourcenbuchung: Schritte, freie Zeiten, Planer */
+.res-steps { display: flex; gap: .75rem; }
+.res-steps li { color: var(--bs-secondary-color); cursor: default; white-space: nowrap; }
+.res-steps li span { display: inline-flex; width: 1.4rem; height: 1.4rem; border-radius: 50%; align-items: center; justify-content: center;
+  border: 1px solid currentColor; font-size: .75rem; margin-right: .2rem; }
+.res-steps li.active { color: var(--bs-primary); font-weight: 600; }
+.res-steps li.active span { background: var(--bs-primary); border-color: var(--bs-primary); color: #fff; }
+.res-steps li.done { color: var(--bs-success); cursor: pointer; }
+@media (max-width: 575.98px) {
+  .res-steps li { font-size: 0; } .res-steps li span { font-size: .75rem; }
+  .res-public .res-footer { position: sticky; bottom: 0; z-index: 5; background: var(--bs-body-bg); box-shadow: 0 -.25rem .75rem rgba(0,0,0,.08); }
+  .res-public .res-footer .btn-lg { flex: 1 1 auto; }
+  .res-public.stepped:not(.step-3) #res-quote tbody { display: none; }
+  .res-public.step-3 .res-footer { position: static; box-shadow: none; }
+  .res-public.stepped:not(.step-3) .res-footnote { display: none; }
+  .res-public.stepped:not(.step-3) #res-quote .alert { margin-bottom: .25rem !important; }
+}
+.res-free .btn { font-variant-numeric: tabular-nums; }
+.res-planner { table-layout: fixed; min-width: 56rem; }
+.res-planner th:first-child, .res-planner td:first-child { width: 12rem; }
+.res-planner td { vertical-align: top; height: 4.5rem; padding: .25rem; }
+.res-planner td.res-today { background: var(--bs-primary-bg-subtle); }
+.res-planner td.res-closed { background: repeating-linear-gradient(45deg, var(--bs-tertiary-bg) 0 6px, transparent 6px 12px); }
+.res-planner td.res-drop { outline: 2px dashed var(--bs-primary); outline-offset: -3px; }
+.res-chip { display: block; font-size: .75rem; line-height: 1.2; padding: .2rem .35rem; margin-bottom: .2rem; border-radius: .3rem;
+  text-decoration: none; color: #fff; background: var(--bs-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.res-chip[draggable="true"] { cursor: grab; }
+.res-chip.st-requested, .res-chip.st-unconfirmed { background: var(--bs-warning); color: #000; }
+.res-chip.st-confirmed { background: var(--bs-success); }
+.res-chip.moving { opacity: .5; }
+.res-check li { list-style: none; }

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Planer{% endblock %}
+{% block content %}
+{% call m.page_head('Planer', 'Alle Ressourcen auf einen Blick – Buchungen per Ziehen auf einen anderen Tag oder eine andere Ressource verschieben.') %}
+  <div class="btn-group"><a class="btn btn-outline-secondary" href="?start={{ prev }}&category={{ category | urlencode }}" aria-label="Vorige Woche"><i class="fa-solid fa-chevron-left"></i></a>
+    <a class="btn btn-outline-secondary" href="?category={{ category | urlencode }}">Heute</a>
+    <a class="btn btn-outline-secondary" href="?start={{ next }}&category={{ category | urlencode }}" aria-label="Nächste Woche"><i class="fa-solid fa-chevron-right"></i></a></div>
+{% endcall %}
+{% set res_tab = 'planner' %}{% include "_res_nav.html" %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-2 small">
+  <strong>{{ days[0].strftime('%d.%m.') }} – {{ days[-1].strftime('%d.%m.%Y') }}</strong>
+  {% if categories %}<form method="get" class="ms-auto d-flex gap-1"><input type="hidden" name="start" value="{{ days[0].isoformat() }}">
+    <select class="form-select form-select-sm" name="category" aria-label="Art" onchange="this.form.submit()"><option value="">alle Arten</option>{% for c in categories %}<option {% if c == category %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></form>{% endif %}
+  <span class="res-chip st-confirmed d-inline-block mb-0">bestätigt</span><span class="res-chip st-requested d-inline-block mb-0">Anfrage</span>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-bordered mb-0 res-planner" id="planner" data-csrf="{{ csrf }}">
+  <thead><tr><th class="small">Ressource</th>{% for d in days %}<th class="small text-center {{ 'text-primary' if d == today }}">{{ ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][d.weekday()] }} {{ d.strftime('%d.%m.') }}</th>{% endfor %}</tr></thead>
+  <tbody>{% for r, lvl in items %}<tr>
+    <th class="small fw-normal"><a href="/resources/{{ r.id }}" class="fw-semibold">{{ r.name }}</a>{% if not r.active %} <span class="badge text-bg-secondary">inaktiv</span>{% endif %}<div class="text-secondary">{{ r.category }}</div></th>
+    {% for d in days %}{% set cell = grid.get((r.id, d), []) %}{% set shut = closed.get((r.id, d)) %}
+    <td class="{{ 'res-today' if d == today }} {{ 'res-closed' if shut }}" data-resource="{{ r.id }}" data-date="{{ d.isoformat() }}" data-can="{{ '1' if lvl >= 3 }}" {% if shut %}title="{{ shut }}"{% endif %}>
+      {% for b in cell %}<a class="res-chip st-{{ b.status }}" href="/resources/bookings/{{ b.id }}" {% if lvl >= 3 %}draggable="true"{% endif %} data-id="{{ b.id }}" data-ref="{{ b.ref }}"
+         title="{{ b.ref }} · {{ b.title }}{% if lvl >= 2 %} · {{ b.name }}{% endif %}{% if r.parts %} · {{ unit_label(r, unit_ids(b)) }}{% endif %}">{% if b.mode != 'day' %}{{ b.starts_at | local('%H:%M') }} {% endif %}{{ b.title or b.ref }}</a>{% endfor %}
+      {% if lvl >= 3 and not cell and not shut %}<a class="small text-secondary text-decoration-none d-none d-md-block opacity-50" href="/resources/{{ r.id }}/book" title="Intern eintragen" aria-label="Intern eintragen"><i class="fa-solid fa-plus"></i></a>{% endif %}
+    </td>{% endfor %}
+  </tr>{% else %}<tr><td colspan="8" class="text-center text-secondary py-4">Keine Ressourcen.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<p class="small text-secondary mt-2"><i class="fa-solid fa-hand-pointer me-1"></i>Buchung anfassen und auf ein anderes Feld ziehen: Die Uhrzeit bleibt, Tag und Ressource ändern sich. Vor dem Speichern fragt der Planer, ob die buchende Person informiert werden soll.</p>
+
+<div class="modal fade" id="move-modal" tabindex="-1" aria-labelledby="mv-title" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header"><h2 class="modal-title h5" id="mv-title">Buchung verschieben</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+  <div class="modal-body">
+    <p id="mv-text" class="mb-2"></p>
+    <div class="form-check"><input class="form-check-input" type="checkbox" id="mv-notify" checked><label class="form-check-label" for="mv-notify">Buchende Person per E-Mail informieren</label></div>
+    <div class="form-check"><input class="form-check-input" type="checkbox" id="mv-keep"><label class="form-check-label" for="mv-keep">Preis beibehalten (sonst neu berechnen, z. B. Wochenendpreis)</label></div>
+    <input class="form-control form-control-sm mt-2" id="mv-reason" placeholder="Grund / Mitteilung (optional)">
+    <div class="alert alert-danger small mt-2 mb-0 d-none" id="mv-error"></div>
+  </div>
+  <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button><button type="button" class="btn btn-primary" id="mv-ok">Verschieben</button></div>
+</div></div></div>
+{% endblock %}
+{% block scripts %}<script src="/static/resource-planner.js"></script>{% endblock %}

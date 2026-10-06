@@ -1091,6 +1091,11 @@ class Resource(Base):
     mailbox: Mapped[str] = mapped_column(String(255), default="")
     dms_area_id: Mapped[int | None] = mapped_column(ForeignKey("dms_areas.id", ondelete="SET NULL"), nullable=True)
     position: Mapped[int] = mapped_column(Integer, default=0)
+    # Erinnerungen: Tage vor Beginn an Buchende bzw. Zuständige (0 = aus), eigener Hinweistext (z. B. Schlüsselabholung)
+    remind_days: Mapped[int] = mapped_column(Integer, default=2)
+    remind_staff_days: Mapped[int] = mapped_column(Integer, default=1)
+    remind_text: Mapped[str] = mapped_column(Text, default="")
+    waitlist: Mapped[bool] = mapped_column(Boolean, default=True)    # bei belegtem Zeitraum auf die Warteliste
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -1235,9 +1240,68 @@ class ResourceBooking(Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     decided_by: Mapped[str] = mapped_column(String(255), default="")
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    group_ref: Mapped[str] = mapped_column(String(40), default="", index=True)   # mehrere Ressourcen in einer Buchung
+    club_id: Mapped[int | None] = mapped_column(ForeignKey("resource_clubs.id", ondelete="SET NULL"), nullable=True,
+                                                index=True)
+    billing: Mapped[str] = mapped_column(String(10), default="")       # "" sofort | invoice | monthly (Sammelrechnung)
+    billed_payment_id: Mapped[int | None] = mapped_column(ForeignKey("payments.id", ondelete="SET NULL"), nullable=True)
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    staff_reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     resource: Mapped[Resource] = relationship()
-    payment: Mapped["Payment | None"] = relationship()
+    payment: Mapped["Payment | None"] = relationship(foreign_keys=[payment_id])
+    club: Mapped["ResourceClub | None"] = relationship()
+
+
+class ResourceClub(Base):
+    """Verein bzw. Dauernutzer: meldet sich per Link aus der E-Mail an, bucht ohne erneute Angaben, mit eigenem
+    Tarif und eigener Zahlweise (sofort, Rechnung je Buchung oder Sammelrechnung je Monat)."""
+    __tablename__ = "resource_clubs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    contact_name: Mapped[str] = mapped_column(String(255), default="")
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    phone: Mapped[str] = mapped_column(String(60), default="")
+    street: Mapped[str] = mapped_column(String(255), default="")
+    zip: Mapped[str] = mapped_column(String(10), default="")
+    city: Mapped[str] = mapped_column(String(200), default="")
+    tariff_name: Mapped[str] = mapped_column(String(120), default="")    # Tarif mit diesem Namen, wo vorhanden
+    billing: Mapped[str] = mapped_column(String(10), default="instant")  # instant | invoice | monthly
+    note: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    pending: Mapped[bool] = mapped_column(Boolean, default=False)         # selbst registriert, wartet auf Freigabe
+    token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    token_expires: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    login_gen: Mapped[int] = mapped_column(Integer, default=0)            # erhöhen = alle Geräte abmelden
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class ResourceWait(Base):
+    """Warteliste für einen belegten Zeitraum. Wird er frei, bekommt der oder die Erste 24 Stunden exklusiv
+    die Möglichkeit zu buchen (status offered), danach der oder die Nächste."""
+    __tablename__ = "resource_waits"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    confirm_code: Mapped[str] = mapped_column(String(32), default="")
+    status: Mapped[str] = mapped_column(String(12), default="unconfirmed", index=True)
+    mode: Mapped[str] = mapped_column(String(8), default="day")
+    starts_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    ends_at: Mapped[datetime] = mapped_column(DateTime)
+    unit_ids: Mapped[str] = mapped_column(String(200), default="")
+    data_json: Mapped[str] = mapped_column(Text, default="{}")            # Eingaben zum Vorausfüllen
+    name: Mapped[str] = mapped_column(String(255), default="")
+    email: Mapped[str] = mapped_column(String(255), default="")
+    club_id: Mapped[int | None] = mapped_column(ForeignKey("resource_clubs.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    offered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    offer_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    booking_id: Mapped[int | None] = mapped_column(ForeignKey("resource_bookings.id", ondelete="SET NULL"), nullable=True)
+
+    resource: Mapped[Resource] = relationship()
 
 
 class ResourceCalendar(Base):
@@ -1948,7 +2012,10 @@ DEFAULT_SETTINGS = {
     "domain_forms": "", "domain_polls": "", "domain_bookings": "", "domain_laws": "", "domain_maps": "",
     "domain_applications": "", "domain_resources": "", "domain_krank": "",
     # Update-Hinweis für Admins
+    "res_club_signup": "0",       # Vereine dürfen sich selbst registrieren (mit Freigabe)
+    "res_club_mailbox": "",       # Hinweis auf neue Registrierungen
     "update_check": "1",
+
     "update_latest": "",
     "update_checked_at": "",
 }
@@ -1998,6 +2065,13 @@ _NEW_COLUMNS = {
                     "area_manual": "BOOLEAN NOT NULL DEFAULT 0",
                     "booking_id": "INTEGER REFERENCES resource_bookings(id) ON DELETE SET NULL"},
     "processes": {"dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL"},
+    "resources": {"remind_days": "INTEGER NOT NULL DEFAULT 2", "remind_staff_days": "INTEGER NOT NULL DEFAULT 1",
+                  "remind_text": "TEXT NOT NULL DEFAULT ''", "waitlist": "BOOLEAN NOT NULL DEFAULT 1"},
+    "resource_bookings": {"group_ref": "VARCHAR(40) NOT NULL DEFAULT ''",
+                          "club_id": "INTEGER REFERENCES resource_clubs(id) ON DELETE SET NULL",
+                          "billing": "VARCHAR(10) NOT NULL DEFAULT ''",
+                          "billed_payment_id": "INTEGER REFERENCES payments(id) ON DELETE SET NULL",
+                          "reminded_at": "DATETIME", "staff_reminded_at": "DATETIME"},
     "invitees": {"rsvp_status": "VARCHAR(16)", "rsvp_at": "DATETIME", "rsvp_comment": "TEXT",
                  "join_token": "VARCHAR(64)"},
 }
@@ -2015,7 +2089,9 @@ def _migrate() -> None:
                                     ("ix_recordings_meeting_id", "recordings", "meeting_id"),
                                     ("ix_form_responses_ref_no", "form_responses", "ref_no"),
                                     ("ix_form_responses_assignee_id", "form_responses", "assignee_id"),
-                                    ("ix_form_responses_group_id", "form_responses", "group_id")):
+                                    ("ix_form_responses_group_id", "form_responses", "group_id"),
+                                    ("ix_resource_bookings_group_ref", "resource_bookings", "group_ref"),
+                                    ("ix_resource_bookings_club_id", "resource_bookings", "club_id")):
             conn.execute(text(f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({column})"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_form_responses_track_token "
                           "ON form_responses (track_token)"))

@@ -6,16 +6,17 @@ import re
 import secrets
 from datetime import date, datetime, timedelta
 
-from fastapi import Depends, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
+from starlette.datastructures import UploadFile  # das liefert request.form() (nicht fastapi.UploadFile)
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from . import forms as fm, holidays, links, payments as pay, resources as rs, shares as sh
+from . import forms as fm, holidays, links, payments as pay, res_admin, res_clubs, res_wait, resources as rs, shares as sh
 from .config import settings
 from .db import (
-    CustomHoliday, Group, Resource, ResourceBooking, ResourceCalendar, ResourceClosure, ResourceExtra, ResourcePhoto,
-    ResourceTariff, ResourceUnit, User, get_settings, set_setting, to_local, utcnow,
+    CustomHoliday, Group, Resource, ResourceBooking, ResourceCalendar, ResourceClosure, ResourceClub, ResourceExtra,
+    ResourcePhoto, ResourceTariff, ResourceUnit, ResourceWait, User, get_settings, set_setting, to_local, utcnow,
 )
 from .main import app, check_csrf, current_user, enabled_modules, flash, get_db, redirect, render, require
 
@@ -73,22 +74,39 @@ def resources_list(request: Request, user: User = Depends(current_user), db: Ses
                   modes=rs.MODES, statuses=rs.STATUSES, when=rs.when_text, unit_label=rs.unit_label, unit_ids=rs.unit_ids)
 
 
-@app.post("/resources/new", dependencies=[Depends(check_csrf)])
-def resource_create(request: Request, name: str = Form(...), category: str = Form(""), user: User = Depends(res_user),
-                    db: Session = Depends(get_db)):
+@app.get("/resources/new")
+def resource_new(request: Request, user: User = Depends(res_user), db: Session = Depends(get_db)):
     _module_on()
-    name = " ".join(name.split())[:200]
+    return render(request, "resource_new.html", user, presets=res_admin.PRESETS, groups=_groups(db))
+
+
+@app.post("/resources/new", dependencies=[Depends(check_csrf)])
+async def resource_create(request: Request, user: User = Depends(res_user), db: Session = Depends(get_db)):
+    """Einrichtungsassistent: Vorlage, Name, Ort, Größe, Preis und Zuständigkeit – der Rest in den Reitern."""
+    _module_on()
+    data = await request.form()
+    text = lambda k, n=255: " ".join(str(data.get(k, "")).split())[:n]  # noqa: E731
+    name = text("name", 200)
     if not name:
         flash(request, "Bitte einen Namen angeben.", "error")
-        return redirect("/resources")
-    res = Resource(owner_id=user.id, name=name, category=" ".join(category.split())[:80], slug=rs.unique_slug(db, name),
-                   manager_user_id=user.id, active=False)
+        return redirect("/resources/new")
+    res = Resource(owner_id=user.id, name=name, category=text("category", 80), slug=rs.unique_slug(db, name),
+                   manager_user_id=user.id, active=False, location=text("location"),
+                   capacity=_int(data.get("capacity"), 0, 100000, 0))
     db.add(res)
+    res_admin.apply_preset(res, str(data.get("preset", "empty")))
+    price = pay.parse_amount(data.get("price", "")) if str(data.get("price", "")).strip() else None
+    if price is not None:
+        setattr(res, {"day": "price_day", "block": "price_block", "hour": "price_hour"}[rs.modes(res)[0]], price)
+    gid = str(data.get("manager_group_id", ""))
+    res.manager_group_id = int(gid) if gid.isdigit() and db.get(Group, int(gid)) else None
+    mailbox = str(data.get("mailbox", "")).strip().lower()[:255]
+    res.mailbox = mailbox if re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", mailbox) else ""
     db.flush()
     res.tariffs.append(ResourceTariff(name="Standard", percent=100, position=0))
     db.commit()
-    flash(request, "Ressource angelegt. Richten Sie jetzt Zeiten, Preise und Zusatzleistungen ein und schalten Sie sie dann frei.")
-    return redirect(f"/resources/{res.id}/edit")
+    flash(request, "Ressource angelegt. Die Checkliste zeigt, was vor dem Freischalten noch fehlt.")
+    return redirect(f"/resources/{res.id}/edit?neu=1")
 
 
 @app.get("/resources/{rid:int}")
@@ -98,7 +116,11 @@ def resource_detail(request: Request, rid: int, user: User = Depends(current_use
                                                         ResourceBooking.status.in_(("requested", "confirmed")),
                                                         ResourceBooking.ends_at > utcnow())
                           .order_by(ResourceBooking.starts_at).limit(50)).all()
+    waits = db.scalars(select(ResourceWait).where(ResourceWait.resource_id == res.id,
+                                                  ResourceWait.status.in_(("waiting", "offered", "unconfirmed")))
+                       .order_by(ResourceWait.starts_at, ResourceWait.created_at)).all() if lvl >= 2 else []
     return render(request, "resource.html", user, res=res, level=lvl, upcoming=upcoming, statuses=rs.STATUSES,
+                  waits=waits, wait_statuses=res_wait.STATUSES, wait_when=res_wait.when,
                   when=rs.when_text, unit_label=rs.unit_label, unit_ids=rs.unit_ids, money=pay.money,
                   share_levels=sh.LEVELS["resource"], users=_users(db) if lvl == 4 else [],
                   groups=_groups(db) if lvl == 4 else [], public_link=f"{links.base('resources')}/r/{res.slug}")
@@ -148,6 +170,7 @@ def resource_edit(request: Request, rid: int, user: User = Depends(current_user)
         "subtypes": fm.SUBTYPES,
     }
     return render(request, "resource_edit.html", user, res=res, level=lvl, editor=editor, modes=rs.MODES, users=_users(db),
+                  checklist=res_admin.checklist(res), fresh=request.query_params.get("neu") == "1",
                   groups=_groups(db), dms_areas=dms_areas, price=rs.money_input, pay_methods=pay.METHODS,
                   closures=[(c, (to_local(c.ends_at) - timedelta(seconds=1)).date()) for c in res.closures])
 
@@ -206,6 +229,10 @@ async def resource_save(request: Request, rid: int, user: User = Depends(current
     res.cancel_free_days = _int(data.get("cancel_free_days"), 0, 365, 14)
     res.cancel_fee_percent = _int(data.get("cancel_fee_percent"), 0, 100, 0)
     res.terms_text = str(data.get("terms_text", "")).replace("\r\n", "\n").strip()[:20000]
+    res.remind_days = _int(data.get("remind_days"), 0, 30, 2)
+    res.remind_staff_days = _int(data.get("remind_staff_days"), 0, 30, 1)
+    res.remind_text = str(data.get("remind_text", "")).replace("\r\n", "\n").strip()[:5000]
+    res.waitlist = data.get("waitlist") == "1"
     uid, gid = str(data.get("manager_user_id", "")), str(data.get("manager_group_id", ""))
     res.manager_user_id = int(uid) if uid.isdigit() and db.get(User, int(uid)) else None
     res.manager_group_id = int(gid) if gid.isdigit() and db.get(Group, int(gid)) else None
@@ -390,6 +417,176 @@ def resource_closure_delete(request: Request, rid: int, cid: int, user: User = D
     return redirect(f"/resources/{res.id}/edit#zeiten")
 
 
+@app.post("/resources/{rid:int}/waits/{wid:int}/delete", dependencies=[Depends(check_csrf)])
+def resource_wait_delete(request: Request, rid: int, wid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    res, _ = _res(db, rid, user, 3)
+    w = db.get(ResourceWait, wid)
+    if w and w.resource_id == res.id and w.status in ("unconfirmed", "waiting", "offered"):
+        was_offered = w.status == "offered"
+        w.status = "cancelled"
+        if was_offered:
+            res_wait.offer_next(db, res, w.starts_at, w.ends_at)
+        db.commit()
+        flash(request, "Eintrag von der Warteliste genommen.")
+    return redirect(f"/resources/{res.id}#warteliste")
+
+
+@app.post("/resources/{rid:int}/copy", dependencies=[Depends(check_csrf)])
+def resource_copy(request: Request, rid: int, user: User = Depends(res_user), db: Session = Depends(get_db)):
+    res, _ = _res(db, rid, user, 3)
+    clone = res_admin.copy(db, res, user)
+    db.commit()
+    flash(request, "Kopie angelegt (ohne Buchungen, Sperrzeiten und Freigaben) – bitte Namen anpassen und freischalten.")
+    return redirect(f"/resources/{clone.id}/edit")
+
+
+@app.get("/resources/{rid:int}/export.json")
+def resource_export(rid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    res, _ = _res(db, rid, user, 3)
+    return Response(res_admin.export(res), media_type="application/json",
+                    headers={"Content-Disposition": f'attachment; filename="ressource-{res.slug}.json"'})
+
+
+@app.post("/resources/import", dependencies=[Depends(check_csrf)])
+async def resource_import(request: Request, user: User = Depends(res_user), db: Session = Depends(get_db)):
+    _module_on()
+    data = await request.form()
+    f = data.get("file")
+    try:
+        if not isinstance(f, UploadFile):
+            raise res_admin.ResImportError("Bitte eine Datei wählen.")
+        res = res_admin.import_(db, await f.read(200 * 1024 * 1024), user)
+    except res_admin.ResImportError as exc:
+        db.rollback()
+        flash(request, str(exc), "error")
+        return redirect("/resources")
+    db.commit()
+    flash(request, "Ressource importiert. Zuständigkeit, Ablage und Freischaltung bitte prüfen.")
+    return redirect(f"/resources/{res.id}/edit?neu=1")
+
+
+# --- Auswertung ------------------------------------------------------------------------------
+
+@app.get("/resources/stats")
+def resource_stats(request: Request, year: int = 0, format: str = "", user: User = Depends(current_user),
+                   db: Session = Depends(get_db)):
+    _module_on()
+    items = [r for r, lvl in rs.visible(db, user) if lvl >= 2]
+    if not items:
+        raise HTTPException(403, "Keine Ressourcen freigegeben.")
+    year = year if 2000 <= year <= 2100 else to_local(utcnow()).year
+    data = res_admin.stats(db, items, year)
+    if format == "csv":
+        return Response(res_admin.stats_csv(data, year), media_type="text/csv; charset=utf-8",
+                        headers={"Content-Disposition": f'attachment; filename="auswertung-ressourcen-{year}.csv"'})
+    return render(request, "resource_stats.html", user, data=data, year=year, money=pay.money,
+                  months=["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"])
+
+
+# --- Vereine und Dauernutzer ---------------------------------------------------------------
+
+@app.get("/resources/clubs")
+def clubs_list(request: Request, user: User = Depends(res_user), db: Session = Depends(get_db)):
+    _module_on()
+    clubs = db.scalars(select(ResourceClub).order_by(ResourceClub.pending.desc(), ResourceClub.name)).all()
+    tariffs = sorted({t.name for t in db.scalars(select(ResourceTariff))})
+    cfg = get_settings(db)
+    return render(request, "resource_clubs.html", user, clubs=clubs, billing=res_clubs.BILLING, tariffs=tariffs,
+                  signup=cfg.get("res_club_signup") == "1", mailbox=cfg.get("res_club_mailbox", ""),
+                  open_months={c.id: res_clubs.months_with_items(db, c) for c in clubs if c.billing == "monthly"},
+                  base=links.base("resources"))
+
+
+@app.post("/resources/clubs", dependencies=[Depends(check_csrf)])
+async def clubs_save(request: Request, user: User = Depends(res_user), db: Session = Depends(get_db)):
+    _module_on()
+    data = await request.form()
+    action = data.get("action", "save")
+    cid = str(data.get("id", ""))
+    club = db.get(ResourceClub, int(cid)) if cid.isdigit() else None
+    if action == "settings":
+        set_setting(db, "res_club_signup", "1" if data.get("signup") == "1" else "0")
+        mailbox = str(data.get("mailbox", "")).strip().lower()[:255]
+        set_setting(db, "res_club_mailbox", mailbox if re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", mailbox) else "")
+        db.commit()
+        flash(request, "Einstellungen gespeichert.")
+        return redirect("/resources/clubs")
+    if action == "delete" and club:
+        db.delete(club)
+        db.commit()
+        flash(request, f"„{club.name}“ gelöscht. Die Buchungen bleiben erhalten.")
+        return redirect("/resources/clubs")
+    if action == "approve" and club:
+        club.pending, club.active = False, True
+        res_clubs.send_login(db, club.email)
+        db.commit()
+        flash(request, f"„{club.name}“ freigegeben – der Anmeldelink ist unterwegs.")
+        return redirect("/resources/clubs")
+    if action == "logout_all" and club:
+        res_clubs.logout_everywhere(club)
+        db.commit()
+        flash(request, f"„{club.name}“ ist auf allen Geräten abgemeldet.")
+        return redirect("/resources/clubs")
+    if action == "login" and club:
+        flash(request, "Anmeldelink verschickt." if res_clubs.send_login(db, club.email) else "Nicht möglich (inaktiv oder nicht freigegeben).")
+        db.commit()
+        return redirect("/resources/clubs")
+    values, errors = res_clubs.clean(data, club)
+    other = res_clubs.by_email(db, values["email"])
+    if other is not None and other is not club:
+        errors.append("Diese E-Mail-Adresse gehört schon zu einem anderen Verein.")
+    if errors:
+        for e in errors:
+            flash(request, e, "error")
+        return redirect("/resources/clubs")
+    if club is None:
+        club = ResourceClub(**values)
+        db.add(club)
+    else:
+        if values.get("email") != club.email:
+            res_clubs.logout_everywhere(club)   # neue Adresse: alte Anmeldungen gelten nicht mehr
+        for k, v in values.items():
+            setattr(club, k, v)
+    club.tariff_name = " ".join(str(data.get("tariff_name", "")).split())[:120]
+    club.billing = data.get("billing") if data.get("billing") in res_clubs.BILLING else "instant"
+    club.note = str(data.get("note", "")).strip()[:5000]
+    if club.active and data.get("active") != "1":
+        res_clubs.logout_everywhere(club)
+    club.active = data.get("active") == "1"
+    db.commit()
+    flash(request, f"„{club.name}“ gespeichert.")
+    return redirect("/resources/clubs")
+
+
+@app.post("/resources/clubs/{cid:int}/bill", dependencies=[Depends(check_csrf)])
+def club_bill(request: Request, cid: int, month: str = Form(...), user: User = Depends(res_user), db: Session = Depends(get_db)):
+    _module_on()
+    club = db.get(ResourceClub, cid)
+    if club is None:
+        raise HTTPException(404)
+    p = res_clubs.bill(db, club, month, user)
+    db.commit()
+    flash(request, f"Sammelrechnung {p.ref} über {pay.money(p.amount_cents)} verschickt." if p else "Für diesen Monat ist nichts abzurechnen.",
+          "ok" if p else "error")
+    return redirect(f"/resources/clubs/{club.id}")
+
+
+@app.get("/resources/clubs/{cid:int}")
+def club_detail(request: Request, cid: int, user: User = Depends(res_user), db: Session = Depends(get_db)):
+    _module_on()
+    club = db.get(ResourceClub, cid)
+    if club is None:
+        raise HTTPException(404)
+    from .db import Payment
+    statements = db.scalars(select(Payment).where(Payment.kind == "resource_club", Payment.subject_id == club.id)
+                            .order_by(Payment.created_at.desc())).all()
+    months = res_clubs.months_with_items(db, club)
+    return render(request, "resource_club.html", user, club=club, upcoming=res_clubs.bookings(db, club),
+                  past=res_clubs.bookings(db, club, upcoming=False), statements=statements, months=months,
+                  items={m: res_clubs.open_items(db, club, m) for m in months}, billing=res_clubs.BILLING,
+                  statuses=rs.STATUSES, when=rs.when_text, money=pay.money, pay_statuses=pay.STATUSES)
+
+
 @app.post("/resources/{rid:int}/delete", dependencies=[Depends(check_csrf)])
 def resource_delete(request: Request, rid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     res, _ = _res(db, rid, user, 4)
@@ -432,26 +629,194 @@ def bookings_list(request: Request, user: User = Depends(current_user), db: Sess
     items = {r.id: (r, lvl) for r, lvl in rs.visible(db, user)}
     if not items:
         raise HTTPException(403, "Keine Ressourcen freigegeben.")
-    f = {k: request.query_params.get(k, "") for k in ("status", "resource", "q", "when")}
+    f = {k: request.query_params.get(k, "").strip()[:100] for k in ("status", "resource", "q", "when", "from", "to", "club", "pay")}
     q = select(ResourceBooking).where(ResourceBooking.resource_id.in_(list(items)))
     if f["resource"].isdigit():
         q = q.where(ResourceBooking.resource_id == int(f["resource"]))
+    if f["club"].isdigit():
+        q = q.where(ResourceBooking.club_id == int(f["club"]))
     if f["status"] in rs.STATUSES:
         q = q.where(ResourceBooking.status == f["status"])
-    elif not f["status"]:
+    elif f["status"] != "all":
         q = q.where(ResourceBooking.status.in_(rs.ACTIVE))
-    if f["when"] != "past":
-        q = q.where(ResourceBooking.ends_at > utcnow() - timedelta(days=1))
-    else:
+    d1, d2 = rs._date(f["from"]), rs._date(f["to"])
+    if d1 or d2:
+        if d1:
+            q = q.where(ResourceBooking.ends_at > rs._utc(datetime.combine(d1, datetime.min.time())))
+        if d2:
+            q = q.where(ResourceBooking.starts_at < rs._utc(datetime.combine(d2 + timedelta(days=1), datetime.min.time())))
+    elif f["when"] == "past":
         q = q.where(ResourceBooking.ends_at <= utcnow())
+    elif f["when"] != "all":
+        q = q.where(ResourceBooking.ends_at > utcnow() - timedelta(days=1))
     if f["q"]:
-        like = f"%{f['q'].strip()}%"
+        like = f"%{f['q']}%"
         q = q.where(or_(ResourceBooking.ref.ilike(like), ResourceBooking.name.ilike(like), ResourceBooking.email.ilike(like),
                         ResourceBooking.title.ilike(like), ResourceBooking.organizer.ilike(like)))
-    rows = db.scalars(q.order_by(ResourceBooking.starts_at.desc() if f["when"] == "past" else ResourceBooking.starts_at).limit(500)).all()
+    newest_first = f["when"] == "past"
+    rows = db.scalars(q.order_by(ResourceBooking.starts_at.desc() if newest_first else ResourceBooking.starts_at)
+                      .limit(5000 if request.query_params.get("format") == "csv" else 500)).all()
+    if f["pay"] in ("open", "paid"):
+        states = ("open", "pending") if f["pay"] == "open" else ("paid", "partially_refunded", "refunded")
+        rows = [b for b in rows if b.payment is not None and b.payment.status in states]
+    if request.query_params.get("format") == "csv":
+        contact = {rid: lvl >= 2 for rid, (_, lvl) in items.items()}
+        stamp = to_local(utcnow()).strftime("%Y-%m-%d")
+        return Response(res_admin.bookings_csv(rows, contact), media_type="text/csv; charset=utf-8",
+                        headers={"Content-Disposition": f'attachment; filename="buchungen-{stamp}.csv"'})
+    clubs = db.scalars(select(ResourceClub).order_by(ResourceClub.name)).all()
     return render(request, "resource_bookings.html", user, rows=rows, items=items, f=f, statuses=rs.STATUSES,
                   when=rs.when_text, unit_label=rs.unit_label, unit_ids=rs.unit_ids, money=pay.money,
-                  pay_statuses=pay.STATUSES)
+                  pay_statuses=pay.STATUSES, clubs=clubs, query=request.url.query)
+
+
+@app.post("/resources/bookings/bulk", dependencies=[Depends(check_csrf)])
+async def bookings_bulk(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Mehrere Anfragen auf einmal bestätigen oder ablehnen."""
+    _module_on()
+    data = await request.form()
+    action = data.get("action")
+    done, failed = 0, 0
+    for raw in data.getlist("ids")[:200]:
+        b = db.get(ResourceBooking, int(raw)) if str(raw).isdigit() else None
+        if b is None or rs.level(db, user, b.resource) < 3 or action not in ("accept", "reject"):
+            failed += 1
+            continue
+        if rs.decide(db, b, user, action == "accept", str(data.get("message", ""))):
+            done += 1
+        else:
+            failed += 1
+    db.commit()
+    flash(request, f"{done} Anfrage(n) {'bestätigt' if action == 'accept' else 'abgelehnt'}."
+          + (f" {failed} nicht möglich (schon entschieden, belegt oder keine Berechtigung)." if failed else ""),
+          "error" if failed and not done else "ok")
+    return redirect("/resources/bookings" + (f"?{data.get('back')}" if data.get("back") else ""))
+
+
+# --- Wochenplaner über alle Ressourcen -----------------------------------------------------
+
+@app.get("/resources/planner")
+def planner(request: Request, start: str = "", category: str = "", user: User = Depends(current_user),
+            db: Session = Depends(get_db)):
+    _module_on()
+    items = [(r, lvl) for r, lvl in rs.visible(db, user) if r.active or lvl >= 3]
+    if not items:
+        raise HTTPException(403, "Keine Ressourcen freigegeben.")
+    categories = sorted({r.category for r, _ in items if r.category})
+    if category:
+        items = [(r, lvl) for r, lvl in items if r.category == category]
+    first = rs._date(start) or to_local(utcnow()).date()
+    first -= timedelta(days=first.weekday())
+    days = [first + timedelta(days=i) for i in range(7)]
+    s, e = rs._utc(datetime.combine(days[0], datetime.min.time())), rs._utc(datetime.combine(days[-1] + timedelta(days=1), datetime.min.time()))
+    rows = db.scalars(select(ResourceBooking).where(
+        ResourceBooking.resource_id.in_([r.id for r, _ in items] or [-1]), ResourceBooking.status.in_(rs.ACTIVE),
+        ResourceBooking.starts_at < e, ResourceBooking.ends_at > s).order_by(ResourceBooking.starts_at)).all()
+    closures = db.scalars(select(ResourceClosure).where(ResourceClosure.resource_id.in_([r.id for r, _ in items] or [-1]),
+                                                        ResourceClosure.starts_at < e, ResourceClosure.ends_at > s)).all()
+    grid: dict = {}
+    for b in rows:
+        bs, be = to_local(b.starts_at).date(), (to_local(b.ends_at) - timedelta(seconds=1)).date()
+        for d in days:
+            if bs <= d <= be:
+                grid.setdefault((b.resource_id, d), []).append(b)
+    closed = {}
+    for c in closures:
+        cs, ce = to_local(c.starts_at).date(), (to_local(c.ends_at) - timedelta(seconds=1)).date()
+        for d in days:
+            if cs <= d <= ce:
+                closed[(c.resource_id, d)] = c.reason or "gesperrt"
+    return render(request, "resource_planner.html", user, items=items, days=days, grid=grid, closed=closed,
+                  statuses=rs.STATUSES, categories=categories, category=category, today=to_local(utcnow()).date(),
+                  prev=(first - timedelta(days=7)).isoformat(), next=(first + timedelta(days=7)).isoformat(),
+                  unit_label=rs.unit_label, unit_ids=rs.unit_ids)
+
+
+@app.post("/resources/bookings/{bid:int}/move", dependencies=[Depends(check_csrf)])
+async def booking_move(request: Request, bid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Verschieben per Drag & Drop im Planer: auf einen anderen Tag und/oder eine andere Ressource."""
+    b, _ = _booking(db, bid, user, 3)
+    data = await request.form()
+    target = rs._date(data.get("date"))
+    rid = str(data.get("resource", ""))
+    res = db.get(Resource, int(rid)) if rid.isdigit() else b.resource
+    if target is None or res is None or rs.level(db, user, res) < 3:
+        return JSONResponse({"ok": False, "error": "Ziel ungültig oder keine Berechtigung."}, status_code=400)
+    if b.status not in rs.ACTIVE:
+        return JSONResponse({"ok": False, "error": "Nur offene und bestätigte Buchungen lassen sich verschieben."}, status_code=400)
+    shift = (target - to_local(b.starts_at).date()).days
+    q_data = _transfer(rs.form_data_of(b, shift), b, res)
+    q = rs.quote(db, res, q_data, staff=True, exclude_id=b.id)
+    if not q["ok"]:
+        return JSONResponse({"ok": False, "error": " ".join(q["errors"]) or "Nicht möglich."}, status_code=409)
+    keep_price = data.get("keep_price") == "1"
+    info = rs.change(db, b, res, q, user, price_cents=b.total_cents if keep_price else None,
+                     notify_person=data.get("notify", "1") == "1", reason=str(data.get("reason", "")).strip()[:500])
+    db.commit()
+    return JSONResponse({"ok": True, "when": rs.when_text(b), "info": info})
+
+
+def _transfer(data: "rs.FormData", b: ResourceBooking, res: Resource) -> "rs.FormData":
+    """Eingaben auf eine andere Ressource übertragen: Tarif und Zusatzleistungen über den Namen, Räume entfallen."""
+    if res.id == b.resource_id:
+        return data
+    data["units"] = []
+    tariff = next((t for t in res.tariffs if t.name == b.tariff_name), None)
+    data["tariff"] = str(tariff.id) if tariff else ""
+    for key in [k for k in data if k.startswith("extra_")]:
+        del data[key]
+    names = {x["name"]: x.get("qty", 1) for x in rs.extras_of(b)}
+    for x in res.extras:
+        if x.name in names:
+            data[f"extra_{x.id}"] = str(names[x.name])
+    if data.get("mode") not in rs.modes(res):
+        target = data.get("date") or data.get("date_from") or to_local(b.starts_at).date().isoformat()
+        data["mode"] = "day" if "day" in rs.modes(res) else rs.modes(res)[0]
+        data.update(date_from=target, date_to=target, date=target)
+    return data
+
+
+@app.get("/resources/bookings/{bid:int}/edit")
+def booking_edit(request: Request, bid: int, resource: int = 0, user: User = Depends(current_user),
+                 db: Session = Depends(get_db)):
+    b, _ = _booking(db, bid, user, 3)
+    res = db.get(Resource, resource) if resource else b.resource
+    if res is None or rs.level(db, user, res) < 3:
+        raise HTTPException(404)
+    from .routes_resources_public import booking_ctx
+    draft = _transfer(rs.form_data_of(b), b, res)
+    draft.update(name=b.name, email=b.email, phone=b.phone, street=b.street, zip=b.zip, city=b.city)
+    targets = [r for r, lvl in rs.visible(db, user) if lvl >= 3]
+    return render(request, "resource_booking_edit.html", user, **booking_ctx(db, res), staff=True, edit=b, draft=draft,
+                  targets=targets, when=rs.when_text, statuses=rs.STATUSES)
+
+
+@app.post("/resources/bookings/{bid:int}/edit", dependencies=[Depends(check_csrf)])
+async def booking_edit_save(request: Request, bid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    b, _ = _booking(db, bid, user, 3)
+    data = await request.form()
+    rid = str(data.get("resource_id", ""))
+    res = db.get(Resource, int(rid)) if rid.isdigit() else b.resource
+    if res is None or rs.level(db, user, res) < 3:
+        raise HTTPException(403)
+    if b.status not in rs.ACTIVE:
+        flash(request, "Nur offene und bestätigte Buchungen lassen sich ändern.", "error")
+        return redirect(f"/resources/bookings/{b.id}")
+    q = rs.quote(db, res, data, staff=True, exclude_id=b.id)
+    contact, errors = rs.contact_from(data)
+    errors = [e for e in errors if "E-Mail" not in e or str(data.get("email", "")).strip()]
+    if not contact["email"]:
+        contact["email"] = ""
+    if errors or not q["ok"]:
+        for e in errors + q["errors"]:
+            flash(request, e, "error")
+        return redirect(f"/resources/bookings/{b.id}/edit?resource={res.id}")
+    price = pay.parse_amount(data.get("price", "")) if str(data.get("price", "")).strip() else None
+    info = rs.change(db, b, res, q, user, contact=contact, price_cents=price, notify_person=data.get("notify") == "1",
+                     reason=str(data.get("reason", "")).strip()[:1000])
+    db.commit()
+    flash(request, "Buchung geändert. " + info)
+    return redirect(f"/resources/bookings/{b.id}")
 
 
 @app.get("/resources/bookings/{bid:int}")
@@ -462,9 +827,12 @@ def booking_detail(request: Request, bid: int, user: User = Depends(current_user
     answers = rs.answers_of(b)
     series = db.scalars(select(ResourceBooking).where(ResourceBooking.series_id == b.series_id,
                                                       ResourceBooking.id != b.id).order_by(ResourceBooking.starts_at)).all() if b.series_id else []
+    group = [m for m in rs.group_members(db, b) if m.id != b.id] if b.group_ref else []
+    extra_payments = [p for p in rs.payments_of(db, b) if p.id != b.payment_id]
     return render(request, "resource_booking.html", user, b=b, res=res, level=lvl, statuses=rs.STATUSES, when=rs.when_text,
                   units=rs.unit_label(res, rs.unit_ids(b)), lines=rs.lines_of(b), extras=rs.extras_of(b), money=pay.money,
                   questions=items, answers=answers, display=fm.display, handover=rs.handover(b), series=series,
+                  group=group, extra_payments=extra_payments, billing=b.billing,
                   manage_link=rs.manage_link(b), **pay.box(db, user, b.payment, f"/resources/bookings/{b.id}"))
 
 

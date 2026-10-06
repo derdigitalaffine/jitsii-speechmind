@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ club.name }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-end mb-3"><div class="flex-grow-1"><div class="small text-secondary"><i class="fa-solid fa-people-group me-1"></i>Vereinszugang</div>
+  <h1 class="h3 mb-0">{{ club.name }}</h1>
+  <div class="small text-secondary">Abrechnung: {{ billing[club.billing] }}{% if club.tariff_name %} · Tarif {{ club.tariff_name }}{% endif %}</div></div>
+  <form method="post" action="/r/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-secondary" type="submit"><i class="fa-solid fa-right-from-bracket me-1"></i>Abmelden</button></form></div>
+
+<div class="row g-4">
+  <div class="col-12 col-lg-7">
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-calendar-days me-2"></i>Anstehende Buchungen</div>
+      <ul class="list-group list-group-flush">{% for b in upcoming %}{% set st = statuses[b.status] %}
+        <li class="list-group-item"><a class="d-flex gap-2 text-decoration-none" href="/r/b/{{ b.token }}"><span class="flex-grow-1"><strong>{{ b.resource.name }}</strong>{% if units(b) %} – {{ units(b) }}{% endif %}<span class="d-block small text-secondary">{{ when(b) }} · {{ b.title }}</span></span>
+          <span class="text-end"><span class="badge text-bg-{{ st[1] }}">{{ st[0] }}</span><span class="d-block small">{{ money(b.total_cents) }}</span></span></a></li>
+      {% else %}<li class="list-group-item text-secondary">Keine anstehenden Buchungen.</li>{% endfor %}</ul></div>
+    {% if past %}<details class="mb-4"><summary class="mb-2">Vergangene Buchungen ({{ past | length }})</summary>
+      <ul class="list-group small">{% for b in past %}<li class="list-group-item d-flex gap-2"><a class="flex-grow-1" href="/r/b/{{ b.token }}">{{ b.resource.name }}: {{ when(b) }}</a><span>{{ statuses[b.status][0] }}</span></li>{% endfor %}</ul></details>{% endif %}
+  </div>
+  <div class="col-12 col-lg-5">
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-plus me-2"></i>Neu buchen</div>
+      <div class="list-group list-group-flush">{% for r in resources %}<a class="list-group-item list-group-item-action d-flex gap-2" href="/r/{{ r.slug }}"><span class="flex-grow-1">{{ r.name }}</span><span class="small text-secondary">{{ r.category }}</span></a>{% endfor %}</div></div>
+    <form method="post" action="/r/mein" class="card" id="angaben"><div class="card-header"><i class="fa-solid fa-address-card me-2"></i>Unsere Angaben</div><div class="card-body row g-2">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="col-12 small text-secondary">E-Mail-Adresse (Zugang): {{ club.email }} – ändert die Verwaltung.</div>
+      <div class="col-12"><label class="form-label small mb-1" for="p-contact">Ansprechperson</label><input class="form-control form-control-sm" id="p-contact" name="contact_name" value="{{ club.contact_name }}"></div>
+      <div class="col-12"><label class="form-label small mb-1" for="p-tel">Telefon</label><input class="form-control form-control-sm" id="p-tel" name="phone" value="{{ club.phone }}"></div>
+      <div class="col-12"><label class="form-label small mb-1" for="p-str">Straße und Hausnummer</label><input class="form-control form-control-sm" id="p-str" name="street" value="{{ club.street }}"></div>
+      <div class="col-4"><label class="form-label small mb-1" for="p-zip">PLZ</label><input class="form-control form-control-sm" id="p-zip" name="zip" value="{{ club.zip }}"></div>
+      <div class="col-8"><label class="form-label small mb-1" for="p-city">Ort</label><input class="form-control form-control-sm" id="p-city" name="city" value="{{ club.city }}"></div>
+      <div class="col-12"><button class="btn btn-sm btn-outline-primary" type="submit">Speichern</button></div>
+    </div></form>
+  </div>
+</div>
+{% endblock %}

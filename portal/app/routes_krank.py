@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from . import krank, links, notify, shortlinks as sl
 from .db import (
     DmsArea, Group, KrankAccess, KrankEmployer, KrankFeedback, KrankReport, KrankResponsible, Notification, User,
-    get_settings, set_setting, utcnow,
+    get_settings, set_setting,
 )
 from .main import (
     app, check_csrf, current_user, enabled_modules, flash, get_db, rate_limit, redirect, render, session_user,

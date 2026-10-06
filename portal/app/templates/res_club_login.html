@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Vereinszugang{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width: 30rem">
+  <div class="card"><div class="card-body p-4">
+    <h1 class="h4 mb-1"><i class="fa-solid fa-people-group me-2"></i>Vereinszugang</h1>
+    <p class="text-secondary small">Für Vereine und regelmäßige Nutzer: ohne Passwort anmelden, ohne erneute Angaben buchen, eigene Buchungen im Blick.</p>
+    {% if confirm_token %}
+    <p>Fast geschafft – bitte bestätigen Sie die Anmeldung auf diesem Gerät.</p>
+    <form method="post" action="/r/login/{{ confirm_token | urlencode }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn btn-primary btn-lg w-100" type="submit" autofocus><i class="fa-solid fa-right-to-bracket me-1"></i>Jetzt anmelden</button>
+    </form>
+    {% elif club %}
+    <div class="alert alert-success small">Sie sind angemeldet als <strong>{{ club.name }}</strong>.</div>
+    <a class="btn btn-primary w-100" href="/r/mein">Zu meinem Bereich</a>
+    {% elif sent %}
+    <div class="alert alert-info"><i class="fa-solid fa-envelope me-1"></i>Wenn die Adresse bei uns als Verein hinterlegt ist, kommt gleich eine E-Mail mit dem Anmeldelink (30 Minuten gültig). Bitte auch im Spam-Ordner nachsehen.</div>
+    <a href="/r/login">Andere Adresse eingeben</a>
+    {% else %}
+    <form method="post" action="/r/login/send"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="form-label" for="cl-mail">E-Mail-Adresse des Vereins</label>
+      <input class="form-control form-control-lg mb-3" type="email" id="cl-mail" name="email" autocomplete="email" inputmode="email" required autofocus>
+      <button class="btn btn-primary btn-lg w-100" type="submit"><i class="fa-solid fa-paper-plane me-1"></i>Anmeldelink schicken</button>
+    </form>
+    <p class="small text-secondary mt-3 mb-0">Nach dem Klick auf den Link bleiben Sie auf diesem Gerät 30 Tage angemeldet.
+      {% if signup %}Noch nicht registriert? <a href="/r/verein">Als Verein registrieren</a>.{% else %}Noch kein Zugang? Bitte wenden Sie sich an die Verwaltung.{% endif %}</p>
+    {% endif %}
+  </div></div>
+  <p class="text-center mt-3"><a href="/r">Zurück zu Räume & Plätze</a></p>
+</div>
+{% endblock %}

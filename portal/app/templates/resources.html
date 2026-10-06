@@ -4,22 +4,27 @@
 {% block content %}
 {% call m.page_head('Ressourcen & Belegung', 'Bürgerhäuser, Räume, Grillplätze, Spülmobile und Geräte – Buchungen, Anfragen und Belegung.') %}
   <a class="btn btn-outline-secondary" href="/r" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Öffentlicher Katalog</a>
-  {% if user.can('resources') %}<button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#new-res" aria-expanded="false"><i class="fa-solid fa-plus me-1"></i>Neue Ressource</button>{% endif %}
+  {% if user.can('resources') %}<button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#res-import"><i class="fa-solid fa-file-import me-1"></i>Importieren</button>
+  <a class="btn btn-primary" href="/resources/new"><i class="fa-solid fa-plus me-1"></i>Neue Ressource</a>{% endif %}
 {% endcall %}
+{% set res_tab = 'home' %}{% include "_res_nav.html" %}
 {% if user.can('resources') %}
-<form method="post" action="/resources/new" class="card mb-4 collapse" id="new-res"><div class="card-body row g-2 align-items-end"><input type="hidden" name="csrf" value="{{ csrf }}">
-  <div class="col-md-5"><label class="form-label small mb-1" for="n-name">Name</label><input class="form-control" id="n-name" name="name" required placeholder="z. B. Bürgerhaus Otterberg"></div>
-  <div class="col-md-4"><label class="form-label small mb-1" for="n-cat">Art</label><input class="form-control" id="n-cat" name="category" list="res-cats" placeholder="z. B. Bürgerhaus"><datalist id="res-cats"><option>Bürgerhaus</option><option>Veranstaltungsraum</option><option>Grillplatz</option><option>Spülmobil</option><option>Sporthalle</option><option>Gerät</option></datalist></div>
-  <div class="col-md-3"><button class="btn btn-primary w-100" type="submit">Anlegen</button></div>
-</div></form>
+<div class="modal fade" id="res-import" tabindex="-1" aria-labelledby="ri-title" aria-hidden="true"><div class="modal-dialog"><form class="modal-content" method="post" action="/resources/import" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="modal-header"><h2 class="modal-title h5" id="ri-title">Ressource importieren</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+  <div class="modal-body"><input class="form-control" type="file" name="file" accept=".json,application/json" required aria-label="Exportdatei">
+    <div class="form-text">Datei aus „Exportieren“ einer Ressource – mit Preisen, Räumen, Tarifen, Zusatzleistungen, Fotos und Nutzungsordnung. Ohne Buchungen; Zuständigkeit sind Sie.</div></div>
+  <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button><button class="btn btn-primary" type="submit">Importieren</button></div>
+</form></div></div>
 {% endif %}
 
 <div class="row g-3 mb-4">
   <div class="col-md-4"><div class="card h-100"><div class="card-body"><div class="small text-secondary">Offene Anfragen</div><div class="fs-3 fw-semibold">{{ counts.requested | length }}</div>
-    <ul class="list-unstyled small mb-0">{% for b in counts.requested[:5] %}<li><a href="/resources/bookings/{{ b.id }}">{{ b.resource.name }}: {{ when(b) }}</a></li>{% endfor %}</ul></div></div></div>
+    <ul class="list-unstyled small mb-0">{% for b in counts.requested[:5] %}<li><a href="/resources/bookings/{{ b.id }}">{{ b.resource.name }}: {{ when(b) }}</a></li>{% endfor %}</ul>
+    {% if counts.requested %}<a class="small" href="/resources/bookings?status=requested">Alle Anfragen – auch mehrere auf einmal entscheiden</a>{% endif %}</div></div></div>
   <div class="col-md-4"><div class="card h-100"><div class="card-body"><div class="small text-secondary">Heute: Übergaben / Rücknahmen</div><div class="fs-3 fw-semibold">{{ counts.today_out | length }} / {{ counts.today_back | length }}</div>
     <ul class="list-unstyled small mb-0">{% for b in counts.today_out %}<li><i class="fa-solid fa-key me-1"></i><a href="/resources/bookings/{{ b.id }}">{{ b.resource.name }} – {{ b.name }}</a></li>{% endfor %}{% for b in counts.today_back %}<li><i class="fa-solid fa-rotate-left me-1"></i><a href="/resources/bookings/{{ b.id }}">{{ b.resource.name }} – {{ b.name }}</a></li>{% endfor %}</ul></div></div></div>
-  <div class="col-md-4"><div class="card h-100"><div class="card-body"><div class="small text-secondary">Bestätigt, noch nicht bezahlt</div><div class="fs-3 fw-semibold">{{ counts.unpaid }}</div><a class="small" href="/resources/bookings?status=confirmed">Buchungen ansehen</a></div></div></div>
+  <div class="col-md-4"><div class="card h-100"><div class="card-body"><div class="small text-secondary">Bestätigt, noch nicht bezahlt</div><div class="fs-3 fw-semibold">{{ counts.unpaid }}</div><a class="small" href="/resources/bookings?status=confirmed&pay=open">Ansehen</a></div></div></div>
 </div>
 
 <div class="row g-3">
@@ -33,7 +38,10 @@
       <div class="mt-auto d-flex flex-wrap gap-2">
         <a class="btn btn-sm btn-primary" href="/resources/{{ r.id }}"><i class="fa-solid fa-calendar-days me-1"></i>Belegung</a>
         {% if lvl >= 3 %}<a class="btn btn-sm btn-outline-secondary" href="/resources/{{ r.id }}/edit"><i class="fa-solid fa-pen me-1"></i>Bearbeiten</a>
-        <a class="btn btn-sm btn-outline-secondary" href="/resources/{{ r.id }}/book"><i class="fa-solid fa-plus me-1"></i>Eintragen</a>{% endif %}
+        <a class="btn btn-sm btn-outline-secondary" href="/resources/{{ r.id }}/book"><i class="fa-solid fa-plus me-1"></i>Eintragen</a>
+        <div class="dropdown"><button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Weitere Aktionen für {{ r.name }}"><i class="fa-solid fa-ellipsis"></i></button>
+          <ul class="dropdown-menu"><li><form method="post" action="/resources/{{ r.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item" type="submit"><i class="fa-regular fa-copy fa-fw me-2"></i>Kopie anlegen</button></form></li>
+            <li><a class="dropdown-item" href="/resources/{{ r.id }}/export.json"><i class="fa-solid fa-file-export fa-fw me-2"></i>Als Datei exportieren</a></li></ul></div>{% endif %}
       </div>
     </div></div></div>
   {% else %}<div class="col-12 text-center text-secondary py-5"><i class="fa-solid fa-building fa-3x mb-3"></i><p>Noch keine Ressourcen.</p></div>{% endfor %}

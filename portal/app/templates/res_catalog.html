@@ -3,7 +3,13 @@
 {% block head %}{% if geo_bundle %}<link rel="stylesheet" href="/static/vendor/maplibre/maplibre-gl.css"><link rel="stylesheet" href="/static/map.css">{% endif %}{% endblock %}
 {% block content %}
 <div class="d-flex flex-wrap align-items-end gap-2 mb-3"><div class="flex-grow-1"><h1 class="h3 mb-1">Räume, Plätze und Geräte buchen</h1>
-  <p class="text-secondary mb-0">Bürgerhäuser, Veranstaltungsräume, Grillplätze, Spülmobile und mehr – Belegung ansehen und online buchen.</p></div></div>
+  <p class="text-secondary mb-0">Bürgerhäuser, Veranstaltungsräume, Grillplätze, Spülmobile und mehr – Belegung ansehen und online buchen.</p></div>
+  {% if not embed %}{% if club %}<a class="btn btn-outline-secondary" href="/r/mein"><i class="fa-solid fa-people-group me-1"></i>{{ club.name }}</a>
+  {% else %}<a class="btn btn-outline-secondary" href="/r/login"><i class="fa-solid fa-right-to-bracket me-1"></i>Vereinszugang</a>{% endif %}{% endif %}</div>
+{% if cart %}<div class="alert alert-info d-flex flex-wrap gap-2 align-items-center"><i class="fa-solid fa-basket-shopping fa-lg"></i>
+  <div class="flex-grow-1"><strong>Ihre Merkliste:</strong> {% for b in cart %}{{ b.resource.name }} ({{ b.starts_at | local('%d.%m.') }}){{ ', ' if not loop.last }}{% endfor %}.
+    Wählen Sie eine weitere Ressource – Ihre Angaben werden übernommen – oder schließen Sie ab. Vorgemerkt für 24 Stunden.</div>
+  <a class="btn btn-primary" href="/r/merkliste">Merkliste abschließen</a></div>{% endif %}
 <form method="get" class="card mb-3"><div class="card-body row g-2 align-items-end">
   <div class="col-md-4"><label class="form-label small mb-1" for="c-q">Suche</label><input class="form-control" id="c-q" name="q" value="{{ f.q }}" type="search" placeholder="Name oder Ort"></div>
   {% if categories %}<div class="col-6 col-md-3"><label class="form-label small mb-1" for="c-cat">Art</label><select class="form-select" id="c-cat" name="category"><option value="">alle</option>{% for c in categories %}<option {% if f.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>{% endif %}

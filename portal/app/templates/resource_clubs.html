@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Vereine & Dauernutzer{% endblock %}
+{% block content %}
+{% call m.page_head('Vereine & Dauernutzer', 'Anmeldung per Link aus der E-Mail, Buchen ohne erneute Angaben, eigener Tarif und eigene Zahlweise.') %}
+  <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#club-new"><i class="fa-solid fa-plus me-1"></i>Verein anlegen</button>
+{% endcall %}
+{% set res_tab = 'clubs' %}{% include "_res_nav.html" %}
+{% macro club_form(c) %}
+  <input type="hidden" name="csrf" value="{{ csrf }}">{% if c %}<input type="hidden" name="id" value="{{ c.id }}">{% endif %}
+  <div class="col-md-6"><label class="form-label small mb-1">Name des Vereins / der Einrichtung</label><input class="form-control form-control-sm" name="club_name" value="{{ c.name if c }}" required></div>
+  <div class="col-md-6"><label class="form-label small mb-1">E-Mail-Adresse (Zugang)</label><input class="form-control form-control-sm" type="email" name="email" value="{{ c.email if c }}" required></div>
+  <div class="col-md-4"><label class="form-label small mb-1">Ansprechperson</label><input class="form-control form-control-sm" name="contact_name" value="{{ c.contact_name if c }}"></div>
+  <div class="col-md-4"><label class="form-label small mb-1">Telefon</label><input class="form-control form-control-sm" name="phone" value="{{ c.phone if c }}"></div>
+  <div class="col-md-4"><label class="form-label small mb-1">Straße</label><input class="form-control form-control-sm" name="street" value="{{ c.street if c }}"></div>
+  <div class="col-4 col-md-2"><label class="form-label small mb-1">PLZ</label><input class="form-control form-control-sm" name="zip" value="{{ c.zip if c }}"></div>
+  <div class="col-8 col-md-4"><label class="form-label small mb-1">Ort</label><input class="form-control form-control-sm" name="city" value="{{ c.city if c }}"></div>
+  <div class="col-md-3"><label class="form-label small mb-1">Tarif</label><input class="form-control form-control-sm" name="tariff_name" value="{{ c.tariff_name if c }}" list="club-tariffs" placeholder="z. B. Vereine"></div>
+  <div class="col-md-3"><label class="form-label small mb-1">Zahlweise</label><select class="form-select form-select-sm" name="billing">{% for k, l in billing.items() %}<option value="{{ k }}" {% if c and c.billing == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div class="col-12"><label class="form-label small mb-1">Interne Notiz</label><input class="form-control form-control-sm" name="note" value="{{ c.note if c }}" placeholder="z. B. Nutzungsvertrag bis 2027"></div>
+  <div class="col-12 d-flex flex-wrap gap-3 align-items-center"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="active" value="1" id="act-{{ c.id if c else 'new' }}" {% if not c or c.active %}checked{% endif %}><label class="form-check-label small" for="act-{{ c.id if c else 'new' }}">aktiv</label></div>
+    <button class="btn btn-sm btn-primary" type="submit" name="action" value="save">Speichern</button></div>
+{% endmacro %}
+<datalist id="club-tariffs">{% for t in tariffs %}<option>{{ t }}</option>{% endfor %}</datalist>
+<form method="post" action="/resources/clubs" class="card mb-4 collapse" id="club-new"><div class="card-body row g-2">{{ club_form(none) }}
+  <div class="col-12 form-text">Der Tarif greift an allen Ressourcen, die einen Tarif mit diesem Namen haben. „Sammelrechnung“: Buchungen werden monatlich gesammelt abgerechnet; „Rechnung“: je Buchung per Überweisung, ohne Verfall bei Verzug.</div></div></form>
+
+<div class="card mb-4"><div class="table-responsive"><table class="table align-middle mb-0 small">
+  <thead><tr><th>Verein</th><th>Kontakt</th><th>Tarif</th><th>Zahlweise</th><th>Zuletzt angemeldet</th><th></th></tr></thead>
+  <tbody>{% for c in clubs %}<tr class="{{ 'table-warning' if c.pending }}">
+    <td><a class="fw-semibold" href="/resources/clubs/{{ c.id }}">{{ c.name }}</a>{% if c.pending %} <span class="badge text-bg-warning">wartet auf Freigabe</span>{% elif not c.active %} <span class="badge text-bg-secondary">inaktiv</span>{% endif %}
+      {% if open_months.get(c.id) %}<div><a class="badge text-bg-info text-decoration-none" href="/resources/clubs/{{ c.id }}">abzurechnen: {{ open_months[c.id] | join(', ') }}</a></div>{% endif %}</td>
+    <td>{{ c.contact_name }}<div class="text-secondary">{{ c.email }}{% if c.phone %} · {{ c.phone }}{% endif %}</div></td>
+    <td>{{ c.tariff_name or '–' }}</td><td>{{ billing[c.billing] }}</td>
+    <td>{{ c.last_login_at | local if c.last_login_at else '–' }}</td>
+    <td class="text-end text-nowrap">
+      <form method="post" action="/resources/clubs" class="d-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ c.id }}">
+        {% if c.pending %}<button class="btn btn-sm btn-success" name="action" value="approve" type="submit">Freigeben</button>{% else %}<button class="btn btn-sm btn-outline-secondary" name="action" value="login" type="submit" title="Anmeldelink per Mail schicken"><i class="fa-solid fa-paper-plane"></i></button>
+        <button class="btn btn-sm btn-outline-secondary" name="action" value="logout_all" type="submit" title="Auf allen Geräten abmelden" aria-label="Auf allen Geräten abmelden" data-confirm-title="{{ c.name }} überall abmelden?" data-confirm="Alle bestehenden Anmeldungen des Vereins enden. Ein neuer Anmeldelink kann jederzeit angefordert werden." data-confirm-button="Abmelden"><i class="fa-solid fa-right-from-bracket"></i></button>{% endif %}
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#club-{{ c.id }}" aria-label="Bearbeiten"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-sm btn-outline-danger" name="action" value="delete" type="submit" data-confirm-title="{{ c.name }} löschen?" data-confirm="Die Buchungen bleiben erhalten, der Zugang entfällt." data-confirm-button="Löschen" aria-label="Löschen"><i class="fa-regular fa-trash-can"></i></button></form></td></tr>
+    <tr class="collapse" id="club-{{ c.id }}"><td colspan="6"><form method="post" action="/resources/clubs" class="row g-2">{{ club_form(c) }}</form></td></tr>
+  {% else %}<tr><td colspan="6" class="text-center text-secondary py-4">Noch keine Vereine.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+
+<form method="post" action="/resources/clubs" class="card" style="max-width: 48rem"><div class="card-body row g-2 align-items-end"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="settings">
+  <div class="col-12 fw-semibold">Selbstregistrierung</div>
+  <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="signup" value="1" id="cl-signup" {% if signup %}checked{% endif %}><label class="form-check-label" for="cl-signup">Vereine dürfen sich unter <a href="{{ base }}/r/verein" target="_blank">{{ base }}/r/verein</a> selbst registrieren (Freigabe hier nötig)</label></div></div>
+  <div class="col-md-8"><label class="form-label small mb-1" for="cl-mb">Hinweis auf neue Registrierungen an</label><input class="form-control form-control-sm" type="email" id="cl-mb" name="mailbox" value="{{ mailbox }}" placeholder="z. B. buergerhaus@…"></div>
+  <div class="col-md-4"><button class="btn btn-sm btn-outline-primary w-100" type="submit">Speichern</button></div>
+  <div class="col-12 form-text">Vereine melden sich unter <a href="{{ base }}/r/login" target="_blank">{{ base }}/r/login</a> mit ihrer E-Mail-Adresse an.</div>
+</div></form>
+{% endblock %}

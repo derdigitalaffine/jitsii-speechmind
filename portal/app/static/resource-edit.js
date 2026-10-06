@@ -131,7 +131,26 @@
       document.getElementById('res-savebar').classList.toggle('d-none', id === 'sperren' || id === 'fotos');
     });
   });
+  // Ungespeicherte Änderungen: Hinweis in der Speicherleiste und Warnung beim Verlassen
+  var dirty = false, note = document.getElementById('res-dirty');
+  function markDirty() {
+    if (dirty) return;
+    dirty = true;
+    if (note) { note.textContent = 'Ungespeicherte Änderungen'; note.className = 'small text-warning-emphasis fw-semibold'; }
+  }
+  form.addEventListener('input', markDirty);
+  form.addEventListener('change', markDirty);
+  form.addEventListener('click', function (e) { if (e.target.closest('[data-del], [data-up], [data-add], .btn-add')) markDirty(); });
+  document.querySelectorAll('textarea[form="res-main"]').forEach(function (t) { t.addEventListener('input', markDirty); });
+  window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+  document.querySelectorAll('.js-tab-link').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      var btn = document.querySelector('[data-bs-target="#' + a.dataset.tab + '"]');
+      if (btn && window.bootstrap) { e.preventDefault(); bootstrap.Tab.getOrCreateInstance(btn).show(); btn.scrollIntoView({ block: 'nearest' }); }
+    });
+  });
   form.addEventListener('submit', function () {
+    dirty = false;
     document.getElementById('h-units_json').value = JSON.stringify(units);
     document.getElementById('h-tariffs_json').value = JSON.stringify(tariffs);
     document.getElementById('h-extras_json').value = JSON.stringify(extras.map(function (x) { return Object.assign({}, x, { stock: x.stock === '' || x.stock == null ? '' : String(x.stock) }); }));

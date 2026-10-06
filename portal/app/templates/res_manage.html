@@ -20,7 +20,10 @@
     </div>
     {% if b.message %}<div class="alert alert-light border mt-3 mb-0"><i class="fa-solid fa-comment me-1"></i>{{ b.message }}</div>{% endif %}
   </div></div>
+  {% if group %}<div class="card mb-3"><div class="card-header small"><i class="fa-solid fa-layer-group me-1"></i>Gehört zur Sammelbuchung {{ b.group_ref }} – außerdem gebucht:</div>
+    <ul class="list-group list-group-flush small">{% for m in group %}<li class="list-group-item d-flex gap-2"><a class="flex-grow-1" href="/r/b/{{ m.token }}">{{ m.resource.name }}: {{ when_of(m) }}</a><span class="badge text-bg-{{ statuses[m.status][1] }}">{{ statuses[m.status][0] }}</span></li>{% endfor %}</ul></div>{% endif %}
   {% if b.status == 'requested' %}<div class="alert alert-info"><i class="fa-solid fa-hourglass-half me-1"></i>Ihre Anfrage wird geprüft – der Zeitraum ist für Sie vorgemerkt. Sie bekommen eine E-Mail, sobald entschieden ist.</div>{% endif %}
+  {% if b.billing == 'monthly' and b.status == 'confirmed' %}<div class="alert alert-light border small"><i class="fa-solid fa-file-invoice me-1"></i>Wird mit der monatlichen Sammelrechnung abgerechnet.</div>{% endif %}
   {% if b.payment and b.status == 'confirmed' %}{% set p = b.payment %}
   <div class="card mb-3 {{ 'border-warning border-2' if p.status in ('open', 'pending') }}"><div class="card-body d-flex flex-wrap gap-3 align-items-center">
     <div class="flex-grow-1"><div class="fw-semibold"><i class="fa-solid fa-euro-sign me-1"></i>{{ money(p.amount_cents) }} – {{ pay_statuses[p.status][0] }}</div>
@@ -35,10 +38,11 @@
       {% if res.location %}<dt class="col-sm-4">Ort</dt><dd class="col-sm-8">{{ res.location }}</dd>{% endif %}
     </dl>
     {% if lines %}<table class="table table-sm small mt-3 mb-0"><tbody>{% for l in lines %}<tr><td>{{ l.label }}</td><td class="text-end text-nowrap">{{ money(l.cents) }}</td></tr>{% endfor %}</tbody>
-      <tfoot><tr class="fw-semibold"><td>Summe</td><td class="text-end">{{ money(b.total_cents) }}</td></tr></tfoot></table>{% endif %}
+      <tfoot><tr class="fw-semibold"><td>Summe</td><td class="text-end text-nowrap">{{ money(b.total_cents) }}</td></tr></tfoot></table>{% endif %}
   </div>
   <div class="card-footer d-flex flex-wrap gap-2">
     {% if b.status != 'unconfirmed' %}<a class="btn btn-sm btn-outline-secondary" href="/r/b/{{ b.token }}/pdf" target="_blank"><i class="fa-regular fa-file-pdf me-1"></i>Bestätigung (PDF)</a>{% endif %}
+    {% if ics_ok %}<a class="btn btn-sm btn-outline-secondary" href="/r/b/{{ b.token }}/termin.ics"><i class="fa-regular fa-calendar-plus me-1"></i>In den Kalender</a>{% endif %}
     {% if can_cancel %}
     <form method="post" action="/r/b/{{ b.token }}/cancel" class="ms-auto"><input type="hidden" name="csrf" value="{{ csrf }}">
       <button class="btn btn-sm btn-outline-danger" type="submit" data-confirm-title="Buchung stornieren?" data-confirm="{{ ('Es fällt eine Stornogebühr von ' ~ money(fee) ~ ' an. ') if fee else '' }}{{ rules }}" data-confirm-button="Stornieren"><i class="fa-solid fa-ban me-1"></i>Stornieren</button></form>

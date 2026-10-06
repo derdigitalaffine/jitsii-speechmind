@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Neue Ressource{% endblock %}
+{% block content %}
+<nav aria-label="Pfad" class="small mb-2"><a href="/resources">Ressourcen</a> › Neue Ressource</nav>
+{{ m.page_head('Neue Ressource einrichten', 'In drei Schritten startklar – Feinheiten danach in den Reitern.') }}
+<form method="post" action="/resources/new" class="res-wizard" style="max-width: 60rem"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="card mb-3"><div class="card-header fw-semibold"><span class="badge rounded-pill text-bg-primary me-2">1</span>Was wird gebucht?</div><div class="card-body">
+    <div class="row g-2">
+      {% for key, p in presets.items() %}
+      <div class="col-12 col-sm-6 col-lg-4"><input type="radio" class="btn-check" name="preset" id="pr-{{ key }}" value="{{ key }}" data-category="{{ p.category }}"
+        data-unit="{{ (p['values'].get('units') or 'day').split(',')[0] }}" {% if loop.first %}checked{% endif %}>
+        <label class="btn btn-outline-primary w-100 h-100 text-start p-3" for="pr-{{ key }}"><i class="fa-solid {{ p.icon }} fa-lg mb-2 d-block"></i><strong>{{ p.label }}</strong><span class="d-block small opacity-75">{{ p.hint }}</span></label></div>
+      {% endfor %}
+    </div>
+    <div class="form-text mt-2">Die Vorlage setzt sinnvolle Startwerte (Buchungsart, Vorlauf, Kaution, Zusatzleistungen) – alles lässt sich danach ändern.</div>
+  </div></div>
+  <div class="card mb-3"><div class="card-header fw-semibold"><span class="badge rounded-pill text-bg-primary me-2">2</span>Name, Ort und Größe</div><div class="card-body row g-3">
+    <div class="col-md-6"><label class="form-label" for="n-name">Name</label><input class="form-control" id="n-name" name="name" required maxlength="200" placeholder="z. B. Bürgerhaus Otterberg"></div>
+    <div class="col-md-6"><label class="form-label" for="n-cat">Art</label><input class="form-control" id="n-cat" name="category" maxlength="80" list="res-cats"><datalist id="res-cats"><option>Bürgerhaus</option><option>Veranstaltungsraum</option><option>Grillplatz</option><option>Spülmobil</option><option>Sporthalle</option><option>Gerät</option><option>Fahrzeug</option></datalist></div>
+    <div class="col-md-8"><label class="form-label" for="n-loc">Ort / Anschrift</label><input class="form-control" id="n-loc" name="location" maxlength="255" placeholder="Hauptstraße 1, 67697 Otterberg"></div>
+    <div class="col-md-4"><label class="form-label" for="n-cap">Personen (höchstens)</label><input class="form-control" type="number" min="0" id="n-cap" name="capacity"></div>
+  </div></div>
+  <div class="card mb-3"><div class="card-header fw-semibold"><span class="badge rounded-pill text-bg-primary me-2">3</span>Preis und Zuständigkeit</div><div class="card-body row g-3">
+    <div class="col-md-4"><label class="form-label" for="n-price">Preis <span id="n-unit">je Tag</span></label><div class="input-group"><input class="form-control" id="n-price" name="price" inputmode="decimal" placeholder="Vorlage"><span class="input-group-text">€</span></div>
+      <div class="form-text">Leer = Wert der Vorlage, 0 = kostenlos.</div></div>
+    <div class="col-md-4"><label class="form-label" for="n-group">Zuständige Gruppe <span class="text-secondary small">(optional)</span></label><select class="form-select" id="n-group" name="manager_group_id"><option value="">– nur ich –</option>{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label" for="n-mail">Funktionspostfach <span class="text-secondary small">(optional)</span></label><input class="form-control" type="email" id="n-mail" name="mailbox" placeholder="buergerhaus@…"></div>
+    <div class="col-12 form-text">Sie sind zunächst selbst zuständig. Die Ressource ist noch nicht freigeschaltet – eine Checkliste zeigt, was noch fehlt.</div>
+  </div></div>
+  <button class="btn btn-primary btn-lg" type="submit"><i class="fa-solid fa-check me-1"></i>Anlegen und weiter einrichten</button>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var cat = document.getElementById('n-cat'), unit = document.getElementById('n-unit'), touched = false;
+  cat.addEventListener('input', function () { touched = true; });
+  document.querySelectorAll('input[name="preset"]').forEach(function (r) {
+    r.addEventListener('change', function () {
+      if (!touched) cat.value = r.dataset.category;
+      unit.textContent = { day: 'je Tag', block: 'je Block', hour: 'je Stunde' }[r.dataset.unit] || 'je Tag';
+    });
+  });
+  var first = document.querySelector('input[name="preset"]:checked');
+  if (first) first.dispatchEvent(new Event('change'));
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Merkliste{% endblock %}
+{% block content %}
+<div style="max-width: 52rem">
+<h1 class="h3 mb-1"><i class="fa-solid fa-basket-shopping me-2"></i>Merkliste</h1>
+<p class="text-secondary">Mehrere Ressourcen in einer Buchung – z. B. Saal, Küche und Spülmobil. Die Zeiträume sind 24 Stunden für Sie vorgemerkt.
+  {% if club %}Mit „Abschicken“ wird alles verbindlich angefragt.{% else %}Mit „Abschicken“ bekommen Sie <strong>eine</strong> E-Mail, mit der Sie alles auf einmal bestätigen.{% endif %}</p>
+{% if rows %}
+<div class="list-group mb-3">
+  {% for b in rows %}
+  <div class="list-group-item d-flex flex-wrap gap-2 align-items-center">
+    <div class="flex-grow-1"><div class="fw-semibold">{{ b.resource.name }}{% if units(b) %} <span class="text-secondary fw-normal">– {{ units(b) }}</span>{% endif %}</div>
+      <div class="small text-secondary">{{ when(b) }} · {{ b.title }}</div></div>
+    <div class="text-nowrap fw-semibold">{{ money(b.total_cents) }}</div>
+    <form method="post" action="/r/merkliste"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="remove"><input type="hidden" name="token" value="{{ b.token }}">
+      <button class="btn btn-sm btn-outline-danger" type="submit" aria-label="Aus der Merkliste entfernen"><i class="fa-solid fa-xmark"></i></button></form>
+  </div>
+  {% endfor %}
+  <div class="list-group-item d-flex fw-semibold"><span class="flex-grow-1">Summe</span><span>{{ money(total) }}</span></div>
+</div>
+<div class="d-flex flex-wrap gap-2">
+  <form method="post" action="/r/merkliste"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="send">
+    <button class="btn btn-primary btn-lg" type="submit"><i class="fa-solid fa-paper-plane me-1"></i>Alles abschicken</button></form>
+  <a class="btn btn-outline-primary btn-lg" href="/r"><i class="fa-solid fa-plus me-1"></i>Weitere Ressource</a>
+  <form method="post" action="/r/merkliste" class="ms-auto"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="discard">
+    <button class="btn btn-link text-danger" type="submit" data-confirm-title="Merkliste verwerfen?" data-confirm="Alle vorgemerkten Zeiträume werden wieder freigegeben." data-confirm-button="Verwerfen">Merkliste verwerfen</button></form>
+</div>
+{% else %}
+<div class="text-center text-secondary py-5"><i class="fa-solid fa-basket-shopping fa-3x mb-3"></i><p>Die Merkliste ist leer.</p><a class="btn btn-primary" href="/r">Räume & Plätze ansehen</a></div>
+{% endif %}
+</div>
+{% endblock %}
