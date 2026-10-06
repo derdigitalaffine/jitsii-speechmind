@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ b.resource.name }} – Übergabe{% endblock %}
+{% block content %}
+{% set out = h.get('out') %}{% set back = h.get('back') %}
+<div class="mx-auto" style="max-width: 46rem">
+  <nav class="small mb-2" aria-label="Pfad"><a href="/r/hausmeister/{{ token }}"><i class="fa-solid fa-arrow-left me-1"></i>Alle Termine</a></nav>
+  <h1 class="h4 mb-1">{{ b.resource.name }}{% if units %} <span class="text-secondary fw-normal">– {{ units }}</span>{% endif %}</h1>
+  <p class="mb-3">{{ when }}</p>
+  <div class="card mb-3"><div class="card-body small">
+    <dl class="row mb-0">
+      <dt class="col-sm-4">Buchende Person</dt><dd class="col-sm-8">{{ b.name }}{% if b.organizer %}, {{ b.organizer }}{% endif %}</dd>
+      {% if b.phone %}<dt class="col-sm-4">Telefon</dt><dd class="col-sm-8"><a href="tel:{{ b.phone | replace(' ', '') }}">{{ b.phone }}</a></dd>{% endif %}
+      <dt class="col-sm-4">Anlass</dt><dd class="col-sm-8">{{ b.title or '–' }}{% if b.persons %} · {{ b.persons }} Personen{% endif %}</dd>
+      <dt class="col-sm-4">Buchung</dt><dd class="col-sm-8">{{ b.ref }}</dd>
+      {% if b.deposit_cents %}<dt class="col-sm-4">Kaution</dt><dd class="col-sm-8">{{ money(b.deposit_cents) }}{% if b.payment %} · {{ 'bezahlt' if b.payment.status in ('paid', 'partially_refunded') else 'noch nicht bezahlt' }}{% endif %}</dd>{% endif %}
+    </dl></div></div>
+
+  <div class="card mb-3" id="uebergabe"><div class="card-body">
+    <h2 class="h5"><i class="fa-solid fa-key me-2 text-secondary"></i>Übergabe</h2>
+    {% if out %}<p class="small mb-2"><i class="fa-solid fa-check text-success me-1"></i>{{ out.at | isodate | local }} durch {{ out.by }}{% if out['keys'] %} · {{ out['keys'] }}{% endif %}{% if out.note %}<br><span class="text-secondary">{{ out.note }}</span>{% endif %}</p>{% endif %}
+    <form method="post" action="/r/hausmeister/{{ token }}/{{ b.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="part" value="out">
+      <label class="form-label small mb-1" for="ho-keys">Schlüssel</label><input class="form-control mb-2" id="ho-keys" name="keys" placeholder="z. B. 2× Haupteingang Nr. 14" value="{{ out['keys'] if out else '' }}">
+      <label class="form-label small mb-1" for="ho-note">Zustand, Zählerstände</label><textarea class="form-control mb-2" id="ho-note" name="note" rows="3">{{ out.note if out else '' }}</textarea>
+      <button class="btn btn-primary" type="submit">{{ 'Übergabe aktualisieren' if out else 'Übergabe festhalten' }}</button></form>
+  </div></div>
+
+  <div class="card mb-3" id="abnahme"><div class="card-body">
+    <h2 class="h5"><i class="fa-solid fa-rotate-left me-2 text-secondary"></i>Abnahme / Rückgabe</h2>
+    {% if back %}<p class="small mb-2"><i class="fa-solid fa-check text-success me-1"></i>{{ back.at | isodate | local }} durch {{ back.by }}{% if back.damages %}<br><span class="text-danger">Schäden: {{ back.damages }}</span>{% endif %}{% if back.note %}<br><span class="text-secondary">{{ back.note }}</span>{% endif %}</p>
+      {% if h.get('deposit_pending') %}<div class="alert alert-info small py-2">Die Kaution wartet auf die Freigabe durch die Verwaltung.</div>{% elif h.get('deposit_done') %}<div class="alert alert-success small py-2">Die Kaution ist abgerechnet.</div>{% endif %}{% endif %}
+    {% if not h.get('deposit_done') %}
+    <form method="post" action="/r/hausmeister/{{ token }}/{{ b.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="part" value="back">
+      <label class="form-label small mb-1" for="hb-dam">Schäden / Mängel <span class="text-secondary">(leer = keine)</span></label><textarea class="form-control mb-2" id="hb-dam" name="damages" rows="3">{{ back.damages if back else '' }}</textarea>
+      <label class="form-label small mb-1" for="hb-note">Notiz</label><input class="form-control mb-2" id="hb-note" name="note" value="{{ back.note if back else '' }}">
+      {% if b.deposit_cents %}<label class="form-label small mb-1" for="hb-keep">{{ 'Vorschlag: ' if b.resource.deposit_release }}Von {{ money(b.deposit_cents) }} Kaution einbehalten</label>
+        <div class="input-group mb-1" style="max-width: 16rem"><input class="form-control" id="hb-keep" name="keep" value="{{ '%.2f' | format((back.keep_cents if back else 0) / 100) | replace('.', ',') }}" inputmode="decimal"><span class="input-group-text">€</span></div>
+        <div class="form-text mb-2">{{ 'Die Verwaltung prüft und gibt die Kaution frei.' if b.resource.deposit_release else 'Der Rest wird erstattet.' }}</div>{% endif %}
+      <button class="btn btn-primary" type="submit">{{ 'Abnahme aktualisieren' if back else 'Abnahme festhalten' }}</button>
+      <div class="form-text">Danach geht das Protokoll {{ 'an die buchende Person' if b.resource.protocol_to_booker }}{{ ' und ' if b.resource.protocol_to_booker and b.resource.protocol_to_staff }}{{ 'an die Verwaltung' if b.resource.protocol_to_staff }}{{ 'in die Akte' if not b.resource.protocol_to_booker and not b.resource.protocol_to_staff }}.</div></form>
+    {% endif %}
+  </div></div>
+</div>
+{% endblock %}

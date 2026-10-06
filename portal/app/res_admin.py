@@ -22,7 +22,8 @@ FIELDS = ("name", "category", "description", "location", "lat", "lon", "capacity
           "min_notice_hours", "max_advance_days", "buffer_before", "buffer_after", "price_day", "price_block",
           "price_hour", "wkd_day", "wkd_block", "wkd_hour", "deposit_cents", "pay_methods", "pay_days", "cost_center",
           "self_cancel", "cancel_free_days", "cancel_fee_percent", "fields_json", "terms_text", "remind_days",
-          "remind_staff_days", "remind_text", "waitlist")
+          "remind_staff_days", "remind_text", "waitlist", "deposit_release", "protocol_to_booker", "protocol_to_staff",
+          "caretaker_public", "caretaker_remind")
 UNIT_FIELDS = ("name", "description", "capacity", "position", "price_day", "price_block", "price_hour", "wkd_day",
                "wkd_block", "wkd_hour")
 TARIFF_FIELDS = ("name", "percent", "description", "needs_proof", "position")
@@ -185,6 +186,7 @@ def copy(db, src: Resource, owner) -> Resource:
                    dms_area_id=src.dms_area_id, position=src.position + 1, legal_json=src.legal_json,
                    **{k: getattr(src, k) for k in FIELDS})
     dst.name = (src.name + " (Kopie)")[:200]
+    dst.caretakers = list(src.caretakers)
     db.add(dst)
     _copy_children(src, dst)
     db.flush()

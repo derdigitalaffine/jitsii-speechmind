@@ -17,7 +17,7 @@ from . import forms as fm, holidays, links, payments as pay, photos, res_admin, 
 from .config import settings
 from .db import (
     CustomHoliday, Group, Resource, ResourceBooking, ResourceCalendar, ResourceClosure, ResourceClub, ResourceExtra,
-    ResourcePhoto, ResourceTariff, ResourceUnit, ResourceWait, User, get_settings, set_setting, to_local, utcnow,
+    ResourceCaretaker, ResourcePhoto, ResourceTariff, ResourceUnit, ResourceWait, User, get_settings, set_setting, to_local, utcnow,
 )
 from .main import app, check_csrf, current_user, enabled_modules, flash, get_db, redirect, render, require
 
@@ -221,7 +221,8 @@ def resource_edit(request: Request, rid: int, user: User = Depends(current_user)
         from .db import LawText
         laws_list = db.scalars(select(LawText).order_by(LawText.title)).all()
     return render(request, "resource_edit.html", user, res=res, level=lvl, photo_list=_photo_list(res),
-                  laws=laws_list, legal=rs.legal_raw(res), legal_roles=rs.LEGAL_ROLES, editor=editor, modes=rs.MODES, users=_users(db),
+                  laws=laws_list, legal=rs.legal_raw(res), legal_roles=rs.LEGAL_ROLES,
+                  all_caretakers=db.scalars(select(ResourceCaretaker).order_by(ResourceCaretaker.name)).all(), editor=editor, modes=rs.MODES, users=_users(db),
                   org_options=orgs.options(db),
                   checklist=res_admin.checklist(res), fresh=request.query_params.get("neu") == "1",
                   groups=_groups(db), dms_areas=dms_areas, price=rs.money_input, pay_methods=pay.METHODS,
@@ -293,6 +294,11 @@ async def resource_save(request: Request, rid: int, user: User = Depends(current
     res.remind_staff_days = _int(data.get("remind_staff_days"), 0, 30, 1)
     res.remind_text = str(data.get("remind_text", "")).replace("\r\n", "\n").strip()[:5000]
     res.waitlist = data.get("waitlist") == "1"
+    if data.get("caretakers_present"):
+        for key in ("deposit_release", "protocol_to_booker", "protocol_to_staff", "caretaker_public", "caretaker_remind"):
+            setattr(res, key, data.get(key) == "1")
+        ids = {int(x) for x in data.getlist("caretakers") if str(x).isdigit()}
+        res.caretakers = list(db.scalars(select(ResourceCaretaker).where(ResourceCaretaker.id.in_(ids)))) if ids else []
     uid, gid = str(data.get("manager_user_id", "")), str(data.get("manager_group_id", ""))
     res.manager_user_id = int(uid) if uid.isdigit() and db.get(User, int(uid)) else None
     res.manager_group_id = int(gid) if gid.isdigit() and db.get(Group, int(gid)) else None
@@ -1000,7 +1006,7 @@ async def booking_handover(request: Request, bid: int, user: User = Depends(curr
     b, _ = _booking(db, bid, user, 3)
     data = await request.form()
     part = "back" if data.get("part") == "back" else "out"
-    info = rs.record_handover(db, b, user, part, data)
+    info = rs.record_handover(db, b, user.name, part, data)
     db.commit()
     flash(request, ("Abnahme gespeichert. " if part == "back" else "Übergabe gespeichert. ") + info)
     return redirect(f"/resources/bookings/{b.id}#uebergabe")

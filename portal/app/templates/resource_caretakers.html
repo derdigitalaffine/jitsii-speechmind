@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% import "_res_macros.html" as rm with context %}
+{% block title %}Hausmeister:innen{% endblock %}
+{% block content %}
+{% call rm.head('caretakers', [('Hausmeister', '')], 'Hausmeister:innen', 'Übergabe und Abnahme per persönlichem Link – ohne Portal-Konto, Termine der zugeordneten Ressourcen im Blick.') %}
+  <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#ct-new"><i class="fa-solid fa-plus me-1"></i>Hausmeister:in anlegen</button>
+{% endcall %}
+{% macro ct_form(c) %}
+  {% set key = c.id if c else 'new' %}
+  <input type="hidden" name="csrf" value="{{ csrf }}">{% if c %}<input type="hidden" name="id" value="{{ c.id }}">{% endif %}
+  <div class="col-md-4"><label class="form-label small mb-1" for="ct-user-{{ key }}">Portal-Konto <span class="text-secondary">(optional)</span></label>
+    <select class="form-select form-select-sm" id="ct-user-{{ key }}" name="user_id"><option value="">– kein Konto, Kontakt frei eintragen –</option>{% for u in users %}<option value="{{ u.id }}" {% if c and c.user_id == u.id %}selected{% endif %}>{{ u.name }} ({{ u.email }})</option>{% endfor %}</select></div>
+  <div class="col-md-4"><label class="form-label small mb-1" for="ct-name-{{ key }}">Name</label><input class="form-control form-control-sm" id="ct-name-{{ key }}" name="name" value="{{ c.name if c }}" placeholder="bei Portal-Konto: von dort"></div>
+  <div class="col-md-4"><label class="form-label small mb-1" for="ct-mail-{{ key }}">E-Mail-Adresse</label><input class="form-control form-control-sm" type="email" id="ct-mail-{{ key }}" name="email" value="{{ c.email if c }}" placeholder="für den persönlichen Link"></div>
+  <div class="col-md-4"><label class="form-label small mb-1" for="ct-tel-{{ key }}">Telefon</label><input class="form-control form-control-sm" type="tel" id="ct-tel-{{ key }}" name="phone" value="{{ c.phone if c }}"></div>
+  <div class="col-md-8"><label class="form-label small mb-1" for="ct-note-{{ key }}">Interne Notiz</label><input class="form-control form-control-sm" id="ct-note-{{ key }}" name="note" value="{{ c.note if c }}" placeholder="z. B. Schlüsselkasten Code bei der Verwaltung"></div>
+  <fieldset class="col-12"><legend class="form-label small mb-1">Zuständig für</legend>
+    <div class="d-flex flex-wrap gap-3">{% for r in resources %}<div class="form-check"><input class="form-check-input" type="checkbox" name="resources" value="{{ r.id }}" id="ct-r-{{ key }}-{{ r.id }}" {% if c and r in c.resources %}checked{% endif %}><label class="form-check-label small" for="ct-r-{{ key }}-{{ r.id }}">{{ r.name }}</label></div>{% else %}<span class="small text-secondary">Noch keine Ressourcen.</span>{% endfor %}</div></fieldset>
+  <div class="col-12 d-flex flex-wrap gap-3 align-items-center"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="active" value="1" id="ct-act-{{ key }}" {% if not c or c.active %}checked{% endif %}><label class="form-check-label small" for="ct-act-{{ key }}">aktiv</label></div>
+    <button class="btn btn-sm btn-primary" type="submit" name="action" value="save">Speichern</button></div>
+{% endmacro %}
+<form method="post" action="/resources/caretakers" class="card mb-4 collapse" id="ct-new"><div class="card-body row g-2">{{ ct_form(none) }}
+  <div class="col-12 form-text">Nach dem Speichern „Link senden“: Die Person bekommt per E-Mail einen persönlichen Link mit ihren Terminen und kann dort Übergabe und Abnahme festhalten.</div></div></form>
+
+<div class="card mb-4"><div class="table-responsive"><table class="table align-middle mb-0 small">
+  <thead><tr><th>Name</th><th>Kontakt</th><th>Ressourcen</th><th>Zuletzt genutzt</th><th></th></tr></thead>
+  <tbody>{% for c in rows %}<tr>
+    <td class="fw-semibold">{{ c.display_name }}{% if c.user %} <span class="badge text-bg-light border" title="Portal-Konto">Konto</span>{% endif %}{% if not c.active %} <span class="badge text-bg-secondary">inaktiv</span>{% endif %}{% if c.note %}<div class="text-secondary fw-normal">{{ c.note }}</div>{% endif %}</td>
+    <td>{{ c.contact_email or '–' }}{% if c.phone %}<div class="text-secondary">{{ c.phone }}</div>{% endif %}</td>
+    <td>{{ c.resources | map(attribute='name') | join(', ') or '–' }}</td>
+    <td>{{ c.last_seen_at | local if c.last_seen_at else '–' }}</td>
+    <td class="text-end text-nowrap"><form method="post" action="/resources/caretakers" class="d-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ c.id }}">
+      <button class="btn btn-sm btn-outline-primary" name="action" value="send" type="submit" title="Persönlichen Link per E-Mail senden" {% if not c.contact_email or not c.active %}disabled{% endif %}><i class="fa-solid fa-paper-plane me-1"></i>Link senden</button>
+      <button class="btn btn-sm btn-outline-secondary" name="action" value="lock" type="submit" aria-label="Alle Links sperren" title="Alle Links sperren" data-confirm-title="Links von {{ c.display_name }} sperren?" data-confirm="Alle bisher verschickten Links werden ungültig. Mit „Link senden“ gibt es einen neuen." data-confirm-button="Sperren"><i class="fa-solid fa-lock"></i></button>
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#ct-{{ c.id }}" aria-label="Bearbeiten"><i class="fa-solid fa-pen"></i></button>
+      <button class="btn btn-sm btn-outline-danger" name="action" value="delete" type="submit" aria-label="Entfernen" data-confirm-title="{{ c.display_name }} entfernen?" data-confirm="Erfasste Übergaben bleiben in den Buchungen erhalten." data-confirm-button="Entfernen"><i class="fa-regular fa-trash-can"></i></button></form></td></tr>
+    <tr class="collapse" id="ct-{{ c.id }}"><td colspan="5"><form method="post" action="/resources/caretakers" class="row g-2">{{ ct_form(c) }}</form></td></tr>
+  {% else %}<tr><td colspan="5" class="text-center text-secondary py-4">Noch keine Hausmeister:innen.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<p class="small text-secondary" style="max-width: 48rem">An jeder Ressource (Reiter „Zuständig &amp; Ablage“) lässt sich einstellen, ob die Kaution erst nach Freigabe durch die Verwaltung ausgezahlt wird, wer das Protokoll bekommt, ob Buchende den Kontakt vor Ort erfahren und ob Hausmeister:innen vor Beginn erinnert werden.</p>
+{% endblock %}

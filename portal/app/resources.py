@@ -700,7 +700,14 @@ def _values(db, b: ResourceBooking, extra: dict | None = None) -> dict:
             "bestaetigen_link": f"{manage_link(b)}/confirm/{b.confirm_code}",
             "zahl_link": pay.link(b.payment) if b.payment else "", "zahlbar_bis":
             to_local(b.payment.due_at).strftime("%d.%m.%Y") if b.payment and b.payment.due_at else "",
-            "storno": cancel_rules_text(res), "organisation_mail": cfg.get("mail_from", ""), **(extra or {})}
+            "storno": cancel_rules_text(res), "organisation_mail": cfg.get("mail_from", ""),
+            "hausmeister": _caretaker_line(res), **(extra or {})}
+
+
+def _caretaker_line(res: Resource) -> str:
+    from . import caretakers
+    text = caretakers.contact_text(res)
+    return f"Ansprechperson vor Ort: {text}" if text else ""
 
 
 def _mail(db, b: ResourceBooking, key: str, extra: dict | None = None, attach_pdf: bool = False) -> bool:
@@ -1105,14 +1112,18 @@ def send_reminders() -> int:
                 b.staff_reminded_at = now
                 n += _staff_mail(db, b, "Erinnerung: Beginn " + to_local(b.starts_at).strftime("%d.%m.%Y %H:%M")
                                  + (" – Übergabe vorbereiten" if b.email else ""))
+                from . import caretakers
+                n += caretakers.remind(db, b)
         db.commit()
     return n
 
 
-def record_handover(db, b: ResourceBooking, user: User, part: str, data) -> str:
-    """Übergabe (Schlüssel, Zustand) und Abnahme (Schäden, Kaution zurück/einbehalten)."""
+def record_handover(db, b: ResourceBooking, actor: str, part: str, data, by_caretaker: bool = False) -> str:
+    """Übergabe (Schlüssel, Zustand) und Abnahme (Schäden, Kaution zurück/einbehalten).
+    Von Hausmeister:innen erfasst und an der Ressource „Kaution erst nach Freigabe“ eingestellt: die Kaution
+    wartet auf die Freigabe der Verwaltung (release_deposit). Nach der Abnahme geht das Protokoll raus."""
     h = handover(b)
-    entry = {"at": utcnow().isoformat(timespec="minutes"), "by": user.name,
+    entry = {"at": utcnow().isoformat(timespec="minutes"), "by": actor[:200], "caretaker": by_caretaker,
              "note": str(data.get("note", "")).strip()[:2000]}
     info = ""
     if part == "out":
@@ -1123,19 +1134,143 @@ def record_handover(db, b: ResourceBooking, user: User, part: str, data) -> str:
         keep = pay.parse_amount(data.get("keep", "")) or 0
         entry["keep_cents"] = min(keep, b.deposit_cents)
         h["back"] = entry
-        p = b.payment
-        back = b.deposit_cents - entry["keep_cents"]
-        if back > 0 and p is not None and p.status in ("paid", "partially_refunded") and not h.get("deposit_done"):
-            err = pay.refund(db, p, back, user.name, f"Kaution {b.ref}" + (f", {pay.money(entry['keep_cents'])} einbehalten" if entry["keep_cents"] else ""), fire=False)
-            info = err or f"Kaution {pay.money(back)} erstattet."
-            if not err:
-                h["deposit_done"] = True
-        elif b.deposit_cents and (p is None or p.status not in ("paid", "partially_refunded")):
-            info = "Kaution war nicht bezahlt – nichts zu erstatten."
+        if b.deposit_cents and not h.get("deposit_done"):
+            if by_caretaker and b.resource.deposit_release:
+                h["deposit_pending"] = {"keep_cents": entry["keep_cents"], "by": actor[:200], "at": entry["at"]}
+                info = "Kaution wartet auf die Freigabe durch die Verwaltung."
+            else:
+                h.pop("deposit_pending", None)
+                info = _refund_deposit(db, b, h, entry["keep_cents"], actor)
     b.handover_json = json.dumps(h, ensure_ascii=False)
-    _note(b, ("Übergabe" if part == "out" else "Abnahme") + f" durch {user.name}. {info}".strip())
+    who = f"{actor} (Hausmeister:in)" if by_caretaker else actor
+    _note(b, ("Übergabe" if part == "out" else "Abnahme") + f" durch {who}. {info}".strip())
+    if part == "back":
+        if h.get("deposit_pending"):
+            _staff_mail(db, b, f"Abnahme durch {actor} – Kaution zur Freigabe"
+                        + (f" (Schäden: {entry['damages'][:200]})" if entry["damages"] else ""))
+        send_protocol(db, b)
+    else:
+        sync_dms(db, b)
+    return info
+
+
+def _refund_deposit(db, b: ResourceBooking, h: dict, keep_cents: int, actor: str) -> str:
+    p = b.payment
+    back = b.deposit_cents - keep_cents
+    if back > 0 and p is not None and p.status in ("paid", "partially_refunded"):
+        err = pay.refund(db, p, back, actor, f"Kaution {b.ref}" + (f", {pay.money(keep_cents)} einbehalten" if keep_cents else ""), fire=False)
+        if err:
+            return err
+        h["deposit_done"] = True
+        return f"Kaution {pay.money(back)} erstattet."
+    if p is None or p.status not in ("paid", "partially_refunded"):
+        return "Kaution war nicht bezahlt – nichts zu erstatten."
+    h["deposit_done"] = True
+    return f"Kaution vollständig einbehalten ({pay.money(keep_cents)})." if keep_cents else ""
+
+
+def deposit_pending(b: ResourceBooking) -> dict | None:
+    return handover(b).get("deposit_pending")
+
+
+def release_deposit(db, b: ResourceBooking, user: User, keep_cents: int | None = None) -> str:
+    """Freigabe der Kaution durch die Verwaltung (nach Abnahme durch Hausmeister:in), Einbehalt änderbar."""
+    h = handover(b)
+    pending = h.get("deposit_pending")
+    if not pending or h.get("deposit_done"):
+        return ""
+    keep = min(max(0, keep_cents if keep_cents is not None else int(pending.get("keep_cents") or 0)), b.deposit_cents)
+    info = _refund_deposit(db, b, h, keep, user.name)
+    if h.get("deposit_done") or "nicht bezahlt" in info:
+        h.pop("deposit_pending", None)
+        h["deposit_released"] = {"by": user.name, "at": utcnow().isoformat(timespec="minutes"), "keep_cents": keep}
+        if h.get("back"):
+            h["back"]["keep_cents"] = keep
+    b.handover_json = json.dumps(h, ensure_ascii=False)
+    _note(b, f"Kaution freigegeben durch {user.name}. {info}".strip())
     sync_dms(db, b)
     return info
+
+
+def protocol_pdf(db, b: ResourceBooking) -> bytes:
+    """Übergabe- und Abnahmeprotokoll."""
+    from xml.sax.saxutils import escape
+
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    from . import branding
+    res, h = b.resource, handover(b)
+    styles = getSampleStyleSheet()
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm,
+                            bottomMargin=18 * mm, title=f"Übergabeprotokoll {b.ref}")
+    P = lambda t, s="Normal": Paragraph(escape(str(t)).replace("\n", "<br/>"), styles[s])  # noqa: E731
+
+    def when(entry):
+        try:
+            return to_local(datetime.fromisoformat(entry["at"])).strftime("%d.%m.%Y, %H:%M Uhr")
+        except (KeyError, TypeError, ValueError):
+            return "–"
+
+    def table(rows):
+        t = Table([[P(a), P(c)] for a, c in rows], colWidths=[45 * mm, 125 * mm])
+        t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LINEBELOW", (0, 0), (-1, -1), 0.25, colors.HexColor("#d0d5dd"))]))
+        return t
+
+    story = [P(branding.load()["name"]), P("Übergabe- und Abnahmeprotokoll", "Title"),
+             table([["Buchung", b.ref], ["Ressource", res.name + (f" – {unit_label(res, unit_ids(b))}" if unit_ids(b) else "")],
+                    ["Zeitraum", when_text(b)], ["Buchende Person", b.name + (f", {b.organizer}" if b.organizer else "")
+                                                 + (f"\nTelefon {b.phone}" if b.phone else "")],
+                    ["Anlass", (b.title or "–") + (f", {b.persons} Personen" if b.persons else "")]]),
+             Spacer(1, 5 * mm)]
+    out, back = h.get("out"), h.get("back")
+    story.append(P("Übergabe", "Heading3"))
+    story.append(table([["Zeitpunkt", when(out)], ["durch", out.get("by", "")], ["Schlüssel", out.get("keys") or "–"],
+                        ["Zustand / Zählerstände", out.get("note") or "–"]]) if out else P("Keine Übergabe erfasst."))
+    story.append(P("Abnahme / Rückgabe", "Heading3"))
+    if back:
+        rows = [["Zeitpunkt", when(back)], ["durch", back.get("by", "")], ["Schäden / Mängel", back.get("damages") or "keine"],
+                ["Notiz", back.get("note") or "–"]]
+        if b.deposit_cents:
+            keep = int(back.get("keep_cents") or 0)
+            state = ("wartet auf Freigabe durch die Verwaltung" if h.get("deposit_pending")
+                     else "erstattet" if h.get("deposit_done") else "–")
+            rows.append(["Kaution", f"{pay.money(b.deposit_cents)} · einbehalten {pay.money(keep)} · "
+                                    f"zurück {pay.money(b.deposit_cents - keep)} ({state})"])
+        story.append(table(rows))
+    else:
+        story.append(P("Noch keine Abnahme erfasst."))
+    story += [Spacer(1, 6 * mm), P(f"Erstellt am {to_local(utcnow()).strftime('%d.%m.%Y %H:%M')} · {manage_link(b)}")]
+    doc.build(story)
+    return buf.getvalue()
+
+
+def send_protocol(db, b: ResourceBooking) -> int:
+    """Protokoll nach der Abnahme: an Buchende und Verwaltung (je nach Einstellung der Ressource) und in die Ablage."""
+    import base64
+    res, n = b.resource, 0
+    data = protocol_pdf(db, b)
+    att = [{"filename": f"Protokoll-{b.ref}.pdf", "mime": "application/pdf", "content_b64": base64.b64encode(data).decode("ascii")}]
+    if res.protocol_to_booker and b.email:
+        subject, body = mailtpl.render(db, "res_protocol", _values(db, b))
+        n += notify.enqueue(db, b.email, subject, body, "res_protocol", attachments=att)
+    if res.protocol_to_staff:
+        for addr in staff_addresses(db, res):
+            subject, body = mailtpl.render(db, "res_staff", _values(db, b, {
+                "ereignis": "Abnahmeprotokoll", "verwalten_link": f"{settings.portal_base_url}/resources/bookings/{b.id}",
+                "kontakt": f"{b.name} <{b.email}>{', ' + b.phone if b.phone else ''}"}))
+            n += notify.enqueue(db, addr, subject, body, "res_staff", attachments=att)
+    record = sync_dms(db, b)
+    if record is not None:
+        from . import dms
+        db.flush()
+        dms._store(record, f"Übergabeprotokoll {b.ref}.pdf", data, "dokument", "Ressourcenbuchung", "nach der Abnahme",
+                   "application/pdf")
+    return n
 
 
 def on_payment(db, p, event: str) -> None:
@@ -1186,16 +1321,16 @@ def expire_unconfirmed() -> int:
 
 # --- Ablage (DMS) ------------------------------------------------------------------------------
 
-def sync_dms(db, b: ResourceBooking, with_pdf: bool = False) -> None:
+def sync_dms(db, b: ResourceBooking, with_pdf: bool = False):
     from . import dms
     from .db import DmsArea, DmsRecord
     if b.internal and not b.email or not dms.enabled(db):
-        return
+        return None
     res = b.resource
     record = db.scalar(select(DmsRecord).where(DmsRecord.booking_id == b.id))
     if record is None:
         if b.status == "unconfirmed":
-            return
+            return None
         area_id = res.dms_area_id if res.dms_area_id and db.get(DmsArea, res.dms_area_id) else dms.unsorted(db).id
         record = DmsRecord(area_id=area_id, kind="buchung", booking_id=b.id, received_at=b.created_at,
                            created_by="Ressourcenbuchung")
@@ -1226,6 +1361,7 @@ def sync_dms(db, b: ResourceBooking, with_pdf: bool = False) -> None:
         dms._store(record, f"Buchungsbestätigung {b.ref}.pdf", confirmation_pdf(db, b), "dokument", "Ressourcenbuchung",
                    "bei Bestätigung", "application/pdf")
     record.updated_at = utcnow()
+    return record
 
 
 # --- PDF ---------------------------------------------------------------------------------------

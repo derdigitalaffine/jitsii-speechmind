@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import forms as fm, links, notify, payments as pay, photos, res_clubs, res_wait, resources as rs
+from . import caretakers, forms as fm, links, notify, payments as pay, photos, res_clubs, res_wait, resources as rs
 from .config import settings
 from .db import (
     Resource, ResourceBooking, ResourceCalendar, ResourceClub, ResourcePhoto, ResourceWait, User, get_settings,
@@ -610,7 +610,8 @@ def booking_manage(request: Request, token: str, db: Session = Depends(get_db)):
                   when=rs.when_text(b), units=rs.unit_label(res, rs.unit_ids(b)), lines=rs.lines_of(b), money=pay.money,
                   can_cancel=rs.can_self_cancel(b), fee=rs.cancel_fee(b), rules=rs.cancel_rules_text(res),
                   fresh=request.query_params.get("neu") == "1", pay_statuses=pay.STATUSES, group=group,
-                  when_of=rs.when_text, ics_ok=b.status == "confirmed")
+                  when_of=rs.when_text, ics_ok=b.status == "confirmed",
+                  onsite=caretakers.contact_text(res) if b.status == "confirmed" else "")
 
 
 @app.get("/r/b/{token}/termin.ics")

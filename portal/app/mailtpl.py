@@ -34,7 +34,7 @@ _MEETING_VARS = {
     "antwort_link": "Link zum Zu- oder Absagen im Browser (funktioniert in jedem Mailprogramm)",
 }
 
-_RES_VARS = {"name": "Name der buchenden Person", "ressource": "Ressource", "teilraeume": "Teilräume", "zeitraum": "Zeitraum", "anlass": "Anlass", "buchungsnummer": "Buchungsnummer", "link": "Link zur Buchung (ansehen, bezahlen, stornieren)", "betrag": "Gesamtbetrag", "positionen": "Einzelposten", "ort": "Ort", "nachricht": "Mitteilung der Verwaltung", "storno": "Stornoregeln", "zahl_link": "Zahlungslink", "zahlbar_bis": "Zahlfrist"}
+_RES_VARS = {"name": "Name der buchenden Person", "ressource": "Ressource", "teilraeume": "Teilräume", "zeitraum": "Zeitraum", "anlass": "Anlass", "buchungsnummer": "Buchungsnummer", "link": "Link zur Buchung (ansehen, bezahlen, stornieren)", "betrag": "Gesamtbetrag", "positionen": "Einzelposten", "ort": "Ort", "nachricht": "Mitteilung der Verwaltung", "storno": "Stornoregeln", "zahl_link": "Zahlungslink", "zahlbar_bis": "Zahlfrist", "hausmeister": "Ansprechperson vor Ort (wenn an der Ressource eingeschaltet)"}
 
 _RECORDING_VARS = {
     "aufnahme": "Bezeichnung der Aufnahme (Meeting, Datum, Uhrzeit)",
@@ -563,7 +563,7 @@ TEMPLATES: dict[str, dict] = {
         "vars": _RES_VARS | {"hinweis": "Hinweistext der Ressource (z. B. Schlüsselabholung)"},
         "subject": "Erinnerung: {ressource} am {zeitraum}",
         "body": ("Guten Tag {name},\n\nwir erinnern an Ihre Buchung:\n\n{ressource} {teilraeume}\n{zeitraum}\nAnlass: {anlass}\nOrt: {ort}"
-                 "\n\n{hinweis}\n\nIhre Buchung (ansehen, Bestätigung als PDF): {link}\n\n{fusszeile}"),
+                 "\n\n{hinweis}\n{hausmeister}\n\nIhre Buchung (ansehen, Bestätigung als PDF): {link}\n\n{fusszeile}"),
     },
     "res_wait_confirm": {
         "group": "Ressourcen", "label": "Warteliste: E-Mail-Adresse bestätigen",
@@ -596,6 +596,31 @@ TEMPLATES: dict[str, dict] = {
         "subject": "Sammelrechnung {monat}: {verein}",
         "body": ("Guten Tag {name},\n\nhier die Abrechnung Ihrer Buchungen im {monat}:\n\n{positionen}\n\nSumme: {betrag}\n\n"
                  "Bitte bis {zahlbar_bis} bezahlen: {zahl_link}\n\n{fusszeile}"),
+    },
+    "res_caretaker_link": {
+        "group": "Ressourcen", "label": "Hausmeister:in: persönlicher Link",
+        "vars": {"name": "Name der Hausmeisterin / des Hausmeisters", "link": "Persönlicher Link (Termine, Übergabe, Abnahme)",
+                 "ressourcen": "Zugeordnete Ressourcen"},
+        "subject": "Ihr Zugang für Übergaben und Abnahmen",
+        "body": ("Guten Tag {name},\n\nüber diesen persönlichen Link sehen Sie die anstehenden Termine und halten Übergabe und "
+                 "Abnahme fest – ohne Anmeldung:\n\n{link}\n\nZugeordnet: {ressourcen}\n\nBitte geben Sie den Link nicht weiter. "
+                 "Ein neuer Link macht den bisherigen ungültig.\n\n{fusszeile}"),
+    },
+    "res_caretaker_reminder": {
+        "group": "Ressourcen", "label": "Hausmeister:in: Erinnerung vor Beginn",
+        "vars": {"name": "Name der Hausmeisterin / des Hausmeisters", "ressource": "Ressource", "zeitraum": "Zeitraum",
+                 "beginn": "Beginn", "buchende": "Name der buchenden Person", "telefon": "Telefon der buchenden Person",
+                 "anlass": "Anlass", "personen": "Personenzahl", "link": "Persönlicher Link"},
+        "subject": "Übergabe: {ressource} ab {beginn}",
+        "body": ("Guten Tag {name},\n\ndemnächst steht eine Übergabe an:\n\n{ressource}\n{zeitraum}\nBuchende Person: {buchende}, "
+                 "Telefon {telefon}\nAnlass: {anlass} ({personen} Personen)\n\nÜbergabe und Abnahme festhalten: {link}\n\n{fusszeile}"),
+    },
+    "res_protocol": {
+        "group": "Ressourcen", "label": "Übergabe-/Abnahmeprotokoll an Buchende",
+        "vars": _RES_VARS,
+        "subject": "Abnahmeprotokoll: {ressource} ({buchungsnummer})",
+        "body": ("Guten Tag {name},\n\nvielen Dank – die Rückgabe von {ressource} ({zeitraum}) ist festgehalten. Das Protokoll "
+                 "finden Sie im Anhang.\n\nIhre Buchung: {link}\n\n{fusszeile}"),
     },
     "res_staff": {
         "group": "Ressourcen", "label": "Hinweis an die Zuständigen",

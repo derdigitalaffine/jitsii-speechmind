@@ -627,6 +627,11 @@ Modul **Ressourcenbuchung**, Menü **Ressourcen** (Recht „Ressourcen“ zum An
 
 **Belegung teilen:** im Portal auf der Belegungsseite (Freigabe: *Belegung einsehen* – Anlass und Veranstalter; *Mit Kontaktdaten*; *Verwalten*) und als geheimer Link unter **Kalender teilen** (iCal-Abo für Outlook/Google/Handy, Web-Ansicht, optional per iframe) in den Stufen *nur frei/belegt*, *mit Anlass/Veranstalter*, *vollständig* (nur mit Freigabe „Mit Kontaktdaten“), mit oder ohne vorgemerkte Anfragen, für eine oder mehrere Ressourcen (Sammelkalender). Links lassen sich widerrufen; Abrufe werden gezählt.
 
+**Hausmeister:innen (Ressourcen › Hausmeister):** Kontakt frei eintragen (Name, E-Mail, Telefon) oder ein Portal-Konto wählen, zuständige Ressourcen ankreuzen (mehrere Hausmeister:innen je Ressource möglich). „Link senden“ verschickt einen **persönlichen Link** (Magic Link, ohne Anmeldung) – frühere Links werden dabei ungültig, das Schloss sperrt alle Links. Über den Link sehen Hausmeister:innen die bestätigten **Termine** der nächsten 60 Tage (und beendete ohne Abnahme), Name und Telefon der buchenden Person und halten **Übergabe** (Schlüssel, Zustand, Zählerstände) und **Abnahme** (Schäden, Vorschlag zum Kautionseinbehalt) fest. Je Ressource (Reiter „Zuständig & Ablage“):
+- **Kaution erst nach Freigabe durch die Verwaltung** – nach einer Abnahme durch Hausmeister:innen wartet die Kaution; die Zuständigen bekommen eine Mail und geben in der Buchung frei (Einbehalt änderbar). Ohne diese Einstellung wird wie bisher sofort erstattet.
+- **Protokoll (PDF)** nach der Abnahme an die buchende Person und/oder an die Zuständigen; in der Ablage (DMS) liegt es immer. In der Buchung: „Protokoll (PDF)“.
+- optional **Kontakt vor Ort** an Buchende (Buchungsseite, Platzhalter `{hausmeister}` in der Erinnerungsmail) und **Erinnerung an Hausmeister:innen** vor Beginn (zusammen mit der Erinnerung an die Zuständigen, mit Link).
+
 **Mail-Vorlagen:** Gruppe „Ressourcen“ (Bestätigungslink, Anfrage eingegangen, bestätigt mit PDF, abgelehnt, storniert, verfallen, geändert, Erinnerung, Warteliste bestätigen/frei geworden, Vereins-Anmeldelink, Sammelrechnung, Hinweis an Zuständige). **Speicherort:** Fotos, Nutzungsordnungen und Uploads der Buchenden unter `data/portal/resources/`.
 
 ## Zahlungen (PayPal, Überweisung, bar)

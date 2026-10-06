@@ -36,6 +36,7 @@
       <dt class="col-sm-4">Anlass</dt><dd class="col-sm-8">{{ b.title }}{% if b.organizer %} ({{ b.organizer }}){% endif %}</dd>
       <dt class="col-sm-4">Gebucht von</dt><dd class="col-sm-8">{{ b.name }} · {{ b.email }}</dd>
       {% if res.location %}<dt class="col-sm-4">Ort</dt><dd class="col-sm-8">{{ res.location }}</dd>{% endif %}
+      {% if onsite %}<dt class="col-sm-4">Ansprechperson vor Ort</dt><dd class="col-sm-8">{{ onsite }}</dd>{% endif %}
     </dl>
     {% if lines %}<table class="table table-sm small mt-3 mb-0"><tbody>{% for l in lines %}<tr><td>{{ l.label }}</td><td class="text-end text-nowrap">{{ money(l.cents) }}</td></tr>{% endfor %}</tbody>
       <tfoot><tr class="fw-semibold"><td>Summe</td><td class="text-end text-nowrap">{{ money(b.total_cents) }}</td></tr></tfoot></table>{% endif %}

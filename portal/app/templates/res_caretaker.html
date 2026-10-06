@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Übergaben – {{ ct.display_name }}{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width: 46rem">
+  <p class="small text-secondary mb-1"><i class="fa-solid fa-user-gear me-1"></i>Persönlicher Zugang · bitte nicht weitergeben</p>
+  <h1 class="h3">Übergaben und Abnahmen</h1>
+  <p class="text-secondary">{{ ct.display_name }} · {{ ct.resources | map(attribute='name') | join(', ') or 'keine Ressource zugeordnet' }}</p>
+  {% for b in rows %}{% set h = handover(b) %}{% set running = b.starts_at <= now < b.ends_at %}
+  <a class="card mb-2 text-decoration-none text-body res-ct-item{{ ' border-primary' if running }}" href="/r/hausmeister/{{ token }}/{{ b.id }}">
+    <div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
+      <div class="flex-grow-1">
+        <div class="fw-semibold">{{ when(b) }}{% if running %} <span class="badge text-bg-primary">läuft</span>{% endif %}</div>
+        <div class="small">{{ b.resource.name }} · {{ b.name }}{% if b.phone %} · {{ b.phone }}{% endif %}</div>
+        <div class="small text-secondary">{{ b.title or '–' }}{% if b.persons %} · {{ b.persons }} Personen{% endif %}</div>
+      </div>
+      <div class="d-flex gap-1 small">
+        <span class="badge {{ 'text-bg-success' if h.get('out') else 'text-bg-light border' }}"><i class="fa-solid {{ 'fa-check' if h.get('out') else 'fa-key' }} me-1"></i>Übergabe</span>
+        <span class="badge {{ 'text-bg-success' if h.get('back') else ('text-bg-warning' if b.ends_at <= now else 'text-bg-light border') }}"><i class="fa-solid {{ 'fa-check' if h.get('back') else 'fa-rotate-left' }} me-1"></i>Abnahme</span>
+      </div>
+    </div></a>
+  {% else %}<div class="alert alert-light border">Keine anstehenden Termine in den nächsten 60 Tagen.</div>{% endfor %}
+  <p class="small text-secondary mt-3">Angezeigt werden bestätigte Buchungen der nächsten 60 Tage und beendete, deren Abnahme noch fehlt.</p>
+</div>
+{% endblock %}
