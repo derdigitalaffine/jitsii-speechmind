@@ -3,15 +3,17 @@
 import json
 import re
 import secrets
+from time import monotonic
 
 import httpx
 from fastapi import Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from . import maps as mp
-from .db import MapLayer, User, UserMap, get_settings, set_setting
+from .db import MapLayer, SessionLocal, User, UserMap, get_settings, set_setting
 from .main import (
     app, check_csrf, enabled_modules, flash, get_db, rate_limit, redirect, render, require,
     session_user,
@@ -108,46 +110,72 @@ def map_shared_embed(request: Request, token: str, db: Session = Depends(get_db)
 
 # --- Proxy -------------------------------------------------------------------------------
 
-def _proxy(request: Request, db: Session, spec: dict, scope: str, action: str, query: dict, cache_hours: int,
-           guard: bool):
+async def _proxy(request: Request, spec: dict, scope: str, action: str, query: dict, cache_hours: int, guard: bool):
+    """Holt eine Kachel/Antwort beim Anbieter (oder aus dem Zwischenspeicher). Wichtig: hier keine
+    Datenbankverbindung und keinen Arbeitsplatz des Servers halten, während der Kartendienst rechnet – sonst
+    blockieren langsame Dienste beim Herauszoomen das ganze Portal (siehe maps.queued_fetch)."""
     rate_limit(request, "map-proxy", limit=4000, window=300)
     url = mp.upstream_url(spec, action, query)
     if url is None:
         raise HTTPException(400, "Ungültige Kartenanfrage.")
+    if action == "wfs" and mp.bbox_span(query.get("bbox", "")) > mp.MAX_WFS_SPAN:
+        # Weit herausgezoomt: keine Objekte laden (sonst riesige Antworten)
+        return JSONResponse({"type": "FeatureCollection", "features": [], "tooLarge": True},
+                            headers={"Cache-Control": "private, max-age=60"})
     key = mp.cache_key(scope, url)
-    hit = mp.cache_get(key, cache_hours) if action in ("tile", "wms", "legend", "geojson") else None
+    cacheable = action in ("tile", "wms", "legend", "geojson")
+    image_wanted = action in ("tile", "wms", "legend")
+    hit = await run_in_threadpool(mp.cache_get, key, cache_hours) if cacheable else None
     if hit:
         body, ctype = hit
     else:
-        try:
-            status, body, ctype = mp.fetch(url, guard=guard)
-        except mp.BlockedAddress as exc:
-            raise HTTPException(403, str(exc)) from exc
-        except httpx.HTTPError:
-            status, body, ctype = 502, b"", ""
-        image_wanted = action in ("tile", "wms", "legend")
+        status, body, ctype = 502, b"", ""
+        if not mp.recently_failed(key):
+            try:
+                status, body, ctype = await mp.queued_fetch(
+                    key, url, guard=guard, timeout=mp.TILE_TIMEOUT if image_wanted else mp.TIMEOUT)
+            except mp.Busy:
+                # Ausgelastet: sofort leer antworten, nicht merken – beim nächsten Verschieben neu versuchen
+                if image_wanted:
+                    return Response(mp.TRANSPARENT_PNG, media_type="image/png", headers={"Cache-Control": "no-store"})
+                raise HTTPException(503, "Der Kartendienst ist gerade ausgelastet.", headers={"Retry-After": "5"}) from None
+            except mp.BlockedAddress as exc:
+                raise HTTPException(403, str(exc)) from exc
+            except httpx.HTTPError:
+                status = 502
+            if status >= 500 or status == 429:
+                mp.mark_failed(key)
         if status >= 400 or (image_wanted and not ctype.startswith("image/")):
             # Kaputte oder fehlende Kachel: unsichtbar statt Fehlerbild; Dienstfehler (XML) nicht weiterreichen
             if image_wanted:
                 return Response(mp.TRANSPARENT_PNG, media_type="image/png", headers={"Cache-Control": "max-age=60"})
             if status >= 400:
                 raise HTTPException(502, "Der Kartendienst antwortet nicht.")
-        if status < 400 and action in ("tile", "wms", "legend", "geojson") and cache_hours > 0:
-            mp.cache_put(key, body, ctype, int(get_settings(db).get("map_cache_mb", "500") or 500))
+        if status < 400 and cacheable and cache_hours > 0:
+            await run_in_threadpool(_store, key, body, ctype)
     if action == "info":
         text = body.decode("utf-8", "replace")[:200_000]
         # Wird im Browser nur in einem abgeschotteten iframe (sandbox) angezeigt
         return JSONResponse({"html": text if "html" in ctype or "<" in text else f"<pre>{text}</pre>"})
     if action in ("wfs", "geojson"):
-        try:
-            data = json.loads(body)
-        except ValueError as exc:
-            raise HTTPException(502, "Der Dienst lieferte kein GeoJSON.") from exc
-        if spec.get("swap_xy"):
-            data = _swap(data)
+        data = await run_in_threadpool(_geojson, body, bool(spec.get("swap_xy")))
+        if data is None:
+            raise HTTPException(502, "Der Dienst lieferte kein GeoJSON.")
         return JSONResponse(data, headers={"Cache-Control": "private, max-age=60"})
     safe_type = ctype if ctype.startswith("image/") and "svg" not in ctype else "application/octet-stream"
     return Response(body, media_type=safe_type, headers={"Cache-Control": f"public, max-age={min(cache_hours, 24) * 3600 or 300}"})
+
+
+def _store(key: str, body: bytes, ctype: str) -> None:
+    mp.cache_put(key, body, ctype, _cache_mb())
+
+
+def _geojson(body: bytes, swap: bool):
+    try:
+        data = json.loads(body)
+    except ValueError:
+        return None
+    return _swap(data) if swap else data
 
 
 def _swap(data):
@@ -163,54 +191,75 @@ def _swap(data):
     return data
 
 
-def _system_layer(db: Session, request: Request, layer_id: int) -> MapLayer:
-    layer = db.get(MapLayer, layer_id)
-    if layer is None or not layer.proxy:
-        raise HTTPException(404)
-    if not layer.enabled or (not layer.public and not layer.in_forms):
-        member = session_user(request, db)
-        # ausgeschaltete Layer nur für Admins (Vorschau), nicht öffentliche nur für Angemeldete
-        if member is None or (not layer.enabled and not member.is_admin):
+_cache_limit = {"mb": 500, "at": 0.0}
+
+
+def _cache_mb() -> int:
+    """Grenze des Zwischenspeichers (Einstellung), kurz gemerkt statt je Kachel aus der Datenbank gelesen."""
+    if monotonic() - _cache_limit["at"] > 60:
+        with SessionLocal() as db:
+            try:
+                _cache_limit["mb"] = int(get_settings(db).get("map_cache_mb", "500") or 500)
+            except ValueError:
+                _cache_limit["mb"] = 500
+        _cache_limit["at"] = monotonic()
+    return _cache_limit["mb"]
+
+
+def _system_layer(request: Request, layer_id: int) -> dict:
+    """Layer prüfen und die für den Abruf nötigen Angaben lesen; die Datenbankverbindung ist danach wieder frei."""
+    with SessionLocal() as db:
+        layer = db.get(MapLayer, layer_id)
+        if layer is None or not layer.proxy:
             raise HTTPException(404)
-    return layer
+        if not layer.enabled or (not layer.public and not layer.in_forms):
+            member = session_user(request, db)
+            # ausgeschaltete Layer nur für Admins (Vorschau), nicht öffentliche nur für Angemeldete
+            if member is None or (not layer.enabled and not member.is_admin):
+                raise HTTPException(404)
+        return {"spec": mp.layer_spec(layer), "scope": f"l{layer.id}", "cache_hours": layer.cache_hours,
+                "min_zoom": layer.min_zoom or 0, "max_zoom": layer.max_zoom or 22, "feature_info": layer.feature_info}
 
 
 @app.get("/map/l/{layer_id:int}/{z:int}/{x:int}/{y:int}")
-def map_tile(request: Request, layer_id: int, z: int, x: int, y: int, db: Session = Depends(get_db)):
-    layer = _system_layer(db, request, layer_id)
+async def map_tile(request: Request, layer_id: int, z: int, x: int, y: int):
+    layer = await run_in_threadpool(_system_layer, request, layer_id)
     if not (0 <= z <= 24 and 0 <= x < (1 << z) and 0 <= y < (1 << z)):
         raise HTTPException(400)
-    return _proxy(request, db, mp.layer_spec(layer), f"l{layer.id}", "tile", {"z": z, "x": x, "y": y},
-                  layer.cache_hours, guard=False)
+    if z < layer["min_zoom"] or z > layer["max_zoom"]:
+        # außerhalb der eingestellten Zoomstufen gar nicht erst beim Anbieter fragen
+        return Response(mp.TRANSPARENT_PNG, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
+    return await _proxy(request, layer["spec"], layer["scope"], "tile", {"z": z, "x": x, "y": y},
+                  layer["cache_hours"], guard=False)
 
 
 @app.get("/map/l/{layer_id:int}/{action}")
-def map_service(request: Request, layer_id: int, action: str, bbox: str = "", time: str = "", i: int = 128,
-                j: int = 128, db: Session = Depends(get_db)):
+async def map_service(request: Request, layer_id: int, action: str, bbox: str = "", time: str = "", i: int = 128,
+                j: int = 128):
     if action not in ("wms", "info", "legend", "wfs", "geojson"):
         raise HTTPException(404)
-    layer = _system_layer(db, request, layer_id)
-    if action == "info" and not layer.feature_info:
+    layer = await run_in_threadpool(_system_layer, request, layer_id)
+    if action == "info" and not layer["feature_info"]:
         raise HTTPException(404)
-    return _proxy(request, db, mp.layer_spec(layer), f"l{layer.id}", action,
-                  {"bbox": bbox, "time": time, "i": i, "j": j}, layer.cache_hours, guard=False)
+    return await _proxy(request, layer["spec"], layer["scope"], action,
+                  {"bbox": bbox, "time": time, "i": i, "j": j}, layer["cache_hours"], guard=False)
 
 
 @app.get("/map/c/{token}/{z:int}/{x:int}/{y:int}")
-def map_custom_tile(request: Request, token: str, z: int, x: int, y: int, db: Session = Depends(get_db)):
+async def map_custom_tile(request: Request, token: str, z: int, x: int, y: int):
     defn = mp.unsign(token)
     if defn is None or not (0 <= z <= 24 and 0 <= x < (1 << z) and 0 <= y < (1 << z)):
         raise HTTPException(404)
-    return _proxy(request, db, mp.custom_spec(defn), "c", "tile", {"z": z, "x": x, "y": y}, 24, guard=True)
+    return await _proxy(request, mp.custom_spec(defn), "c", "tile", {"z": z, "x": x, "y": y}, 24, guard=True)
 
 
 @app.get("/map/c/{token}/{action}")
-def map_custom_service(request: Request, token: str, action: str, bbox: str = "", time: str = "", i: int = 128,
-                       j: int = 128, db: Session = Depends(get_db)):
+async def map_custom_service(request: Request, token: str, action: str, bbox: str = "", time: str = "", i: int = 128,
+                       j: int = 128):
     defn = mp.unsign(token)
     if defn is None or action not in ("wms", "info", "legend", "wfs"):
         raise HTTPException(404)
-    return _proxy(request, db, mp.custom_spec(defn), "c", action, {"bbox": bbox, "time": time, "i": i, "j": j},
+    return await _proxy(request, mp.custom_spec(defn), "c", action, {"bbox": bbox, "time": time, "i": i, "j": j},
                   24, guard=True)
 
 

@@ -85,7 +85,7 @@
       bearing: state.bearing || 0, pitch: state.pitch || 0,
       hash: opts.hash || false, attributionControl: { compact: true },
       canvasContextAttributes: { preserveDrawingBuffer: !!opts.exportable },
-      maxZoom: 22, locale: {
+      maxZoom: 22, renderWorldCopies: false, locale: {
         'NavigationControl.ZoomIn': 'Vergrößern', 'NavigationControl.ZoomOut': 'Verkleinern',
         'NavigationControl.ResetBearing': 'Nach Norden ausrichten', 'GeolocateControl.FindMyLocation': 'Meinen Standort zeigen',
         'GeolocateControl.LocationNotAvailable': 'Standort nicht verfügbar', 'FullscreenControl.Enter': 'Vollbild',
@@ -141,9 +141,19 @@
         l._loaded = bbox;
         url = l.data ? abs(l.data) + '?bbox=' + bbox : l.wfsDirect + '&BBOX=' + bbox + ',EPSG:3857';
       }
-      fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+      // Beim Zoomen/Verschieben nur die letzte Anfrage zählt – ältere abbrechen
+      if (l._abort) { l._abort.abort(); }
+      l._abort = window.AbortController ? new AbortController() : null;
+      fetch(url, { credentials: 'same-origin', signal: l._abort ? l._abort.signal : undefined }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
         if (data && map.getSource('src-' + l.id)) { map.getSource('src-' + l.id).setData(data); l._loaded = l._loaded || 'x'; }
-      }).catch(function () { /* Dienst nicht erreichbar */ });
+      }).catch(function () { /* abgebrochen oder Dienst nicht erreichbar */ });
+    }
+    var vectorTimer = null;
+    function loadVectorsSoon() {
+      clearTimeout(vectorTimer);
+      vectorTimer = setTimeout(function () {
+        overlays.forEach(function (l) { if (l.visible && l.kind === 'wfs') { loadVector(l); } });
+      }, 350);
     }
 
     function build() {
@@ -156,7 +166,7 @@
       emit();
     }
     map.on('style.load', build);
-    map.on('moveend', function () { overlays.forEach(function (l) { if (l.visible && l.kind === 'wfs') { loadVector(l); } }); });
+    map.on('moveend', loadVectorsSoon);
 
     function setVis(l, on) {
       layerIds(l).forEach(function (id) { if (map.getLayer(id)) { map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'); } });
