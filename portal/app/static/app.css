@@ -109,6 +109,14 @@ footer.app-footer { border-top: 1px solid var(--bs-border-color); color: var(--b
 .option-row .drag-handle { cursor: grab; }
 .builder-savebar { position: sticky; bottom: 0; z-index: 10; margin: 1.5rem -1rem 0; padding: .75rem 1rem; background: var(--bs-body-bg); border-top: 1px solid var(--bs-border-color); }
 .builder-savebar.dirty #builder-state { color: var(--bs-warning-text-emphasis) !important; font-weight: 600; }
+/* Querverweise und Vorschau */
+a.law-ref { text-decoration: underline dotted; text-underline-offset: .15em; }
+.law-pop { position: absolute; z-index: 1080; max-width: min(32rem, calc(100vw - 2rem)); max-height: 22rem; overflow: auto; padding: .75rem 1rem;
+  background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: var(--bs-border-radius); box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.15);
+  font-size: .9rem; line-height: 1.5; }
+.law-pop .law-pop-head { font-weight: 600; margin-bottom: .35rem; }
+.law-pop p { margin-bottom: .5rem; }
+
 /* Formular ausfüllen */
 .form-fill { max-width: 52rem; margin: 0 auto; }
 .form-fill .question { scroll-margin-top: 6rem; }
@@ -263,12 +271,3 @@ a.dash-num:hover > span { text-decoration: underline; }
 .res-ev.res-closure { background-color: var(--bs-secondary) !important; border-color: var(--bs-secondary) !important; }
 .res-photo { aspect-ratio: 4 / 3; object-fit: cover; width: 100%; border-radius: var(--bs-border-radius); }
 .res-thumb { aspect-ratio: 16 / 9; object-fit: cover; width: 100%; }
-
-/* Querverweise und Vorschau */
-a.law-ref { text-decoration: underline dotted; text-underline-offset: .15em; }
-.law-pop { position: absolute; z-index: 1080; max-width: min(32rem, calc(100vw - 2rem)); max-height: 22rem; overflow: auto; padding: .75rem 1rem;
-  background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: var(--bs-border-radius); box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.15);
-  font-size: .9rem; line-height: 1.5; }
-.law-pop .law-pop-head { font-weight: 600; margin-bottom: .35rem; }
-.law-pop p { margin-bottom: .5rem; }
-
