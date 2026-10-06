@@ -491,8 +491,13 @@ def _fill_page(request: Request, form: Form, *, preview: bool = False, action: s
         from .routes_maps import map_bundle   # Grundkarten für GPS-Fragen (Kartenlayer „für Formulare“)
         with SessionLocal() as db:
             geo_bundle = map_bundle(db, request, None, purpose="forms")
+    legal = []
+    if form.kind == "application" and "laws" in enabled_modules():
+        from . import laws
+        with SessionLocal() as db:
+            legal = laws.form_refs(db, form)
     response = render(request, "form_fill.html", None, form=form, pages=page_list, preview=preview, action=action,
-                      review=form.review and len(fm.questions(items)) >= 3,
+                      review=form.review and len(fm.questions(items)) >= 3, legal=legal,
                       invite=invite, values=values or {}, errors=errors or {}, page_index=page_index,
                       types=fm.TYPES, other=fm.OTHER, geo_bundle=geo_bundle)
     response.status_code = status

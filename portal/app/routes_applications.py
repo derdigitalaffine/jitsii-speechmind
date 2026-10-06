@@ -1,5 +1,6 @@
 """Online-Anträge: Einstellungen je Antrag, Antragseingang, Vorgang, Statusseite und öffentlicher Antragskatalog."""
 
+import json
 import re
 from datetime import datetime, timezone
 
@@ -46,7 +47,20 @@ def form_application(request: Request, form_id: int, user: User = Depends(curren
                   has_email=any(q["type"] == "short" and q.get("subtype") == "email" for q in fm.questions(items)),
                   catalog_url=f"{request.base_url}antraege", mail_ready=apps.mail_ready(db),
                   processes=workflow.processes_for_select(db), can_processes=user.can("processes"),
-                  dms_areas=_dms_areas(db) if "dms" in enabled_modules() else [])
+                  dms_areas=_dms_areas(db) if "dms" in enabled_modules() else [], **_legal_ctx(db, form))
+
+
+def _legal_ctx(db, form) -> dict:
+    """Auswahl der Rechtsgrundlagen (nur mit eingeschaltetem Modul Rechtstexte)."""
+    if "laws" not in enabled_modules():
+        return {"laws": [], "legal": []}
+    import json as _json
+    from .db import LawText
+    try:
+        legal = _json.loads(form.legal_json or "[]")
+    except ValueError:
+        legal = []
+    return {"laws": db.scalars(select(LawText).order_by(LawText.title)).all(), "legal": legal if isinstance(legal, list) else []}
 
 
 def _dms_areas(db) -> list:
@@ -88,12 +102,16 @@ async def form_application_save(request: Request, form_id: int, user: User = Dep
     if "process_id" in data:
         pid = str(data.get("process_id", ""))
         form.process_id = int(pid) if pid.isdigit() and db.get(Process, int(pid)) else None
+    if "legal_law" in data:
+        from . import laws
+        form.legal_json = json.dumps(laws.clean_form_refs(db, data.getlist("legal_law"), data.getlist("legal_para")),
+                                     ensure_ascii=False)
+        laws.invalidate_refs()
     form.app_catalog = data.get("app_catalog") == "1"
     form.app_pdf = data.get("app_pdf") == "1"
     rules = [{"question": q, "value": v, "user_id": u, "group_id": g, "email": e} for q, v, u, g, e in zip(
         data.getlist("rule_question"), data.getlist("rule_value"), data.getlist("rule_user"),
         data.getlist("rule_group"), data.getlist("rule_email"))]
-    import json
     form.app_routing_json = json.dumps(apps.clean_rules(rules, fm.schema(form)), ensure_ascii=False)
     if mailbox and not form.app_mailbox:
         flash(request, "Die Adresse des Funktionspostfachs ist ungültig und wurde nicht übernommen.", "error")
@@ -332,7 +350,11 @@ def _catalog(request: Request, db: Session, embed: bool):
     for f in forms:
         cats.setdefault(f.app_category or "Allgemein", []).append(f)
     user = None if embed else session_user(request, db)
-    response = render(request, "antraege.html", user, cats=cats, total=len(forms), embed=embed,
+    legal = {}
+    if "laws" in enabled_modules():
+        from . import laws
+        legal = {f.id: laws.form_refs(db, f) for f in forms}
+    response = render(request, "antraege.html", user, cats=cats, total=len(forms), embed=embed, legal=legal,
                       layout="base_embed.html" if embed else "base.html", R="/antraege-embed" if embed else "/antraege",
                       embed_label="Online-Anträge", embed_icon="fa-file-signature",
                       embed_public_path="/antraege", public_link=fm.public_link)

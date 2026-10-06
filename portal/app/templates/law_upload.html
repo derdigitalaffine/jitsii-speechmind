@@ -2,14 +2,14 @@
 {% import "_macros.html" as m with context %}
 {% block title %}Rechtstexte hochladen{% endblock %}
 {% block content %}
-{% call m.page_head('Rechtstexte hochladen', 'Mehrere Markdown- oder Textdateien auf einmal übernehmen – z. B. das gesamte Ortsrecht einer Gemeinde. Der Titel kommt aus der ersten Überschrift „# …“ oder aus dem Dateinamen.') %}
+{% call m.page_head('Rechtstexte hochladen', 'Mehrere Dateien (Word, PDF, Markdown, Text) auf einmal übernehmen – z. B. das gesamte Ortsrecht einer Gemeinde. Der Titel kommt aus der ersten Überschrift „# …“ oder aus dem Dateinamen.') %}
 <a class="btn btn-outline-secondary" href="/laws"><i class="fa-solid fa-arrow-left me-1"></i>Zur Liste</a>
 {% endcall %}
 <form method="post" enctype="multipart/form-data" class="card" style="max-width: 46rem">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <div class="card-body">
-    <div class="mb-3"><label class="form-label" for="files">Dateien (.md, .txt, je höchstens 2 MB, bis zu 50)</label>
-      <input class="form-control" type="file" id="files" name="files" multiple required accept=".md,.markdown,.txt,text/markdown,text/plain"></div>
+    <div class="mb-3"><label class="form-label" for="files">Dateien (.docx, .pdf, .md, .txt, je höchstens 25 MB, bis zu 50)</label>
+      <input class="form-control" type="file" id="files" name="files" multiple required accept=".md,.markdown,.txt,.docx,.pdf,text/markdown,text/plain,application/pdf"></div>
     <div class="row g-3">
       <div class="col-md-7"><label class="form-label" for="level_id">Ebene</label>
         <select class="form-select" id="level_id" name="level_id"><option value="">– ohne Zuordnung –</option>

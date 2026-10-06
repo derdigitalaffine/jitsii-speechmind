@@ -432,6 +432,8 @@ async def run_forever() -> None:
                 if await asyncio.to_thread(krank.send_proof_reminders):
                     await asyncio.to_thread(notify.process_queue)
                 await asyncio.to_thread(krank.purge_expired)
+                from . import laws
+                await asyncio.to_thread(laws.apply_planned)   # vorbereitete Fassungen zum Inkrafttreten
             if time.monotonic() - _last_chat_prune[0] >= 3600:
                 _last_chat_prune[0] = time.monotonic()
                 await asyncio.to_thread(chat.prune)

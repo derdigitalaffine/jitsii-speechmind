@@ -6,6 +6,10 @@
 <a class="btn btn-outline-secondary" href="/recht" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Öffentliche Ansicht</a>
 <a class="btn btn-outline-secondary" href="/laws/embed"><i class="fa-solid fa-code me-1"></i>Link &amp; Einbinden</a>
 <a class="btn btn-outline-secondary" href="/laws/levels"><i class="fa-solid fa-sitemap me-1"></i>Ebenen</a>
+<div class="dropdown"><button class="btn btn-outline-secondary" data-bs-toggle="dropdown" type="button"><i class="fa-solid fa-right-left me-1"></i>Ex-/Import</button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><a class="dropdown-item" href="/laws/export{{ ('?level=' ~ selected.id) if selected }}"><i class="fa-solid fa-file-export fa-fw me-2"></i>{{ ('„' ~ selected.name ~ '“') if selected else 'Alle Texte' }} exportieren</a></li>
+    <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#law-import"><i class="fa-solid fa-file-import fa-fw me-2"></i>Importieren …</button></li></ul></div>
 <a class="btn btn-outline-primary" href="/laws/upload{{ ('?level=' ~ selected.id) if selected }}"><i class="fa-solid fa-file-arrow-up me-1"></i>Dateien hochladen</a>
 <a class="btn btn-primary" href="/laws/new{{ ('?level=' ~ selected.id) if selected }}"><i class="fa-solid fa-plus me-1"></i>Neuer Rechtstext</a>
 {% endcall %}
@@ -55,4 +59,12 @@
     </table>
   </div>
 </div>
+<div class="modal fade" id="law-import" tabindex="-1" aria-labelledby="li-title" aria-hidden="true"><div class="modal-dialog"><form class="modal-content" method="post" action="/laws/import" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="modal-header"><h2 class="modal-title h5" id="li-title">Rechtstexte importieren</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+  <div class="modal-body"><input class="form-control mb-2" type="file" name="file" accept=".json,application/json" required aria-label="Exportdatei">
+    <div class="form-check"><input class="form-check-input" type="checkbox" name="update" value="1" id="li-upd" checked><label class="form-check-label" for="li-upd">Vorhandene Texte (gleiche Adresse) als neue Fassung aktualisieren</label></div>
+    <div class="form-text">Ohne Haken werden alle Texte neu angelegt. Ebenen werden über ihren Namen zugeordnet und bei Bedarf angelegt; Anlagen und frühere Fassungen kommen mit.</div></div>
+  <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button><button class="btn btn-primary" type="submit">Importieren</button></div>
+</form></div></div>
 {% endblock %}

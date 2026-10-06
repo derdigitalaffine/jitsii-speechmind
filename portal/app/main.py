@@ -135,6 +135,9 @@ def _richtext(text: str | None) -> Markup:
     escaped = str(escape(text or ""))
     escaped = _LINK_RE.sub(lambda m: f'<a href="{m.group(1)}" target="_blank" rel="noopener">{m.group(1)}</a>', escaped)
     escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+    if "[[" in escaped and "laws" in enabled_modules():   # [[HStS § 4]] → Link mit Vorschau auf den Rechtstext
+        from . import laws
+        escaped = laws.shortcodes(escaped)
     return Markup(escaped.replace("\n", "<br>"))
 
 

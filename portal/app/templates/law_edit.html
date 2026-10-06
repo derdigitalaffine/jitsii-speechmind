@@ -2,9 +2,10 @@
 {% import "_macros.html" as m with context %}
 {% block title %}{{ law.title if law else 'Neuer Rechtstext' }}{% endblock %}
 {% block content %}
-{% call m.page_head(law.title if law else 'Neuer Rechtstext', 'Text als Markdown einfügen oder als Datei (.md, .txt) hochladen. Die Gliederung (Teile, Abschnitte, §§, Artikel) wird beim Speichern automatisch erkannt.') %}
+{% call m.page_head(law.title if law else 'Neuer Rechtstext', 'Text einfügen oder als Datei laden (Word, PDF, Markdown, Text). Die Gliederung (Teile, Abschnitte, §§, Artikel) wird automatisch erkannt – die Vorschau zeigt sie sofort.') %}
 <a class="btn btn-outline-secondary" href="/laws"><i class="fa-solid fa-arrow-left me-1"></i>Zur Liste</a>
-{% if law %}<a class="btn btn-outline-secondary" href="/recht/{{ law.slug }}" target="_blank"><i class="fa-regular fa-eye me-1"></i>Ansehen</a>{% endif %}
+{% if law %}<a class="btn btn-outline-secondary" href="/recht/{{ law.slug }}" target="_blank"><i class="fa-regular fa-eye me-1"></i>Ansehen</a>
+<a class="btn btn-outline-secondary" href="/laws/{{ law.id }}/plan"><i class="fa-regular fa-calendar-plus me-1"></i>{{ 'Vorbereitete Fassung' if law.planned_valid_from else 'Neue Fassung vorbereiten' }}</a>{% endif %}
 {% endcall %}
 
 <form method="post" enctype="multipart/form-data" id="law-form" action="{{ '/laws/' ~ law.id ~ '/edit' if law else '/laws/new' }}">
@@ -29,24 +30,41 @@
           <div class="col-4"><label class="form-label" for="issued_on">Ausgefertigt am</label><input class="form-control" type="date" id="issued_on" name="issued_on" value="{{ v.issued_on or '' }}"></div>
           <div class="col-4"><label class="form-label" for="valid_from">In Kraft seit</label><input class="form-control" type="date" id="valid_from" name="valid_from" value="{{ v.valid_from or '' }}"></div>
           <div class="col-4"><label class="form-label" for="valid_until">Außer Kraft ab</label><input class="form-control" type="date" id="valid_until" name="valid_until" value="{{ v.valid_until or '' }}"></div>
-          <div class="col-12"><div class="form-check form-switch">
+          <div class="col-12 d-flex flex-wrap gap-4"><div class="form-check form-switch">
             <input class="form-check-input" type="checkbox" role="switch" id="published" name="published" value="1" {% if v.published == '1' %}checked{% endif %}>
-            <label class="form-check-label" for="published">Öffentlich sichtbar unter /recht</label></div></div>
+            <label class="form-check-label" for="published">Öffentlich sichtbar unter /recht</label></div>
+            {% if law %}<div class="form-check"><input class="form-check-input" type="checkbox" id="new_version" name="new_version" value="1" {% if v.new_version == '1' %}checked{% endif %}>
+              <label class="form-check-label" for="new_version">Als <strong>neue Fassung</strong> speichern <span class="small text-secondary">– die bisherige bleibt öffentlich abrufbar (gültig bis „In Kraft seit“ der neuen); ohne Haken: Korrektur</span></label></div>{% endif %}</div>
         </div>
       </div></div>
 
-      <div class="card"><div class="card-header d-flex flex-wrap align-items-center gap-2"><i class="fa-brands fa-markdown"></i><strong>Text (Markdown)</strong>
-        <label class="btn btn-sm btn-outline-secondary ms-auto mb-0"><i class="fa-solid fa-file-arrow-up me-1"></i>Datei laden …<input type="file" name="file" id="law-file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden></label>
-        <button class="btn btn-sm btn-outline-primary" type="button" id="law-check"><i class="fa-solid fa-sitemap me-1"></i>Gliederung prüfen</button>
+      <div class="card"><div class="card-header d-flex flex-wrap align-items-center gap-2"><i class="fa-brands fa-markdown"></i><strong>Text</strong>
+        <div class="btn-group btn-group-sm ms-2" role="group" aria-label="Ansicht">
+          <input type="radio" class="btn-check" name="law-view" id="lv-edit" value="edit" autocomplete="off"><label class="btn btn-outline-secondary" for="lv-edit">Text</label>
+          <input type="radio" class="btn-check" name="law-view" id="lv-split" value="split" autocomplete="off" checked><label class="btn btn-outline-secondary" for="lv-split">Geteilt</label>
+          <input type="radio" class="btn-check" name="law-view" id="lv-prev" value="preview" autocomplete="off"><label class="btn btn-outline-secondary" for="lv-prev">Vorschau</label></div>
+        <label class="btn btn-sm btn-outline-secondary ms-auto mb-0"><i class="fa-solid fa-file-arrow-up me-1"></i>Datei laden (Word, PDF, Text) …<input type="file" name="file" id="law-file" accept=".docx,.pdf,.md,.markdown,.txt,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden></label>
       </div>
-        <textarea class="form-control border-0 rounded-0 font-monospace" name="body_md" id="body_md" rows="26" spellcheck="true" style="font-size: .88rem" placeholder="# Hauptsatzung der Ortsgemeinde …
+        <div class="law-toolbar border-bottom px-2 py-1 d-flex flex-wrap gap-1" role="toolbar" aria-label="Gliederung einfügen">
+          <button class="btn btn-sm btn-light" type="button" data-insert="\n## Abschnitt\n" title="Gliederungsebene (Teil, Kapitel, Abschnitt)"><i class="fa-regular fa-folder-open me-1"></i>Abschnitt</button>
+          <button class="btn btn-sm btn-light" type="button" data-insert="\n### § {n} Überschrift\n" title="Paragraf mit fortlaufender Nummer"><i class="fa-solid fa-section me-1"></i>Paragraf</button>
+          <button class="btn btn-sm btn-light" type="button" data-insert="\n({a}) " title="Absatz mit fortlaufender Nummer">(1) Absatz</button>
+          <button class="btn btn-sm btn-light" type="button" data-wrap="**" title="fett"><i class="fa-solid fa-bold"></i></button>
+          <button class="btn btn-sm btn-light" type="button" data-insert="\n1. \n2. \n" title="nummerierte Liste"><i class="fa-solid fa-list-ol"></i></button>
+          <button class="btn btn-sm btn-light" type="button" data-insert="\n| Spalte | Spalte |\n| --- | --- |\n|  |  |\n" title="Tabelle"><i class="fa-solid fa-table"></i></button>
+          <span class="small text-secondary align-self-center ms-auto" id="law-status"></span>
+        </div>
+        <div class="row g-0 law-split">
+          <div class="col law-src"><textarea class="form-control border-0 rounded-0 font-monospace h-100" name="body_md" id="body_md" rows="28" spellcheck="true" style="font-size: .88rem" placeholder="# Hauptsatzung der Ortsgemeinde …
 
 ## Erster Abschnitt – Allgemeines
 
 ### § 1 Name
 
-(1) …">{{ v.body_md or '' }}</textarea>
-        <div class="card-footer small text-secondary" id="law-file-note">Datei-Inhalt ersetzt beim Speichern das Textfeld. Kodierung UTF-8 oder Windows (ANSI), höchstens 2 MB.</div>
+(1) …">{{ v.body_md or '' }}</textarea></div>
+          <div class="col law-prev border-start"><div class="lex p-3 small" id="law-preview" aria-live="polite"><p class="text-secondary">Die Vorschau erscheint beim Tippen.</p></div></div>
+        </div>
+        <div class="card-footer small text-secondary" id="law-file-note">Word (.docx): Überschriften-Formatvorlagen werden zu Gliederungsebenen. PDF: nur mit Textebene (nicht eingescannt). Höchstens 25 MB, Text bis 2 MB.</div>
       </div>
       <div class="mt-3 d-flex gap-2">
         <button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
@@ -56,7 +74,14 @@
 
     <div class="col-12 col-xxl-4">
       <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-sitemap me-2"></i>Erkannte Gliederung</div>
-        <div class="card-body small" id="law-toc"><p class="text-secondary mb-0">„Gliederung prüfen“ zeigt, wie der Text in Abschnitte und Paragrafen zerlegt wird – noch bevor Sie speichern.</p></div></div>
+        <div class="card-body small" id="law-toc"><p class="text-secondary mb-0">Erscheint beim Tippen: so wird der Text in Abschnitte und Paragrafen zerlegt – mit Hinweisen auf Lücken in der Zählung oder leere Paragrafen.</p></div></div>
+      {% if law %}
+      <div class="card mb-4" id="anlagen"><div class="card-header"><i class="fa-solid fa-paperclip me-2"></i>Anlagen (PDF)</div>
+        <ul class="list-group list-group-flush small">{% for a in law.attachments %}<li class="list-group-item d-flex gap-2 align-items-center"><a class="flex-grow-1" href="/recht/{{ law.slug }}/anlage/{{ a.id }}" target="_blank"><i class="fa-regular fa-file-pdf me-1"></i>{{ a.name }}</a>
+          <button class="btn btn-sm btn-link text-danger p-0" type="submit" form="att-del-{{ a.id }}" aria-label="Anlage entfernen" data-confirm="Anlage „{{ a.name }}“ entfernen?"><i class="fa-solid fa-xmark"></i></button></li>{% else %}<li class="list-group-item text-secondary">Keine Anlagen.</li>{% endfor %}</ul>
+        <div class="card-body"><div class="input-group input-group-sm"><input class="form-control" type="file" name="files" form="att-add" accept="application/pdf" multiple aria-label="PDF-Anlagen"><button class="btn btn-outline-primary" type="submit" form="att-add">Hochladen</button></div>
+          <div class="form-text">z. B. Lageplan, Gebührentabelle – erscheinen unter dem Text.</div></div></div>
+      {% endif %}
       <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-circle-question me-2"></i>So wird gegliedert</div>
         <div class="card-body small">
           <pre class="bg-body-tertiary p-2 rounded mb-2" style="white-space: pre-wrap"># Titel der Satzung
@@ -81,7 +106,10 @@ Präambel / Eingangsformel …
         <div class="list-group list-group-flush small">
           {% for ver in law.versions %}
           <div class="list-group-item d-flex align-items-center gap-2">
-            <div class="flex-grow-1">{{ ver.saved_at | local }}{% if ver.saved_by %} · {{ ver.saved_by }}{% endif %}{% if ver.version_note %}<div class="text-secondary">{{ ver.version_note }}</div>{% endif %}</div>
+            <div class="flex-grow-1">{{ ver.saved_at | local }}{% if ver.saved_by %} · {{ ver.saved_by }}{% endif %}
+              {% if ver.public %}<span class="badge text-bg-info">öffentliche Fassung{% if ver.valid_until %} bis {{ fmt_date(ver.valid_until) }}{% endif %}</span>{% else %}<span class="badge text-bg-light border">Sicherung</span>{% endif %}
+              {% if ver.version_note %}<div class="text-secondary">{{ ver.version_note }}</div>{% endif %}</div>
+            {% if ver.public %}<a class="btn btn-sm btn-outline-secondary" href="/recht/{{ law.slug }}/vergleich?a={{ ver.id }}" target="_blank" title="Mit aktueller vergleichen"><i class="fa-solid fa-code-compare"></i></a>{% endif %}
             <a class="btn btn-sm btn-outline-secondary" href="/laws/{{ law.id }}/versions/{{ ver.id }}" target="_blank" title="Text ansehen"><i class="fa-regular fa-file-lines"></i></a>
             <button class="btn btn-sm btn-outline-primary" type="submit" form="restore-{{ ver.id }}" title="Wiederherstellen" data-confirm="Diese Fassung wiederherstellen? Der aktuelle Stand wird vorher gesichert." data-confirm-button="Wiederherstellen"><i class="fa-solid fa-rotate-left"></i></button>
           </div>
@@ -93,44 +121,12 @@ Präambel / Eingangsformel …
 </form>
 {% if law %}{% for ver in law.versions %}
 <form method="post" action="/laws/{{ law.id }}/versions/{{ ver.id }}/restore" id="restore-{{ ver.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"></form>
-{% endfor %}{% endif %}
+{% endfor %}
+<form method="post" action="/laws/{{ law.id }}/attachments" enctype="multipart/form-data" id="att-add"><input type="hidden" name="csrf" value="{{ csrf }}"></form>
+{% for a in law.attachments %}<form method="post" action="/laws/{{ law.id }}/attachments/{{ a.id }}/delete" id="att-del-{{ a.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"></form>{% endfor %}
+{% endif %}
 {% endblock %}
 {% block scripts %}
-<script>
-(function () {
-  var form = document.getElementById('law-form');
-  var box = document.getElementById('law-toc');
-  var file = document.getElementById('law-file');
-  var text = document.getElementById('body_md');
-  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-  function check(withFile) {
-    var body = new FormData();
-    body.append('csrf', form.querySelector('[name=csrf]').value);
-    body.append('body_md', text.value);
-    if (withFile && file.files.length) { body.append('file', file.files[0]); }
-    box.innerHTML = '<span class="text-secondary"><i class="fa-solid fa-spinner fa-spin me-1"></i>Prüfe …</span>';
-    fetch('/laws/preview', { method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (!d.ok) { box.innerHTML = '<div class="text-danger">' + esc(d.error) + '</div>'; return; }
-        if (d.body_md !== null && d.body_md !== undefined) { text.value = d.body_md; file.value = ''; document.getElementById('law-file-note').textContent = 'Datei ins Textfeld übernommen – bitte prüfen und speichern.'; }
-        var title = document.getElementById('title');
-        if (d.title && !title.value) { title.placeholder = d.title; }
-        var html = '<div class="mb-2">' + (d.title ? 'Titel: <strong>' + esc(d.title) + '</strong><br>' : '') +
-          '<span class="badge text-bg-primary">' + d.norms + ' §§ / Artikel</span> <span class="badge text-bg-secondary">' + d.groups + ' Gliederungseinheiten</span></div>';
-        if (!d.toc.length) { html += '<div class="text-warning">Keine Gliederung erkannt – der Text wird als ein Block angezeigt.</div>'; }
-        html += '<ul class="list-unstyled mb-0" style="max-height: 28rem; overflow:auto">';
-        d.toc.forEach(function (n) {
-          var icon = n.kind === 'norm' ? 'fa-section' : (n.kind === 'intro' ? 'fa-feather-pointed' : 'fa-folder-open');
-          html += '<li style="padding-left:' + (n.depth * 1.1) + 'rem"' + (n.kind === 'group' ? ' class="fw-semibold mt-1"' : '') + '><i class="fa-solid ' + icon + ' fa-fw text-secondary me-1"></i>' + esc(n.label) +
-            (n.kind !== 'group' && !n.chars ? ' <span class="badge text-bg-warning">leer</span>' : '') + '</li>';
-        });
-        box.innerHTML = html + '</ul>';
-      })
-      .catch(function () { box.innerHTML = '<div class="text-danger">Prüfung fehlgeschlagen.</div>'; });
-  }
-  document.getElementById('law-check').addEventListener('click', function () { check(false); });
-  file.addEventListener('change', function () { if (file.files.length) { check(true); } });
-})();
-</script>
+<link rel="stylesheet" href="/static/laws.css">
+<script src="/static/law-edit.js"></script>
 {% endblock %}
