@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Warteliste {{ res.name }}{% endblock %}
+{% block content %}
+{% set st = statuses[w.status] %}
+<div class="form-fill" style="max-width: 44rem">
+  {% if fresh and w.status == 'unconfirmed' %}
+  <div class="card mb-3 border-primary border-2"><div class="card-body d-flex gap-3">
+    <span class="text-primary fs-2"><i class="fa-solid fa-envelope-circle-check"></i></span>
+    <div><h2 class="h5 mb-1">Bitte bestätigen Sie Ihre E-Mail-Adresse.</h2>
+      <p class="mb-0">Wir haben Ihnen an <strong>{{ w.email }}</strong> einen Link geschickt. Erst danach stehen Sie auf der Warteliste.</p></div>
+  </div></div>
+  {% endif %}
+  <div class="card mb-3 border-top border-warning border-4"><div class="card-body">
+    <div class="small text-secondary mb-1"><i class="fa-solid fa-list-ol me-1"></i>Warteliste</div>
+    <h1 class="h3 mb-2">{{ res.name }}</h1>
+    <div class="d-flex flex-wrap gap-4 align-items-center">
+      <div><div class="small text-secondary">Gewünschter Zeitraum</div><div class="fw-semibold">{{ when }}</div></div>
+      <div><div class="small text-secondary">Stand</div><span class="badge fs-6 text-bg-{{ st[1] }}">{{ st[0] }}</span></div>
+      {% if position %}<div><div class="small text-secondary">Platz</div><div class="fw-semibold">{{ position }}</div></div>{% endif %}
+    </div>
+  </div></div>
+  {% if w.status == 'waiting' %}<div class="alert alert-info"><i class="fa-solid fa-bell me-1"></i>Wird der Zeitraum frei, bekommen Sie der Reihe nach eine E-Mail und können ihn 24 Stunden lang exklusiv buchen.</div>{% endif %}
+  {% if w.status == 'booked' %}<div class="alert alert-success">Sie haben den Zeitraum gebucht.</div>{% endif %}
+  {% if w.status == 'expired' %}<div class="alert alert-secondary">Dieser Eintrag ist abgelaufen.</div>{% endif %}
+  {% if w.status in ('unconfirmed', 'waiting', 'offered') %}
+  <form method="post" action="/r/w/{{ w.token }}/cancel"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="btn btn-outline-danger btn-sm" type="submit" data-confirm-title="Von der Warteliste nehmen?" data-confirm="Sie werden nicht mehr benachrichtigt." data-confirm-button="Zurückziehen"><i class="fa-solid fa-xmark me-1"></i>Von der Warteliste nehmen</button></form>
+  {% endif %}
+  <p class="mt-3"><a href="/r/{{ res.slug }}">Zur Seite von {{ res.name }}</a> · <a href="/r">Alle Räume & Plätze</a></p>
+</div>
+{% endblock %}

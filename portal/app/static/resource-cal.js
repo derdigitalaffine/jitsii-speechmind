@@ -19,5 +19,10 @@
       } : null
     });
     cal.render();
+    el._cal = cal;
+  });
+  // Kalender in zugeklappten Bereichen erst beim Aufklappen richtig messen
+  document.addEventListener('shown.bs.collapse', function (e) {
+    e.target.querySelectorAll('.js-res-cal').forEach(function (el) { if (el._cal) el._cal.updateSize(); });
   });
 })();

@@ -36,7 +36,7 @@ STATUSES = {
 }
 METHODS = {"paypal": ("PayPal", "fa-brands fa-paypal"), "transfer": ("Überweisung", "fa-solid fa-building-columns"),
            "cash": ("bar", "fa-solid fa-coins"), "free": ("kostenlos", "fa-solid fa-gift")}
-KINDS = {"resource": "Ressourcenbuchung", "application": "Antrag", "form": "Formular", "step": "Prozessschritt",
+KINDS = {"resource": "Ressourcenbuchung", "resource_club": "Sammelrechnung (Ressourcen)", "application": "Antrag", "form": "Formular", "step": "Prozessschritt",
          "other": "Sonstiges"}
 API = {"sandbox": "https://api-m.sandbox.paypal.com", "live": "https://api-m.paypal.com"}
 MAX_CENTS = 10_000_000   # 100.000 € je Zahlung

@@ -1,0 +1,9 @@
+{# Navigation der Ressourcenverwaltung. Erwartet: res_tab #}
+<ul class="nav nav-pills flex-nowrap overflow-auto mb-3 small res-nav">
+  {% for key, href, icon, label, need in (('home', '/resources', 'fa-building', 'Übersicht', ''), ('planner', '/resources/planner', 'fa-table-cells', 'Planer', ''),
+     ('bookings', '/resources/bookings', 'fa-list', 'Buchungen', ''), ('stats', '/resources/stats', 'fa-chart-column', 'Auswertung', ''),
+     ('clubs', '/resources/clubs', 'fa-people-group', 'Vereine', 'resources'), ('calendars', '/resources/calendars', 'fa-calendar-week', 'Kalender-Links', ''),
+     ('holidays', '/resources/holidays', 'fa-umbrella-beach', 'Feiertage', 'resources')) if not need or user.can(need) %}
+  <li class="nav-item"><a class="nav-link text-nowrap {{ 'active' if res_tab == key }}" href="{{ href }}"><i class="fa-solid {{ icon }} me-1"></i>{{ label }}</a></li>
+  {% endfor %}
+</ul>

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Auswertung Ressourcen{% endblock %}
+{% block content %}
+{% call m.page_head('Auswertung ' ~ year, 'Bestätigte Buchungen je Ressource und Monat: Anzahl, Belegungstage, Auslastung und Einnahmen (ohne Kaution).') %}
+  <div class="btn-group"><a class="btn btn-outline-secondary" href="?year={{ year - 1 }}" aria-label="Vorjahr"><i class="fa-solid fa-chevron-left"></i></a><span class="btn btn-outline-secondary disabled">{{ year }}</span><a class="btn btn-outline-secondary" href="?year={{ year + 1 }}" aria-label="Folgejahr"><i class="fa-solid fa-chevron-right"></i></a></div>
+  <a class="btn btn-outline-secondary" href="?year={{ year }}&format=csv"><i class="fa-solid fa-file-csv me-1"></i>CSV (Excel)</a>
+{% endcall %}
+{% set res_tab = 'stats' %}{% include "_res_nav.html" %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body"><div class="small text-secondary">Buchungen</div><div class="fs-3 fw-semibold">{{ data.totals.bookings }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body"><div class="small text-secondary">Einnahmen</div><div class="fs-3 fw-semibold">{{ money(data.totals.revenue) }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body"><div class="small text-secondary">Stornos</div><div class="fs-3 fw-semibold">{{ data.totals.cancelled }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body"><div class="small text-secondary">Ressourcen</div><div class="fs-3 fw-semibold">{{ data['items'] | length }}</div></div></div></div>
+</div>
+{% for item in data['items'] %}{% set r = item.resource %}
+<div class="card mb-3"><div class="card-header d-flex flex-wrap gap-2 align-items-center"><a class="fw-semibold flex-grow-1" href="/resources/{{ r.id }}">{{ r.name }}</a>
+  <span class="small text-secondary">{{ item.sum.bookings }} Buchungen · {{ item.sum.days }} Belegungstage ({{ item.sum.load }} %) · {{ money(item.sum.revenue) }}</span></div>
+  <div class="card-body pb-2">
+    <div class="res-bars d-flex align-items-end gap-1" style="height: 5rem" role="img" aria-label="Auslastung je Monat">
+      {% set peak = [item.months | map(attribute='load') | max, 1] | max %}
+      {% for mth in item.months %}<div class="flex-fill text-center small" title="{{ months[loop.index0] }}: {{ mth.load }} % ({{ mth.days }} Tage, {{ mth.bookings }} Buchungen, {{ money(mth.revenue) }})">
+        {% if mth.load %}<div class="text-secondary" style="font-size: .7rem">{{ mth.load }} %</div>{% endif %}
+        <div class="bg-primary rounded-top mx-auto" style="height: {{ (mth.load / peak * 3.6) | round(2) if mth.load else 0.15 }}rem; width: 70%; opacity: {{ 1 if mth.load else 0.25 }}"></div></div>{% endfor %}
+    </div>
+    <div class="d-flex gap-1 small text-secondary">{% for mo in months %}<div class="flex-fill text-center">{{ mo }}</div>{% endfor %}</div>
+    <details class="mt-2 small"><summary>Zahlen je Monat</summary>
+      <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Monat</th><th class="text-end">Buchungen</th><th class="text-end">Tage</th><th class="text-end">Auslastung</th><th class="text-end">Stunden</th><th class="text-end">Einnahmen</th><th class="text-end">Stornos</th></tr></thead>
+        <tbody>{% for mth in item.months %}<tr><td>{{ months[loop.index0] }}</td><td class="text-end">{{ mth.bookings }}</td><td class="text-end">{{ mth.days }}</td><td class="text-end">{{ mth.load }} %</td><td class="text-end">{{ mth.hours }}</td><td class="text-end">{{ money(mth.revenue) }}</td><td class="text-end">{{ mth.cancelled }}</td></tr>{% endfor %}</tbody></table></div></details>
+  </div></div>
+{% endfor %}
+<p class="small text-secondary">Belegungstage: Tage mit mindestens einer bestätigten Buchung; Auslastung = Belegungstage ÷ Tage im Monat. Einnahmen nach Beginn der Buchung, ohne Kaution und ohne Abzug von Erstattungen.</p>
+{% endblock %}

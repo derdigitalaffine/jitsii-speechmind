@@ -569,6 +569,7 @@ Modul **Ressourcenbuchung**, Menü **Ressourcen** (Recht „Ressourcen“ zum An
 | Angaben | zusätzliche Felder (Feld-Editor wie bei Nachforderungen) |
 | Zahlung & Storno | Kaution, Zahlfrist, Zahlarten, Kostenstelle; Selbststornierung, kostenlos bis X Tage vorher, danach Gebühr in % (Kaution immer voll zurück) |
 | Zuständig & Ablage | zuständige Person, Gruppe, Funktionspostfach (Mails bei Anfragen), **Ablagebereich** |
+| Erinnerungen & Warteliste | Erinnerung an Buchende X Tage vorher (mit eigenem Hinweistext, z. B. Schlüsselabholung) und an Zuständige Y Tage vorher (0 = aus); **Warteliste** an/aus |
 | Sperrzeiten | gesperrte Tage (ganz oder je Teilraum) |
 | Fotos & Nutzungsordnung | Fotos (JPG/PNG/WebP bis 8 MB), Nutzungsbedingungen als Text (müssen bestätigt werden) und/oder PDF |
 
@@ -578,9 +579,25 @@ Modul **Ressourcenbuchung**, Menü **Ressourcen** (Recht „Ressourcen“ zum An
 
 **Verwaltung:** **Buchungen** (Filter, offene Anfragen zuerst), Buchung mit Bestätigen/Ablehnen samt Mitteilung, Zahlung (als bezahlt markieren, erstatten), **Übergabe** (Schlüssel, Zustand) und **Abnahme** (Schäden, einbehaltener Teil der Kaution; der Rest wird erstattet), Notizen, Stornieren. **Intern eintragen** ohne Vorlauf und Bestätigung, auf Wunsch kostenlos und als **Serie** (wöchentlich, alle 2 oder 4 Wochen bis zu einem Datum; belegte Termine werden übersprungen und genannt). Die Übersicht und die Startseiten-Kachel zeigen offene Anfragen, Übergaben und Rücknahmen des Tages und Unbezahltes.
 
+**Neue Ressource:** Assistent mit Vorlagen (Bürgerhaus, Gruppenraum, Grillplatz, Gerät, Dienstwagen, leer), danach Checkliste bis zum Freischalten. Ressourcen lassen sich **kopieren** und als **JSON-Datei ex-/importieren** (mit Räumen, Tarifen, Zusatzleistungen, Fotos und Nutzungsordnung; ohne Buchungen, Zuständige und Ablage).
+
+**Planer** (`/resources/planner`): Wochenübersicht aller Ressourcen; Buchungen per Drag & Drop verschieben (gleiche Uhrzeit, anderer Tag und/oder andere Ressource; Tarif und Zusatzleistungen werden über den Namen übertragen, der Preis neu berechnet oder beibehalten).
+
+**Buchung ändern:** Zeit, Ressource, Räume, Tarif, Zusatzleistungen, Kontakt und Preis. Zahlungsausgleich automatisch: offene Zahlung storniert und neu angefordert; bezahlt und günstiger → Differenz erstattet; teurer → Nachzahlung angefordert. Mail „Buchung geändert“ mit neuer PDF-Bestätigung (abschaltbar). Der frei gewordene Zeitraum geht an die Warteliste.
+
+**Warteliste:** Eintrag mit Double-Opt-in (Vereine ohne). Wird ein Zeitraum frei (Storno, Ablehnung, Verfall, Verschieben, abgelaufene Bestätigung), bekommt der oder die Erste ein **exklusives Angebot für 24 Stunden** (der Zeitraum ist solange für andere gesperrt), danach der oder die Nächste. Gebucht wird über den Link ohne erneute Bestätigungsmail. Die Warteliste steht auf der Belegungsseite der Ressource.
+
+**Mehrere Ressourcen in einer Buchung (Merkliste):** Buchende merken Teile vor („Weitere Ressource dazubuchen“, 24 Stunden vorgemerkt) und schicken alles mit einer Bestätigungsmail ab. Die Teile tragen eine gemeinsame Kennung (Sammelbuchung); Bestätigung und **eine gemeinsame Zahlung** gehen raus, sobald über alle Teile entschieden ist. Wird ein Teil storniert, wird bei offener Zahlung der Rest neu angefordert, bei bezahlter der Anteil erstattet.
+
+**Vereine & Dauernutzer** (`/resources/clubs`): Name, E-Mail-Adresse (= Zugang), Kontakt, **Tarif** (greift an allen Ressourcen mit einem Tarif dieses Namens), **Zahlweise** – *sofort* (wie alle), *Rechnung je Buchung* (nur Überweisung, kein Verfall bei Verzug), *Sammelrechnung je Monat* (keine Zahlung bei der Buchung; „Abrechnen“ erzeugt eine Zahlungsaufforderung über alle bestätigten Buchungen des Monats). Anmeldung unter `/r/login` per Link (30 Minuten gültig, danach 30 Tage angemeldet über ein eigenes, signiertes Cookie). **Selbstregistrierung** unter `/r/verein` lässt sich einschalten; neue Registrierungen warten auf Freigabe, ein Hinweis geht an das eingetragene Postfach.
+
+**Erinnerungen:** Der Hintergrunddienst schickt sie alle 5 Minuten fällig; wer weniger als 12 Stunden vor dem Fenster gebucht hat, bekommt keine.
+
+**Auswertung und Export:** `/resources/stats` (Buchungen, Belegungstage, Auslastung, Einnahmen je Monat, CSV) und CSV-Export der gefilterten Buchungsliste (Semikolon, für Excel).
+
 **Belegung teilen:** im Portal auf der Belegungsseite (Freigabe: *Belegung einsehen* – Anlass und Veranstalter; *Mit Kontaktdaten*; *Verwalten*) und als geheimer Link unter **Kalender teilen** (iCal-Abo für Outlook/Google/Handy, Web-Ansicht, optional per iframe) in den Stufen *nur frei/belegt*, *mit Anlass/Veranstalter*, *vollständig* (nur mit Freigabe „Mit Kontaktdaten“), mit oder ohne vorgemerkte Anfragen, für eine oder mehrere Ressourcen (Sammelkalender). Links lassen sich widerrufen; Abrufe werden gezählt.
 
-**Mail-Vorlagen:** Gruppe „Ressourcen“ (Bestätigungslink, Anfrage eingegangen, bestätigt mit PDF, abgelehnt, storniert, verfallen, Hinweis an Zuständige). **Speicherort:** Fotos, Nutzungsordnungen und Uploads der Buchenden unter `data/portal/resources/`.
+**Mail-Vorlagen:** Gruppe „Ressourcen“ (Bestätigungslink, Anfrage eingegangen, bestätigt mit PDF, abgelehnt, storniert, verfallen, geändert, Erinnerung, Warteliste bestätigen/frei geworden, Vereins-Anmeldelink, Sammelrechnung, Hinweis an Zuständige). **Speicherort:** Fotos, Nutzungsordnungen und Uploads der Buchenden unter `data/portal/resources/`.
 
 ## Zahlungen (PayPal, Überweisung, bar)
 

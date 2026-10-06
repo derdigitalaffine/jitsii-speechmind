@@ -111,7 +111,7 @@ def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", s).strip("-")[:60] or "ressource"
 
 
-RESERVED = {"b", "cal"}
+RESERVED = {"b", "cal", "w", "login", "logout", "mein", "verein", "merkliste"}
 
 
 def unique_slug(db, text: str, own_id: int | None = None) -> str:
@@ -280,6 +280,65 @@ def conflicts(db, res: Resource, ids: set[int] | None, start: datetime, end: dat
     return out
 
 
+def day_free(db, res: Resource, day: date, ids: set[int] | None, wait_token: str = "") -> dict:
+    """Freie Zeiten eines Tages fürs Antippen: Buchungszeiten, belegte Spannen (mit Rüstzeiten), freie Spannen
+    und je Zeitblock frei/belegt."""
+    from . import res_wait
+    start, end = _utc(datetime.combine(day, time())), _utc(datetime.combine(day + timedelta(days=1), time()))
+    before, after = timedelta(minutes=res.buffer_before or 0), timedelta(minutes=res.buffer_after or 0)
+    busy = []
+    for b in _blocking(db, res, start, end):
+        if _overlap_units(ids, unit_ids(b)):
+            busy.append((b.starts_at - before - after, b.ends_at + after + before))
+    for c in db.scalars(select(ResourceClosure).where(ResourceClosure.resource_id == res.id,
+                                                      ResourceClosure.starts_at < end, ResourceClosure.ends_at > start)):
+        if _overlap_units(ids, {c.unit_id} if c.unit_id else None):
+            busy.append((c.starts_at, c.ends_at))
+    from .db import ResourceWait
+    for w in db.scalars(select(ResourceWait).where(
+            ResourceWait.resource_id == res.id, ResourceWait.status == "offered", ResourceWait.offer_until > utcnow(),
+            ResourceWait.starts_at < end, ResourceWait.ends_at > start, ResourceWait.token != (wait_token or "-"))):
+        if _overlap_units(ids, res_wait._units(w)):
+            busy.append((w.starts_at, w.ends_at))
+    local = lambda t: to_local(t).replace(tzinfo=None)  # noqa: E731
+    day0, day1 = datetime.combine(day, time()), datetime.combine(day + timedelta(days=1), time())
+    spans = sorted((max(local(a), day0), min(local(b), day1)) for a, b in busy)
+    merged = []
+    for a, b in spans:
+        if merged and a <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], b))
+        elif a < b:
+            merged.append((a, b))
+    ranges = hours(res).get(str(day.weekday()))
+    opening = [(datetime.combine(day, _hm(a)), day1 if b == "24:00" else datetime.combine(day, _hm(b)))
+               for a, b in (ranges if ranges is not None else [["00:00", "24:00"]])]
+    free = []
+    for a, b in opening:
+        cur = a
+        for x, y in merged:
+            if y <= cur or x >= b:
+                continue
+            if x > cur:
+                free.append((cur, x))
+            cur = max(cur, y)
+        if cur < b:
+            free.append((cur, b))
+    fmt = lambda t: "24:00" if t == day1 else t.strftime("%H:%M")  # noqa: E731
+    min_len = timedelta(minutes=max(res.min_minutes or 0, res.slot_minutes or 0))
+    out_blocks = []
+    for blk in blocks(res):
+        bs, be = datetime.combine(day, _hm(blk["start"])), datetime.combine(day, _hm(blk["end"]))
+        if be <= bs:
+            be += timedelta(days=1)
+        out_blocks.append({"id": blk["id"], "label": blk["label"], "start": blk["start"], "end": blk["end"],
+                           "free": not any(x < be and y > bs for x, y in merged)})
+    return {"date": day.isoformat(), "closed": ranges == [],
+            "open": [[fmt(a), fmt(b)] for a, b in opening],
+            "busy": [[fmt(a), fmt(b)] for a, b in merged],
+            "free": [[fmt(a), fmt(b)] for a, b in free if b - a >= min_len],
+            "blocks": out_blocks, "day_free": not merged and ranges != []}
+
+
 def _stock_used(db, res: Resource, extra: ResourceExtra, start: datetime, end: datetime, exclude_id: int | None) -> int:
     used = 0
     for other in _blocking(db, res, start, end, exclude_id):
@@ -295,8 +354,10 @@ def _price(target, mode: str, special: bool) -> int:
     return wkd if special and wkd else base
 
 
-def quote(db, res: Resource, data, staff: bool = False, exclude_id: int | None = None) -> dict:
-    """Verfügbarkeit prüfen und Preis berechnen (eine Quelle für Vorschau, Buchung und Verwaltung)."""
+def quote(db, res: Resource, data, staff: bool = False, exclude_id: int | None = None, club=None,
+          wait_token: str = "") -> dict:
+    """Verfügbarkeit prüfen und Preis berechnen (eine Quelle für Vorschau, Buchung und Verwaltung).
+    club: angemeldeter Verein (eigener Tarif); wait_token: Angebot aus der Warteliste, das den Zeitraum hält."""
     sp = span(res, data)
     errors = list(sp["errors"])
     raw_units = [int(x) for x in (data.getlist("units") if hasattr(data, "getlist") else data.get("units", []))
@@ -309,6 +370,8 @@ def quote(db, res: Resource, data, staff: bool = False, exclude_id: int | None =
     tid = str(data.get("tariff", ""))
     if res.tariffs:
         tariff = next((t for t in res.tariffs if str(t.id) == tid), None)
+        if tariff is None and club is not None and club.tariff_name:
+            tariff = next((t for t in res.tariffs if t.name.strip().lower() == club.tariff_name.strip().lower()), None)
         if tariff is None:
             if not staff and len(res.tariffs) > 1:
                 errors.append("Bitte einen Tarif wählen.")
@@ -323,6 +386,9 @@ def quote(db, res: Resource, data, staff: bool = False, exclude_id: int | None =
             if sp["start"] > now + timedelta(days=res.max_advance_days or 365):
                 errors.append(f"Höchstens {res.max_advance_days} Tage im Voraus buchbar.")
         errors += conflicts(db, res, ids, sp["start"], sp["end"], exclude_id)
+        if not staff:
+            from . import res_wait
+            errors += res_wait.holds(db, res, ids, sp["start"], sp["end"], wait_token)
         years = {d.year for d in sp["days"]}
         specials = {}
         for y in years:
@@ -391,7 +457,8 @@ def quote(db, res: Resource, data, staff: bool = False, exclude_id: int | None =
     deposit = sum(line["cents"] for line in lines if line["kind"] == "deposit")
     return {"ok": not errors and sp["start"] is not None, "errors": errors, "warnings": warnings, "lines": lines,
             "total": total, "deposit": deposit, "start": sp["start"], "end": sp["end"], "mode": sp["mode"],
-            "unit_ids": ids, "tariff": tariff, "extras": chosen_extras,
+            "unit_ids": ids, "tariff": tariff, "extras": chosen_extras, "busy": bool(sp["start"] and not sp["errors"] and any(
+                e.startswith(("Belegt", "Vorgemerkt")) for e in errors)),
             "when": when_text(ResourceBooking(starts_at=sp["start"], ends_at=sp["end"], mode=sp["mode"])) if sp["start"] else ""}
 
 
@@ -399,7 +466,7 @@ def quote_json(q: dict) -> dict:
     return {"ok": q["ok"], "errors": q["errors"], "warnings": q["warnings"], "when": q["when"],
             "lines": [{"label": ln["label"], "qty": ln["qty"], "cents": ln["cents"], "unit_cents": ln["unit_cents"],
                        "money": pay.money(ln["cents"]), "kind": ln["kind"]} for ln in q["lines"]],
-            "total": pay.money(q["total"]), "deposit": pay.money(q["deposit"]), "total_cents": q["total"]}
+            "total": pay.money(q["total"]), "deposit": pay.money(q["deposit"]), "total_cents": q["total"], "busy": q["busy"]}
 
 
 # --- Buchung anlegen und Statuswechsel --------------------------------------------------------
@@ -437,8 +504,11 @@ def contact_from(data) -> tuple[dict, list[str]]:
 
 
 def create(db, res: Resource, q: dict, contact: dict, answers: dict, *, internal: bool = False, by: str = "",
-           free: bool = False, series_id: str = "") -> ResourceBooking:
+           free: bool = False, series_id: str = "", group_ref: str = "", club=None) -> ResourceBooking:
     lines = [] if free else q["lines"]
+    billing = ""
+    if club is not None:
+        billing = {"invoice": "invoice", "monthly": "monthly"}.get(club.billing, "")
     b = ResourceBooking(ref=_next_ref(db), resource_id=res.id, mode=q["mode"], starts_at=q["start"], ends_at=q["end"],
                         unit_ids=",".join(str(i) for i in sorted(q["unit_ids"])) if q["unit_ids"] else "",
                         tariff_id=q["tariff"].id if q["tariff"] else None, tariff_name=q["tariff"].name if q["tariff"] else "",
@@ -446,7 +516,8 @@ def create(db, res: Resource, q: dict, contact: dict, answers: dict, *, internal
                         lines_json=json.dumps(lines, ensure_ascii=False), total_cents=0 if free else q["total"],
                         deposit_cents=0 if free else q["deposit"], token=secrets.token_urlsafe(24),
                         confirm_code=secrets.token_urlsafe(12), internal=internal, created_by=by[:255], series_id=series_id,
-                        status="confirmed" if internal else "unconfirmed", **contact)
+                        status="confirmed" if internal else "unconfirmed", group_ref=group_ref,
+                        club_id=club.id if club is not None else None, billing=billing, **contact)
     db.add(b)
     db.flush()
     return b
@@ -481,6 +552,28 @@ def _mail(db, b: ResourceBooking, key: str, extra: dict | None = None, attach_pd
     return notify.enqueue(db, b.email, subject, body, key, attachments=attachments)
 
 
+def _mail_many(db, bookings: list[ResourceBooking], key: str, attach_pdf: bool = False) -> bool:
+    """Eine Mail für mehrere Buchungen derselben Person (Sammelbuchung)."""
+    if len(bookings) == 1:
+        return _mail(db, bookings[0], key, attach_pdf=attach_pdf)
+    first = bookings[0]
+    if not first.email:
+        return False
+    extra = {"ressource": ", ".join(b.resource.name for b in bookings), "teilraeume": "",
+             "zeitraum": "; ".join(f"{b.resource.name}: {when_text(b)}" for b in bookings),
+             "buchungsnummer": ", ".join(b.ref for b in bookings),
+             "positionen": "\n".join(f"– {b.resource.name}: {ln['label']}: {pay.money(ln['cents'])}"
+                                     for b in bookings for ln in lines_of(b)),
+             "betrag": pay.money(sum(b.total_cents for b in bookings))}
+    subject, body = mailtpl.render(db, key, _values(db, first, extra))
+    attachments = None
+    if attach_pdf:
+        import base64
+        attachments = [{"filename": f"Buchung-{b.ref}.pdf", "mime": "application/pdf",
+                        "content_b64": base64.b64encode(confirmation_pdf(db, b)).decode("ascii")} for b in bookings]
+    return notify.enqueue(db, first.email, subject, body, key, attachments=attachments)
+
+
 def _staff_mail(db, b: ResourceBooking, event: str) -> int:
     n = 0
     for addr in staff_addresses(db, b.resource):
@@ -495,25 +588,40 @@ def send_confirm_mail(db, b: ResourceBooking) -> bool:
     return _mail(db, b, "res_confirm_email")
 
 
+def group_members(db, b: ResourceBooking) -> list[ResourceBooking]:
+    if not b.group_ref:
+        return [b]
+    return list(db.scalars(select(ResourceBooking).where(ResourceBooking.group_ref == b.group_ref)
+                           .order_by(ResourceBooking.id)))
+
+
 def confirm_email(db, b: ResourceBooking) -> str:
-    """Klick auf den Link aus der Mail. Gibt den neuen Status zurück."""
+    """Klick auf den Link aus der Mail (bei Vereinen direkt nach dem Buchen). Bestätigt alle Buchungen einer
+    Sammelbuchung auf einmal. Gibt den neuen Status der Buchung zurück."""
     if b.status != "unconfirmed":
         return b.status
-    res = b.resource
-    if conflicts(db, res, unit_ids(b), b.starts_at, b.ends_at, exclude_id=b.id):
-        b.status = "expired"
-        _note(b, "Bei der Bestätigung war der Zeitraum inzwischen belegt.")
-        return b.status
-    if res.mode == "instant":
-        b.status = "confirmed"
-        b.decided_at, b.decided_by = utcnow(), "automatisch (Sofortbuchung)"
-        _finalize(db, b)
-        _staff_mail(db, b, "Neue Buchung (sofort bestätigt)")
-    else:
-        b.status = "requested"
-        _mail(db, b, "res_received")
-        _staff_mail(db, b, "Neue Anfrage – bitte bestätigen oder ablehnen")
-    sync_dms(db, b)
+    members = group_members(db, b)
+    requested = []
+    for m in members:
+        if m.status != "unconfirmed":
+            continue
+        res = m.resource
+        if conflicts(db, res, unit_ids(m), m.starts_at, m.ends_at, exclude_id=m.id):
+            m.status = "expired"
+            _note(m, "Bei der Bestätigung war der Zeitraum inzwischen belegt.")
+            continue
+        if res.mode == "instant":
+            m.status = "confirmed"
+            m.decided_at, m.decided_by = utcnow(), "automatisch (Sofortbuchung)"
+            _staff_mail(db, m, "Neue Buchung (sofort bestätigt)")
+        else:
+            m.status = "requested"
+            requested.append(m)
+            _staff_mail(db, m, "Neue Anfrage – bitte bestätigen oder ablehnen")
+        sync_dms(db, m)
+    if requested:
+        _mail_many(db, [m for m in members if m.status in ("requested", "confirmed")], "res_received")
+    _settle(db, members)
     return b.status
 
 
@@ -522,19 +630,60 @@ def _note(b: ResourceBooking, text: str) -> None:
     b.note = (b.note + f"\n[{stamp}] {text}").strip()
 
 
+def new_payment(db, bookings: list[ResourceBooking]):
+    """Eine Zahlung für eine Buchung oder für alle bestätigten Buchungen einer Sammelbuchung (mit Frist).
+    Bei „Rechnung“ (Vereine) nur per Überweisung und ohne Verfall der Reservierung."""
+    bookings = [b for b in bookings if b.total_cents > 0 and b.billing != "monthly"]
+    if not bookings:
+        return None
+    first, res = bookings[0], bookings[0].resource
+    invoice = first.billing == "invoice"
+    days_left = max(1, (min(to_local(b.starts_at).date() for b in bookings) - to_local(utcnow()).date()).days - 1)
+    methods = set((res.pay_methods or "transfer").split(","))
+    for b in bookings[1:]:
+        methods &= set((b.resource.pay_methods or "transfer").split(","))
+    method_text = "transfer" if invoice else ",".join(m for m in ("paypal", "transfer", "cash") if m in methods) or "transfer"
+    many = len(bookings) > 1
+    lines = [{"label": (f"{b.resource.name}: " if many else "") + ln["label"], "qty": 1, "unit_cents": ln["cents"]}
+             for b in bookings for ln in lines_of(b)]
+    purpose = (f"Sammelbuchung {first.group_ref}: " + ", ".join(b.resource.name for b in bookings) if many
+               else f"{res.name}, {when_text(first)} ({first.ref})")
+    p = pay.create(db, kind="resource", subject_id=first.id, purpose=purpose[:255], lines=lines, payer_name=first.name,
+                   payer_email=first.email, methods=method_text, cost_center=res.cost_center,
+                   due_days=(res.pay_days or 14) if invoice else min(res.pay_days or 7, days_left),
+                   back_url=f"/r/b/{first.token}", deposit_cents=sum(b.deposit_cents for b in bookings))
+    for b in bookings:
+        b.payment_id = p.id
+    db.flush()
+    for b in bookings:
+        db.refresh(b, ["payment"])
+    return p
+
+
+SENT_MARK = "Bestätigung verschickt."
+
+
+def _settle(db, members: list[ResourceBooking]) -> None:
+    """Sammelbuchung: Erst wenn über alle Teile entschieden ist, gibt es eine gemeinsame Bestätigung und Zahlung."""
+    if any(m.status in ("unconfirmed", "requested") for m in members):
+        return
+    confirmed = [m for m in members if m.status == "confirmed" and SENT_MARK not in (m.note or "")]
+    if not confirmed:
+        return
+    new_payment(db, [m for m in confirmed if m.payment_id is None])
+    _mail_many(db, confirmed, "res_confirmed", attach_pdf=True)
+    for m in confirmed:
+        _note(m, SENT_MARK)
+        sync_dms(db, m, with_pdf=True)
+
+
 def _finalize(db, b: ResourceBooking) -> None:
     """Bestätigt: Zahlung anlegen (mit Frist), Bestätigung mit PDF schicken, ablegen."""
-    res = b.resource
-    if b.total_cents > 0 and b.payment_id is None:
-        days_left = max(1, (to_local(b.starts_at).date() - to_local(utcnow()).date()).days - 1)
-        p = pay.create(db, kind="resource", subject_id=b.id, purpose=f"{res.name}, {when_text(b)} ({b.ref})",
-                       lines=[{"label": ln["label"], "qty": 1, "unit_cents": ln["cents"]} for ln in lines_of(b)],
-                       payer_name=b.name, payer_email=b.email, methods=res.pay_methods or "paypal,transfer",
-                       cost_center=res.cost_center, due_days=min(res.pay_days or 7, days_left),
-                       back_url=f"/r/b/{b.token}", deposit_cents=b.deposit_cents)
-        b.payment_id = p.id
-        db.flush()
-        db.refresh(b, ["payment"])
+    if b.group_ref:
+        _settle(db, group_members(db, b))
+        return
+    if b.payment_id is None:
+        new_payment(db, [b])
     _mail(db, b, "res_confirmed", attach_pdf=True)
     sync_dms(db, b, with_pdf=True)
 
@@ -553,7 +702,16 @@ def decide(db, b: ResourceBooking, user: User, accept: bool, message: str = "") 
         b.status = "rejected"
         _mail(db, b, "res_rejected")
         sync_dms(db, b)
+        release(db, b)
+        if b.group_ref:
+            _settle(db, group_members(db, b))
     return True
+
+
+def release(db, b: ResourceBooking) -> None:
+    """Zeitraum ist wieder frei: Warteliste benachrichtigen."""
+    from . import res_wait
+    res_wait.offer_next(db, b.resource, b.starts_at, b.ends_at)
 
 
 def cancel_rules_text(res: Resource) -> str:
@@ -586,9 +744,12 @@ def cancel(db, b: ResourceBooking, by: str, reason: str = "", staff: bool = Fals
     fee = 0 if (staff and waive_fee) or staff else cancel_fee(b)
     info = ""
     p = b.payment
+    others = [m for m in db.scalars(select(ResourceBooking).where(ResourceBooking.payment_id == p.id,
+                                                                  ResourceBooking.id != b.id))] if p is not None else []
     if p is not None:
         if p.status in ("paid", "partially_refunded"):
-            back = p.amount_cents - p.refunded_cents - fee
+            back = (min(b.total_cents, p.amount_cents - p.refunded_cents) if others
+                    else p.amount_cents - p.refunded_cents) - fee
             if back > 0:
                 err = pay.refund(db, p, back, by, f"Stornierung {b.ref}", fire=False)
                 info = f"Erstattet werden {pay.money(back)}." if not err else f"Erstattung bitte von Hand prüfen: {err}"
@@ -596,6 +757,13 @@ def cancel(db, b: ResourceBooking, by: str, reason: str = "", staff: bool = Fals
                 info += f" Einbehalten: {pay.money(fee)} Stornogebühr."
         elif p.status in ("open", "pending"):
             pay.cancel(db, p, by, f"Buchung {b.ref} storniert", fire=False)
+            rest = [m for m in others if m.status == "confirmed"]
+            for m in others:
+                m.payment_id = None
+            if rest:   # die übrigen Teile der Sammelbuchung bekommen eine neue, kleinere Zahlung
+                np = new_payment(db, rest)
+                if np is not None:
+                    pay.request_payment(db, np)
             if fee:
                 fp = pay.create(db, kind="resource", subject_id=b.id, purpose=f"Stornogebühr {b.ref}",
                                 lines=[{"label": f"Stornogebühr ({b.resource.cancel_fee_percent} %)", "unit_cents": fee}],
@@ -610,7 +778,142 @@ def cancel(db, b: ResourceBooking, by: str, reason: str = "", staff: bool = Fals
     if not staff:
         _staff_mail(db, b, "Storniert durch die buchende Person")
     sync_dms(db, b)
+    release(db, b)
     return info
+
+
+class FormData(dict):
+    """Eingaben wie aus einem Formular (mit getlist) – für Verschieben, Warteliste und Wiederholungen."""
+
+    def getlist(self, key):
+        v = self.get(key, [])
+        return [str(x) for x in v] if isinstance(v, list) else ([] if v in (None, "") else [str(v)])
+
+
+def form_data_of(b: ResourceBooking, shift_days: int = 0) -> FormData:
+    """Eingaben, mit denen quote() dieselbe Buchung (optional um Tage verschoben) wieder berechnet."""
+    s, e = to_local(b.starts_at) + timedelta(days=shift_days), to_local(b.ends_at) + timedelta(days=shift_days)
+    data = FormData(mode=b.mode, tariff=str(b.tariff_id or ""), units=[str(i) for i in sorted(unit_ids(b) or [])],
+                    title=b.title, organizer=b.organizer, persons=str(b.persons or ""))
+    if b.mode == "day":
+        data.update(date_from=s.date().isoformat(), date_to=(e - timedelta(seconds=1)).date().isoformat())
+    elif b.mode == "block":
+        span_ = (s.strftime("%H:%M"), e.strftime("%H:%M"))
+        data.update(date=s.date().isoformat(), blocks=[str(x["id"]) for x in blocks(b.resource)
+                                                        if span_[0] <= x["start"] and x["end"] <= span_[1]])
+    else:
+        data.update(date=s.date().isoformat(), time_from=s.strftime("%H:%M"), time_to=e.strftime("%H:%M"))
+    for x in extras_of(b):
+        data[f"extra_{x['id']}"] = str(x.get("qty", 1))
+    return data
+
+
+def change(db, b: ResourceBooking, res: Resource, q: dict, user: User, *, contact: dict | None = None,
+           price_cents: int | None = None, notify_person: bool = True, reason: str = "") -> str:
+    """Buchung ändern oder verschieben (Zeit, Ressource, Räume, Extras, Tarif, Preis, Kontakt).
+    Gleicht die Zahlung aus: Offenes wird neu angefordert, zu viel Bezahltes erstattet, Mehrbetrag nachgefordert."""
+    old_res, old_start, old_end, old_when = b.resource, b.starts_at, b.ends_at, when_text(b)
+    old_total = b.total_cents
+    b.resource_id, b.resource = res.id, res
+    b.mode, b.starts_at, b.ends_at = q["mode"], q["start"], q["end"]
+    b.unit_ids = ",".join(str(i) for i in sorted(q["unit_ids"])) if q["unit_ids"] else ""
+    b.tariff_id, b.tariff_name = (q["tariff"].id, q["tariff"].name) if q["tariff"] else (None, "")
+    b.extras_json = json.dumps(q["extras"], ensure_ascii=False)
+    lines = [ln for ln in q["lines"]] if not (b.internal and not old_total and price_cents is None) else []
+    if price_cents is not None:
+        deposit = sum(ln["cents"] for ln in lines if ln["kind"] == "deposit")
+        lines = [{"label": f"{res.name}: {q['when']} (Preis festgelegt)", "qty": 1, "unit_cents": price_cents - deposit,
+                  "cents": price_cents - deposit, "kind": "rent"}] + [ln for ln in lines if ln["kind"] == "deposit"]
+    b.lines_json = json.dumps(lines, ensure_ascii=False)
+    b.total_cents = sum(ln["cents"] for ln in lines)
+    b.deposit_cents = sum(ln["cents"] for ln in lines if ln["kind"] == "deposit")
+    for key, value in (contact or {}).items():
+        setattr(b, key, value)
+    b.reminded_at = b.staff_reminded_at = None
+    info = _rebalance(db, b, old_total, user) if b.status == "confirmed" else ""
+    what = f"Geändert von {user.name}: {old_when}{' (' + old_res.name + ')' if old_res.id != res.id else ''} → {when_text(b)}"
+    _note(b, f"{what}{' (' + res.name + ')' if old_res.id != res.id else ''}. {reason} {info}".strip())
+    if notify_person and b.email and b.status in ACTIVE:
+        _mail(db, b, "res_changed", {"vorher": old_when + (f" ({old_res.name})" if old_res.id != res.id else ""),
+                                     "grund": reason, "erstattung": info}, attach_pdf=b.status == "confirmed")
+    sync_dms(db, b, with_pdf=b.status == "confirmed")
+    if (old_start, old_end, old_res.id) != (b.starts_at, b.ends_at, res.id):
+        from . import res_wait
+        res_wait.offer_next(db, old_res, old_start, old_end)
+    return info
+
+
+def _rebalance(db, b: ResourceBooking, old_total: int, user: User) -> str:
+    p = b.payment
+    if b.billing == "monthly":
+        return ""
+    if p is None or p.status in ("cancelled", "expired"):
+        if b.total_cents > 0:
+            np = new_payment(db, [b])
+            if np is not None:
+                pay.request_payment(db, np)
+                return f"Neue Zahlungsaufforderung über {pay.money(b.total_cents)}."
+        return ""
+    shared = [m for m in db.scalars(select(ResourceBooking).where(ResourceBooking.payment_id == p.id))]
+    if p.status in ("open", "pending"):
+        if b.total_cents == old_total:
+            return ""
+        pay.cancel(db, p, user.name, f"Buchung {b.ref} geändert", fire=False)
+        for m in shared:
+            m.payment_id = None
+        np = new_payment(db, [m for m in shared if m.status == "confirmed"])
+        if np is not None:
+            pay.request_payment(db, np)
+            return f"Neue Zahlungsaufforderung über {pay.money(np.amount_cents)} (die bisherige ist storniert)."
+        return "Die offene Zahlung ist storniert – es ist nichts mehr zu zahlen."
+    if p.status in ("paid", "partially_refunded"):
+        diff = b.total_cents - old_total
+        if diff < 0:
+            err = pay.refund(db, p, min(-diff, p.amount_cents - p.refunded_cents), user.name, f"Änderung {b.ref}", fire=False)
+            return err or f"{pay.money(-diff)} werden erstattet."
+        if diff > 0:
+            extra = pay.create(db, kind="resource", subject_id=b.id, purpose=f"Nachzahlung {b.ref} ({b.resource.name})",
+                               lines=[{"label": f"Änderung der Buchung {b.ref}", "unit_cents": diff}], payer_name=b.name,
+                               payer_email=b.email, methods=b.resource.pay_methods or "transfer",
+                               cost_center=b.resource.cost_center, back_url=f"/r/b/{b.token}")
+            pay.request_payment(db, extra)
+            return f"Nachzahlung über {pay.money(diff)} angefordert ({extra.ref})."
+    return ""
+
+
+def payments_of(db, b: ResourceBooking) -> list:
+    """Alle Zahlungen einer Buchung (Hauptzahlung, Nachzahlungen, Stornogebühr)."""
+    from .db import Payment
+    ids = {b.payment_id} - {None}
+    q = select(Payment).where(or_(Payment.id.in_(ids or [-1]), (Payment.kind == "resource") & (Payment.subject_id == b.id)))
+    return list(db.scalars(q.order_by(Payment.created_at)))
+
+
+# --- Erinnerungen ------------------------------------------------------------------------------
+
+def send_reminders() -> int:
+    """Hintergrunddienst: Erinnerung an Buchende (z. B. Schlüsselabholung) und an Zuständige vor Beginn."""
+    n = 0
+    now = utcnow()
+    with SessionLocal() as db:
+        rows = db.scalars(select(ResourceBooking).where(
+            ResourceBooking.status == "confirmed", ResourceBooking.starts_at > now,
+            ResourceBooking.starts_at < now + timedelta(days=15),
+            or_(ResourceBooking.reminded_at.is_(None), ResourceBooking.staff_reminded_at.is_(None)))).all()
+        for b in rows:
+            res = b.resource
+            # wer erst kurz vorher bucht, braucht keine Erinnerung
+            fresh = b.created_at > now - timedelta(hours=12)
+            if b.reminded_at is None and res.remind_days and b.starts_at < now + timedelta(days=res.remind_days):
+                b.reminded_at = now
+                if b.email and not fresh and _mail(db, b, "res_reminder", {"hinweis": res.remind_text}):
+                    n += 1
+            if b.staff_reminded_at is None and res.remind_staff_days and b.starts_at < now + timedelta(days=res.remind_staff_days):
+                b.staff_reminded_at = now
+                n += _staff_mail(db, b, "Erinnerung: Beginn " + to_local(b.starts_at).strftime("%d.%m.%Y %H:%M")
+                                 + (" – Übergabe vorbereiten" if b.email else ""))
+        db.commit()
+    return n
 
 
 def record_handover(db, b: ResourceBooking, user: User, part: str, data) -> str:
@@ -643,19 +946,25 @@ def record_handover(db, b: ResourceBooking, user: User, part: str, data) -> str:
 
 
 def on_payment(db, p, event: str) -> None:
-    b = db.get(ResourceBooking, p.subject_id) if p.subject_id else None
-    if b is None or b.payment_id != p.id:
-        return
+    bookings = db.scalars(select(ResourceBooking).where(ResourceBooking.payment_id == p.id)).all()
     if event == "paid":
-        _note(b, f"Zahlung {p.ref} eingegangen ({pay.METHODS.get(p.method, ('',))[0]}).")
-        sync_dms(db, b)
-    elif event == "overdue" and b.status == "confirmed" and b.starts_at > utcnow() - timedelta(days=1):
+        for b in bookings:
+            _note(b, f"Zahlung {p.ref} eingegangen ({pay.METHODS.get(p.method, ('',))[0]}).")
+            sync_dms(db, b)
+    elif event == "overdue":
+        # Rechnungen für Vereine lassen die Reservierung nicht verfallen – die Verwaltung mahnt selbst
+        due = [b for b in bookings if b.status == "confirmed" and b.billing != "invoice"
+               and b.starts_at > utcnow() - timedelta(days=1)]
+        if not due:
+            return
         pay.cancel(db, p, "Portal", "Zahlfrist abgelaufen", fire=False)
-        b.status = "expired"
-        _note(b, "Zahlfrist abgelaufen – Reservierung verfallen.")
-        _mail(db, b, "res_expired")
-        _staff_mail(db, b, "Nicht bezahlt – Reservierung verfallen")
-        sync_dms(db, b)
+        for b in due:
+            b.status = "expired"
+            _note(b, "Zahlfrist abgelaufen – Reservierung verfallen.")
+            _staff_mail(db, b, "Nicht bezahlt – Reservierung verfallen")
+            sync_dms(db, b)
+            release(db, b)
+        _mail_many(db, due, "res_expired")
 
 
 def _can_manage_payment(db, user, p) -> bool:
@@ -676,6 +985,7 @@ def expire_unconfirmed() -> int:
                 ResourceBooking.created_at < utcnow() - timedelta(hours=UNCONFIRMED_HOURS))):
             b.status = "expired"
             _note(b, "E-Mail-Adresse nicht innerhalb von 24 Stunden bestätigt.")
+            release(db, b)
             n += 1
         db.commit()
     return n

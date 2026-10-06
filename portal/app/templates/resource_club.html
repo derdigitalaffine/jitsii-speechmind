@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ club.name }}{% endblock %}
+{% block content %}
+<nav aria-label="Pfad" class="small mb-2"><a href="/resources/clubs">Vereine</a> › {{ club.name }}</nav>
+{% call m.page_head(club.name, (club.contact_name ~ ' · ' if club.contact_name else '') ~ club.email ~ ' · ' ~ billing[club.billing] ~ (' · Tarif ' ~ club.tariff_name if club.tariff_name else '')) %}
+  <a class="btn btn-outline-secondary" href="/resources/bookings?club={{ club.id }}&status=all&when=all"><i class="fa-solid fa-list me-1"></i>Alle Buchungen</a>
+{% endcall %}
+<div class="row g-4">
+  <div class="col-12 col-xl-7">
+    {% if months %}
+    <div class="card mb-4 border-info"><div class="card-header"><i class="fa-solid fa-file-invoice me-2"></i>Abzurechnen (Sammelrechnung)</div><div class="card-body">
+      {% for mo in months %}{% set its = items[mo] %}
+      <div class="mb-3"><div class="d-flex flex-wrap gap-2 align-items-center mb-1"><strong class="flex-grow-1">{{ mo[5:] }}/{{ mo[:4] }}</strong><span>{{ its | length }} Buchung(en) · {{ money(its | sum(attribute='total_cents')) }}</span>
+        <form method="post" action="/resources/clubs/{{ club.id }}/bill"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="month" value="{{ mo }}">
+          <button class="btn btn-sm btn-primary" type="submit" data-confirm-title="Sammelrechnung {{ mo[5:] }}/{{ mo[:4] }} verschicken?" data-confirm="{{ club.name }} bekommt eine Zahlungsaufforderung über {{ money(its | sum(attribute='total_cents')) }} per Überweisung." data-confirm-button="Verschicken"><i class="fa-solid fa-paper-plane me-1"></i>Abrechnen</button></form></div>
+        <ul class="small mb-0">{% for b in its %}<li><a href="/resources/bookings/{{ b.id }}">{{ b.ref }}</a> {{ b.resource.name }}, {{ when(b) }}: {{ money(b.total_cents) }}</li>{% endfor %}</ul></div>
+      {% endfor %}
+      <div class="form-text">Abgerechnet werden bestätigte Buchungen mit Sammelrechnung, die im Monat beginnen.</div>
+    </div></div>
+    {% endif %}
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-calendar-days me-2"></i>Anstehend</div>
+      <ul class="list-group list-group-flush small">{% for b in upcoming %}<li class="list-group-item d-flex gap-2"><a class="flex-grow-1" href="/resources/bookings/{{ b.id }}">{{ b.resource.name }}: {{ when(b) }} · {{ b.title }}</a><span class="badge text-bg-{{ statuses[b.status][1] }}">{{ statuses[b.status][0] }}</span></li>{% else %}<li class="list-group-item text-secondary">Nichts.</li>{% endfor %}</ul></div>
+  </div>
+  <div class="col-12 col-xl-5">
+    <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-receipt me-2"></i>Sammelrechnungen</div>
+      <ul class="list-group list-group-flush small">{% for p in statements %}<li class="list-group-item d-flex gap-2"><a class="flex-grow-1" href="/payments/{{ p.id }}">{{ p.ref }} – {{ p.purpose }}</a><span>{{ money(p.amount_cents) }}</span><span class="badge text-bg-{{ pay_statuses[p.status][1] }}">{{ pay_statuses[p.status][0] }}</span></li>{% else %}<li class="list-group-item text-secondary">Noch keine.</li>{% endfor %}</ul></div>
+    {% if club.note %}<div class="alert alert-light border small"><i class="fa-solid fa-note-sticky me-1"></i>{{ club.note }}</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

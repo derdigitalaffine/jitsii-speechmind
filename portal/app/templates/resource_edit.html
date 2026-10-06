@@ -5,11 +5,26 @@
 <nav aria-label="Pfad" class="small mb-2"><a href="/resources">Ressourcen</a> › <a href="/resources/{{ res.id }}">{{ res.name }}</a> › Bearbeiten</nav>
 {% call m.page_head(res.name, 'Einstellungen der Ressource') %}
   <a class="btn btn-outline-secondary" href="/resources/{{ res.id }}"><i class="fa-solid fa-calendar-days me-1"></i>Belegung</a>
+  {% if res.active and res.public %}<a class="btn btn-outline-secondary" href="/r/{{ res.slug }}" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Öffentliche Seite</a>{% endif %}
+  <div class="dropdown"><button class="btn btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Weitere Aktionen"><i class="fa-solid fa-ellipsis"></i></button>
+    <ul class="dropdown-menu dropdown-menu-end">
+      {% if user.can('resources') %}<li><form method="post" action="/resources/{{ res.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item" type="submit"><i class="fa-regular fa-copy fa-fw me-2"></i>Kopie anlegen</button></form></li>{% endif %}
+      <li><a class="dropdown-item" href="/resources/{{ res.id }}/export.json"><i class="fa-solid fa-file-export fa-fw me-2"></i>Als Datei exportieren</a></li>
+    </ul></div>
 {% endcall %}
+{% set open_items = checklist | rejectattr(1) | list %}
+{% if fresh or open_items %}
+<div class="card mb-3 {{ 'border-primary' if fresh }}"><div class="card-body py-2">
+  <div class="d-flex flex-wrap align-items-center gap-2"><strong class="me-2"><i class="fa-solid fa-list-check me-1"></i>Checkliste</strong>
+    <span class="small text-secondary">{{ checklist | length - open_items | length }} von {{ checklist | length }} erledigt</span>
+    <div class="progress flex-grow-1" style="height: .4rem; min-width: 6rem" role="progressbar" aria-label="Fortschritt"><div class="progress-bar" style="width: {{ ((checklist | length - open_items | length) * 100 / checklist | length) | round }}%"></div></div></div>
+  <ul class="res-check d-flex flex-wrap gap-3 small mb-0 mt-2 ps-0">{% for text, ok, tab in checklist %}<li>{% if ok %}<i class="fa-solid fa-circle-check text-success me-1"></i>{{ text }}{% else %}<a href="#{{ tab }}" class="js-tab-link" data-tab="{{ tab }}"><i class="fa-regular fa-circle me-1"></i>{{ text }}</a>{% endif %}</li>{% endfor %}</ul>
+</div></div>
+{% endif %}
 <ul class="nav nav-tabs mb-3 flex-nowrap overflow-auto" role="tablist" id="res-tabs">
   {% for id, label, icon in [('allgemein', 'Allgemein', 'fa-circle-info'), ('zeiten', 'Zeiten & Regeln', 'fa-clock'), ('preise', 'Räume & Preise', 'fa-euro-sign'),
      ('extras', 'Tarife & Zusatzleistungen', 'fa-plus'), ('formular', 'Angaben', 'fa-list-check'), ('zahlung', 'Zahlung & Storno', 'fa-credit-card'),
-     ('zustaendig', 'Zuständig & Ablage', 'fa-user-tie'), ('sperren', 'Sperrzeiten', 'fa-ban'), ('fotos', 'Fotos & Nutzungsordnung', 'fa-image')] %}
+     ('zustaendig', 'Zuständig & Ablage', 'fa-user-tie'), ('hinweise', 'Erinnerungen & Warteliste', 'fa-bell'), ('sperren', 'Sperrzeiten', 'fa-ban'), ('fotos', 'Fotos & Nutzungsordnung', 'fa-image')] %}
   <li class="nav-item" role="presentation"><button class="nav-link text-nowrap {{ 'active' if loop.first }}" data-bs-toggle="tab" data-bs-target="#{{ id }}" type="button" role="tab"><i class="fa-solid {{ icon }} me-1"></i>{{ label }}</button></li>
   {% endfor %}
 </ul>
@@ -101,9 +116,24 @@
     {% if dms_areas %}<div class="col-md-6"><label class="form-label" for="r-dms">Ablagebereich (DMS)</label><select class="form-select" id="r-dms" name="dms_area_id"><option value="">– „Nicht einsortiert“ –</option>{% for a, lbl in dms_areas %}<option value="{{ a.id }}" {% if res.dms_area_id == a.id %}selected{% endif %}>{{ lbl }}</option>{% endfor %}</select><div class="form-text">Bestätigte Buchungen mit PDF und der Person werden dort abgelegt.</div></div>{% endif %}
   </div></div></div>
 
+  <div class="tab-pane fade" id="hinweise" role="tabpanel"><div class="row g-3">
+    <div class="col-lg-7"><div class="card h-100"><div class="card-body row g-2">
+      <div class="col-12 fw-semibold">Erinnerungen vor Beginn</div>
+      <div class="col-6"><label class="form-label small mb-1" for="h-rd">an Buchende … Tage vorher</label><input class="form-control form-control-sm" type="number" min="0" max="30" id="h-rd" name="remind_days" value="{{ res.remind_days }}"></div>
+      <div class="col-6"><label class="form-label small mb-1" for="h-rsd">an Zuständige … Tage vorher</label><input class="form-control form-control-sm" type="number" min="0" max="30" id="h-rsd" name="remind_staff_days" value="{{ res.remind_staff_days }}"></div>
+      <div class="col-12 form-text mt-0">0 = keine Erinnerung. Wer erst kurz vorher bucht, bekommt keine.</div>
+      <div class="col-12"><label class="form-label small mb-1" for="h-rt">Hinweis in der Erinnerung</label><textarea class="form-control" id="h-rt" name="remind_text" rows="4" placeholder="z. B. Den Schlüssel erhalten Sie am Vortag zwischen 16 und 18 Uhr bei der Hausmeisterei (Tel. …). Bitte Müll selbst entsorgen.">{{ res.remind_text }}</textarea>
+        <div class="form-text">Den Mailtext selbst passen Admins unter Verwaltung › E-Mail-Vorlagen an („Erinnerung vor Beginn“).</div></div>
+    </div></div></div>
+    <div class="col-lg-5"><div class="card h-100"><div class="card-body">
+      <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="waitlist" value="1" id="h-wait" {% if res.waitlist %}checked{% endif %}><label class="form-check-label fw-semibold" for="h-wait">Warteliste anbieten</label></div>
+      <p class="small text-secondary mt-2 mb-0">Ist der gewünschte Zeitraum belegt, können sich Bürger:innen eintragen. Wird er frei (Storno, Ablehnung, nicht bezahlt), bekommt der oder die Erste eine Mail und kann 24 Stunden exklusiv buchen – danach der oder die Nächste.</p>
+    </div></div></div>
+  </div></div>
+
   <div class="card mt-3 sticky-bottom shadow-sm" id="res-savebar"><div class="card-body py-2 d-flex gap-2 align-items-center">
     <button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
-    <span class="small text-secondary">Speichert alle Reiter bis auf Sperrzeiten und Fotos.</span>
+    <span class="small text-secondary" id="res-dirty">Speichert alle Reiter bis auf Sperrzeiten und Fotos.</span>
   </div></div>
 </form>
 

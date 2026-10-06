@@ -1,11 +1,36 @@
-{# Buchungsformular (öffentlich und intern). Erwartet: res, res_modes, blocks, modes, extra_per, money, items, staff, draft #}
+{# Buchungsformular (öffentlich, intern, Bearbeiten). Erwartet: res, res_modes, blocks, modes, extra_per, money, items, staff;
+   optional: draft, edit (Buchung, die geändert wird), targets (Ressourcen zum Umbuchen), club, cart, wait, club_tariff #}
 {% set d = draft or {} %}
-<form method="post" action="{{ '/resources/' ~ res.id ~ '/book' if staff else '/r/' ~ res.slug ~ '/book' }}" enctype="multipart/form-data"
-      id="res-form" class="card" data-quote="/r/{{ res.slug }}/quote{{ '?staff=1' if staff }}" novalidate>
+{% set public = not staff %}
+{% set action = ('/resources/bookings/' ~ edit.id ~ '/edit') if edit else ('/resources/' ~ res.id ~ '/book' if staff else '/r/' ~ res.slug ~ '/book') %}
+<form method="post" action="{{ action }}" enctype="multipart/form-data" id="res-form" class="card res-booking{{ ' res-public' if public }}"
+      data-quote="/r/{{ res.slug }}/quote{{ '?staff=1' if staff }}{{ '&exclude=' ~ edit.id if edit }}" data-day="/r/{{ res.slug }}/day.json"
+      data-slot="{{ res.slot_minutes or 60 }}" data-min="{{ res.min_minutes or 0 }}" data-max="{{ res.max_minutes or 0 }}" novalidate>
   <input type="hidden" name="csrf" value="{{ csrf }}">
-  <div class="card-header fw-semibold"><i class="fa-solid fa-calendar-plus me-2"></i>{{ 'Intern eintragen' if staff else 'Jetzt buchen' }}</div>
+  <button type="submit" name="action" value="book" class="d-none" tabindex="-1" aria-hidden="true"></button>{# Standard bei Enter #}
+  {% if wait %}<input type="hidden" name="wait_token" value="{{ wait.token }}">{% endif %}
+  <div class="card-header fw-semibold d-flex align-items-center gap-2">
+    <i class="fa-solid {{ 'fa-pen' if edit else 'fa-calendar-plus' }}"></i>
+    <span class="flex-grow-1">{{ 'Buchung ändern' if edit else ('Intern eintragen' if staff else 'Jetzt buchen') }}</span>
+    {% if public %}<ol class="res-steps list-unstyled d-none mb-0 small" aria-label="Schritte">
+      <li data-step="1"><span>1</span> Wann</li><li data-step="2"><span>2</span> Angaben</li><li data-step="3"><span>3</span> Prüfen</li></ol>{% endif %}
+  </div>
   <div class="card-body">
-    <div class="row g-3">
+    {% if wait %}<div class="alert alert-success small"><i class="fa-solid fa-hourglass-start me-1"></i>Für Sie reserviert bis {{ wait.offer_until | local }} Uhr – bitte bis dahin buchen.</div>{% endif %}
+    {% if club %}<div class="alert alert-light border small d-flex flex-wrap gap-2 align-items-center"><i class="fa-solid fa-people-group"></i>
+      <span class="flex-grow-1">Angemeldet als <strong>{{ club.name }}</strong>{% if club_tariff %} · Tarif {{ club_tariff.name }}{% endif %} – Ihre Angaben werden übernommen, keine Bestätigungsmail nötig.</span>
+      <a href="/r/mein">Mein Bereich</a></div>{% endif %}
+    {% if cart and not edit %}<div class="alert alert-info small d-flex flex-wrap gap-2 align-items-center"><i class="fa-solid fa-basket-shopping"></i>
+      <span class="flex-grow-1">In Ihrer Merkliste: {% for b in cart %}{{ b.resource.name }} ({{ b.starts_at | local('%d.%m.') }}){{ ', ' if not loop.last }}{% endfor %}. Diese Buchung kommt dazu.</span>
+      <a href="/r/merkliste">Merkliste ansehen</a></div>{% endif %}
+
+    <div class="res-step" data-step="1"><div class="row g-3">
+      {% if edit and targets %}
+      <div class="col-md-6"><label class="form-label" for="r-target">Ressource</label>
+        <select class="form-select" id="r-target" name="resource_id" data-reload="/resources/bookings/{{ edit.id }}/edit?resource=">
+          {% for t in targets %}<option value="{{ t.id }}" {% if t.id == res.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select>
+        <div class="form-text">Umbuchen: Tarif und Zusatzleistungen werden über den Namen übernommen.</div></div>
+      {% endif %}
       {% if res_modes | length > 1 %}
       <div class="col-12"><span class="form-label d-block">Wie lange?</span>
         <div class="btn-group flex-wrap" role="group" aria-label="Buchungsart">
@@ -28,20 +53,21 @@
           <div class="col-12 col-md-4 form-text align-self-end">Höchstens {{ res.max_days }} Tag(e) am Stück.</div></div>
       </div>
       <div class="col-12 res-when" data-mode="block">
-        <div class="row g-2"><div class="col-sm-5 col-md-4"><label class="form-label" for="r-bdate">Tag</label><input class="form-control" type="date" id="r-bdate" name="date" value="{{ d.get('date', '') }}" {% if not staff %}min="{{ min_date }}" max="{{ max_date }}"{% endif %}></div>
+        <div class="row g-2"><div class="col-sm-5 col-md-4"><label class="form-label" for="r-bdate">Tag</label><input class="form-control js-day" type="date" id="r-bdate" name="date" value="{{ d.get('date', '') }}" {% if not staff %}min="{{ min_date }}" max="{{ max_date }}"{% endif %}></div>
           <div class="col-sm-7 col-md-8"><span class="form-label d-block">Zeitblöcke</span>
-            {% for b in blocks %}<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="blocks" value="{{ b.id }}" id="blk-{{ b.id }}" {% if d.getlist and b.id in d.getlist('blocks') %}checked{% endif %}><label class="form-check-label" for="blk-{{ b.id }}">{{ b.label }} <span class="text-secondary small">{{ b.start }}–{{ b.end }}</span></label></div>{% endfor %}</div></div>
+            {% for b in blocks %}<div class="form-check res-block"><input class="form-check-input" type="checkbox" name="blocks" value="{{ b.id }}" id="blk-{{ b.id }}" {% if d.getlist and b.id in d.getlist('blocks') %}checked{% endif %}><label class="form-check-label" for="blk-{{ b.id }}">{{ b.label }} <span class="text-secondary small">{{ b.start }}–{{ b.end }}</span> <span class="badge text-bg-danger d-none js-busy">belegt</span></label></div>{% endfor %}</div></div>
       </div>
       <div class="col-12 res-when" data-mode="hour">
-        <div class="row g-2"><div class="col-12 col-sm-5 col-md-4"><label class="form-label" for="r-hdate">Tag</label><input class="form-control" type="date" id="r-hdate" name="date" value="{{ d.get('date', '') }}" {% if not staff %}min="{{ min_date }}" max="{{ max_date }}"{% endif %}></div>
+        <div class="row g-2"><div class="col-12 col-sm-5 col-md-4"><label class="form-label" for="r-hdate">Tag</label><input class="form-control js-day" type="date" id="r-hdate" name="date" value="{{ d.get('date', '') }}" {% if not staff %}min="{{ min_date }}" max="{{ max_date }}"{% endif %}></div>
           <div class="col-6 col-sm-3 col-md-2"><label class="form-label" for="r-t1">Beginn</label><input class="form-control" type="time" id="r-t1" name="time_from" step="{{ res.slot_minutes * 60 }}" value="{{ d.get('time_from', '') }}"></div>
           <div class="col-6 col-sm-3 col-md-2"><label class="form-label" for="r-t2">Ende</label><input class="form-control" type="time" id="r-t2" name="time_to" step="{{ res.slot_minutes * 60 }}" value="{{ d.get('time_to', '') }}"></div>
-          <div class="col-12 col-md-4 form-text align-self-end">Raster {{ res.slot_minutes }} Min.{% if res.min_minutes %}, mind. {{ res.min_minutes }} Min.{% endif %}{% if res.max_minutes %}, höchstens {{ res.max_minutes }} Min.{% endif %}</div></div>
+          <div class="col-12 col-md-4 form-text align-self-end">Raster {{ res.slot_minutes }} Min.{% if res.min_minutes %}, mind. {{ res.min_minutes }} Min.{% endif %}{% if res.max_minutes %}, höchstens {{ res.max_minutes }} Min.{% endif %}</div>
+          <div class="col-12"><div id="res-free" class="res-free small" aria-live="polite"></div></div></div>
       </div>
 
       {% if res.tariffs | length > 1 %}
       <div class="col-md-6"><label class="form-label" for="r-tariff">Tarif</label>
-        <select class="form-select" id="r-tariff" name="tariff">{% for t in res.tariffs %}<option value="{{ t.id }}" data-proof="{{ '1' if t.needs_proof }}" {% if d.get('tariff') == t.id | string %}selected{% endif %}>{{ t.name }}{% if t.percent != 100 %} ({{ t.percent }} %){% endif %}</option>{% endfor %}</select>
+        <select class="form-select" id="r-tariff" name="tariff">{% for t in res.tariffs %}<option value="{{ t.id }}" data-proof="{{ '1' if t.needs_proof and not club }}" {% if d.get('tariff') == t.id | string or (not d.get('tariff') and club_tariff and club_tariff.id == t.id) %}selected{% endif %}>{{ t.name }}{% if t.percent != 100 %} ({{ t.percent }} %){% endif %}</option>{% endfor %}</select>
         {% for t in res.tariffs if t.description %}<div class="form-text">{{ t.name }}: {{ t.description }}</div>{% endfor %}</div>
       <div class="col-md-6 d-none" id="r-proof-box"><label class="form-label" for="r-proof">Nachweis für den Tarif</label><input class="form-control" type="file" id="r-proof" name="proof" accept=".pdf,.jpg,.jpeg,.png"><div class="form-text">z. B. Vereinsregisterauszug, Meldebescheinigung</div></div>
       {% elif res.tariffs %}<input type="hidden" name="tariff" value="{{ res.tariffs[0].id }}">{% endif %}
@@ -57,45 +83,71 @@
             {% if x.per in ('piece', 'day', 'hour') and x.max_qty > 1 %}
             <div class="input-group input-group-sm" style="width: 9rem"><span class="input-group-text">Anzahl</span><input class="form-control" type="number" min="{{ 1 if x.mandatory else 0 }}" max="{{ x.max_qty }}" name="extra_{{ x.id }}" value="{{ d.get('extra_' ~ x.id, '1' if x.mandatory else '0') }}" aria-label="Anzahl {{ x.name }}"></div>
             {% else %}
-            <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" name="extra_{{ x.id }}" value="1" id="ex-{{ x.id }}" {% if x.mandatory %}checked disabled{% elif d.get('extra_' ~ x.id) %}checked{% endif %}><label class="form-check-label" for="ex-{{ x.id }}">dazubuchen</label>{% if x.mandatory %}<input type="hidden" name="extra_{{ x.id }}" value="1">{% endif %}</div>
+            <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" name="extra_{{ x.id }}" value="1" id="ex-{{ x.id }}" {% if x.mandatory %}checked disabled{% elif d.get('extra_' ~ x.id) and d.get('extra_' ~ x.id) != '0' %}checked{% endif %}><label class="form-check-label" for="ex-{{ x.id }}">dazubuchen</label>{% if x.mandatory %}<input type="hidden" name="extra_{{ x.id }}" value="1">{% endif %}</div>
             {% endif %}
           </div>
           {% endfor %}
         </div></div>
       {% endif %}
+    </div></div>
 
-      <div class="col-12"><hr class="my-1"></div>
-      <div class="col-md-6"><label class="form-label" for="r-title">Anlass</label><input class="form-control" id="r-title" name="title" maxlength="255" value="{{ d.get('title', '') }}" placeholder="z. B. Geburtstagsfeier, Vereinsversammlung" required></div>
-      <div class="col-md-4"><label class="form-label" for="r-org">Verein / Veranstalter <span class="text-secondary small">(optional)</span></label><input class="form-control" id="r-org" name="organizer" maxlength="255" value="{{ d.get('organizer', '') }}"></div>
-      <div class="col-md-2"><label class="form-label" for="r-pers">Personen</label><input class="form-control" type="number" min="0" id="r-pers" name="persons" value="{{ d.get('persons', '') }}"></div>
-      <div class="col-md-6"><label class="form-label" for="r-name">Name</label><input class="form-control" id="r-name" name="name" maxlength="255" autocomplete="name" value="{{ d.get('name', user.name if staff and user else '') }}" {% if not staff %}required{% endif %}></div>
-      <div class="col-md-6"><label class="form-label" for="r-mail">E-Mail-Adresse{% if staff %} <span class="text-secondary small">(optional)</span>{% endif %}</label><input class="form-control" type="email" id="r-mail" name="email" autocomplete="email" value="{{ d.get('email', '') }}" {% if not staff %}required{% endif %}></div>
+    <div class="res-step" data-step="2"><div class="row g-3 mt-1">
+      <div class="col-12 d-none d-lg-block"><hr class="my-1"></div>
+      <div class="col-md-6"><label class="form-label" for="r-title">Anlass</label><input class="form-control" id="r-title" name="title" maxlength="255" value="{{ d.get('title', '') }}" placeholder="z. B. Geburtstagsfeier, Vereinsversammlung" {% if public %}required{% endif %}></div>
+      {% if not club %}<div class="col-md-4"><label class="form-label" for="r-org">Verein / Veranstalter <span class="text-secondary small">(optional)</span></label><input class="form-control" id="r-org" name="organizer" maxlength="255" value="{{ d.get('organizer', '') }}"></div>{% endif %}
+      <div class="col-md-2"><label class="form-label" for="r-pers">Personen</label><input class="form-control" type="number" min="0" inputmode="numeric" id="r-pers" name="persons" value="{{ d.get('persons', '') }}"></div>
+      {% if club %}
+      <div class="col-12 small text-secondary"><i class="fa-solid fa-address-card me-1"></i>{{ club.contact_name or club.name }} · {{ club.email }}{% if club.phone %} · {{ club.phone }}{% endif %} <a href="/r/mein#angaben" class="ms-1">ändern</a></div>
+      {% else %}
+      <div class="col-md-6"><label class="form-label" for="r-name">Name</label><input class="form-control" id="r-name" name="name" maxlength="255" autocomplete="name" value="{{ d.get('name', user.name if staff and user and not edit else '') }}" {% if public %}required{% endif %}></div>
+      <div class="col-md-6"><label class="form-label" for="r-mail">E-Mail-Adresse{% if staff %} <span class="text-secondary small">(optional)</span>{% endif %}</label><input class="form-control" type="email" id="r-mail" name="email" autocomplete="email" inputmode="email" value="{{ d.get('email', '') }}" {% if public %}required{% endif %}></div>
       <div class="col-md-4"><label class="form-label" for="r-tel">Telefon</label><input class="form-control" type="tel" id="r-tel" name="phone" autocomplete="tel" value="{{ d.get('phone', '') }}"></div>
       <div class="col-md-8"><label class="form-label" for="r-str">Straße und Hausnummer</label><input class="form-control" id="r-str" name="street" autocomplete="street-address" value="{{ d.get('street', '') }}"></div>
       <div class="col-4 col-md-3"><label class="form-label" for="r-zip">PLZ</label><input class="form-control" id="r-zip" name="zip" inputmode="numeric" maxlength="5" autocomplete="postal-code" value="{{ d.get('zip', '') }}"></div>
       <div class="col-8 col-md-9"><label class="form-label" for="r-city">Ort</label><input class="form-control" id="r-city" name="city" autocomplete="address-level2" value="{{ d.get('city', '') }}"></div>
-      {% if items %}<div class="col-12"><div class="row g-3">{% for item in items %}{% include "_form_field.html" %}{% endfor %}</div></div>{% endif %}
-      {% if staff %}
+      {% endif %}
+      {% if items and not edit %}<div class="col-12"><div class="row g-3">{% for item in items %}{% include "_form_field.html" %}{% endfor %}</div></div>{% endif %}
+      {% if staff and not edit %}
       <div class="col-12"><div class="border rounded p-3 bg-body-tertiary">
         <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="free" value="1" id="r-free"><label class="form-check-label" for="r-free">kostenlos (keine Zahlung)</label></div>
         <div class="row g-2 mt-1"><div class="col-sm-6"><label class="form-label small mb-1" for="r-rep">Wiederholen</label><select class="form-select form-select-sm" id="r-rep" name="repeat_weeks"><option value="0">nicht wiederholen</option><option value="1">jede Woche</option><option value="2">alle 2 Wochen</option><option value="4">alle 4 Wochen</option></select></div>
           <div class="col-sm-6"><label class="form-label small mb-1" for="r-until">bis einschließlich</label><input class="form-control form-control-sm" type="date" id="r-until" name="repeat_until"></div></div>
         <div class="form-text">Serienbuchung (z. B. Verein jeden Dienstag): belegte Termine werden übersprungen und angezeigt.</div>
       </div></div>
-      {% else %}
+      {% elif edit %}
+      <div class="col-12"><div class="border rounded p-3 bg-body-tertiary row g-2 mx-0">
+        <div class="col-md-4"><label class="form-label small mb-1" for="r-price">Preis festlegen <span class="text-secondary">(leer = neu berechnen)</span></label>
+          <div class="input-group input-group-sm"><input class="form-control" id="r-price" name="price" inputmode="decimal" placeholder="{{ money(edit.total_cents) }}"><span class="input-group-text">€</span></div></div>
+        <div class="col-md-8"><label class="form-label small mb-1" for="r-reason">Grund / Mitteilung an {{ edit.name or 'die buchende Person' }}</label><input class="form-control form-control-sm" id="r-reason" name="reason" maxlength="1000" placeholder="z. B. Saal wegen Wasserschaden in den kleinen Saal verlegt"></div>
+        <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="notify" value="1" id="r-notify" {% if edit.email %}checked{% else %}disabled{% endif %}><label class="form-check-label small" for="r-notify">Buchende Person per E-Mail informieren (mit neuer Bestätigung als PDF)</label></div>
+          <div class="form-text">Offene Zahlungen werden neu angefordert; bei Bezahltem wird zu viel Gezahltes erstattet bzw. ein Mehrbetrag nachgefordert.</div></div>
+      </div></div>
+      {% endif %}
+      {% if public %}
       {% if res.terms_text or res.terms_file %}
-      <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="terms" value="1" id="r-terms" required><label class="form-check-label" for="r-terms">Ich habe die {% if res.terms_file %}<a href="/r/{{ res.slug }}/nutzungsordnung.pdf" target="_blank">Nutzungsordnung</a>{% else %}Nutzungsbedingungen{% endif %} gelesen und akzeptiere sie.</label></div>
+      <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="terms" value="1" id="r-terms" required {% if d.get('terms') %}checked{% endif %}><label class="form-check-label" for="r-terms">Ich habe die {% if res.terms_file %}<a href="/r/{{ res.slug }}/nutzungsordnung.pdf" target="_blank">Nutzungsordnung</a>{% else %}Nutzungsbedingungen{% endif %} gelesen und akzeptiere sie.</label></div>
         {% if res.terms_text %}<details class="small mt-1"><summary>Nutzungsbedingungen anzeigen</summary><div class="mt-2" style="white-space: pre-line">{{ res.terms_text }}</div></details>{% endif %}</div>
       {% endif %}
       <div class="d-none" aria-hidden="true"><label>Webseite <input name="website" tabindex="-1" autocomplete="off"></label></div>
       {% endif %}
-    </div>
+    </div></div>
+
+    {% if public %}
+    <div class="res-step" data-step="3"><div class="mt-3" id="res-review" aria-live="polite"></div></div>
+    {% endif %}
   </div>
-  <div class="card-footer">
+  <div class="card-footer res-footer">
     <div id="res-quote" class="mb-3" aria-live="polite"><div class="text-secondary small">Zeitraum wählen – der Preis erscheint hier.</div></div>
+    <div id="res-wait-offer" class="alert alert-warning small py-2 d-none"><div class="d-flex flex-wrap gap-2 align-items-center">
+      <span class="flex-grow-1"><i class="fa-solid fa-list-ol me-1"></i>Belegt – auf die <strong>Warteliste</strong>?</span>
+      <button class="btn btn-sm btn-warning" type="submit" name="action" value="wait" formnovalidate id="res-wait-btn">Eintragen</button></div>
+      <details class="mt-1"><summary>Wie funktioniert das?</summary>Wird der Zeitraum frei, bekommen Sie der Reihe nach eine Nachricht und können 24 Stunden lang exklusiv buchen. Dafür braucht es Name und E-Mail-Adresse.</details></div>
     <div class="d-flex flex-wrap gap-2 align-items-center">
-      <button class="btn btn-primary btn-lg" type="submit" id="res-submit"><i class="fa-solid fa-paper-plane me-1"></i>{% if staff %}Eintragen{% elif res.mode == 'instant' %}Verbindlich buchen{% else %}Anfrage senden{% endif %}</button>
-      {% if not staff %}<span class="small text-secondary">Sie bekommen eine E-Mail zur Bestätigung. {{ 'Danach ist die Buchung fest.' if res.mode == 'instant' else 'Danach prüft die Verwaltung Ihre Anfrage.' }} {{ cancel_rules }}</span>{% endif %}
+      {% if public %}<button class="btn btn-outline-secondary btn-lg d-none" type="button" id="res-back"><i class="fa-solid fa-arrow-left me-1"></i>Zurück</button>
+      <button class="btn btn-primary btn-lg d-none" type="button" id="res-next">Weiter<i class="fa-solid fa-arrow-right ms-1"></i></button>{% endif %}
+      <button class="btn btn-primary btn-lg" type="submit" id="res-submit" name="action" value="book"><i class="fa-solid {{ 'fa-floppy-disk' if edit else 'fa-paper-plane' }} me-1"></i>{% if edit %}Änderung speichern{% elif staff %}Eintragen{% elif cart %}Alle {{ cart | length + 1 }} verbindlich {{ 'buchen' if club else 'anfragen' }}{% elif res.mode == 'instant' %}Verbindlich buchen{% else %}Anfrage senden{% endif %}</button>
+      {% if public and not wait %}<button class="btn btn-outline-primary" type="submit" name="action" value="add" id="res-add" title="Diese Buchung vormerken und eine weitere Ressource wählen"><i class="fa-solid fa-basket-shopping me-1"></i>Weitere Ressource dazubuchen</button>{% endif %}
+      {% if public %}<span class="small text-secondary w-100 res-footnote">{% if club %}Ohne Bestätigungsmail. {% else %}Sie bekommen eine E-Mail zur Bestätigung. {% endif %}{{ 'Danach ist die Buchung fest.' if res.mode == 'instant' else 'Danach prüft die Verwaltung Ihre Anfrage.' }} {{ cancel_rules }}</span>{% endif %}
     </div>
   </div>
 </form>

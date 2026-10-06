@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Als Verein registrieren{% endblock %}
+{% block content %}
+{% set d = draft or {} %}
+<div class="mx-auto" style="max-width: 40rem">
+  <h1 class="h3 mb-1">Als Verein registrieren</h1>
+  <p class="text-secondary">Nach der Freigabe durch die Verwaltung buchen Sie ohne erneute Angaben – mit Vereinstarif und passender Abrechnung.</p>
+  <form method="post" class="card"><div class="card-body row g-3"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="col-12"><label class="form-label" for="s-name">Name des Vereins / der Einrichtung</label><input class="form-control" id="s-name" name="club_name" value="{{ d.get('club_name', '') }}" required maxlength="200"></div>
+    <div class="col-md-6"><label class="form-label" for="s-contact">Ansprechperson</label><input class="form-control" id="s-contact" name="contact_name" value="{{ d.get('contact_name', '') }}" autocomplete="name"></div>
+    <div class="col-md-6"><label class="form-label" for="s-mail">E-Mail-Adresse (für die Anmeldung)</label><input class="form-control" type="email" id="s-mail" name="email" value="{{ d.get('email', '') }}" required autocomplete="email"></div>
+    <div class="col-md-4"><label class="form-label" for="s-tel">Telefon</label><input class="form-control" type="tel" id="s-tel" name="phone" value="{{ d.get('phone', '') }}" autocomplete="tel"></div>
+    <div class="col-md-8"><label class="form-label" for="s-str">Straße und Hausnummer</label><input class="form-control" id="s-str" name="street" value="{{ d.get('street', '') }}" autocomplete="street-address"></div>
+    <div class="col-4 col-md-3"><label class="form-label" for="s-zip">PLZ</label><input class="form-control" id="s-zip" name="zip" value="{{ d.get('zip', '') }}" inputmode="numeric" maxlength="5"></div>
+    <div class="col-8 col-md-9"><label class="form-label" for="s-city">Ort</label><input class="form-control" id="s-city" name="city" value="{{ d.get('city', '') }}"></div>
+    <div class="col-12"><label class="form-label" for="s-note">Wofür buchen Sie? <span class="text-secondary small">(optional)</span></label><textarea class="form-control" id="s-note" name="note" rows="2" placeholder="z. B. Training dienstags, Jahreshauptversammlung">{{ d.get('note', '') }}</textarea></div>
+    <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="privacy" value="1" id="s-priv" required><label class="form-check-label" for="s-priv">Ich bin einverstanden, dass diese Angaben für Buchungen gespeichert werden.</label></div></div>
+    <div class="d-none" aria-hidden="true"><label>Webseite <input name="website" tabindex="-1" autocomplete="off"></label></div>
+    <div class="col-12"><button class="btn btn-primary" type="submit">Registrierung absenden</button></div>
+  </div></form>
+</div>
+{% endblock %}

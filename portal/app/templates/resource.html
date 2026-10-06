@@ -16,6 +16,14 @@
       <ul class="list-group list-group-flush small">{% for b in upcoming %}{% set st = statuses[b.status] %}
         <li class="list-group-item"><a href="/resources/bookings/{{ b.id }}" class="d-flex gap-2"><span class="flex-grow-1">{{ when(b) }}{% if res.parts %} · {{ unit_label(res, unit_ids(b)) }}{% endif %}<span class="d-block text-secondary">{{ b.title }}{% if level >= 2 %} – {{ b.name }}{% endif %}</span></span><span class="badge text-bg-{{ st[1] }} align-self-start">{{ st[0] }}</span></a></li>
       {% else %}<li class="list-group-item text-secondary">Keine anstehenden Buchungen.</li>{% endfor %}</ul></div>
+    {% if waits %}
+    <div class="card mb-4" id="warteliste"><div class="card-header"><i class="fa-solid fa-list-ol me-2"></i>Warteliste <span class="badge rounded-pill text-bg-secondary">{{ waits | length }}</span></div>
+      <ul class="list-group list-group-flush small">{% for w in waits %}{% set ws = wait_statuses[w.status] %}
+        <li class="list-group-item d-flex gap-2 align-items-start"><span class="flex-grow-1">{{ wait_when(w) }}<span class="d-block text-secondary">{{ w.name }} · {{ w.email }}{% if w.status == 'offered' %} · Angebot bis {{ w.offer_until | local }}{% endif %}</span></span>
+          <span class="badge text-bg-{{ ws[1] }}">{{ ws[0] }}</span>
+          {% if level >= 3 %}<form method="post" action="/resources/{{ res.id }}/waits/{{ w.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger p-0" type="submit" aria-label="Von der Warteliste nehmen" data-confirm="Eintrag von der Warteliste nehmen?"><i class="fa-solid fa-xmark"></i></button></form>{% endif %}</li>
+      {% endfor %}</ul></div>
+    {% endif %}
     {% if level == 4 %}
     <div class="card" id="teilen"><div class="card-header"><i class="fa-solid fa-share-nodes me-2"></i>Im Portal freigeben</div><div class="card-body small">
       <p class="text-secondary">Z. B. Hausmeisterei „mit Kontaktdaten“, Ortsbürgermeister:in „Belegung einsehen“. Zuständige (unter Bearbeiten) dürfen immer verwalten.</p>

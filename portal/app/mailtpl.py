@@ -34,6 +34,8 @@ _MEETING_VARS = {
     "antwort_link": "Link zum Zu- oder Absagen im Browser (funktioniert in jedem Mailprogramm)",
 }
 
+_RES_VARS = {"name": "Name der buchenden Person", "ressource": "Ressource", "teilraeume": "Teilräume", "zeitraum": "Zeitraum", "anlass": "Anlass", "buchungsnummer": "Buchungsnummer", "link": "Link zur Buchung (ansehen, bezahlen, stornieren)", "betrag": "Gesamtbetrag", "positionen": "Einzelposten", "ort": "Ort", "nachricht": "Mitteilung der Verwaltung", "storno": "Stornoregeln", "zahl_link": "Zahlungslink", "zahlbar_bis": "Zahlfrist"}
+
 _RECORDING_VARS = {
     "aufnahme": "Bezeichnung der Aufnahme (Meeting, Datum, Uhrzeit)",
     "link": "Link zur Aufnahme im Portal",
@@ -509,7 +511,7 @@ TEMPLATES: dict[str, dict] = {
     },
     "res_confirm_email": {
         "group": "Ressourcen", "label": "E-Mail-Adresse bestätigen (Buchung)",
-        "vars": {"name": "Name der buchenden Person", "ressource": "Ressource", "teilraeume": "Teilräume", "zeitraum": "Zeitraum", "anlass": "Anlass", "buchungsnummer": "Buchungsnummer", "link": "Link zur Buchung (ansehen, bezahlen, stornieren)", "betrag": "Gesamtbetrag", "positionen": "Einzelposten", "ort": "Ort", "nachricht": "Mitteilung der Verwaltung", "storno": "Stornoregeln", "zahl_link": "Zahlungslink", "zahlbar_bis": "Zahlfrist"} | {"bestaetigen_link": "Link zum Bestätigen"},
+        "vars": _RES_VARS | {"bestaetigen_link": "Link zum Bestätigen"},
         "subject": "Bitte bestätigen: Buchung {ressource} ({zeitraum})",
         "body": ("Guten Tag {name},\n\nbitte bestätigen Sie Ihre Buchung innerhalb von 24 Stunden – sonst wird der Zeitraum wieder "
                  "freigegeben:\n{bestaetigen_link}\n\n{ressource} {teilraeume}\n{zeitraum}\nAnlass: {anlass}\n\n{positionen}\n"
@@ -517,14 +519,14 @@ TEMPLATES: dict[str, dict] = {
     },
     "res_received": {
         "group": "Ressourcen", "label": "Anfrage eingegangen (wird geprüft)",
-        "vars": {"name": "Name der buchenden Person", "ressource": "Ressource", "teilraeume": "Teilräume", "zeitraum": "Zeitraum", "anlass": "Anlass", "buchungsnummer": "Buchungsnummer", "link": "Link zur Buchung (ansehen, bezahlen, stornieren)", "betrag": "Gesamtbetrag", "positionen": "Einzelposten", "ort": "Ort", "nachricht": "Mitteilung der Verwaltung", "storno": "Stornoregeln", "zahl_link": "Zahlungslink", "zahlbar_bis": "Zahlfrist"},
+        "vars": _RES_VARS,
         "subject": "Ihre Anfrage {buchungsnummer}: {ressource}",
         "body": ("Guten Tag {name},\n\nvielen Dank – Ihre Anfrage für {ressource} am {zeitraum} ist eingegangen. Der Zeitraum ist für Sie "
                  "vorgemerkt; wir melden uns, sobald die Anfrage geprüft ist.\n\nIhre Buchung ansehen oder zurückziehen:\n{link}\n\n{fusszeile}"),
     },
     "res_confirmed": {
         "group": "Ressourcen", "label": "Buchung bestätigt (mit PDF)",
-        "vars": {"name": "Name der buchenden Person", "ressource": "Ressource", "teilraeume": "Teilräume", "zeitraum": "Zeitraum", "anlass": "Anlass", "buchungsnummer": "Buchungsnummer", "link": "Link zur Buchung (ansehen, bezahlen, stornieren)", "betrag": "Gesamtbetrag", "positionen": "Einzelposten", "ort": "Ort", "nachricht": "Mitteilung der Verwaltung", "storno": "Stornoregeln", "zahl_link": "Zahlungslink", "zahlbar_bis": "Zahlfrist"},
+        "vars": _RES_VARS,
         "subject": "Bestätigt: {ressource} am {zeitraum} ({buchungsnummer})",
         "body": ("Guten Tag {name},\n\nIhre Buchung ist bestätigt.\n\n{ressource} {teilraeume}\n{zeitraum}\nAnlass: {anlass}\n\n"
                  "{positionen}\nSumme: {betrag}\n\n{nachricht}\n\nBezahlen (bis {zahlbar_bis}): {zahl_link}\n\n"
@@ -532,26 +534,72 @@ TEMPLATES: dict[str, dict] = {
     },
     "res_rejected": {
         "group": "Ressourcen", "label": "Anfrage abgelehnt",
-        "vars": {"name": "Name der buchenden Person", "ressource": "Ressource", "teilraeume": "Teilräume", "zeitraum": "Zeitraum", "anlass": "Anlass", "buchungsnummer": "Buchungsnummer", "link": "Link zur Buchung (ansehen, bezahlen, stornieren)", "betrag": "Gesamtbetrag", "positionen": "Einzelposten", "ort": "Ort", "nachricht": "Mitteilung der Verwaltung", "storno": "Stornoregeln", "zahl_link": "Zahlungslink", "zahlbar_bis": "Zahlfrist"},
+        "vars": _RES_VARS,
         "subject": "Ihre Anfrage {buchungsnummer} konnte nicht bestätigt werden",
         "body": ("Guten Tag {name},\n\nleider können wir Ihre Anfrage für {ressource} am {zeitraum} nicht bestätigen.\n\n{nachricht}\n\n{fusszeile}"),
     },
     "res_cancelled": {
         "group": "Ressourcen", "label": "Buchung storniert",
-        "vars": {"name": "Name der buchenden Person", "ressource": "Ressource", "teilraeume": "Teilräume", "zeitraum": "Zeitraum", "anlass": "Anlass", "buchungsnummer": "Buchungsnummer", "link": "Link zur Buchung (ansehen, bezahlen, stornieren)", "betrag": "Gesamtbetrag", "positionen": "Einzelposten", "ort": "Ort", "nachricht": "Mitteilung der Verwaltung", "storno": "Stornoregeln", "zahl_link": "Zahlungslink", "zahlbar_bis": "Zahlfrist"} | {"grund": "Grund", "erstattung": "Hinweis zur Erstattung"},
+        "vars": _RES_VARS | {"grund": "Grund", "erstattung": "Hinweis zur Erstattung"},
         "subject": "Storniert: {ressource} am {zeitraum} ({buchungsnummer})",
         "body": ("Guten Tag {name},\n\ndie Buchung {buchungsnummer} ({ressource}, {zeitraum}) ist storniert.\n\n{grund}\n{erstattung}\n\n{fusszeile}"),
     },
     "res_expired": {
         "group": "Ressourcen", "label": "Reservierung verfallen (nicht bezahlt)",
-        "vars": {"name": "Name der buchenden Person", "ressource": "Ressource", "teilraeume": "Teilräume", "zeitraum": "Zeitraum", "anlass": "Anlass", "buchungsnummer": "Buchungsnummer", "link": "Link zur Buchung (ansehen, bezahlen, stornieren)", "betrag": "Gesamtbetrag", "positionen": "Einzelposten", "ort": "Ort", "nachricht": "Mitteilung der Verwaltung", "storno": "Stornoregeln", "zahl_link": "Zahlungslink", "zahlbar_bis": "Zahlfrist"},
+        "vars": _RES_VARS,
         "subject": "Reservierung verfallen: {ressource} am {zeitraum}",
         "body": ("Guten Tag {name},\n\nda bis zum {zahlbar_bis} keine Zahlung eingegangen ist, ist Ihre Reservierung {buchungsnummer} "
                  "verfallen und der Zeitraum wieder frei. Haben Sie inzwischen bezahlt, melden Sie sich bitte bei uns.\n\n{fusszeile}"),
     },
+    "res_changed": {
+        "group": "Ressourcen", "label": "Buchung geändert oder verschoben (mit PDF)",
+        "vars": _RES_VARS | {"vorher": "Bisheriger Zeitraum", "grund": "Grund bzw. Mitteilung", "erstattung": "Hinweis zu Zahlung/Erstattung"},
+        "subject": "Geändert: {ressource} am {zeitraum} ({buchungsnummer})",
+        "body": ("Guten Tag {name},\n\nIhre Buchung {buchungsnummer} wurde geändert.\n\nBisher: {vorher}\nJetzt: {ressource} {teilraeume}, "
+                 "{zeitraum}\n\n{grund}\n\n{positionen}\nSumme: {betrag}\n{erstattung}\n\nIhre Buchung: {link}\n\n{fusszeile}"),
+    },
+    "res_reminder": {
+        "group": "Ressourcen", "label": "Erinnerung vor Beginn",
+        "vars": _RES_VARS | {"hinweis": "Hinweistext der Ressource (z. B. Schlüsselabholung)"},
+        "subject": "Erinnerung: {ressource} am {zeitraum}",
+        "body": ("Guten Tag {name},\n\nwir erinnern an Ihre Buchung:\n\n{ressource} {teilraeume}\n{zeitraum}\nAnlass: {anlass}\nOrt: {ort}"
+                 "\n\n{hinweis}\n\nIhre Buchung (ansehen, Bestätigung als PDF): {link}\n\n{fusszeile}"),
+    },
+    "res_wait_confirm": {
+        "group": "Ressourcen", "label": "Warteliste: E-Mail-Adresse bestätigen",
+        "vars": {"name": "Name", "ressource": "Ressource", "zeitraum": "Gewünschter Zeitraum", "bestaetigen_link": "Link zum Bestätigen",
+                 "link": "Eintrag ansehen oder zurückziehen"},
+        "subject": "Bitte bestätigen: Warteliste {ressource} ({zeitraum})",
+        "body": ("Guten Tag {name},\n\nbitte bestätigen Sie Ihren Eintrag auf der Warteliste für {ressource} am {zeitraum}:\n"
+                 "{bestaetigen_link}\n\nWird der Zeitraum frei, bekommen Sie der Reihe nach eine Nachricht und können 24 Stunden "
+                 "lang exklusiv buchen.\n\nEintrag ansehen oder zurückziehen: {link}\n\n{fusszeile}"),
+    },
+    "res_wait_offer": {
+        "group": "Ressourcen", "label": "Warteliste: Zeitraum ist frei geworden",
+        "vars": {"name": "Name", "ressource": "Ressource", "zeitraum": "Zeitraum", "link": "Link zum Buchen", "frist": "Reserviert bis"},
+        "subject": "Frei geworden: {ressource} am {zeitraum}",
+        "body": ("Guten Tag {name},\n\ngute Nachricht: {ressource} ist am {zeitraum} frei geworden. Der Zeitraum ist bis {frist} "
+                 "exklusiv für Sie reserviert. Jetzt buchen:\n{link}\n\nDanach geht das Angebot an die nächste Person auf der "
+                 "Warteliste.\n\n{fusszeile}"),
+    },
+    "res_club_login": {
+        "group": "Ressourcen", "label": "Vereinszugang: Anmeldelink",
+        "vars": {"name": "Ansprechperson", "verein": "Verein / Dauernutzer", "link": "Anmeldelink (30 Minuten gültig)"},
+        "subject": "Ihr Anmeldelink für die Raumbuchung ({verein})",
+        "body": ("Guten Tag {name},\n\nmit diesem Link melden Sie sich für {verein} an (gültig 30 Minuten, danach bleiben Sie 30 Tage "
+                 "angemeldet):\n{link}\n\nWenn Sie das nicht angefordert haben, ignorieren Sie diese Nachricht.\n\n{fusszeile}"),
+    },
+    "res_club_statement": {
+        "group": "Ressourcen", "label": "Vereinszugang: Sammelrechnung",
+        "vars": {"name": "Ansprechperson", "verein": "Verein / Dauernutzer", "monat": "Abrechnungsmonat", "positionen": "Buchungen",
+                 "betrag": "Summe", "zahl_link": "Zahlungslink", "zahlbar_bis": "Zahlfrist"},
+        "subject": "Sammelrechnung {monat}: {verein}",
+        "body": ("Guten Tag {name},\n\nhier die Abrechnung Ihrer Buchungen im {monat}:\n\n{positionen}\n\nSumme: {betrag}\n\n"
+                 "Bitte bis {zahlbar_bis} bezahlen: {zahl_link}\n\n{fusszeile}"),
+    },
     "res_staff": {
         "group": "Ressourcen", "label": "Hinweis an die Zuständigen",
-        "vars": {"name": "Name der buchenden Person", "ressource": "Ressource", "teilraeume": "Teilräume", "zeitraum": "Zeitraum", "anlass": "Anlass", "buchungsnummer": "Buchungsnummer", "link": "Link zur Buchung (ansehen, bezahlen, stornieren)", "betrag": "Gesamtbetrag", "positionen": "Einzelposten", "ort": "Ort", "nachricht": "Mitteilung der Verwaltung", "storno": "Stornoregeln", "zahl_link": "Zahlungslink", "zahlbar_bis": "Zahlfrist"} | {"ereignis": "Was ist passiert", "verwalten_link": "Link zur Buchung in der Verwaltung", "kontakt": "Kontakt der buchenden Person"},
+        "vars": _RES_VARS | {"ereignis": "Was ist passiert", "verwalten_link": "Link zur Buchung in der Verwaltung", "kontakt": "Kontakt der buchenden Person"},
         "subject": "{ereignis}: {ressource}, {zeitraum}",
         "body": ("{ereignis}\n\n{ressource} {teilraeume}\n{zeitraum}\nAnlass: {anlass}\n{kontakt}\n\n{positionen}\nSumme: {betrag}\n\n"
                  "Bearbeiten: {verwalten_link}\n\n{fusszeile}"),
@@ -643,7 +691,8 @@ SAMPLE = {
     "buchungsnummer": "RB-2026-00007", "storno": "Bis 14 Tage vor Beginn kostenlos.", "erstattung": "Erstattet werden 85,00 €.",
     "art": "eAU (elektronische AU)", "arbeitgeber": "Verbandsgemeindeverwaltung", "eingang": "05.10.2026, 07:12 Uhr",
     "angaben": "Arbeitsunfähig seit: 05.10.2026\nVoraussichtlich bis: 09.10.2026\nFestgestellt am: 05.10.2026\nErstbescheinigung",
-    "hinweise": "", "praefix": "Krankmeldung",
+    "praefix": "Krankmeldung",
+    "vorher": "Grillplatz Am Weiher, 12.06.2026", "verein": "TSV Otterberg", "monat": "06/2026",
     "verwalten_link": "https://portal.example.org/resources/bookings/7", "kontakt": "Erika Mustermann <erika@example.org>",
 }
 
