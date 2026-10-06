@@ -881,7 +881,7 @@ class DmsFile(Base):
     file: Mapped[str] = mapped_column(String(80))
     size: Mapped[int] = mapped_column(Integer, default=0)
     mime: Mapped[str] = mapped_column(String(100), default="")
-    kind: Mapped[str] = mapped_column(String(16), default="upload")    # upload | abschluss | dokument
+    kind: Mapped[str] = mapped_column(String(16), default="upload")    # upload | abschluss | dokument | nachreichung
     sha256: Mapped[str] = mapped_column(String(64), default="")
     note: Mapped[str] = mapped_column(String(500), default="")
     uploaded_by: Mapped[str] = mapped_column(String(255), default="")
