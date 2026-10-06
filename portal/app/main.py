@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import ipaddress
 import json
 import re
@@ -2374,6 +2375,21 @@ def admin_design(request: Request, user: User = Depends(admin_user), db: Session
                   favicon_auto_url=branding._file(cfg, "ui_favicon_auto")[1] if cfg.get("ui_logo") else "")
 
 
+@app.get("/admin/design/mail-vorschau")
+def admin_design_mail_preview(user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    """Vorschau einer Mail im aktuellen Erscheinungsbild (Logo als Daten-URL statt cid:)."""
+    cfg = get_settings(db)
+    frame = notify.mail_frame(cfg) or None
+    sample = ("Guten Tag Erika Muster,\n\nIhre Buchung RB-2026-00042 ist bestätigt:\n\nGrillhütte am Weiher\n"
+              "Samstag, 12.09.2026, ganztägig\n\nIhre Buchung ansehen: " + settings.portal_base_url + "/r/b/beispiel"
+              "\n\nMit freundlichen Grüßen\nIhre Verwaltung")
+    page = notify.text_to_html(sample, frame)
+    if frame and frame.get("logo"):
+        data, sub = frame["logo"]
+        page = page.replace(f"cid:{frame['cid']}", f"data:image/{sub};base64," + base64.b64encode(data).decode("ascii"))
+    return HTMLResponse(page, headers={"Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
+
+
 @app.post("/admin/design", dependencies=[Depends(check_csrf)])
 async def admin_design_save(
     request: Request,
@@ -2384,7 +2400,7 @@ async def admin_design_save(
     ui_brand_name: str = Form(""), ui_product: str = Form(""), ui_login_text: str = Form(""),
     ui_footer_text: str = Form(""), ui_imprint_url: str = Form(""), ui_privacy_url: str = Form(""),
     ui_gallery_h: str = Form(""), ui_gallery_h_mobile: str = Form(""), ui_thumb_ratio: str = Form(""),
-    ui_photo_fit: str = Form(""),
+    ui_photo_fit: str = Form(""), ui_mail_frame: str = Form("1"),
     logo: UploadFile | None = File(None), favicon: UploadFile | None = File(None),
     user: User = Depends(admin_user), db: Session = Depends(get_db),
 ):
@@ -2407,6 +2423,7 @@ async def admin_design_save(
     set_setting(db, "ui_gallery_h_mobile", str(photos["gallery_mobile"]))
     set_setting(db, "ui_thumb_ratio", photos["ratio"])
     set_setting(db, "ui_photo_fit", photos["fit"])
+    set_setting(db, "ui_mail_frame", "0" if ui_mail_frame == "0" else "1")
 
     errors, notes = [], []
     for key, upload, remove, allowed in (("ui_logo", logo, remove_logo, branding.LOGO_TYPES),
