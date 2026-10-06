@@ -1,0 +1,37 @@
+/* Live-Umfragen: Teilnahme (Handy) und Präsentation (Beamer) */
+.live-join { max-width: 34rem; }
+.live-q { border-radius: var(--bs-border-radius-lg); }
+.live-choice { display: block; width: 100%; text-align: left; padding: .85rem 1rem; margin-bottom: .5rem; font-size: 1.05rem; border-radius: var(--bs-border-radius-lg); }
+.live-choice.is-mine { border-width: 2px; font-weight: 600; }
+.live-yesno { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.live-yesno .btn { padding: 1.2rem; font-size: 1.25rem; }
+.live-scale { display: flex; flex-wrap: wrap; gap: .4rem; }
+.live-scale .btn { flex: 1 0 3rem; padding: .8rem 0; font-size: 1.15rem; }
+.live-stars-input .btn { font-size: 2rem; color: #f59f00; padding: .2rem .35rem; }
+.live-done { color: var(--bs-success); font-weight: 600; }
+.live-chart-wrap { position: relative; height: 15rem; }
+.live-chart-wrap.is-round { height: 17rem; }
+.live-numbers { display: flex; flex-wrap: wrap; gap: 1.5rem; justify-content: center; text-align: center; }
+.live-num { display: block; font-size: 2rem; font-weight: 700; color: var(--bs-primary); line-height: 1.1; }
+.live-num-label { font-size: .85rem; color: var(--bs-secondary-color); }
+.live-numbers.is-big .live-num { font-size: 5rem; }
+.live-numbers.is-big .live-num-label { font-size: 1.3rem; }
+.live-stars { text-align: center; color: #f59f00; font-size: 2.5rem; margin-top: .5rem; }
+
+/* Präsentation */
+.live-present { position: fixed; inset: 0; z-index: 1080; background: var(--bs-body-bg); color: var(--bs-body-color); display: flex; flex-direction: column; padding: 2rem 3rem; }
+.live-present header { display: flex; align-items: center; gap: 1rem; }
+.live-present header img { max-height: 3rem; }
+.live-present .live-p-title { font-size: clamp(1.8rem, 3.6vw, 3.4rem); font-weight: 700; line-height: 1.15; margin: 1.5rem 0 1rem; }
+.live-present .live-p-body { flex: 1 1 auto; display: flex; gap: 2.5rem; min-height: 0; }
+.live-present .live-p-result { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.live-present .live-chart-wrap { height: 100%; min-height: 18rem; max-height: 62vh; }
+.live-present .live-p-qr { flex: 0 0 auto; text-align: center; align-self: center; }
+.live-present .live-p-qr img { width: min(30vh, 22rem); height: auto; background: #fff; padding: .6rem; border-radius: 1rem; }
+.live-present .live-p-url { font-size: 1.4rem; font-weight: 600; margin-top: .5rem; }
+.live-present footer { display: flex; align-items: center; gap: 1rem; color: var(--bs-secondary-color); font-size: 1rem; }
+.live-present .live-p-count { font-size: 1.6rem; font-weight: 700; color: var(--bs-body-color); }
+.live-present.no-qr .live-p-qr { display: none; }
+.live-present.hide-results .live-p-result { visibility: hidden; }
+.live-present .live-p-controls .btn { --bs-btn-padding-y: .2rem; }
+@media (max-width: 900px) { .live-present { padding: 1rem; } .live-present .live-p-body { flex-direction: column; } }

@@ -1060,6 +1060,64 @@ class VoteBallot(Base):
     receipt: Mapped[str] = mapped_column(String(16), default="", index=True)   # Quittung für die abstimmende Person
 
 
+class LivePoll(Base):
+    """Live-Umfrage (live.py): per QR-Code ohne Anmeldung und ohne Namen beantworten – je Gerät eine Antwort je
+    Frage (änderbar). Moderiert (Frage für Frage) oder frei; Präsentationsmodus für den Beamer."""
+    __tablename__ = "live_polls"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(Text, default="")
+    public_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    pacing: Mapped[str] = mapped_column(String(10), default="moderated")     # moderated | free
+    current_id: Mapped[int | None] = mapped_column(Integer, nullable=True)    # moderiert: gerade gezeigte Frage
+    status: Mapped[str] = mapped_column(String(10), default="draft")         # draft | open | closed
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    owner: Mapped[User | None] = relationship()
+    questions: Mapped[list["LiveQuestion"]] = relationship(back_populates="poll", cascade="all, delete-orphan",
+                                                           order_by="LiveQuestion.position, LiveQuestion.id",
+                                                           passive_deletes=True)
+
+
+class LiveQuestion(Base):
+    __tablename__ = "live_questions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    poll_id: Mapped[int] = mapped_column(ForeignKey("live_polls.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    kind: Mapped[str] = mapped_column(String(12), default="single")   # siehe live.KINDS
+    title: Mapped[str] = mapped_column(String(500))
+    options_json: Mapped[str] = mapped_column(Text, default="[]")     # [{"id", "label"}]
+    settings_json: Mapped[str] = mapped_column(Text, default="{}")    # Skala, Begriffe je Person, richtige Antwort …
+    chart: Mapped[str] = mapped_column(String(10), default="bar")     # bar | column | pie | donut | number | cloud | table
+    show_results: Mapped[str] = mapped_column(String(10), default="immediate")   # immediate | release | never
+    released: Mapped[bool] = mapped_column(Boolean, default=False)    # Ergebnis für Teilnehmende freigegeben
+    locked: Mapped[bool] = mapped_column(Boolean, default=False)      # keine Antworten mehr
+
+    poll: Mapped[LivePoll] = relationship(back_populates="questions")
+
+
+class LiveAnswer(Base):
+    """Antwort eines Geräts auf eine Frage (ein Eintrag je Gerät und Frage; bei Pinnwand/Q&A mehrere)."""
+    __tablename__ = "live_answers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    poll_id: Mapped[int] = mapped_column(ForeignKey("live_polls.id", ondelete="CASCADE"), index=True)
+    question_id: Mapped[int] = mapped_column(ForeignKey("live_questions.id", ondelete="CASCADE"), index=True)
+    device: Mapped[str] = mapped_column(String(64), index=True)       # Hash der Gerätekennung (kein Personenbezug)
+    value_json: Mapped[str] = mapped_column(Text, default="{}")
+    nickname: Mapped[str] = mapped_column(String(40), default="")      # nur Quiz, freiwillig
+    hidden: Mapped[bool] = mapped_column(Boolean, default=False)       # von der Moderation ausgeblendet
+    approved: Mapped[bool] = mapped_column(Boolean, default=False)     # Q&A: freigegeben
+    answered: Mapped[bool] = mapped_column(Boolean, default=False)     # Q&A: beantwortet
+    upvotes: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
 class VoteShare(Base):
     """Freigabe einer Abstimmung im Portal (Stufen wie bei Formularen, siehe shares.py)."""
     __tablename__ = "vote_shares"

@@ -68,8 +68,17 @@ def votes_list(request: Request, all: str = "", user: User = Depends(current_use
         q = q.where(Vote.owner_id == user.id)
     items = db.scalars(q).all() if user.can("votes") or show_all else []
     counts = dict(db.execute(select(VoteBallot.vote_id, func.count(VoteBallot.id)).group_by(VoteBallot.vote_id)).all())
+    from . import live as lv
+    from .db import LiveAnswer, LivePoll
+    lq = select(LivePoll).order_by(LivePoll.updated_at.desc())
+    if not show_all:
+        lq = lq.where(LivePoll.owner_id == user.id)
+    lives = db.scalars(lq).all() if user.can("votes") or show_all else []
+    live_counts = dict(db.execute(select(LiveAnswer.poll_id, func.count(func.distinct(LiveAnswer.device)))
+                                  .group_by(LiveAnswer.poll_id)).all())
     return render(request, "votes.html", user, votes=items, shared=shared, counts=counts, show_all=show_all,
-                  statuses=vt.STATUSES, secrecy=vt.SECRECY, levels=sh.LEVELS["vote"], is_open=vt.is_open)
+                  statuses=vt.STATUSES, secrecy=vt.SECRECY, levels=sh.LEVELS["vote"], is_open=vt.is_open,
+                  lives=lives, live_counts=live_counts, live_statuses=lv.STATUSES, pacing=lv.PACING)
 
 
 @app.get("/votes/new")

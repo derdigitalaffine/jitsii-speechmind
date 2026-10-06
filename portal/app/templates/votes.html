@@ -3,7 +3,17 @@
 {% block title %}Abstimmungen{% endblock %}
 {% block content %}
 {% call m.page_head('Abstimmungen', 'Abstimmen und wählen – offen, geheim oder anonym, per Einladung, öffentlichem Link mit E-Mail-Bestätigung oder Zugangscodes. Mit Live-Ansicht für Sitzungen und Ergebnisprotokoll.') %}
-  {% if user.can('votes') %}<a class="btn btn-primary" href="/votes/new"><i class="fa-solid fa-plus me-1"></i>Neue Abstimmung</a>{% endif %}
+  {% if user.can('votes') %}<div class="dropdown"><button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="fa-solid fa-plus me-1"></i>Neu</button>
+    <div class="dropdown-menu dropdown-menu-end p-2" style="min-width: 20rem">
+      <a class="dropdown-item rounded py-2" href="/votes/new"><i class="fa-solid fa-check-to-slot fa-fw me-2"></i><strong>Förmliche Abstimmung</strong><div class="small text-secondary ms-4">offen, geheim oder anonym, mit Wählerverzeichnis und Protokoll</div></a>
+      <div class="dropdown-divider"></div>
+      <form method="post" action="/votes/live/new" class="px-2"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="fw-semibold mb-1"><i class="fa-solid fa-tower-broadcast fa-fw me-2"></i>Live-Umfrage</div>
+        <div class="small text-secondary mb-2">per QR-Code, ohne Anmeldung und ohne Namen – mit Beamer-Ansicht</div>
+        <input class="form-control form-control-sm mb-2" name="title" maxlength="255" placeholder="Titel, z. B. Bürgerversammlung" aria-label="Titel der Live-Umfrage" required>
+        <select class="form-select form-select-sm mb-2" name="pacing" aria-label="Ablauf">{% for k, v in pacing.items() %}<option value="{{ k }}">{{ v[0] }} – {{ v[1] }}</option>{% endfor %}</select>
+        <button class="btn btn-sm btn-primary w-100" type="submit">Live-Umfrage anlegen</button></form>
+    </div></div>{% endif %}
   {% if user.can('polls') %}<a class="btn btn-outline-primary" href="/polls/new"><i class="fa-solid fa-calendar-check me-1"></i>Neue Terminumfrage</a>{% endif %}
   {% if user.is_admin %}<a class="btn btn-outline-secondary" href="?{{ '' if show_all else 'all=1' }}">{{ 'Nur meine' if show_all else 'Alle anzeigen' }}</a>{% endif %}
 {% endcall %}
@@ -26,12 +36,24 @@
     </div>
   </div></div></div>
 {% endmacro %}
+{% if lives %}
+<h2 class="h5 mb-3"><i class="fa-solid fa-tower-broadcast me-2 text-secondary"></i>Live-Umfragen</h2>
+<div class="row g-3 mb-4">{% for p in lives %}{% set st = live_statuses[p.status] %}
+  <div class="col-12 col-md-6 col-xxl-4"><div class="card h-100"><div class="card-body d-flex flex-column">
+    <div class="d-flex justify-content-between align-items-start gap-2 mb-1"><a class="h6 mb-0 text-decoration-none" href="/votes/live/{{ p.id }}">{{ p.title }}</a><span class="badge text-bg-{{ st[1] }}">{{ st[0] }}</span></div>
+    <div class="small text-secondary mb-3">{{ pacing[p.pacing][0] }} · {{ p.questions | length }} Frage{{ 'n' if p.questions | length != 1 }} · {{ live_counts.get(p.id, 0) }} Teilnehmende</div>
+    <div class="mt-auto d-flex flex-wrap gap-2"><a class="btn btn-sm btn-primary" href="/votes/live/{{ p.id }}"><i class="fa-solid fa-pen me-1"></i>Fragen &amp; Steuerung</a>
+      <a class="btn btn-sm btn-outline-secondary" href="/votes/live/{{ p.id }}/praesentation" target="_blank"><i class="fa-solid fa-display me-1"></i>Präsentieren</a></div>
+  </div></div></div>{% endfor %}
+</div>
+{% if votes %}<h2 class="h5 mb-3"><i class="fa-solid fa-check-to-slot me-2 text-secondary"></i>Förmliche Abstimmungen</h2>{% endif %}
+{% endif %}
 {% if votes %}<div class="row g-3 mb-4">{% for v in votes %}{{ card(v, 4) }}{% endfor %}</div>{% endif %}
 {% if shared %}
 <h2 class="h5 mb-3"><i class="fa-solid fa-share-nodes me-2 text-secondary"></i>Mit mir geteilt</h2>
 <div class="row g-3 mb-4">{% for v, lvl in shared %}{{ card(v, lvl) }}{% endfor %}</div>
 {% endif %}
-{% if not votes and not shared %}
+{% if not votes and not shared and not lives %}
 <div class="text-center text-secondary py-5"><i class="fa-solid fa-check-to-slot fa-3x mb-3"></i><p>Noch keine Abstimmungen.</p>
   {% if user.can('votes') %}<a class="btn btn-primary" href="/votes/new"><i class="fa-solid fa-plus me-1"></i>Erste Abstimmung anlegen</a>{% endif %}</div>
 {% endif %}
