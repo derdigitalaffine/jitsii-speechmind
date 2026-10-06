@@ -1570,6 +1570,11 @@ class BookingPage(Base):
     max_per_person: Mapped[int] = mapped_column(Integer, default=1)      # aktive Buchungen je E-Mail-Adresse
     invite_only: Mapped[bool] = mapped_column(Boolean, default=False)    # nur mit persönlichem Einladungslink
     listed: Mapped[bool] = mapped_column(Boolean, default=False)         # im öffentlichen Verzeichnis „Termine buchen“
+    # Erweiterter Umfang (btypes.py): mehrere Terminarten mit eigenen Dauern, Mitarbeitenden und Sprechzeiten
+    extended: Mapped[bool] = mapped_column(Boolean, default=False)
+    days_ahead: Mapped[int] = mapped_column(Integer, default=60)          # so weit im Voraus buchbar
+    step_minutes: Mapped[int] = mapped_column(Integer, default=15)        # Raster der Beginnzeiten
+    holidays_closed: Mapped[bool] = mapped_column(Boolean, default=True)  # an Feiertagen keine Termine
     ask_phone: Mapped[bool] = mapped_column(Boolean, default=False)
     online: Mapped[bool] = mapped_column(Boolean, default=False)         # je Buchung eine Videokonferenz
     notify_owner: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -1589,6 +1594,13 @@ class BookingPage(Base):
                                                      order_by="Booking.starts_at", passive_deletes=True)
     invites: Mapped[list["BookingInvite"]] = relationship(back_populates="page", cascade="all, delete-orphan",
                                                           order_by="BookingInvite.email", passive_deletes=True)
+    types: Mapped[list["BookingType"]] = relationship(back_populates="page", cascade="all, delete-orphan",
+                                                      order_by="BookingType.position, BookingType.id",
+                                                      passive_deletes=True)
+    hours: Mapped[list["BookingHours"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
+                                                       order_by="BookingHours.weekday, BookingHours.start")
+    closures: Mapped[list["BookingClosure"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
+                                                            order_by="BookingClosure.date_from")
     shares: Mapped[list["BookingShare"]] = relationship(back_populates="page", cascade="all, delete-orphan",
                                                         order_by="BookingShare.id", passive_deletes=True)
 
@@ -1628,8 +1640,76 @@ class Booking(Base):
     reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     meeting_id: Mapped[int | None] = mapped_column(ForeignKey("meetings.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # Erweiterter Umfang: Terminart, zuständige Person, Antworten auf eigene Felder; status auch „requested“
+    type_id: Mapped[int | None] = mapped_column(ForeignKey("booking_types.id", ondelete="SET NULL"), nullable=True)
+    provider_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
+                                                    index=True)
+    answers_json: Mapped[str] = mapped_column(Text, default="")
 
     page: Mapped[BookingPage] = relationship(back_populates="bookings")
+    type: Mapped["BookingType | None"] = relationship()
+    provider: Mapped[User | None] = relationship(foreign_keys=[provider_id])
+
+
+class BookingType(Base):
+    """Terminart einer Buchungsseite im erweiterten Umfang (z. B. „Bauberatung, 45 Minuten“)."""
+    __tablename__ = "booking_types"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("booking_pages.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(160))
+    description: Mapped[str] = mapped_column(Text, default="")
+    docs_hint: Mapped[str] = mapped_column(Text, default="")              # „Bitte mitbringen: …“
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    buffer_minutes: Mapped[int] = mapped_column(Integer, default=0)       # Puffer nach dem Termin
+    min_notice_hours: Mapped[int] = mapped_column(Integer, default=24)    # Vorlauf
+    location: Mapped[str] = mapped_column(String(255), default="")
+    online: Mapped[bool] = mapped_column(Boolean, default=False)          # Videokonferenz
+    approval: Mapped[bool] = mapped_column(Boolean, default=False)        # Bestätigung durch Mitarbeitende
+    phone_mode: Mapped[str] = mapped_column(String(10), default="optional")   # none | optional | required
+    choose_provider: Mapped[bool] = mapped_column(Boolean, default=False)     # Bürger:innen wählen die Person
+    fields_json: Mapped[str] = mapped_column(Text, default="[]")          # eigene Felder (Teil 2)
+    color: Mapped[str] = mapped_column(String(9), default="")
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    page: Mapped[BookingPage] = relationship(back_populates="types")
+    providers: Mapped[list[User]] = relationship(secondary="booking_type_providers", order_by="User.name")
+
+
+class BookingTypeProvider(Base):
+    __tablename__ = "booking_type_providers"
+
+    type_id: Mapped[int] = mapped_column(ForeignKey("booking_types.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+
+
+class BookingHours(Base):
+    """Wiederkehrende Sprechzeit einer Person auf einer Buchungsseite (Ortszeit, Wochentag 0 = Montag)."""
+    __tablename__ = "booking_hours"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("booking_pages.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    weekday: Mapped[int] = mapped_column(Integer)
+    start: Mapped[str] = mapped_column(String(5))     # HH:MM
+    end: Mapped[str] = mapped_column(String(5))
+
+    user: Mapped[User] = relationship()
+
+
+class BookingClosure(Base):
+    """Ausnahme: an diesen Tagen keine Termine – für alle (user_id leer) oder eine Person."""
+    __tablename__ = "booking_closures"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("booking_pages.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    date_from: Mapped[str] = mapped_column(String(10))
+    date_to: Mapped[str] = mapped_column(String(10))
+    note: Mapped[str] = mapped_column(String(200), default="")
+
+    user: Mapped[User | None] = relationship()
 
 
 class BookingInvite(Base):
@@ -2243,7 +2323,11 @@ DEFAULT_SETTINGS = {
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)
 _NEW_COLUMNS = {
     "groups": {"lead_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL"},
-    "booking_pages": {"listed": "BOOLEAN NOT NULL DEFAULT 0"},
+    "booking_pages": {"listed": "BOOLEAN NOT NULL DEFAULT 0", "extended": "BOOLEAN NOT NULL DEFAULT 0",
+                      "days_ahead": "INTEGER NOT NULL DEFAULT 60", "step_minutes": "INTEGER NOT NULL DEFAULT 15",
+                      "holidays_closed": "BOOLEAN NOT NULL DEFAULT 1"},
+    "bookings": {"type_id": "INTEGER REFERENCES booking_types(id) ON DELETE SET NULL",
+                 "provider_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL", "answers_json": "TEXT NOT NULL DEFAULT ''"},
     "votes": {"chart": "VARCHAR(8) NOT NULL DEFAULT 'bar'"},
     "resource_extras": {"per_n": "INTEGER NOT NULL DEFAULT 0", "tiers_json": "TEXT NOT NULL DEFAULT '[]'",
                         "min_cents": "INTEGER NOT NULL DEFAULT 0", "max_cents": "INTEGER NOT NULL DEFAULT 0",

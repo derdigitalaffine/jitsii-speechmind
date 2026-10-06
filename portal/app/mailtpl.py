@@ -325,6 +325,21 @@ TEMPLATES: dict[str, dict] = {
         "body": ("Guten Tag {name},\n\n{wer} den Termin am {termin} abgesagt.\n\n{grund}\n\n"
                  "Mit der angehängten Datei wird der Termin aus Ihrem Kalender entfernt.\n\n{fusszeile}"),
     },
+    "booking_requested": {
+        "group": "Terminbuchung", "label": "Anfrage eingegangen – Bestätigung folgt (an den Gast, Terminarten)",
+        "vars": _BOOKING_VARS,
+        "subject": "Ihre Terminanfrage: {titel} – {termin}",
+        "body": ("Guten Tag {name},\n\nvielen Dank für Ihre Anfrage. Wir haben folgenden Termin für Sie vorgemerkt:\n\n"
+                 "    {termin}\n\nSobald {anbieter} den Termin bestätigt, erhalten Sie eine weitere Mail mit "
+                 "Kalendereintrag.\n\n{hinweis}\n\nAnfrage ansehen oder zurückziehen: {verwalten}\n\n{fusszeile}"),
+    },
+    "booking_declined": {
+        "group": "Terminbuchung", "label": "Anfrage abgelehnt (an den Gast, Terminarten)",
+        "vars": {**_BOOKING_VARS, "grund": "Begründung (falls angegeben)"},
+        "subject": "Terminanfrage nicht möglich: {titel} – {termin}",
+        "body": ("Guten Tag {name},\n\nleider können wir Ihre Terminanfrage für {termin} nicht bestätigen.\n\n{grund}\n\n"
+                 "Gern können Sie einen anderen Termin anfragen.\n\n{fusszeile}"),
+    },
     "booking_reminder": {
         "group": "Terminbuchung", "label": "Erinnerung an den Termin (an den Gast)",
         "vars": _BOOKING_VARS,

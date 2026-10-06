@@ -53,6 +53,11 @@ def _apply(page: BookingPage, data) -> None:
     page.reminder_hours = _int(data.get("reminder_hours"), 0, 24 * 14, 24)
     page.invite_only, page.ask_phone = flag("invite_only"), flag("ask_phone")
     page.listed = flag("listed") and not page.invite_only
+    if "extended_form" in data:   # Schalter nur auf der Einstellungsseite (nicht beim Kopieren o. Ä.)
+        page.extended = flag("extended")
+        page.days_ahead = _int(data.get("days_ahead"), 1, 730, 60)
+        page.step_minutes = _int(data.get("step_minutes"), 5, 60, 15)
+        page.holidays_closed = flag("holidays_closed")
     page.online, page.notify_owner = flag("online"), flag("notify_owner")
     page.confirm_text = str(data.get("confirm_text", "")).replace("\r\n", "\n").strip()[:2000]
 
@@ -110,7 +115,7 @@ def booking_detail(request: Request, page_id: int, user: User = Depends(current_
     active = bk.active_bookings(page)
     users = db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all()
     groups = db.scalars(select(Group).order_by(Group.name)).all()
-    free_slots = bk.bookable(page)
+    free_slots = bk.free_slots(db, page)
     first = min([w.starts_at for w in page.windows if w.ends_at >= now], default=now)
     link = bk.public_link(page)
     qp = request.query_params
@@ -124,7 +129,8 @@ def booking_detail(request: Request, page_id: int, user: User = Depends(current_
                   status_filters=bk.STATUS_FILTERS, sorts=bk.SORTS, feed_url=bk.feed_link(page), now=now,
                   past=[b for b in active if b.ends_at < now],
                   cancelled=[b for b in page.bookings if b.status == "cancelled"],
-                  free_count=sum(s["free"] for s in free_slots), slot_count=len(bk.slots(page)),
+                  free_count=sum(s["free"] for s in free_slots),
+                  slot_count=len(free_slots) if page.extended else len(bk.slots(page)),
                   free_days=bk.group_by_day(free_slots), label=bk.label, public_url=link, users=users, groups=groups,
                   booked_emails=bk.booked_emails(page), invite_link=bk.invite_link, errors=sl.QR_ERRORS,
                   events=bk.calendar_events(page), initial_date=to_local(first).date().isoformat(),
@@ -152,6 +158,8 @@ async def booking_settings_save(request: Request, page_id: int, user: User = Dep
     if before != (page.slot_minutes, page.pause_minutes) and bk.active_bookings(page):
         msg += " Bestehende Buchungen behalten ihre Zeiten; neue Zeitfenster richten sich nach der neuen Dauer."
     flash(request, msg)
+    if page.extended and not page.types:
+        return redirect(f"/bookings/{page.id}/arten")
     return redirect(f"/bookings/{page.id}")
 
 
@@ -239,9 +247,13 @@ def booking_entry_action(request: Request, page_id: int, bid: int, action: str =
     b = db.get(Booking, bid)
     if b is None or b.page_id != page.id:
         raise HTTPException(404)
-    if action == "cancel":
+    if action == "confirm":
+        bk.confirm(db, b)
+        flash(request, f"Termin von {b.name} bestätigt – die Bestätigung mit Kalendereintrag geht per Mail raus.")
+    elif action == "cancel":
+        declined = b.status == "requested"
         bk.cancel(db, b, "owner", " ".join(reason.split()))
-        flash(request, f"Termin von {b.name} abgesagt. {b.name} wird per Mail informiert.")
+        flash(request, f"Anfrage von {b.name} abgelehnt." if declined else f"Termin von {b.name} abgesagt. {b.name} wird per Mail informiert.")
     elif action == "move":
         start = bk.parse_local(slot)
         error = bk.move(db, b, start) if start else "Bitte einen Termin wählen."
@@ -471,7 +483,7 @@ def booking_directory(request: Request, db: Session = Depends(get_db)):
                        .order_by(BookingPage.title)).all()
     rows = []
     for page in pages:
-        free = bk.bookable(page)
+        free = bk.free_slots(db, page)
         rows.append({"page": page, "next": bk.label(free[0]["start"]) if free else "", "count": len(free)})
     response = render(request, "booking_directory.html", None, rows=rows)
     if "jsm_session" not in request.cookies:
@@ -486,7 +498,7 @@ def booking_manage(request: Request, token: str, db: Session = Depends(get_db)):
         return _public(request, db, None, mode="missing")
     page = b.page
     return _public(request, db, page, mode="manage", booking=b, label=bk.label, can_cancel=bk.can_cancel(b),
-                   days=bk.group_by_day(bk.bookable(page, keep=b)) if page.active and bk.can_cancel(b) else [],
+                   days=bk.group_by_day(bk.slots_for(db, b)) if page.active and bk.can_cancel(b) else [],
                    join=bk.join_link(db, b), fresh=request.query_params.get("neu") == "1")
 
 
@@ -533,6 +545,18 @@ def booking_public(request: Request, token: str, i: str = "", db: Session = Depe
         if existing is not None and page.max_per_person <= 1:
             return redirect(f"/b/m/{existing.token}")
     member = session_user(request, db)
+    if page.extended:
+        from . import btypes
+        types = btypes.active_types(page)
+        art = request.query_params.get("art", "")
+        bt = next((t for t in types if str(t.id) == art), None) if art else (types[0] if len(types) == 1 else None)
+        if bt is None:
+            return _public(request, db, page, mode="types", types=types, summary=btypes.summary, invite=inv)
+        person = request.query_params.get("person", "")
+        pid = int(person) if person.isdigit() and bt.choose_provider and any(p.id == int(person) for p in bt.providers) else None
+        return _public(request, db, page, mode="book", invite=inv, member=member, bt=bt, person=pid, types=types,
+                       days=bk.group_by_day(btypes.slots(db, page, bt, pid)), selected=request.query_params.get("slot", ""),
+                       summary=btypes.summary)
     return _public(request, db, page, mode="book", invite=inv, member=member,
                    days=bk.group_by_day(bk.bookable(page)), selected=request.query_params.get("slot", ""))
 
@@ -555,17 +579,28 @@ async def booking_public_book(request: Request, token: str, db: Session = Depend
     phone = " ".join(str(data.get("phone", "")).split())[:60]
     note = str(data.get("note", "")).replace("\r\n", "\n").strip()[:2000]
     start = bk.parse_local(str(data.get("slot", "")))
+    bt, pid = None, None
+    if page.extended:
+        from . import btypes
+        bt = next((t for t in btypes.active_types(page) if str(t.id) == str(data.get("art", ""))), None)
+        person = str(data.get("person", ""))
+        pid = int(person) if bt and bt.choose_provider and person.isdigit() else None
+        back += ("&" if "?" in back else "?") + f"art={bt.id if bt else ''}" + (f"&person={pid}" if pid else "")
+    need_phone = (bt.phone_mode == "required") if bt else page.ask_phone
     error = ""
-    if not start:
+    if page.extended and bt is None:
+        error = "Bitte wählen Sie eine Terminart."
+    elif not start:
         error = "Bitte wählen Sie einen Termin."
     elif not name:
         error = "Bitte geben Sie Ihren Namen an."
     elif not EMAIL_RE.match(email):
         error = "Bitte geben Sie eine gültige E-Mail-Adresse an – dorthin geht die Bestätigung."
-    elif page.ask_phone and not phone:
+    elif need_phone and not phone:
         error = "Bitte geben Sie eine Telefonnummer an."
     if not error:
-        b, error = bk.book(db, page, start, name, email, phone, note, session_user(request, db), inv)
+        b, error = bk.book(db, page, start, name, email, phone, note, session_user(request, db), inv, bt=bt,
+                           provider_id=pid)
     if error:
         db.rollback()
         flash(request, error, "error")

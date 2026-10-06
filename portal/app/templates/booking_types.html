@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Terminarten – {{ page.title }}{% endblock %}
+{% macro type_form(t=None) %}
+{% set fid = 'bt-' ~ (t.id if t else 'neu') %}
+<form method="post" action="/bookings/{{ page.id }}/arten" class="row g-3">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="type_id" value="{{ t.id if t else '' }}">
+  <div class="col-md-8"><label class="form-label" for="{{ fid }}-n">Name der Terminart</label>
+    <input class="form-control" id="{{ fid }}-n" name="name" required maxlength="160" value="{{ t.name if t else '' }}" placeholder="z. B. Bauberatung, Gewerbeanmeldung, Gespräch mit dem Bürgermeister"></div>
+  <div class="col-md-4"><label class="form-label" for="{{ fid }}-d">Dauer</label>
+    <select class="form-select" id="{{ fid }}-d" name="duration_minutes">{% for d in durations %}<option value="{{ d }}" {% if (t.duration_minutes if t else 30) == d %}selected{% endif %}>{{ d }} Minuten</option>{% endfor %}</select></div>
+  <div class="col-12"><label class="form-label" for="{{ fid }}-desc">Beschreibung <span class="text-secondary small">(sehen Bürger:innen bei der Auswahl)</span></label>
+    <textarea class="form-control" id="{{ fid }}-desc" name="description" rows="2" maxlength="3000">{{ t.description if t else '' }}</textarea></div>
+  <div class="col-12"><label class="form-label" for="{{ fid }}-docs">Bitte mitbringen / Unterlagen <span class="text-secondary small">(erscheint bei der Buchung und in der Bestätigung)</span></label>
+    <textarea class="form-control" id="{{ fid }}-docs" name="docs_hint" rows="2" maxlength="2000" placeholder="z. B. Personalausweis, Lageplan, Bauzeichnungen">{{ t.docs_hint if t else '' }}</textarea></div>
+  <div class="col-sm-4"><label class="form-label" for="{{ fid }}-b">Puffer danach</label>
+    <div class="input-group"><input class="form-control" type="number" id="{{ fid }}-b" name="buffer_minutes" min="0" max="240" value="{{ t.buffer_minutes if t else 0 }}"><span class="input-group-text">Min.</span></div></div>
+  <div class="col-sm-4"><label class="form-label" for="{{ fid }}-v">Vorlauf</label>
+    <div class="input-group"><input class="form-control" type="number" id="{{ fid }}-v" name="min_notice_hours" min="0" max="1440" value="{{ t.min_notice_hours if t else 24 }}"><span class="input-group-text">Std.</span></div></div>
+  <div class="col-sm-4"><label class="form-label" for="{{ fid }}-ph">Telefonnummer</label>
+    <select class="form-select" id="{{ fid }}-ph" name="phone_mode">{% for k, v in phone_modes.items() %}<option value="{{ k }}" {% if (t.phone_mode if t else 'optional') == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+  <div class="col-md-8"><label class="form-label" for="{{ fid }}-l">Ort / Raum</label>
+    <input class="form-control" id="{{ fid }}-l" name="location" maxlength="255" value="{{ t.location if t else page.location }}" placeholder="z. B. Rathaus, Zimmer 12"></div>
+  <div class="col-md-4 d-flex align-items-end"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="{{ fid }}-o" name="online" value="1" {% if t and t.online %}checked{% endif %} {% if not can_video %}disabled{% endif %}>
+    <label class="form-check-label" for="{{ fid }}-o">Als Videokonferenz</label></div></div>
+  <div class="col-12"><label class="form-label" for="{{ fid }}-p">Zuständige Mitarbeitende</label>
+    <select class="form-select js-select" id="{{ fid }}-p" name="providers" multiple data-search="1">{% for u in users %}<option value="{{ u.id }}" {% if t and u in t.providers %}selected{% endif %}>{{ u.name }}</option>{% endfor %}</select>
+    <div class="form-text">Jede Person bietet Termine in ihren Sprechzeiten an (unten). Sind mehrere frei, verteilt das Portal gleichmäßig.</div></div>
+  <div class="col-12 d-flex flex-wrap gap-4">
+    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="{{ fid }}-c" name="choose_provider" value="1" {% if t and t.choose_provider %}checked{% endif %}><label class="form-check-label" for="{{ fid }}-c">Bürger:innen dürfen die Person wählen</label></div>
+    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="{{ fid }}-a" name="approval" value="1" {% if t and t.approval %}checked{% endif %}><label class="form-check-label" for="{{ fid }}-a">Termin erst nach Bestätigung durch Mitarbeitende</label></div>
+    <div class="form-check form-switch"><input type="hidden" name="active" value="0"><input class="form-check-input" type="checkbox" role="switch" id="{{ fid }}-ac" name="active" value="1" {% if not t or t.active %}checked{% endif %}><label class="form-check-label" for="{{ fid }}-ac">Angeboten</label></div>
+  </div>
+  <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>{{ 'Speichern' if t else 'Terminart anlegen' }}</button></div>
+</form>
+{% endmacro %}
+{% block content %}
+{% call m.page_head('Terminarten: ' ~ page.title, 'Bürger:innen wählen zuerst die Terminart, dann einen freien Termin bei einer zuständigen Person. Freie Termine ergeben sich aus den Sprechzeiten – abzüglich Ausnahmen, Feiertagen' ~ (' ' if page.holidays_closed else ' (abgeschaltet) ') ~ 'und Abwesenheiten der Mitarbeitenden.') %}
+<a class="btn btn-outline-secondary" href="/bookings/{{ page.id }}"><i class="fa-solid fa-arrow-left me-1"></i>Zur Buchungsseite</a>
+<a class="btn btn-outline-secondary" href="/b/{{ page.public_token }}" target="_blank"><i class="fa-regular fa-eye me-1"></i>Bürgersicht</a>
+{% endcall %}
+{% if not page.extended %}<div class="alert alert-warning">Der erweiterte Umfang ist für diese Seite nicht eingeschaltet – die Terminarten wirken erst, wenn Sie ihn in den <a href="/bookings/{{ page.id }}/settings">Einstellungen</a> einschalten.</div>{% endif %}
+
+{% for t in page.types %}
+<div class="card mb-3 {{ 'opacity-75' if not t.active }}" id="art-{{ t.id }}">
+  <div class="card-header d-flex flex-wrap align-items-center gap-2">
+    <strong class="flex-grow-1">{{ t.name }}</strong>
+    <span class="small text-secondary">{{ summary(t) }}{% if t.approval %} · mit Bestätigung{% endif %}</span>
+    {% if not t.active %}<span class="badge text-bg-secondary">nicht angeboten</span>{% endif %}
+    <form method="post" action="/bookings/{{ page.id }}/arten/{{ t.id }}/loeschen"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger" type="submit" aria-label="{{ t.name }} löschen" data-confirm="Terminart „{{ t.name }}“ löschen? Mit bestehenden Terminen wird sie nur abgeschaltet." data-confirm-button="Löschen"><i class="fa-regular fa-trash-can"></i></button></form>
+  </div>
+  <div class="card-body">
+    <div class="small mb-3">{% if previews[t.id] %}<i class="fa-regular fa-calendar-check text-success me-1"></i>Nächste freie Termine: {% for s in previews[t.id] %}{{ label(s.start) }}{{ ', ' if not loop.last }}{% endfor %}{% else %}<i class="fa-solid fa-triangle-exclamation text-warning me-1"></i>Zurzeit keine freien Termine – Zuständige und Sprechzeiten prüfen.{% endif %}</div>
+    <details><summary class="mb-2">Bearbeiten</summary>{{ type_form(t) }}</details>
+  </div>
+</div>
+{% endfor %}
+<div class="card mb-4 border-primary-subtle"><div class="card-header"><i class="fa-solid fa-plus me-2"></i>Neue Terminart</div><div class="card-body">{{ type_form() }}</div></div>
+
+<div class="row g-4">
+  <div class="col-12 col-xl-7" id="sprechzeiten"><div class="card h-100"><div class="card-header"><i class="fa-regular fa-clock me-2"></i>Sprechzeiten (wöchentlich)</div>
+    <div class="card-body">
+      <form method="post" action="/bookings/{{ page.id }}/sprechzeiten" class="row g-2 align-items-end mb-3">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="col-md-4"><label class="form-label small" for="h-u">Person</label>
+          <select class="form-select form-select-sm" id="h-u" name="user_id" required>{% for u in (providers or users) %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</select></div>
+        <div class="col-6 col-md-2"><label class="form-label small" for="h-s">von</label><input class="form-control form-control-sm" type="time" id="h-s" name="start" value="08:00" required></div>
+        <div class="col-6 col-md-2"><label class="form-label small" for="h-e">bis</label><input class="form-control form-control-sm" type="time" id="h-e" name="end" value="12:00" required></div>
+        <div class="col-12 col-md-4"><fieldset><legend class="form-label small mb-1">Wochentage</legend><div class="d-flex flex-wrap gap-1">
+          {% for w in weekdays %}<input type="checkbox" class="btn-check" id="h-w{{ loop.index0 }}" name="weekday" value="{{ loop.index0 }}" {% if loop.index0 < 5 %}checked{% endif %}><label class="btn btn-sm btn-outline-secondary" for="h-w{{ loop.index0 }}">{{ w[:2] }}</label>{% endfor %}</div></fieldset></div>
+        <div class="col-12"><button class="btn btn-sm btn-primary" type="submit"><i class="fa-solid fa-plus me-1"></i>Hinzufügen</button>
+          <span class="form-text ms-2">Mittagspause: einfach zwei Zeiten eintragen (z. B. 8–12 und 13–16 Uhr).</span></div>
+      </form>
+      {% if page.hours %}
+      <div class="table-responsive"><table class="table table-sm align-middle small mb-0"><thead><tr><th>Person</th><th>Tag</th><th>Zeit</th><th></th></tr></thead><tbody>
+        {% for h in page.hours | sort(attribute='user_id') %}<tr><td>{{ h.user.name }}</td><td>{{ weekdays[h.weekday] }}</td><td>{{ h.start }}–{{ h.end }} Uhr</td>
+          <td class="text-end"><form method="post" action="/bookings/{{ page.id }}/sprechzeiten/{{ h.id }}/loeschen"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger p-0" type="submit" aria-label="Sprechzeit löschen"><i class="fa-regular fa-trash-can"></i></button></form></td></tr>{% endfor %}
+      </tbody></table></div>
+      {% else %}<p class="text-secondary small mb-0">Noch keine Sprechzeiten.</p>{% endif %}
+    </div></div></div>
+  <div class="col-12 col-xl-5" id="ausnahmen"><div class="card h-100"><div class="card-header"><i class="fa-regular fa-calendar-xmark me-2"></i>Ausnahmen</div>
+    <div class="card-body">
+      <form method="post" action="/bookings/{{ page.id }}/ausnahmen" class="row g-2 align-items-end mb-3">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="col-6"><label class="form-label small" for="c-f">von</label><input class="form-control form-control-sm" type="date" id="c-f" name="date_from" required></div>
+        <div class="col-6"><label class="form-label small" for="c-t">bis</label><input class="form-control form-control-sm" type="date" id="c-t" name="date_to"></div>
+        <div class="col-6"><label class="form-label small" for="c-u">für</label><select class="form-select form-select-sm" id="c-u" name="user_id"><option value="">alle</option>{% for u in providers %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</select></div>
+        <div class="col-6"><label class="form-label small" for="c-n">Anlass</label><input class="form-control form-control-sm" id="c-n" name="note" maxlength="200" placeholder="z. B. Betriebsausflug"></div>
+        <div class="col-12"><button class="btn btn-sm btn-primary" type="submit"><i class="fa-solid fa-plus me-1"></i>Eintragen</button></div>
+      </form>
+      <ul class="list-group list-group-flush small">{% for c in page.closures %}<li class="list-group-item d-flex gap-2 px-0"><span class="flex-grow-1">{{ c.date_from }}{% if c.date_to != c.date_from %} – {{ c.date_to }}{% endif %} · {{ c.user.name if c.user else 'alle' }}{% if c.note %} · {{ c.note }}{% endif %}</span>
+        <form method="post" action="/bookings/{{ page.id }}/ausnahmen/{{ c.id }}/loeschen"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger p-0" type="submit" aria-label="Ausnahme löschen"><i class="fa-regular fa-trash-can"></i></button></form></li>
+      {% else %}<li class="list-group-item text-secondary px-0">Keine Ausnahmen. Feiertage{{ '' if page.holidays_closed else ' (abgeschaltet)' }} und eingetragene Abwesenheiten werden automatisch berücksichtigt.</li>{% endfor %}</ul>
+    </div></div></div>
+</div>
+{% endblock %}

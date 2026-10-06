@@ -31,6 +31,12 @@
   <div class="col-6 col-lg-3">{{ m.stat('fa-envelope', (page.invites | selectattr('email', 'in', booked_emails) | list | length) ~ ' / ' ~ (page.invites | length), 'Eingeladene mit Termin') }}</div>
 </div>
 
+{% if page.extended %}
+<div class="card mb-4 border-primary-subtle" id="kalender"><div class="card-header d-flex flex-wrap align-items-center gap-2"><i class="fa-solid fa-layer-group me-1"></i><span class="flex-grow-1">Terminarten</span>
+  {% if level >= 3 %}<a class="btn btn-sm btn-primary" href="/bookings/{{ page.id }}/arten"><i class="fa-solid fa-sliders me-1"></i>Terminarten, Sprechzeiten &amp; Ausnahmen</a>{% endif %}</div>
+  <ul class="list-group list-group-flush">{% for t in page.types %}<li class="list-group-item d-flex flex-wrap gap-2"><strong class="flex-grow-1">{{ t.name }}</strong><span class="small text-secondary">{{ t.duration_minutes }} Min. · {{ t.providers | map(attribute='name') | join(', ') or 'ohne Zuständige' }}{% if t.approval %} · mit Bestätigung{% endif %}{% if not t.active %} · nicht angeboten{% endif %}</span></li>
+  {% else %}<li class="list-group-item text-secondary small">Noch keine Terminarten – bitte anlegen.</li>{% endfor %}</ul></div>
+{% else %}
 <div class="card mb-4" id="kalender"><div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
   <span><i class="fa-regular fa-calendar me-2"></i>Wann kann gebucht werden?</span>
   <span class="small text-secondary d-flex gap-3"><span><span class="bk-legend bk-legend-window"></span>freigegeben</span><span><span class="bk-legend bk-legend-booking"></span>gebucht</span></span>
@@ -54,6 +60,7 @@
   </details>
   {% endif %}
 </div></div>
+{% endif %}
 
 <div class="card mb-4" id="buchungen"><div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
   <span><i class="fa-solid fa-list-check me-2"></i>Terminliste <span class="badge text-bg-light border">{{ listed | length }}</span></span>
@@ -79,15 +86,16 @@
   {% if listed %}
   <table class="table table-hover align-middle js-table w-100" data-order='[]' data-page-length="25">
     <thead><tr><th>Termin</th><th>Name</th><th>Kontakt</th><th>Nachricht</th><th>Status</th><th class="no-sort col-actions"></th></tr></thead>
-    <tbody>{% for b in listed %}{% set active_b = b.status == 'booked' and b.ends_at >= now %}
+    <tbody>{% for b in listed %}{% set active_b = b.status in ('booked', 'requested') and b.ends_at >= now %}
       <tr>
         <td data-order="{{ b.starts_at.isoformat() }}" class="text-nowrap">{{ label(b.starts_at, b.ends_at) }}<div class="small text-secondary">gebucht {{ b.created_at | local('%d.%m. %H:%M') }}</div></td>
-        <td class="fw-semibold">{{ b.name }}</td>
+        <td class="fw-semibold">{{ b.name }}{% if b.type %}<div class="small text-secondary fw-normal">{{ b.type.name }}{% if b.provider %} · {{ b.provider.name }}{% endif %}</div>{% endif %}</td>
         <td class="small"><a href="mailto:{{ b.email }}">{{ b.email }}</a>{% if b.phone %}<br><a href="tel:{{ b.phone }}">{{ b.phone }}</a>{% endif %}</td>
         <td class="small text-break" style="max-width: 18rem">{{ b.note }}</td>
-        <td>{% if b.status == 'cancelled' %}<span class="badge text-bg-danger">abgesagt</span><div class="small text-secondary">von {{ 'Gast' if b.cancelled_by == 'guest' else 'Ihnen' }}{% if b.cancel_reason %}: {{ b.cancel_reason }}{% endif %}</div>{% elif b.ends_at < now %}<span class="badge text-bg-secondary">vergangen</span>{% else %}<span class="badge text-bg-success">gebucht</span>{% endif %}</td>
+        <td>{% if b.status == 'cancelled' %}<span class="badge text-bg-danger">abgesagt</span><div class="small text-secondary">von {{ 'Gast' if b.cancelled_by == 'guest' else 'Ihnen' }}{% if b.cancel_reason %}: {{ b.cancel_reason }}{% endif %}</div>{% elif b.ends_at < now %}<span class="badge text-bg-secondary">vergangen</span>{% elif b.status == 'requested' %}<span class="badge text-bg-warning">angefragt</span>{% else %}<span class="badge text-bg-success">gebucht</span>{% endif %}</td>
         <td class="col-actions">{% if active_b %}<div class="d-inline-flex gap-1">
           {% if b.meeting_id %}<a class="btn btn-sm btn-outline-primary" href="/meetings/{{ b.meeting_id }}/join" title="Videokonferenz betreten" aria-label="Videokonferenz betreten"><i class="fa-solid fa-video"></i></a>{% endif %}
+          {% if level >= 3 and b.status == 'requested' %}<form method="post" action="/bookings/{{ page.id }}/entries/{{ b.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-success" name="action" value="confirm" type="submit" title="Bestätigen"><i class="fa-solid fa-check me-1"></i>Bestätigen</button></form>{% endif %}
           {% if level >= 3 %}<button class="btn btn-sm btn-outline-secondary" type="button" data-copy-text="{{ manage_link(b) }}" title="Verwaltungslink des Gastes kopieren" aria-label="Link kopieren"><i class="fa-regular fa-copy"></i></button>
           <button class="btn btn-sm btn-outline-secondary" type="button" data-bk-move="{{ b.id }}" data-bk-name="{{ b.name }}" data-bk-when="{{ label(b.starts_at, b.ends_at) }}" title="Verschieben" aria-label="Verschieben"><i class="fa-solid fa-arrows-left-right"></i></button>
           <button class="btn btn-sm btn-outline-danger" type="button" data-bk-cancel="{{ b.id }}" data-bk-name="{{ b.name }}" data-bk-when="{{ label(b.starts_at, b.ends_at) }}" title="Absagen" aria-label="Absagen"><i class="fa-solid fa-ban"></i></button>{% endif %}

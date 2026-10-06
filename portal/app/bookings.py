@@ -113,12 +113,38 @@ def group_by_day(items: list[dict]) -> list[dict]:
 
 
 def active_bookings(page: BookingPage) -> list[Booking]:
-    return [b for b in page.bookings if b.status == "booked"]
+    """Gebuchte und (im erweiterten Umfang) noch zu bestätigende Termine."""
+    return [b for b in page.bookings if b.status in ("booked", "requested")]
 
 
 def can_cancel(booking: Booking) -> bool:
-    return booking.status == "booked" and \
+    return booking.status in ("booked", "requested") and \
         booking.starts_at - timedelta(hours=booking.page.cancel_hours) > utcnow()
+
+
+def responsible(b: Booking) -> User | None:
+    """Zuständig für den Termin: die zugeteilte Person (Terminarten), sonst Besitzer:in der Seite."""
+    return b.provider if b.provider_id and b.provider else b.page.owner
+
+
+def free_slots(db, page: BookingPage, keep: Booking | None = None) -> list[dict]:
+    """Freie Zeitfenster der Seite – im erweiterten Umfang über alle Terminarten (z. B. für Zähler)."""
+    if not page.extended:
+        return bookable(page, keep)
+    from . import btypes
+    merged: dict = {}
+    for bt in btypes.active_types(page):
+        for slot in btypes.slots(db, page, bt, keep=keep):
+            merged.setdefault(slot["start"], {**slot, "free": 0})["free"] += slot["free"]
+    return sorted(merged.values(), key=lambda x: x["start"])
+
+
+def slots_for(db, b: Booking) -> list[dict]:
+    """Freie Zeiten zum Verschieben eines Termins (gleiche Terminart bzw. Seite)."""
+    if b.type is not None:
+        from . import btypes
+        return [{**s, "own": False} for s in btypes.slots(db, b.page, b.type, keep=b)]
+    return bookable(b.page, keep=b)
 
 
 # --- Links, Kalender, Mails ---------------------------------------------------------------
@@ -153,21 +179,27 @@ def calendar(db, b: Booking, method: str = "REQUEST") -> str:
     link = join_link(db, b)
     text = (page.description + "\n\n" if page.description else "") + \
         (f"Videokonferenz: {link}\n" if link else "") + f"Termin verschieben oder absagen: {manage_link(b)}"
+    title = f"{page.title}: {b.type.name}" if b.type else page.title
+    location = (b.type.location if b.type else page.location) or ""
     return ics.build(method=method, uid=_uid(b), sequence=b.sequence, start=b.starts_at,
-                     minutes=int((b.ends_at - b.starts_at).total_seconds() // 60), title=page.title,
-                     description=text, location=link or page.location, url=link or manage_link(b),
-                     organizer=planning.organizer_identity(cfg, page.owner),
+                     minutes=int((b.ends_at - b.starts_at).total_seconds() // 60), title=title,
+                     description=text, location=link or location, url=link or manage_link(b),
+                     organizer=planning.organizer_identity(cfg, responsible(b)),
                      attendees=[(b.name, b.email)], cancelled=method == "CANCEL")
 
 
 def _values(db, b: Booking, extra: dict | None = None) -> dict:
     page = b.page
     link = join_link(db, b)
-    values = {"name": b.name, "titel": page.title, "termin": label(b.starts_at, b.ends_at),
-              "ort": f"Ort: {page.location}" if page.location and not link else "",
+    location = b.type.location if b.type else page.location
+    hint = "\n\n".join(x for x in (page.confirm_text, b.type.docs_hint if b.type else "") if x)
+    who = responsible(b)
+    values = {"name": b.name, "titel": f"{page.title} – {b.type.name}" if b.type else page.title,
+              "termin": label(b.starts_at, b.ends_at),
+              "ort": f"Ort: {location}" if location and not link else "",
               "videolink": f"Teilnahme per Videokonferenz (im Browser, ohne Installation):\n{link}" if link else "",
               "verwalten": manage_link(b), "absagefrist": f"{page.cancel_hours} Stunden",
-              "hinweis": page.confirm_text, "anbieter": page.owner.name if page.owner else ""}
+              "hinweis": hint, "anbieter": who.name if who else ""}
     values.update(extra or {})
     return values
 
@@ -176,23 +208,31 @@ def _send_guest(db, b: Booking, key: str, method: str, extra: dict | None = None
     cfg = get_settings(db)
     subject, body = mailtpl.render(db, key, _values(db, b, extra), cfg)
     att = [{"filename": "absage.ics" if method == "CANCEL" else "termin.ics", "content": calendar(db, b, method),
-            "calendar_method": method}]
+            "calendar_method": method}] if method else None
     from . import absence
-    note, deputy = absence.citizen_note(db, b.page.owner)   # Anbieter:in abwesend → Hinweis, Antwort an Vertretung
+    who = responsible(b)
+    note, deputy = absence.citizen_note(db, who)   # zuständige Person abwesend → Hinweis, Antwort an Vertretung
     return notify.enqueue(db, b.email, subject, note + body, key, cfg,
-                          reply_to=deputy or (b.page.owner.email if b.page.owner else None), attachments=att)
+                          reply_to=deputy or (who.email if who else None), attachments=att)
 
 
 def _notify_owner(db, b: Booking, event: str) -> None:
+    """Zuständige Person (Terminart) und – wenn eingestellt – Besitzer:in der Seite informieren."""
     page = b.page
-    if not page.notify_owner or page.owner is None or not page.owner.active:
+    targets = []
+    if b.provider is not None and b.provider.active:
+        targets.append(b.provider)
+    if page.notify_owner and page.owner is not None and page.owner.active and page.owner not in targets:
+        targets.append(page.owner)
+    if not targets:
         return
     cfg = get_settings(db)
-    subject, body = mailtpl.render(db, "booking_owner", _values(db, b, {
-        "ereignis": event, "name": page.owner.name, "gast": f"{b.name} <{b.email}>" + (f", Tel. {b.phone}" if b.phone else ""),
-        "nachricht": b.note or "", "frei": str(sum(s["free"] for s in bookable(page))),
-        "link": f"{settings.portal_base_url}/bookings/{page.id}"}), cfg)
-    notify.enqueue(db, page.owner.email, subject, body, "booking_owner", cfg)
+    free = "" if page.extended else str(sum(s["free"] for s in bookable(page)))
+    for who in targets:
+        subject, body = mailtpl.render(db, "booking_owner", _values(db, b, {
+            "ereignis": event, "name": who.name, "gast": f"{b.name} <{b.email}>" + (f", Tel. {b.phone}" if b.phone else ""),
+            "nachricht": b.note or "", "frei": free, "link": f"{settings.portal_base_url}/bookings/{page.id}"}), cfg)
+        notify.enqueue(db, who.email, subject, body, "booking_owner", cfg)
 
 
 # --- Buchen, Umbuchen, Absagen -----------------------------------------------------------
@@ -201,11 +241,13 @@ def _meeting_for(db, b: Booking) -> None:
     """Eigene Videokonferenz für die Buchung (Portal-Raum, persönlicher Link für den Gast)."""
     from .main import ensure_guest_token, unique_room  # vermeidet Importzyklus
     page = b.page
-    if not page.online or page.owner is None:
+    host = responsible(b)
+    if not (b.type.online if b.type else page.online) or host is None:
         return
-    meeting = Meeting(owner_id=page.owner_id, title=f"{page.title}: {b.name}"[:200],
+    meeting = Meeting(owner_id=host.id, title=f"{page.title}: {b.name}"[:200],
                       room=unique_room(db, room_slug(page.title)), starts_at=b.starts_at,
-                      duration_minutes=page.slot_minutes, description=b.note or None, ics_sequence=0)
+                      duration_minutes=int((b.ends_at - b.starts_at).total_seconds() // 60),
+                      description=b.note or None, ics_sequence=0)
     ensure_guest_token(meeting)
     db.add(meeting)
     db.flush()
@@ -229,45 +271,83 @@ def check(page: BookingPage, start: datetime, email: str, keep: Booking | None =
 
 
 def book(db, page: BookingPage, start: datetime, name: str, email: str, phone: str = "", note: str = "",
-         user: User | None = None, invite: BookingInvite | None = None) -> tuple[Booking | None, str]:
-    slot, error = check(page, start, email)
+         user: User | None = None, invite: BookingInvite | None = None, bt=None, provider_id: int | None = None,
+         answers: str = "") -> tuple[Booking | None, str]:
+    """Termin buchen. Im erweiterten Umfang mit Terminart bt (und optional gewünschter Person); braucht die Art
+    eine Bestätigung, ist der Termin zunächst „angefragt“ (Platz bleibt reserviert)."""
+    if bt is not None:
+        from . import btypes
+        slot, error = btypes.check(db, page, bt, start, provider_id)
+        if not error:
+            mine = [b for b in active_bookings(page) if b.email == email and b.starts_at >= utcnow()]
+            if len(mine) >= page.max_per_person:
+                error = ("Sie haben bereits einen Termin gebucht. Über den Link in Ihrer Bestätigung können Sie "
+                         "ihn verschieben oder absagen.")
+    else:
+        slot, error = check(page, start, email)
     if error:
         return None, error
     b = Booking(page_id=page.id, starts_at=slot["start"], ends_at=slot["end"], name=name, email=email, phone=phone,
                 note=note, user_id=user.id if user else None, invite_id=invite.id if invite else None,
-                token=new_link_token())
+                token=new_link_token(), type_id=bt.id if bt else None,
+                provider_id=slot.get("provider_id"), answers_json=answers,
+                status="requested" if bt is not None and bt.approval else "booked")
     page.bookings.append(b)
     db.flush()
+    db.refresh(b)
+    if b.status == "requested":
+        _send_guest(db, b, "booking_requested", "")
+        _notify_owner(db, b, "Neue Anfrage – bitte bestätigen")
+        return b, ""
     _meeting_for(db, b)
     _send_guest(db, b, "booking_confirm", "REQUEST")
     _notify_owner(db, b, "Neue Buchung")
     return b, ""
 
 
+def confirm(db, b: Booking) -> None:
+    """Angefragten Termin bestätigen: Bestätigung mit Kalendereintrag an den Gast."""
+    if b.status != "requested":
+        return
+    b.status = "booked"
+    _meeting_for(db, b)
+    _send_guest(db, b, "booking_confirm", "REQUEST")
+
+
 def move(db, b: Booking, start: datetime) -> str:
     """Termin verschieben (Gast oder anbietende Person). Gibt eine Fehlermeldung oder ''."""
     if start == b.starts_at:
         return ""
-    slot, error = check(b.page, start, b.email, keep=b)
+    if b.type is not None:
+        from . import btypes
+        slot, error = btypes.check(db, b.page, b.type, start, keep=b)
+    else:
+        slot, error = check(b.page, start, b.email, keep=b)
     if error:
         return error
     b.starts_at, b.ends_at, b.sequence, b.reminded_at = slot["start"], slot["end"], b.sequence + 1, None
+    if slot.get("provider_id"):
+        b.provider_id = slot["provider_id"]
     if b.meeting_id:
         meeting = db.get(Meeting, b.meeting_id)
         if meeting:
             meeting.starts_at = b.starts_at
             meeting.ics_sequence = (meeting.ics_sequence or 0) + 1
-    _send_guest(db, b, "booking_update", "REQUEST")
+    _send_guest(db, b, "booking_update", "REQUEST" if b.status == "booked" else "")
     _notify_owner(db, b, "Termin verschoben")
     return ""
 
 
 def cancel(db, b: Booking, by: str, reason: str = "") -> None:
-    if b.status != "booked":
+    if b.status not in ("booked", "requested"):
         return
+    was_requested = b.status == "requested"
     b.status, b.cancelled_at, b.cancelled_by = "cancelled", utcnow(), by
     b.cancel_reason, b.sequence = reason[:1000], b.sequence + 1
-    _send_guest(db, b, "booking_cancelled", "CANCEL", {
+    if was_requested and by != "guest":
+        _send_guest(db, b, "booking_declined", "", {"grund": f"Begründung: {reason}" if reason else ""})
+        return
+    _send_guest(db, b, "booking_cancelled", "" if was_requested else "CANCEL", {
         "grund": f"Begründung: {reason}" if reason else "",
         "wer": "Sie haben" if by == "guest" else (f"{b.page.owner.name} hat" if b.page.owner else "Der Anbieter hat")})
     if by == "guest":
@@ -396,7 +476,9 @@ def send_reminders() -> int:
 
 # --- Terminliste: Filter und Export -------------------------------------------------------
 
-STATUS_FILTERS = {"upcoming": "Anstehend", "past": "Vergangen", "cancelled": "Abgesagt", "all": "Alle"}
+STATUS_TEXT = {"booked": "gebucht", "requested": "angefragt", "cancelled": "abgesagt"}
+STATUS_FILTERS = {"upcoming": "Anstehend", "requested": "Zu bestätigen", "past": "Vergangen", "cancelled": "Abgesagt",
+                  "all": "Alle"}
 SORTS = {"start": "Termin (früheste zuerst)", "-start": "Termin (späteste zuerst)", "name": "Name",
          "-created": "Zuletzt gebucht"}
 
@@ -406,7 +488,9 @@ def filter_bookings(page: BookingPage, status: str = "upcoming", date_from: str 
     now = utcnow()
     items = list(page.bookings)
     if status == "upcoming":
-        items = [b for b in items if b.status == "booked" and b.ends_at >= now]
+        items = [b for b in items if b.status in ("booked", "requested") and b.ends_at >= now]
+    elif status == "requested":
+        items = [b for b in items if b.status == "requested"]
     elif status == "past":
         items = [b for b in items if b.status == "booked" and b.ends_at < now]
     elif status == "cancelled":
@@ -430,9 +514,9 @@ def _row(b: Booking) -> dict:
     return {"id": b.id, "beginn": to_local(b.starts_at).isoformat(timespec="minutes"),
             "ende": to_local(b.ends_at).isoformat(timespec="minutes"), "name": b.name, "email": b.email,
             "telefon": b.phone or None, "nachricht": b.note or None,
-            "status": "gebucht" if b.status == "booked" else "abgesagt",
+            "status": STATUS_TEXT.get(b.status, "abgesagt"),
             "gebucht_am": to_local(b.created_at).isoformat(timespec="seconds"),
-            "abgesagt_von": {"guest": "Gast", "owner": "Anbieter"}.get(b.cancelled_by) if b.status != "booked" else None,
+            "abgesagt_von": {"guest": "Gast", "owner": "Anbieter"}.get(b.cancelled_by) if b.status == "cancelled" else None,
             "absagegrund": b.cancel_reason or None}
 
 
@@ -466,7 +550,7 @@ def to_markdown(page: BookingPage, items: list[Booking]) -> str:
     for b in items:
         s, e = to_local(b.starts_at), to_local(b.ends_at)
         lines.append(f"| {WEEKDAYS[s.weekday()]}, {s:%d.%m.%Y} | {s:%H:%M}–{e:%H:%M} | {cell(b.name)} | {cell(b.email)} | "
-                     f"{cell(b.phone)} | {cell(b.note)} | {'gebucht' if b.status == 'booked' else 'abgesagt'} |")
+                     f"{cell(b.phone)} | {cell(b.note)} | {STATUS_TEXT.get(b.status, 'abgesagt')} |")
     return "\n".join(lines) + "\n"
 
 
@@ -476,11 +560,11 @@ def to_ics(page: BookingPage, items: list[Booking], name: str = "") -> str:
     for b in items:
         text = ics.build(method="PUBLISH", uid=_uid(b), sequence=b.sequence, start=b.starts_at,
                          minutes=int((b.ends_at - b.starts_at).total_seconds() // 60),
-                         title=f"{page.title}: {b.name}" + (" (abgesagt)" if b.status != "booked" else ""),
+                         title=f"{page.title}: {b.name}" + {"booked": "", "requested": " (angefragt)"}.get(b.status, " (abgesagt)"),
                          description="\n".join(x for x in (f"{b.name} <{b.email}>", f"Tel. {b.phone}" if b.phone else "",
                                                            b.note) if x),
                          location=page.location, url=f"{settings.portal_base_url}/bookings/{page.id}", organizer=None,
-                         attendees=[], cancelled=b.status != "booked", alarm_minutes=15)
+                         attendees=[], cancelled=b.status == "cancelled", alarm_minutes=15)
         lines = text.split("\r\n")
         start, end = lines.index("BEGIN:VEVENT"), lines.index("END:VEVENT")
         events += lines[start:end + 1]
