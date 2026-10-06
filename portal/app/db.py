@@ -403,6 +403,8 @@ class Form(Base):
     kind: Mapped[str] = mapped_column(String(12), default="survey")          # survey | application
     app_prefix: Mapped[str] = mapped_column(String(12), default="")          # z. B. GEW → GEW-2026-00042
     app_category: Mapped[str] = mapped_column(String(100), default="")
+    app_icon: Mapped[str] = mapped_column(String(48), default="")      # Symbol im Antragskatalog (leer = Kategorie/Vorschlag)
+    app_color: Mapped[str] = mapped_column(String(7), default="")      # Farbe des Symbols (leer = Kategorie)
     app_info: Mapped[str] = mapped_column(Text, default="")                  # Unterlagen, Hinweise
     app_fee: Mapped[str] = mapped_column(String(255), default="")            # Gebühr
     app_duration: Mapped[str] = mapped_column(String(255), default="")       # übliche Bearbeitungsdauer
@@ -2193,7 +2195,8 @@ _NEW_COLUMNS = {
                  "cancelled_at": "DATETIME", "guest_token": "VARCHAR(64)"},
     "notifications": {"reply_to": "VARCHAR(255)", "attachments_json": "TEXT"},
     "forms": {"kind": "VARCHAR(12) NOT NULL DEFAULT 'survey'", "app_prefix": "VARCHAR(12) NOT NULL DEFAULT ''",
-              "app_category": "VARCHAR(100) NOT NULL DEFAULT ''", "app_info": "TEXT NOT NULL DEFAULT ''",
+              "app_category": "VARCHAR(100) NOT NULL DEFAULT ''", "app_icon": "VARCHAR(48) NOT NULL DEFAULT ''",
+              "app_color": "VARCHAR(7) NOT NULL DEFAULT ''", "app_info": "TEXT NOT NULL DEFAULT ''",
               "app_fee": "VARCHAR(255) NOT NULL DEFAULT ''", "app_duration": "VARCHAR(255) NOT NULL DEFAULT ''",
               "app_assignee_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
               "app_group_id": "INTEGER REFERENCES groups(id) ON DELETE SET NULL",

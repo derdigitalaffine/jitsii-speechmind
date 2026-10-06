@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
+{% import "_icon_picker.html" as ip %}
 {% block title %}Antrag · {{ form.title }}{% endblock %}
 {% block content %}
 {% include "_form_head.html" %}
@@ -96,6 +97,12 @@
       <div class="col-md-6"><label class="form-label" for="a-org">Zuständige Stelle</label><select class="form-select" id="a-org" name="org_id"><option value="">– keine Angabe –</option>{% for i, n in org_options %}<option value="{{ i }}" {% if form.org_id == i %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
         <div class="form-text">Körperschaft oder Einrichtung (z. B. Hundesteuer → Ortsgemeinde). Erscheint im Antragskatalog mit Wappen; gepflegt unter Verwaltung › Körperschaften.</div></div>
       <div class="col-md-4"><label class="form-label" for="a-catname">Kategorie</label><input class="form-control" id="a-catname" name="app_category" value="{{ form.app_category }}" placeholder="z. B. Gewerbe, Bauen, Ordnung"></div>
+      <div class="col-md-6"><label class="form-label d-block" for="a-icon">Symbol im Katalog</label>{{ ip.icon_data(icon_list) }}{{ ip.icon_picker('app_icon', form.app_icon, 'a-icon', icon_auto) }}
+        <div class="form-text">„Automatisch“: Symbol der Kategorie, sonst ein Vorschlag aus Titel und Kategorie.</div></div>
+      <div class="col-md-6"><span class="form-label d-block">Farbe</span><div class="d-flex align-items-center gap-2">
+        <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" name="app_color_on" value="1" id="a-color-on" {% if form.app_color %}checked{% endif %}><label class="form-check-label" for="a-color-on">eigene Farbe</label></div>
+        <input class="form-control form-control-color" type="color" name="app_color" value="{{ form.app_color or icon_color }}" aria-label="Farbe des Symbols"></div>
+        <div class="form-text">Sonst die Farbe der Kategorie ({{ icon_color }}).</div></div>
       <div class="col-md-6"><label class="form-label" for="a-fee">Gebühr</label><input class="form-control" id="a-fee" name="app_fee" value="{{ form.app_fee }}" placeholder="z. B. 26 € (wird nach Bewilligung erhoben)"></div>
       <div class="col-md-6"><label class="form-label" for="a-dur">Übliche Bearbeitungsdauer</label><input class="form-control" id="a-dur" name="app_duration" value="{{ form.app_duration }}" placeholder="z. B. 1–2 Wochen"></div>
       <div class="col-12"><label class="form-label" for="a-info">Hinweise (benötigte Unterlagen, Rechtsgrundlage, Ansprechpartner)</label>
@@ -106,3 +113,4 @@
   <button class="btn btn-primary mt-4" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
 </form>
 {% endblock %}
+{% block scripts %}<script src="/static/icon-picker.js"></script>{% endblock %}

@@ -1,0 +1,20 @@
+{# Symbolauswahl mit Suche (deutsche Stichwörter). Leerer Wert = automatisch (auto_icon wird angezeigt).
+   Einmal je Seite: {{ ip.icon_data(icon_list) }} – dann beliebig viele {{ ip.icon_picker('app_icon', form.app_icon, 'a-icon', suggestion) }}. #}
+{% macro icon_data(icon_list) -%}
+<script type="application/json" id="icon-list">{{ icon_list | tojson }}</script>
+{%- endmacro %}
+{% macro icon_picker(name, value, id, auto_icon='', label='Symbol') -%}
+<div class="icon-picker js-icon-picker" data-auto="{{ auto_icon }}">
+  <input type="hidden" name="{{ name }}" value="{{ value }}" class="js-icon-value">
+  <button class="btn btn-outline-secondary d-flex align-items-center gap-2 js-icon-toggle" type="button" id="{{ id }}" aria-expanded="false" aria-haspopup="true">
+    <span class="icon-picker-current"><i class="fa-solid {{ value or auto_icon or 'fa-file-signature' }}" aria-hidden="true"></i></span>
+    <span class="js-icon-label small">{{ value | replace('fa-', '') if value else 'automatisch' }}</span>
+    <i class="fa-solid fa-chevron-down small ms-1" aria-hidden="true"></i>
+  </button>
+  <div class="icon-picker-panel card shadow-sm p-2 d-none" role="dialog" aria-label="{{ label }} wählen">
+    <input class="form-control form-control-sm mb-2 js-icon-search" type="search" placeholder="Suchen, z. B. Hund, Straße, Gewerbe …" aria-label="Symbole durchsuchen">
+    <button class="btn btn-sm btn-light w-100 mb-2 text-start js-icon-auto" type="button"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>Automatisch{% if auto_icon %} (Vorschlag: <i class="fa-solid {{ auto_icon }}"></i>){% endif %}</button>
+    <div class="icon-picker-grid js-icon-grid" role="listbox" aria-label="Symbole"></div>
+  </div>
+</div>
+{%- endmacro %}

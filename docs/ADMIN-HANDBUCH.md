@@ -394,7 +394,7 @@ Modul **Online-Anträge** (Verwaltung › Module, setzt „Formulare“ voraus).
 | Ablagebereich | Bereich im Aktenplan, in dem die Anträge dieses Formulars abgelegt werden, wenn der Prozess keinen festlegt (siehe [Ablage](#ablage-dms)) |
 | Zuständig | Vorgabe: Person, Gruppe (alle Mitglieder) und/oder Funktionspostfach (z. B. für die E-Akte) |
 | Weiterleitung | Regeln: Antwort auf Frage X lautet Y → Person/Gruppe/Postfach. Die erste passende Regel gilt, sonst die Vorgabe |
-| Antragskatalog | Eintrag im öffentlichen Katalog `/antraege` mit Kategorie, Gebühr, Bearbeitungsdauer und Hinweisen (Unterlagen, Rechtsgrundlage). Einschalten erzeugt automatisch den öffentlichen Link |
+| Antragskatalog | Eintrag im öffentlichen Katalog `/antraege` mit Kategorie, **Symbol** (Auswahl mit Suche nach deutschen Stichwörtern, z. B. „Hund“, „Straße“; „automatisch“ = Symbol der Kategorie bzw. Vorschlag aus Titel und Kategorie), **Farbe** (sonst Farbe der Kategorie), Gebühr, Bearbeitungsdauer und Hinweisen (Unterlagen, Rechtsgrundlage). Einschalten erzeugt automatisch den öffentlichen Link |
 
 Ein Antrag braucht eine Frage vom Typ **E-Mail-Adresse** (Pflicht), sonst gibt es weder Eingangsbestätigung noch Statusmails – der Reiter weist darauf hin.
 
@@ -407,7 +407,7 @@ Ein Antrag braucht eine Frage vom Typ **E-Mail-Adresse** (Pflicht), sonst gibt e
 - **Interne Notizen** sieht nur die Verwaltung; Nachrichten und Status erscheinen auch auf der Statusseite.
 - **Prüfsumme:** Die Vorgangsansicht zeigt „unverändert seit Eingang“ – oder warnt, wenn die gespeicherten Angaben nachträglich verändert wurden.
 
-**Antragskatalog einbinden:** Unten im Antragseingang (nur Admins) stehen Link, iframe-Code (`/antraege-embed`) und die erlaubten Webseiten. Aus dem eingebetteten Katalog öffnen sich Anträge in einem neuen Fenster.
+**Antragskatalog einbinden:** Unten im Antragseingang (nur Admins) stehen Link, iframe-Code (`/antraege-embed`) und die erlaubten Webseiten. Aus dem eingebetteten Katalog öffnen sich Anträge in einem neuen Fenster. Dort auch die **Voreinstellung der Darstellung** (Kacheln mit Symbolen oder Tabelle) – Besucher:innen können umschalten, die Wahl wird gemerkt. Darunter **Kategorien: Symbol und Farbe** (für Admins und alle mit „Online-Anträge einrichten“) – gelten für alle Anträge der Kategorie ohne eigene Wahl.
 
 **Mail-Vorlagen:** Gruppe „Online-Anträge“ unter E-Mail-Vorlagen: Eingangsbestätigung, Neuer Antrag, Statusänderung/Nachricht, Antwort der antragstellenden Person, Zugewiesen, Frist überschritten, Neuer Arbeitsschritt, Arbeitsschritt überfällig/Eskalation, Nachforderung, Erinnerung an eine Nachforderung, Nachforderung beantwortet.
 

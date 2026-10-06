@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
+{% import "_icon_picker.html" as ip %}
 {% block title %}Antragseingang{% endblock %}
 {% macro status_badge(key) -%}{% set st = statuses.get(key, (key, 'secondary', 'fa-circle')) %}<span class="badge text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>{%- endmacro %}
 {% block content %}
@@ -61,8 +62,28 @@
     <label class="form-label small" for="ao">Nur auf diesen Webseiten (leer = alle)</label>
     <textarea class="form-control form-control-sm font-monospace" id="ao" name="apps_embed_origins" rows="2" placeholder="https://www.example.de">{{ cfg.apps_embed_origins | replace(' ', '\n') }}</textarea>
     <div class="form-text">Anträge öffnen sich aus dem eingebetteten Katalog in einem neuen Fenster (Datenschutz und sichere Übermittlung).</div>
+    <label class="form-label small mt-3" for="acv">Darstellung im Katalog (Voreinstellung)</label>
+    <select class="form-select form-select-sm w-auto" id="acv" name="apps_catalog_view"><option value="karten" {% if cfg.apps_catalog_view != 'tabelle' %}selected{% endif %}>Kacheln mit Symbolen</option><option value="tabelle" {% if cfg.apps_catalog_view == 'tabelle' %}selected{% endif %}>Tabelle</option></select>
+    <div class="form-text">Besucher:innen können oben im Katalog umschalten; ihre Wahl wird gemerkt.</div>
+  </div>
+  <div class="card-footer"><button class="btn btn-sm btn-primary" type="submit">Speichern</button></div>
+</form>
+{% endif %}
+{% if cat_rows %}
+<form method="post" action="/forms/applications/categories" class="card mt-4" id="kategorien" style="max-width: 46rem"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="card-header"><i class="fa-solid fa-icons me-2"></i>Kategorien im Antragskatalog: Symbol und Farbe</div>
+  <div class="card-body">{{ ip.icon_data(icon_list) }}
+    <p class="small text-secondary">Gilt für alle Anträge der Kategorie ohne eigenes Symbol bzw. eigene Farbe (Einstellung am Antrag). „Automatisch“ schlägt ein Symbol aus dem Namen vor.</p>
+    {% for c in cat_rows %}
+    <div class="d-flex flex-wrap align-items-center gap-2 py-2 border-bottom"><input type="hidden" name="cat" value="{{ c.name }}">
+      <strong class="flex-grow-1" style="min-width: 10rem">{{ c.name }}</strong>
+      {{ ip.icon_picker('cat_icon', c.icon, 'cat-icon-' ~ loop.index, c.auto) }}
+      <select class="form-select form-select-sm w-auto" name="cat_color_on" aria-label="Farbe {{ c.name }}: automatisch oder eigene"><option value="0">Farbe automatisch</option><option value="1" {% if c.color %}selected{% endif %}>eigene Farbe:</option></select>
+      <input class="form-control form-control-color" type="color" name="cat_color" value="{{ c.color or c.auto_color }}" aria-label="Farbe {{ c.name }}">
+    </div>{% endfor %}
   </div>
   <div class="card-footer"><button class="btn btn-sm btn-primary" type="submit">Speichern</button></div>
 </form>
 {% endif %}
 {% endblock %}
+{% block scripts %}{% if cat_rows %}<script src="/static/icon-picker.js"></script>{% endif %}{% endblock %}
