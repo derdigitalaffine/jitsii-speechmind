@@ -601,7 +601,7 @@ Modul **Ressourcenbuchung**, Menü **Ressourcen** (Recht „Ressourcen“ zum An
 | Zuständig & Ablage | zuständige Person, Gruppe, Funktionspostfach (Mails bei Anfragen), **Ablagebereich** |
 | Erinnerungen & Warteliste | Erinnerung an Buchende X Tage vorher (mit eigenem Hinweistext, z. B. Schlüsselabholung) und an Zuständige Y Tage vorher (0 = aus); **Warteliste** an/aus |
 | Sperrzeiten | gesperrte Tage (ganz oder je Teilraum) |
-| Fotos & Nutzungsordnung | Fotos (JPG/PNG/WebP bis 8 MB), Nutzungsbedingungen als Text (müssen bestätigt werden) und/oder PDF |
+| Fotos & Nutzungsordnung | Fotos (JPG/PNG/WebP bis 25 MB, bis 40 Stück): mehrere auf einmal hineinziehen oder auswählen – die Seite wird dabei nicht verlassen, ungespeicherte Änderungen bleiben erhalten. Fotos werden automatisch auf 1600 px verkleinert, richtig gedreht und ohne Kamera- und Standortdaten (EXIF/GPS) gespeichert; dazu ein Vorschaubild für Katalog, Listen und Karte. Reihenfolge per Ziehen oder Pfeilen, das erste Foto ist das **Titelbild**, je Foto eine **Bildunterschrift** (Vollbildansicht, Alternativtext). Nutzungsbedingungen als Text (müssen bestätigt werden) und/oder PDF |
 
 **Feiertage** (Menü „Feiertage“): gesetzliche Feiertage des eingestellten Bundeslands werden berechnet (Bundesland stellen Admins ein, Vorgabe Rheinland-Pfalz), eigene Tage wie die Kerwe lassen sich ergänzen. Samstag, Sonntag und diese Tage gelten als „Wochenende/Feiertag“.
 

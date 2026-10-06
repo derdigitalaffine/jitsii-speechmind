@@ -171,9 +171,22 @@
 
 <div class="tab-pane fade" id="fotos" role="tabpanel"><div class="row g-3">
   <div class="col-lg-7"><div class="card"><div class="card-body">
-    <div class="row g-2 mb-3">{% for p in res.photos %}<div class="col-6 col-md-4"><img class="res-photo" src="/r/{{ res.slug }}/photo/{{ p.id }}" alt="{{ p.name }}">
-      <form method="post" action="/resources/{{ res.id }}/photos/{{ p.id }}/delete" class="mt-1"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger p-0" type="submit"><i class="fa-regular fa-trash-can me-1"></i>entfernen</button></form></div>{% endfor %}</div>
-    <form method="post" action="/resources/{{ res.id }}/photos" enctype="multipart/form-data" class="d-flex gap-2"><input type="hidden" name="csrf" value="{{ csrf }}"><input class="form-control" type="file" name="photos" accept="image/jpeg,image/png,image/webp" multiple required aria-label="Fotos"><button class="btn btn-outline-primary text-nowrap" type="submit">Hochladen</button></form>
+    <div id="res-photos" data-base="/resources/{{ res.id }}/photos" data-csrf="{{ csrf }}" data-max="40">
+      <label class="res-drop" for="ph-file" id="ph-drop">
+        <i class="fa-solid fa-cloud-arrow-up fa-2x mb-2 text-primary"></i>
+        <span class="fw-semibold">Fotos hierher ziehen oder auswählen</span>
+        <span class="small text-secondary">Mehrere auf einmal möglich · JPG, PNG, WebP · werden automatisch auf 1600 px verkleinert, Standort- und Kameradaten werden entfernt</span>
+        <input class="visually-hidden" type="file" id="ph-file" accept="image/jpeg,image/png,image/webp" multiple>
+      </label>
+      <div id="ph-progress" class="small mt-2" aria-live="polite"></div>
+      <p class="small text-secondary mt-3 mb-2" id="ph-help">Das erste Foto ist das <strong>Titelbild</strong> (Katalog, Karte). Reihenfolge per Ziehen oder mit den Pfeilen ändern; die Bildunterschrift erscheint in der Vollbildansicht und wird vorgelesen.</p>
+      <ol class="res-photo-list list-unstyled" id="ph-list" aria-describedby="ph-help"></ol>
+    </div>
+    <noscript>
+      <div class="row g-2 mb-3">{% for p in res.photos %}<div class="col-6 col-md-4"><img class="res-photo" src="/r/{{ res.slug }}/photo/{{ p.id }}?s=thumb" alt="{{ p.caption or p.name }}">
+        <form method="post" action="/resources/{{ res.id }}/photos/{{ p.id }}/delete" class="mt-1"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger p-0" type="submit">entfernen</button></form></div>{% endfor %}</div>
+      <form method="post" action="/resources/{{ res.id }}/photos" enctype="multipart/form-data" class="d-flex gap-2"><input type="hidden" name="csrf" value="{{ csrf }}"><input class="form-control" type="file" name="photos" accept="image/jpeg,image/png,image/webp" multiple required aria-label="Fotos"><button class="btn btn-outline-primary text-nowrap" type="submit">Hochladen</button></form>
+    </noscript>
   </div></div></div>
   <div class="col-lg-5"><div class="card" id="bedingungen"><div class="card-body">
     <label class="form-label fw-semibold" for="e-terms">Nutzungsbedingungen (Text)</label>
@@ -191,6 +204,8 @@
 {% endblock %}
 {% block scripts %}
 <script type="application/json" id="res-editor">{{ editor | tojson }}</script>
+<script type="application/json" id="ph-data">{{ photo_list | tojson }}</script>
 <script src="/static/field-list.js"></script>
 <script src="/static/resource-edit.js"></script>
+<script src="/static/resource-photos.js"></script>
 {% endblock %}

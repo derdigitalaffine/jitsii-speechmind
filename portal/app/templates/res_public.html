@@ -12,7 +12,7 @@
   {% if photos %}
     {% for p in photos[:5] %}
     <button type="button" class="res-gallery-item {{ 'res-gallery-main' if loop.first }}" data-bs-toggle="modal" data-bs-target="#res-lightbox" data-index="{{ loop.index0 }}" aria-label="Foto {{ loop.index }} von {{ photos | length }} vergrößern">
-      <img src="/r/{{ res.slug }}/photo/{{ p.id }}" alt="{{ p.name or res.name }}" {% if not loop.first %}loading="lazy"{% endif %}>
+      <img src="/r/{{ res.slug }}/photo/{{ p.id }}{{ '' if loop.first else '?s=thumb' }}" alt="{{ p.caption or res.name }}" {% if not loop.first %}loading="lazy"{% endif %}>
       {% if loop.index == 5 and photos | length > 5 %}<span class="res-gallery-more">+{{ photos | length - 5 }}</span>{% endif %}
     </button>
     {% endfor %}
@@ -95,7 +95,8 @@
 <div class="modal fade" id="res-lightbox" tabindex="-1" aria-label="Fotos" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content bg-dark border-0">
   <div class="modal-header border-0 py-2"><span class="text-white small">{{ res.name }}</span><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
   <div id="res-lightbox-carousel" class="carousel slide" data-bs-ride="false"><div class="carousel-inner">
-    {% for p in photos %}<div class="carousel-item {{ 'active' if loop.first }}"><img src="/r/{{ res.slug }}/photo/{{ p.id }}" class="d-block mx-auto res-lightbox-img" alt="{{ p.name or res.name }}" loading="lazy"></div>{% endfor %}</div>
+    {% for p in photos %}<div class="carousel-item {{ 'active' if loop.first }}"><figure class="m-0"><img src="/r/{{ res.slug }}/photo/{{ p.id }}" class="d-block mx-auto res-lightbox-img" alt="{{ p.caption or res.name }}" loading="lazy">
+      <figcaption class="text-white-50 small text-center py-2">{{ p.caption }}{% if photos | length > 1 %}<span class="ms-2">{{ loop.index }} / {{ photos | length }}</span>{% endif %}</figcaption></figure></div>{% endfor %}</div>
     {% if photos | length > 1 %}<button class="carousel-control-prev" type="button" data-bs-target="#res-lightbox-carousel" data-bs-slide="prev" aria-label="Vorheriges Foto"><span class="carousel-control-prev-icon"></span></button>
     <button class="carousel-control-next" type="button" data-bs-target="#res-lightbox-carousel" data-bs-slide="next" aria-label="Nächstes Foto"><span class="carousel-control-next-icon"></span></button>{% endif %}</div>
 </div></div></div>

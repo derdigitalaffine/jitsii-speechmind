@@ -42,7 +42,7 @@
   {% for r in rows %}{% set pf = price_from(r) %}
     <tr>
       <td><div class="d-flex align-items-center gap-2">
-        {% if r.photos %}<img class="res-table-thumb" src="/r/{{ r.slug }}/photo/{{ r.photos[0].id }}" alt="" loading="lazy">{% else %}<span class="res-table-thumb res-table-thumb-empty"><i class="fa-solid fa-building"></i></span>{% endif %}
+        {% if r.photos %}<img class="res-table-thumb" src="/r/{{ r.slug }}/photo/{{ r.photos[0].id }}?s=thumb" alt="" loading="lazy">{% else %}<span class="res-table-thumb res-table-thumb-empty"><i class="fa-solid fa-building"></i></span>{% endif %}
         <div class="min-w-0"><a class="fw-semibold text-decoration-none" href="/r/{{ r.slug }}" {% if embed %}target="_blank"{% endif %}>{{ r.name }}</a>
           {% if r.location %}<div class="small text-secondary text-truncate"><i class="fa-solid fa-location-dot me-1"></i>{{ r.location }}</div>{% endif %}
           {% if r.parts %}<div class="small text-secondary">{{ r.parts | length }} Räume</div>{% endif %}
@@ -61,7 +61,7 @@
 <div class="row g-3">
   {% for r in rows %}{% set st = free.get(r.id) %}
   <div class="col-12 col-md-6 col-xl-4"><div class="card h-100">
-    {% if r.photos %}<img class="card-img-top res-thumb" src="/r/{{ r.slug }}/photo/{{ r.photos[0].id }}" alt="{{ r.name }}" loading="lazy">{% else %}<div class="card-img-top res-thumb res-thumb-empty" style="--cat: {{ colors.get(r.category, colors['']) }}" aria-hidden="true"><i class="fa-solid fa-building"></i></div>{% endif %}
+    {% if r.photos %}<img class="card-img-top res-thumb" src="/r/{{ r.slug }}/photo/{{ r.photos[0].id }}?s=thumb" alt="{{ r.name }}" loading="lazy">{% else %}<div class="card-img-top res-thumb res-thumb-empty" style="--cat: {{ colors.get(r.category, colors['']) }}" aria-hidden="true"><i class="fa-solid fa-building"></i></div>{% endif %}
     <div class="card-body d-flex flex-column">
       <div class="d-flex gap-2 align-items-start"><a class="h5 mb-1 flex-grow-1 text-decoration-none stretched-link" href="/r/{{ r.slug }}" {% if embed %}target="_blank"{% endif %}>{{ r.name }}</a>
         {{ free_badge(st) }}</div>

@@ -10,7 +10,7 @@ from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import select
 
-from . import csvsafe, payments as pay, resources as rs
+from . import csvsafe, payments as pay, photos, resources as rs
 from .config import settings
 from .db import (
     Resource, ResourceBooking, ResourceExtra, ResourcePhoto, ResourceTariff, ResourceUnit, to_local, utcnow,
@@ -193,7 +193,7 @@ def copy(db, src: Resource, owner) -> Resource:
             photos_dir(dst.id).mkdir(parents=True, exist_ok=True)
             name = secrets.token_hex(10) + path.suffix
             (photos_dir(dst.id) / name).write_bytes(path.read_bytes())
-            dst.photos.append(ResourcePhoto(file=name, name=p.name, position=p.position))
+            dst.photos.append(ResourcePhoto(file=name, name=p.name, caption=p.caption, position=p.position))
     if src.terms_file and (photos_dir(src.id) / src.terms_file).is_file():
         photos_dir(dst.id).mkdir(parents=True, exist_ok=True)
         dst.terms_file = secrets.token_hex(10) + ".pdf"
@@ -212,7 +212,8 @@ def export(res: Resource) -> bytes:
     for p in res.photos:
         path = photos_dir(res.id) / p.file
         if path.is_file():
-            data["photos"].append({"name": p.name, "ext": path.suffix, "data": base64.b64encode(path.read_bytes()).decode()})
+            data["photos"].append({"name": p.name, "caption": p.caption, "ext": path.suffix,
+                                   "data": base64.b64encode(path.read_bytes()).decode()})
     if res.terms_file and (photos_dir(res.id) / res.terms_file).is_file():
         data["terms_pdf"] = base64.b64encode((photos_dir(res.id) / res.terms_file).read_bytes()).decode()
     return json.dumps(data, ensure_ascii=False, indent=1).encode("utf-8")
@@ -280,12 +281,18 @@ def import_(db, raw: bytes, owner) -> Resource:
             content = base64.b64decode(photo.get("data") or "", validate=True)
         except (ValueError, AttributeError):
             continue
-        kind = _image_type(content)
-        if kind and len(content) <= 8 * 1024 * 1024:
-            photos_dir(res.id).mkdir(parents=True, exist_ok=True)
-            name = secrets.token_hex(10) + kind
-            (photos_dir(res.id) / name).write_bytes(content)
-            res.photos.append(ResourcePhoto(file=name, name=str(photo.get("name") or "")[:200], position=n))
+        if not _image_type(content) or len(content) > 25 * 1024 * 1024:
+            continue
+        try:
+            full, thumb, _size = photos.process(content)   # wie beim Hochladen: verkleinert, ohne EXIF/GPS
+        except ValueError:
+            continue
+        photos_dir(res.id).mkdir(parents=True, exist_ok=True)
+        stem = secrets.token_hex(10)
+        (photos_dir(res.id) / f"{stem}.jpg").write_bytes(full)
+        (photos_dir(res.id) / f"{stem}-t.jpg").write_bytes(thumb)
+        res.photos.append(ResourcePhoto(file=f"{stem}.jpg", thumb=f"{stem}-t.jpg", name=str(photo.get("name") or "")[:200],
+                                        caption=" ".join(str(photo.get("caption") or "").split())[:300], position=n))
     try:
         pdf = base64.b64decode(data.get("terms_pdf") or "", validate=True)
     except ValueError:
