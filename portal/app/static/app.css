@@ -333,3 +333,11 @@ a.dash-num:hover > span { text-decoration: underline; }
 .res-head-public p { max-width: 50rem; }
 .res-kicker { margin-bottom: .1rem; }
 .res-narrow { max-width: 48rem; }
+
+/* Körperschaften: Wappen/Logo */
+.org-logo { width: 2rem; height: 2rem; flex: 0 0 auto; object-fit: contain; border-radius: .375rem; }
+.org-logo-empty { display: inline-flex; align-items: center; justify-content: center; background: var(--bs-secondary-bg); color: #fff; font-size: .85rem; }
+.org-logo-empty:not([style]) { color: var(--bs-secondary-color); }
+.org-logo-lg { max-width: 8rem; max-height: 8rem; object-fit: contain; }
+.org-table .min-w-0 { min-width: 0; }
+.org-logo-sm { width: 1.25rem; height: 1.25rem; }

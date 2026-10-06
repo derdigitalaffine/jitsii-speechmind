@@ -691,11 +691,14 @@ def laws_embed_save(request: Request, enabled: str = Form(""), origins: str = Fo
 
 @app.get("/laws/levels")
 def law_levels(request: Request, user: User = Depends(law_user), db: Session = Depends(get_db)):
+    from . import orgs
     return render(request, "law_levels.html", user, roots=lx.level_tree(db), options=lx.level_options(db),
-                  counts=lx.law_counts(db, published_only=False), **_common(db, user))
+                  counts=lx.law_counts(db, published_only=False), org_options=orgs.options(db, bodies_only=True),
+                  org_logo=orgs.logo_url, **_common(db, user))
 
 
-def _level_fields(db: Session, level: LawLevel, name: str, kind: str, parent_id: str, description: str) -> str | None:
+def _level_fields(db: Session, level: LawLevel, name: str, kind: str, parent_id: str, description: str,
+                  org_id: str = "") -> str | None:
     name = " ".join(name.split())[:200]
     if not name:
         return "Bitte einen Namen angeben."
@@ -708,14 +711,16 @@ def _level_fields(db: Session, level: LawLevel, name: str, kind: str, parent_id:
     level.name, level.parent = name, parent
     level.kind = kind if kind in lx.LEVEL_KINDS else "sonstige"
     level.description = description.strip()[:2000]
+    from .db import Organization
+    level.org_id = int(org_id) if org_id.isdigit() and db.get(Organization, int(org_id)) else None
     return None
 
 
 @app.post("/laws/levels", dependencies=[Depends(check_csrf)])
 def law_level_add(request: Request, name: str = Form(""), kind: str = Form("sonstige"), parent_id: str = Form(""),
-                  description: str = Form(""), user: User = Depends(law_user), db: Session = Depends(get_db)):
+                  description: str = Form(""), org_id: str = Form(""), user: User = Depends(law_user), db: Session = Depends(get_db)):
     level = LawLevel()
-    error = _level_fields(db, level, name, kind, parent_id, description)
+    error = _level_fields(db, level, name, kind, parent_id, description, org_id)
     if error:
         flash(request, error, "error")
         return redirect("/laws/levels")
@@ -727,12 +732,12 @@ def law_level_add(request: Request, name: str = Form(""), kind: str = Form("sons
 
 @app.post("/laws/levels/{level_id}", dependencies=[Depends(check_csrf)])
 def law_level_save(request: Request, level_id: int, name: str = Form(""), kind: str = Form("sonstige"),
-                   parent_id: str = Form(""), description: str = Form(""), user: User = Depends(law_user),
+                   parent_id: str = Form(""), description: str = Form(""), org_id: str = Form(""), user: User = Depends(law_user),
                    db: Session = Depends(get_db)):
     level = db.get(LawLevel, level_id)
     if level is None:
         raise HTTPException(404, "Ebene nicht gefunden.")
-    error = _level_fields(db, level, name, kind, parent_id, description)
+    error = _level_fields(db, level, name, kind, parent_id, description, org_id)
     if error:
         db.rollback()
         flash(request, error, "error")

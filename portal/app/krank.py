@@ -197,6 +197,24 @@ def enabled_kinds(cfg: dict[str, str]) -> list[str]:
     return [k for k in KINDS if k in chosen]
 
 
+def employer_groups(emps: list[KrankEmployer]) -> list[tuple[str, list[KrankEmployer]]]:
+    """Arbeitgeber nach Körperschaft gruppiert (Verwaltung › Körperschaften) – für die Auswahl im Formular.
+    Ohne Zuordnung: Gruppe „Weitere“. Nur eine Gruppe: keine Überschriften nötig."""
+    from . import orgs
+    groups: dict[str, list[KrankEmployer]] = {}
+    order: list[str] = []
+    for e in emps:
+        body = orgs.body_of(e.org) if e.org_id else None
+        key = body.name if body is not None else "Weitere"
+        if key not in groups:
+            groups[key], _ = [], order.append(key)
+        groups[key].append(e)
+    if "Weitere" in order:
+        order.remove("Weitere")
+        order.append("Weitere")
+    return [(k, groups[k]) for k in order]
+
+
 def employers(db, active_only: bool = False) -> list[KrankEmployer]:
     q = select(KrankEmployer).order_by(KrankEmployer.position, KrankEmployer.name)
     if active_only:

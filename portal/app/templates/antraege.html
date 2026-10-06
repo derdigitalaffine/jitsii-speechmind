@@ -4,7 +4,8 @@
 <div class="lex-hero p-4 p-lg-5 mb-4 rounded-3" style="background: linear-gradient(135deg, rgba(var(--bs-primary-rgb), .12), rgba(var(--bs-primary-rgb), .02));">
   <h1 class="h2 mb-2"><i class="fa-solid fa-file-signature me-2 text-primary"></i>Online-Anträge</h1>
   <p class="text-secondary mb-3" style="max-width: 46rem">Stellen Sie Ihren Antrag bequem online – rund um die Uhr. Sie erhalten sofort ein Aktenzeichen und können den Stand der Bearbeitung jederzeit verfolgen.</p>
-  <input class="form-control form-control-lg" id="cat-filter" type="search" placeholder="Antrag suchen, z. B. Gewerbe, Sondernutzung, Hund …" aria-label="Anträge durchsuchen" style="max-width: 40rem">
+  <div class="d-flex flex-wrap gap-2">  <input class="form-control form-control-lg" id="cat-filter" type="search" placeholder="Antrag suchen, z. B. Gewerbe, Sondernutzung, Hund …" aria-label="Anträge durchsuchen" style="flex: 1 1 20rem; max-width: 40rem">
+  {% if org_list | length > 1 %}<select class="form-select form-select-lg" id="cat-org" aria-label="Zuständige Stelle" style="flex: 0 1 18rem"><option value="">Alle Stellen</option>{% for o in org_list %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select>{% endif %}</div>
 </div>
 {% if total %}
 {% for cat, items in cats.items() %}
@@ -12,8 +13,9 @@
   <h2 class="h5 mb-3">{{ cat }}</h2>
   <div class="row g-3">
     {% for f in items %}
-    <div class="col-12 col-lg-6 js-item" data-text="{{ (f.title ~ ' ' ~ f.description ~ ' ' ~ cat ~ ' ' ~ f.app_info ~ ' ' ~ (legal.get(f.id, []) | map(attribute='title') | join(' '))) | lower }}"><div class="card h-100"><div class="card-body d-flex flex-column">
+    <div class="col-12 col-lg-6 js-item" data-org="{{ f.org_id or '' }}" data-text="{{ (f.title ~ ' ' ~ f.description ~ ' ' ~ cat ~ ' ' ~ f.app_info ~ ' ' ~ (f.org.name if f.org else '') ~ ' ' ~ (legal.get(f.id, []) | map(attribute='title') | join(' '))) | lower }}"><div class="card h-100"><div class="card-body d-flex flex-column">
       <h3 class="h6 mb-1">{{ f.title }}</h3>
+      {% if f.org %}<div class="small text-secondary mb-1 d-flex align-items-center gap-1">{% if f.org.logo %}<img class="org-logo org-logo-sm" src="{{ org_logo(f.org) }}" alt="">{% else %}<i class="fa-solid fa-landmark-flag"></i>{% endif %}<span>{{ f.org.name }}</span></div>{% endif %}
       {% if f.description %}<div class="small text-secondary mb-2">{{ f.description | richtext }}</div>{% endif %}
       {% if legal.get(f.id) %}<div class="small mb-2"><i class="fa-solid fa-scale-balanced me-1 text-secondary"></i>Rechtsgrundlage: {% for r in legal[f.id] %}<a class="law-ref" href="{{ r.url }}" data-preview="{{ r.url }}" target="_blank" rel="noopener" title="{{ r.title }}">{{ r.label }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
       {% if f.app_info %}<details class="small mb-2"><summary>Benötigte Unterlagen und Hinweise</summary><div class="mt-1">{{ f.app_info | richtext }}</div></details>{% endif %}
@@ -36,17 +38,22 @@
 {% block scripts %}
 <script>
 (function () {
-  var input = document.getElementById('cat-filter');
+  var input = document.getElementById('cat-filter'), org = document.getElementById('cat-org');
   if (!input) { return; }
-  input.addEventListener('input', function () {
-    var q = input.value.trim().toLowerCase(), any = false;
+  function apply() {
+    var q = input.value.trim().toLowerCase(), o = org ? org.value : '', any = false;
     document.querySelectorAll('.js-cat').forEach(function (sec) {
       var shown = 0;
-      sec.querySelectorAll('.js-item').forEach(function (it) { var ok = !q || it.dataset.text.indexOf(q) >= 0; it.hidden = !ok; if (ok) { shown++; } });
+      sec.querySelectorAll('.js-item').forEach(function (it) {
+        var ok = (!q || it.dataset.text.indexOf(q) >= 0) && (!o || it.dataset.org === o);
+        it.hidden = !ok; if (ok) { shown++; }
+      });
       sec.hidden = !shown; if (shown) { any = true; }
     });
     var none = document.querySelector('.js-none'); if (none) { none.hidden = any; }
-  });
+  }
+  input.addEventListener('input', apply);
+  if (org) { org.addEventListener('change', apply); }
 })();
 </script>
 {% endblock %}

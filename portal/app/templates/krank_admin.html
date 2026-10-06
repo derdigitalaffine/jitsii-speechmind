@@ -42,7 +42,11 @@
           <button class="btn btn-sm btn-link px-1" name="dir" value="up" title="nach oben" {% if loop.first %}disabled{% endif %}><i class="fa-solid fa-arrow-up"></i></button>
           <button class="btn btn-sm btn-link px-1" name="dir" value="down" title="nach unten" {% if loop.last %}disabled{% endif %}><i class="fa-solid fa-arrow-down"></i></button></form>
       </li>{% else %}<li class="list-group-item text-secondary">Noch keine Arbeitgeber – bitte anlegen (oder aus dem Krankmelder importieren).</li>{% endfor %}</ul>
-    <div class="card-footer"><form method="post" action="/krankmelder/arbeitgeber/neu" class="d-flex gap-2"><input type="hidden" name="csrf" value="{{ csrf }}"><input class="form-control form-control-sm" name="name" placeholder="Neuer Arbeitgeber, z. B. Verbandsgemeindewerke" required maxlength="200"><button class="btn btn-sm btn-primary text-nowrap" type="submit"><i class="fa-solid fa-plus me-1"></i>Anlegen</button></form>
+    <div class="card-footer"><form method="post" action="/krankmelder/arbeitgeber/neu" class="d-flex flex-wrap gap-2"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <select class="form-select form-select-sm" name="org_id" aria-label="Körperschaft oder Einrichtung" style="flex: 1 1 14rem"><option value="">Aus den Körperschaften wählen …</option>{% for i, n in org_options %}<option value="{{ i }}">{{ n }}</option>{% endfor %}</select>
+      <input class="form-control form-control-sm" name="name" placeholder="oder Name eingeben" maxlength="200" style="flex: 1 1 12rem" aria-label="Name des Arbeitgebers">
+      <button class="btn btn-sm btn-primary text-nowrap" type="submit"><i class="fa-solid fa-plus me-1"></i>Anlegen</button></form>
+      <div class="form-text mb-1">Körperschaften und Einrichtungen (z. B. Kitas, Abteilungen) pflegen Sie zentral unter <a href="/admin/orgs">Verwaltung › Körperschaften</a>.</div>
       <a class="small" href="/krankmelder/verwaltung/vorschau.txt" target="_blank">Empfänger aller Arbeitgeber anzeigen</a></div></div>
 </div>
 

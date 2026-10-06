@@ -154,10 +154,11 @@
             {{ m.nav_item('/recht', 'fa-scale-balanced', 'Ortsrecht ansehen', path.startswith('/recht')) }}
             {% if user.can('laws') %}{{ m.nav_item('/laws', 'fa-pen-to-square', 'Rechtstexte pflegen', path.startswith('/laws')) }}{% endif %}
             {% endif %}
-            {% if user.is_admin or user.can('users') or user.can('maps_admin') or user.can('payments') %}
+            {% if user.is_admin or user.can('users') or user.can('maps_admin') or user.can('payments') or user.can('orgs') %}
             <li class="nav-section">Verwaltung</li>
             {% if user.is_admin %}{{ m.nav_item('/admin/recordings', 'fa-file-audio', 'Aufnahmen', path == '/admin/recordings' or path.startswith('/recordings')) }}{% endif %}
             {% if user.can('users') %}{{ m.nav_item('/admin/users', 'fa-users', 'Benutzer &amp; Gruppen'|safe, path == '/admin/users') }}{% endif %}
+            {% if user.can('orgs') %}{{ m.nav_item('/admin/orgs', 'fa-landmark-flag', 'Körperschaften', path.startswith('/admin/orgs')) }}{% endif %}
             {% if user.can('maps_admin') %}{{ m.nav_item('/admin/maps', 'fa-layer-group', 'Kartenlayer', path.startswith('/admin/maps')) }}{% endif %}
             {% if user.can('payments') %}{{ m.nav_item('/payments', 'fa-euro-sign', 'Zahlungen', path.startswith('/payments')) }}{% endif %}
             {% if user.is_admin %}

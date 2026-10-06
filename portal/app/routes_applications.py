@@ -40,7 +40,9 @@ def form_application(request: Request, form_id: int, user: User = Depends(curren
     form, level = _form(db, form_id, user, fm.EDIT)
     from .routes_forms import _ctx
     items = fm.schema(form)
+    from . import orgs
     return render(request, "form_application.html", user, **_ctx(db, form, "application", level),
+                  org_options=orgs.options(db),
                   questions=fm.questions(items), rules=apps.routing_rules(form),
                   users=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(),
                   groups=db.scalars(select(Group).order_by(Group.name)).all(),
@@ -84,6 +86,9 @@ async def form_application_save(request: Request, form_id: int, user: User = Dep
     prefix = re.sub(r"[^A-Z0-9]", "", str(data.get("app_prefix", "")).upper())[:10]
     form.app_prefix = prefix
     form.app_category = " ".join(str(data.get("app_category", "")).split())[:100]
+    oid = str(data.get("org_id", "") or "")
+    from .db import Organization
+    form.org_id = int(oid) if oid.isdigit() and db.get(Organization, int(oid)) else None
     form.app_info = str(data.get("app_info", "")).replace("\r\n", "\n").strip()[:5000]
     form.app_fee = " ".join(str(data.get("app_fee", "")).split())[:255]
     form.app_duration = " ".join(str(data.get("app_duration", "")).split())[:255]
@@ -354,7 +359,8 @@ def _catalog(request: Request, db: Session, embed: bool):
     if "laws" in enabled_modules():
         from . import laws
         legal = {f.id: laws.form_refs(db, f) for f in forms}
-    response = render(request, "antraege.html", user, cats=cats, total=len(forms), embed=embed, legal=legal,
+    org_list = sorted({f.org for f in forms if f.org is not None}, key=lambda o: (o.position, o.name))
+    response = render(request, "antraege.html", user, cats=cats, total=len(forms), embed=embed, legal=legal, org_list=org_list,
                       layout="base_embed.html" if embed else "base.html", R="/antraege-embed" if embed else "/antraege",
                       embed_label="Online-Anträge", embed_icon="fa-file-signature",
                       embed_public_path="/antraege", public_link=fm.public_link)

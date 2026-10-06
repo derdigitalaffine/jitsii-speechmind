@@ -201,6 +201,7 @@ def copy(db, src: Resource, owner) -> Resource:
 def export(res: Resource) -> bytes:
     data = {"format": FORMAT, "exported_at": utcnow().isoformat(timespec="seconds"),
             "resource": {k: getattr(res, k) for k in FIELDS},
+            "provider": res.provider.name if res.provider else "",
             "parts": [{k: getattr(u, k) for k in UNIT_FIELDS} for u in res.parts],
             "tariffs": [{k: getattr(t, k) for k in TARIFF_FIELDS} for t in res.tariffs],
             "extras": [{k: getattr(x, k) for k in EXTRA_FIELDS} for x in res.extras],
@@ -248,6 +249,9 @@ def import_(db, raw: bytes, owner) -> Resource:
                    **{k: _coerce(Resource, k, src.get(k)) for k in FIELDS if k in src})
     res.name = " ".join(str(res.name or "Importierte Ressource").split())[:200]
     res.slug = rs.unique_slug(db, res.name)
+    if data.get("provider"):   # Anbieter auf diesem Server per Name wiederfinden
+        from .db import Organization
+        res.provider = db.scalar(select(Organization).where(Organization.name == str(data["provider"])[:200]))
     res.mode = res.mode if res.mode in ("request", "instant") else "request"
     res.units = ",".join(m for m in rs.MODES if m in str(res.units or "").split(",")) or "day"
     for key, default in (("blocks_json", "[]"), ("hours_json", "{}"), ("fields_json", "[]")):

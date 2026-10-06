@@ -15,8 +15,8 @@ from sqlalchemy.orm import Session
 
 from . import krank, links, notify, shortlinks as sl
 from .db import (
-    DmsArea, Group, KrankAccess, KrankEmployer, KrankFeedback, KrankReport, KrankResponsible, Notification, User,
-    get_settings, set_setting,
+    DmsArea, Group, KrankAccess, KrankEmployer, KrankFeedback, KrankReport, KrankResponsible, Notification, Organization,
+    User, get_settings, set_setting,
 )
 from .main import (
     app, check_csrf, current_user, enabled_modules, flash, get_db, rate_limit, redirect, render, session_user,
@@ -385,7 +385,9 @@ def _form(request: Request, embed: bool, kind: str, k: str, db: Session):
         prefill = {"first_name": " ".join(parts[:-1]) if len(parts) > 1 else user.name,
                    "last_name": parts[-1] if len(parts) > 1 else "", "email": user.email}
     stored = request.session.pop("krank_form", None) if not embed else None
-    return render(request, "krank_form.html", user, kind=kind, ticket=ticket, employers=krank.employers(db),
+    emps = krank.employers(db)
+    return render(request, "krank_form.html", user, kind=kind, ticket=ticket, employers=emps,
+                  employer_groups=krank.employer_groups(emps),
                   values=(stored or {}).get("values") or prefill, error=(stored or {}).get("error") or request.query_params.get("fehler", ""),
                   today=krank.today(), weekday_ok=krank.today().weekday() <= 4, **ctx)
 
@@ -674,7 +676,8 @@ def krank_admin(request: Request, user: User = Depends(current_user), db: Sessio
     _manager(user)
     cfg = get_settings(db)
     from . import dms
-    return render(request, "krank_admin.html", user, cfg=cfg, krank=krank, employers=krank.employers(db),
+    from . import orgs
+    return render(request, "krank_admin.html", user, cfg=cfg, krank=krank, employers=krank.employers(db), org_options=orgs.options(db),
                   enabled=krank.enabled_kinds(cfg), access_link=krank.access_link(db, cfg),
                   public_url=links.module_url(db, "krank", PUBLIC, cfg), embed_url=links.module_url(db, "krank", EMBED, cfg),
                   default_instructions=DEFAULT_INSTRUCTIONS, default_staff=DEFAULT_STAFF,
@@ -777,7 +780,10 @@ async def krank_admin_texts(request: Request, user: User = Depends(current_user)
 @app.post("/krankmelder/arbeitgeber/neu", dependencies=[Depends(check_csrf)])
 async def krank_employer_new(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
     _manager(user)
-    name = " ".join(str((await request.form()).get("name") or "").split())[:200]
+    form = await request.form()
+    oid = str(form.get("org_id") or "")
+    org = db.get(Organization, int(oid)) if oid.isdigit() else None
+    name = " ".join(str(form.get("name") or "").split())[:200] or (org.name if org else "")
     if not name:
         flash(request, "Bitte einen Namen angeben.", "error")
         return redirect("/krankmelder/verwaltung#arbeitgeber")
@@ -785,7 +791,7 @@ async def krank_employer_new(request: Request, user: User = Depends(current_user
         flash(request, f"„{name}“ gibt es schon.", "error")
         return redirect("/krankmelder/verwaltung#arbeitgeber")
     pos = (db.scalar(select(func.max(KrankEmployer.position))) or 0) + 1
-    emp = KrankEmployer(name=name, position=pos)
+    emp = KrankEmployer(name=name, position=pos, org=org, color=(org.color if org and org.color else "#3B82F6"))
     db.add(emp)
     db.commit()
     flash(request, f"Arbeitgeber „{name}“ angelegt. Bitte Empfänger und Zuständige festlegen.")
@@ -799,7 +805,8 @@ def krank_employer(request: Request, emp_id: int, user: User = Depends(current_u
     if emp is None:
         raise HTTPException(404, "Arbeitgeber nicht gefunden.")
     from . import dms
-    return render(request, "krank_employer.html", user, emp=emp,
+    from . import orgs
+    return render(request, "krank_employer.html", user, emp=emp, org_options=orgs.options(db),
                   users=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(),
                   groups=db.scalars(select(Group).order_by(Group.name)).all(),
                   sel_users={r.user_id for r in emp.responsible if r.user_id},
@@ -835,6 +842,8 @@ async def krank_employer_save(request: Request, emp_id: int, user: User = Depend
     emp.allow_remarks = form.get("allow_remarks") == "1"
     emp.attach_files = form.get("attach_files") == "1"
     emp.subject_prefix = str(form.get("subject_prefix") or "").strip()[:100]
+    oid = str(form.get("org_id") or "")
+    emp.org_id = int(oid) if oid.isdigit() and db.get(Organization, int(oid)) else None
     emp.dms_enabled = form.get("dms_enabled") == "1"
     area = str(form.get("dms_area_id") or "")
     emp.dms_area_id = int(area) if area.isdigit() and db.get(DmsArea, int(area)) else None

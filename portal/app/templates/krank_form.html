@@ -31,7 +31,7 @@
         <label class="form-label" for="kf-employer">Arbeitgeber <span class="text-danger">*</span></label>
         <select class="form-select" id="kf-employer" name="employer" required>
           <option value="">– bitte wählen –</option>
-          {% for e in employers %}<option value="{{ e.id }}" data-remarks="{{ '1' if e.allow_remarks else '0' }}" {% if not e.active %}disabled{% endif %} {% if values.get('employer') == e.id | string %}selected{% endif %}>{{ e.name }}{% if not e.active %} (noch nicht freigeschaltet){% endif %}</option>{% endfor %}
+          {% for label, group in employer_groups %}{% if employer_groups | length > 1 %}<optgroup label="{{ label }}">{% endif %}{% for e in group %}<option value="{{ e.id }}" data-remarks="{{ '1' if e.allow_remarks else '0' }}" {% if not e.active %}disabled{% endif %} {% if values.get('employer') == e.id | string %}selected{% endif %}>{{ e.name }}{% if not e.active %} (noch nicht freigeschaltet){% endif %}</option>{% endfor %}{% if employer_groups | length > 1 %}</optgroup>{% endif %}{% endfor %}
         </select>
         {% if employers | rejectattr('active') | list %}<div class="form-text">Ausgegraute Arbeitgeber werden später für den digitalen Weg freigeschaltet – bitte dort bis auf Weiteres auf dem bisherigen Weg melden.</div>{% endif %}
       </div>
