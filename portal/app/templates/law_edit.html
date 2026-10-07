@@ -36,7 +36,8 @@
           <div class="col-4"><label class="form-label" for="valid_until">Außer Kraft ab</label><input class="form-control" type="date" id="valid_until" name="valid_until" value="{{ v.valid_until or '' }}"></div>
           <div class="col-12 d-flex flex-wrap gap-4"><div class="form-check form-switch">
             <input class="form-check-input" type="checkbox" role="switch" id="published" name="published" value="1" {% if v.published == '1' %}checked{% endif %}>
-            <label class="form-check-label" for="published">Öffentlich sichtbar unter /recht</label></div>
+            <label class="form-check-label" for="published">Veröffentlicht (entsprechend der Sichtbarkeit)</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="internal" name="internal" value="1" {{ 'checked' if v.internal=='1' }}><label class="form-check-label" for="internal">Nur angemeldete Portal-Benutzer</label><div class="form-text">Dienstanweisungen sind immer intern. Suche, Downloads und frühere Fassungen bleiben geschützt; keine öffentliche Einbettung.</div></div>
             {% if law %}<div class="form-check"><input class="form-check-input" type="checkbox" id="new_version" name="new_version" value="1" {% if v.new_version == '1' %}checked{% endif %}>
               <label class="form-check-label" for="new_version">Als <strong>neue Fassung</strong> speichern <span class="small text-secondary">– die bisherige bleibt öffentlich abrufbar (gültig bis „In Kraft seit“ der neuen); ohne Haken: Korrektur</span></label></div>{% endif %}</div>
         </div>

@@ -10,6 +10,7 @@ from . import laws as lx
 
 # Schlüssel (klein, ohne Umlaute/Leerzeichen) → Feld
 KEYS = {
+    "intern": "internal", "internal": "internal",
     "titel": "title", "title": "title", "bezeichnung": "title",
     "kurztitel": "short_title", "abkurzung": "short_title", "abkuerzung": "short_title", "kurzel": "short_title",
     "kuerzel": "short_title", "short_title": "short_title",
@@ -26,7 +27,7 @@ KEYS = {
     "outline": "outline",
     "veroffentlicht": "published", "veroeffentlicht": "published", "published": "published", "offentlich": "published",
 }
-LABELS = {"title": "Titel", "short_title": "Kurztitel", "slug": "Adresse", "doc_type": "Art", "level": "Ebene",
+LABELS = {"internal": "Nur angemeldete Benutzer","title": "Titel", "short_title": "Kurztitel", "slug": "Adresse", "doc_type": "Art", "level": "Ebene",
           "version_note": "Fassung", "issued_on": "Ausgefertigt", "valid_from": "In Kraft seit",
           "valid_until": "Außer Kraft ab", "published": "Veröffentlicht", "outline": "Unterste Ebene"}
 MONTHS = {"januar": 1, "jan": 1, "februar": 2, "feb": 2, "marz": 3, "maerz": 3, "mar": 3, "april": 4, "apr": 4, "mai": 5,
@@ -175,12 +176,12 @@ def clean(db, raw: dict) -> tuple[dict, list[str]]:
                              "Nr., Punkt, Regel, reine Nummern.")
             else:
                 out[field] = mode
-        elif field == "published":
+        elif field in ("published", "internal"):
             flag = _bool(value)
             if flag is None:
                 notes.append(f"Veröffentlicht: „{value}“ – bitte ja oder nein.")
             else:
-                out["published"] = "1" if flag else ""
+                out[field] = "1" if flag else ""
         else:
             out[field] = " ".join(value.split())
     return out, notes

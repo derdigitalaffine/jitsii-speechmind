@@ -30,7 +30,7 @@ def _editor(user: User | None) -> bool:
 
 def _visible_law(db: Session, slug: str, user: User | None) -> LawText:
     law = db.scalar(select(LawText).where(LawText.slug == slug))
-    if law is None or (not law.published and not _editor(user)):
+    if law is None or (law.internal and user is None) or (not law.published and not _editor(user)):
         raise HTTPException(404, "Dieser Rechtstext ist nicht (mehr) veröffentlicht.")
     return law
 
@@ -99,6 +99,8 @@ def _ctx(db: Session, request: Request, embed: bool) -> tuple[User | None, dict]
 
 def _cookieless(request: Request, response):
     """Wer ohne Sitzung kommt (Bürger:innen, eingebettete Rahmen), bekommt auch kein Cookie gesetzt."""
+    if sessions.COOKIE_NAME in request.cookies:
+        response.headers["Cache-Control"] = "private, no-store"
     if sessions.COOKIE_NAME not in request.cookies:
         request.session.clear()
     return response
@@ -106,7 +108,7 @@ def _cookieless(request: Request, response):
 
 def _index(request: Request, db: Session, embed: bool, focus=None):
     user, ctx = _ctx(db, request, embed)
-    result = catalog.browse(db, request.query_params, editor=ctx['editor'], focus=focus, base=ctx['R'])
+    result = catalog.browse(db, request.query_params, editor=ctx['editor'], focus=focus, base=ctx['R'], authenticated=user is not None)
     return _cookieless(request, render(request, "recht.html", user, catalog=result, focus=focus,
                                      law_topics=catalog.topics, today=lx.today_iso(), **ctx))
 
@@ -116,10 +118,10 @@ def _search(request: Request, db: Session, embed: bool, q: str, ebene: int | Non
     user, ctx = _ctx(db, request, embed)
     level = db.get(LawLevel, ebene) if ebene else None
     law = db.scalar(select(LawText).where(LawText.slug == gesetz)) if gesetz else None
-    if law is not None and not law.published and not ctx["editor"]:
+    if law is not None and ((law.internal and user is None) or (not law.published and not ctx["editor"])):
         law = None
     opts = {"published_only": not ctx["editor"], "level": level, "law": law, "doc_type": art,
-            "in_force_only": alle != "1" and law is None}
+            "in_force_only": alle != "1" and law is None, "include_internal": user is not None}
     found_laws, hits = lx.search(db, q, **opts)
     corrected = ""
     if q and not hits and not found_laws:
@@ -139,9 +141,9 @@ def _suggest(request: Request, db: Session, embed: bool, q: str):
     from .main import rate_limit
     rate_limit(request, "recht-suggest", limit=300, window=60)
     if request.query_params.get('catalog') == '1':
-        result = catalog.browse(db, {**dict(request.query_params), 'q':q, 'seite':'1'}, editor=ctx['editor'], base=ctx['R'])
+        result = catalog.browse(db, {**dict(request.query_params), 'q':q, 'seite':'1'}, editor=ctx['editor'], base=ctx['R'], authenticated=user is not None)
         return JSONResponse([{'label':law.title, 'url':f"{ctx['R']}/{law.slug}?" + urlencode({'q':q})} for law in result['items'][:8]] if lx.terms(q) else [], headers={'Cache-Control':'no-store'})
-    items = lx.quick(db, q, published_only=not ctx["editor"])
+    items = lx.quick(db, q, published_only=not ctx["editor"], include_internal=user is not None)
     R = ctx["R"]
     return JSONResponse([{"label": i["label"], "url": f"{R}/{i['slug']}" + (f"/{i['anchor']}" if i["anchor"] else "")}
                          for i in items], headers={"Cache-Control": "no-store"})
@@ -160,7 +162,7 @@ def _markdown(request: Request, db: Session, embed: bool, slug: str):
     law = _visible_law(db, slug, user)
     text = (f"# {law.title}\n\n" if not law.body_md.lstrip().startswith("# ") else "") + law.body_md
     return Response(text, media_type="text/markdown; charset=utf-8",
-                    headers={"Content-Disposition": f'attachment; filename="{law.slug}.md"'})
+                    headers={"Content-Disposition": f'attachment; filename="{law.slug}.md"', "Cache-Control": "private, no-store"})
 
 
 def _law_page(request: Request, db: Session, embed: bool, slug: str, anchor: str | None, version: LawVersion | None = None):
@@ -168,7 +170,7 @@ def _law_page(request: Request, db: Session, embed: bool, slug: str, anchor: str
     law = _visible_law(db, slug, user)
     day = request.query_params.get("am", "")
     if version is None and DATE_RE.match(day):
-        found = lx.version_for_date(law, day)
+        found = lx.version_for_date(law, day, include_internal=user is not None)
         if found is not None:
             return redirect(f"{ctx['R']}/{law.slug}/fassung/{found.id}" + (f"#{anchor}" if anchor else ""))
     roots, flat = lx.tree_of(version.body_md, law.outline) if version is not None else lx.tree(law)
@@ -186,12 +188,12 @@ def _law_page(request: Request, db: Session, embed: bool, slug: str, anchor: str
                             headers={"Cache-Control": "no-store"})
     anchors = {v.section.anchor for v in flat}
     idx = flat.index(current) if current else -1
-    versions = lx.public_versions(law)
+    versions = lx.public_versions(law, include_internal=user is not None)
     return _cookieless(request, render(request, "recht_law.html", user, law=law, roots=roots, flat=flat, current=current,
                   prev=flat[idx - 1] if current and idx > 0 else None,
                   next=flat[idx + 1] if current and idx + 1 < len(flat) else None,
                   path=lx.level_path(law.level), q=request.query_params.get("q", ""), version=version,
-                  versions=versions, is_expired=lx.expired(law), forms=[] if embed else related_forms(db, law),
+                  versions=versions, attachments=[a for a in law.attachments if user is not None or not a.internal], is_expired=lx.expired(law), forms=[] if embed else related_forms(db, law),
                   resources=[] if embed else related_resources(db, law),
                   base=f"{ctx['R']}/{law.slug}" + (f"/fassung/{version.id}" if version else ""),
                   unit_prefix=lx.jump_prefix([v.section for v in flat]),
@@ -203,7 +205,7 @@ def _law_page(request: Request, db: Session, embed: bool, slug: str, anchor: str
 def _version(db: Session, law_slug: str, version_id: int, user) -> tuple[LawText, LawVersion]:
     law = _visible_law(db, law_slug, user)
     version = db.get(LawVersion, version_id)
-    if version is None or version.law_id != law.id or not (version.public or _editor(user)):
+    if version is None or version.law_id != law.id or (version.internal and user is None) or not (version.public or _editor(user)):
         raise HTTPException(404, "Diese Fassung gibt es nicht.")
     return law, version
 
@@ -213,7 +215,7 @@ def _compare(request: Request, db: Session, embed: bool, slug: str, a: str, b: s
     rate_limit(request, "law-compare", limit=60, window=600)
     user, ctx = _ctx(db, request, embed)
     law = _visible_law(db, slug, user)
-    versions = lx.public_versions(law) if not ctx["editor"] else list(law.versions)
+    versions = lx.public_versions(law, include_internal=user is not None) if not ctx["editor"] else list(law.versions)
 
     def pick(key: str):
         if key in ("", "aktuell"):
@@ -280,11 +282,11 @@ for _prefix, _embed in (("/recht", False), (EMBED, True)):
             user, _ = _ctx(db, request, embed)
             law_obj = _visible_law(db, slug, user)
             att = db.get(LawAttachment, att_id)
-            if att is None or att.law_id != law_obj.id or not (law_io.files_dir(law_obj.id) / att.file).is_file():
+            if att is None or (att.internal and user is None) or att.law_id != law_obj.id or not (law_io.files_dir(law_obj.id) / att.file).is_file():
                 raise HTTPException(404, "Diese Anlage gibt es nicht.")
             return FileResponse(law_io.files_dir(law_obj.id) / att.file, media_type="application/pdf",
                                 headers={"Content-Disposition": f'inline; filename="{_ascii(att.name)}"',
-                                         "X-Content-Type-Options": "nosniff"})
+                                         "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"})
 
         @app.get(prefix + "/{slug}/{anchor}", name=f"recht_section{'_embed' if embed else ''}")
         def section(request: Request, slug: str, anchor: str, db: Session = Depends(get_db)):
@@ -403,6 +405,10 @@ def _apply(db: Session, law: LawText, data, md: str, user: User) -> str | None:
     law.valid_from = (data.get("valid_from") or "").strip()
     law.valid_until = (data.get("valid_until") or "").strip()
     law.published = data.get("published") == "1"
+    law.internal = data.get("internal") == "1" or law.doc_type == "dienstanweisung"
+    if law.internal:
+        for saved in law.versions: saved.internal = True
+        for attachment in law.attachments: attachment.internal = True
     law.outline = outline
     law.body_md = md
     law.updated_by = user.id
@@ -447,6 +453,7 @@ def law_edit(request: Request, law_id: int, user: User = Depends(law_user), db: 
     values = {k: getattr(law, k) for k in ("title", "short_title", "slug", "level_id", "doc_type", "version_note",
                                            "issued_on", "valid_from", "valid_until", "body_md", "outline")}
     values["published"] = "1" if law.published else ""
+    values["internal"] = "1" if law.internal else ""
     return _form_page(request, db, user, law, values)
 
 
@@ -506,7 +513,7 @@ async def law_preview(request: Request, file: UploadFile | None = File(None), us
     full = data.get("html") == "1"
     shown_meta = {laws_meta.LABELS["level" if k == "level_id" else k]:
                   (level_names.get(v, v) if k == "level_id" else lx.DOC_TYPES.get(v, v) if k == "doc_type"
-                   else ("ja" if v == "1" else "nein") if k == "published"
+                   else ("ja" if v == "1" else "nein") if k in ("published", "internal")
                    else lx.OUTLINE_MODES.get(v, v) if k == "outline"
                    else _fmt_date(v) if k in ("issued_on", "valid_from", "valid_until") else v) for k, v in meta.items()}
     return JSONResponse({"ok": True, "title": parsed.title, "norms": parsed.norms, "groups": parsed.groups,
@@ -527,7 +534,7 @@ def law_publish(request: Request, law_id: int, user: User = Depends(law_user), d
     law.updated_by = user.id
     db.commit()
     lx.invalidate_refs()
-    flash(request, f"„{law.title}“ ist jetzt " + ("öffentlich sichtbar." if law.published else "nicht mehr öffentlich."))
+    flash(request, f"„{law.title}“ ist jetzt " + (("intern für angemeldete Benutzer sichtbar." if law.internal else "öffentlich sichtbar.") if law.published else "nicht mehr veröffentlicht."))
     from urllib.parse import urlparse
     from .main import safe_next
     ref = urlparse(request.headers.get("referer") or "")
@@ -728,7 +735,7 @@ async def laws_import(request: Request, user: User = Depends(law_user), db: Sess
 @app.get("/laws/embed")
 def laws_embed(request: Request, user: User = Depends(law_user), db: Session = Depends(get_db)):
     cfg = get_settings(db)
-    laws = list(db.scalars(select(LawText).where(LawText.published.is_(True)).order_by(LawText.title)))
+    laws = list(db.scalars(select(LawText).where(LawText.published.is_(True), LawText.internal.is_(False)).order_by(LawText.title)))
     return render(request, "law_embed.html", user, enabled=cfg.get("laws_embed", "1") == "1",
                   origins=cfg.get("laws_embed_origins", ""), base_url=links.base("laws"),
                   level_options=lx.level_options(db), laws=laws, **_common(db, user))

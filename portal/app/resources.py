@@ -224,7 +224,7 @@ def legal_refs(db, res: Resource, base: str = "/recht") -> list[dict]:
     out = []
     for r in raw:
         law = db.get(LawText, r["law_id"])
-        if law is None or not law.published:
+        if law is None or not law.published or law.internal:
             continue
         anchors = {sec.anchor for sec in law.sections}
         url = f"{base}/{law.slug}" + (f"/{r['anchor']}" if r.get("anchor") in anchors else "")

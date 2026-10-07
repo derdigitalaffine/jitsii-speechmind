@@ -2156,6 +2156,7 @@ class LawText(Base):
     issued_on: Mapped[str] = mapped_column(String(10), default="")       # Ausfertigung (JJJJ-MM-TT)
     valid_from: Mapped[str] = mapped_column(String(10), default="")      # in Kraft seit
     valid_until: Mapped[str] = mapped_column(String(10), default="")     # außer Kraft ab
+    internal: Mapped[bool] = mapped_column(Boolean, default=False)  # published but only authenticated portal readers
     published: Mapped[bool] = mapped_column(Boolean, default=False)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
@@ -2202,6 +2203,7 @@ class LawVersion(Base):
     """Frühere Fassung eines Rechtstexts (wird bei jeder inhaltlichen Änderung gesichert)."""
     __tablename__ = "law_versions"
 
+    internal: Mapped[bool] = mapped_column(Boolean, default=False)
     id: Mapped[int] = mapped_column(primary_key=True)
     law_id: Mapped[int] = mapped_column(ForeignKey("law_texts.id", ondelete="CASCADE"), index=True)
     saved_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
@@ -2221,6 +2223,7 @@ class LawAttachment(Base):
     """Anlage zu einem Rechtstext (Plan, Gebührentabelle …) als PDF."""
     __tablename__ = "law_attachments"
 
+    internal: Mapped[bool] = mapped_column(Boolean, default=False)
     id: Mapped[int] = mapped_column(primary_key=True)
     law_id: Mapped[int] = mapped_column(ForeignKey("law_texts.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(255))
@@ -2651,10 +2654,11 @@ _NEW_COLUMNS = {
                  "join_token": "VARCHAR(64)"},
     "law_levels": {"org_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL"},
     "krank_employers": {"org_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL"},
-    "law_texts": {"planned_md": "TEXT NOT NULL DEFAULT ''", "planned_valid_from": "VARCHAR(10) NOT NULL DEFAULT ''",
+    "law_texts": {"internal": "BOOLEAN NOT NULL DEFAULT 0", "planned_md": "TEXT NOT NULL DEFAULT ''", "planned_valid_from": "VARCHAR(10) NOT NULL DEFAULT ''",
                   "planned_note": "VARCHAR(255) NOT NULL DEFAULT ''", "outline": "VARCHAR(20) NOT NULL DEFAULT ''",
                   "topics_json": "TEXT NOT NULL DEFAULT ''"},
-    "law_versions": {"public": "BOOLEAN NOT NULL DEFAULT 0", "title": "VARCHAR(400) NOT NULL DEFAULT ''",
+    "law_attachments": {"internal": "BOOLEAN NOT NULL DEFAULT 0"},
+    "law_versions": {"internal": "BOOLEAN NOT NULL DEFAULT 0", "public": "BOOLEAN NOT NULL DEFAULT 0", "title": "VARCHAR(400) NOT NULL DEFAULT ''",
                      "valid_from": "VARCHAR(10) NOT NULL DEFAULT ''", "valid_until": "VARCHAR(10) NOT NULL DEFAULT ''"},
 }
 

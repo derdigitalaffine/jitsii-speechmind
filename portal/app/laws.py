@@ -31,6 +31,7 @@ LEVEL_KINDS = {
     "sonstige": ("Sonstige", "fa-folder"),
 }
 DOC_TYPES = {
+    "dienstanweisung": "Interne Dienstanweisung",
     "gesetz": "Gesetz",
     "verordnung": "Rechtsverordnung",
     "satzung": "Satzung",
@@ -492,7 +493,7 @@ def law_counts(db, published_only: bool) -> dict[int, int]:
     """Anzahl Rechtstexte je Ebene einschließlich aller Unterebenen."""
     q = select(LawText.level_id, func.count(LawText.id)).group_by(LawText.level_id)
     if published_only:
-        q = q.where(LawText.published.is_(True))
+        q = q.where(LawText.published.is_(True), LawText.internal.is_(False))
     direct = {lid: n for lid, n in db.execute(q) if lid}
     totals: dict[int, int] = {}
 
@@ -536,12 +537,15 @@ def snippet(text: str, words: list[str], width: int = 110) -> Markup:
 
 def search(db, query: str, published_only: bool = True, level: LawLevel | None = None,
            law: LawText | None = None, limit: int = 200, doc_type: str = "",
-           in_force_only: bool = False) -> tuple[list[LawText], list[tuple[LawSection, Markup]]]:
+           in_force_only: bool = False, include_internal: bool = False) -> tuple[list[LawText], list[tuple[LawSection, Markup]]]:
     words = terms(query)
     if not words:
         return [], []
     law_q = select(LawText)
     sec_q = select(LawSection).join(LawText)
+    if not include_internal:
+        law_q = law_q.where(LawText.internal.is_(False))
+        sec_q = sec_q.where(LawText.internal.is_(False))
     if published_only:
         law_q = law_q.where(LawText.published.is_(True))
         sec_q = sec_q.where(LawText.published.is_(True))
@@ -610,19 +614,19 @@ def snapshot(db, law: LawText, *, public: bool, valid_until: str = "", saved_by:
     if not law.id or not law.body_md:
         return
     db.add(LawVersion(law_id=law.id, saved_by=saved_by or (law.editor.name if law.editor else ""), body_md=law.body_md,
-                      version_note=law.version_note, saved_at=law.updated_at, public=public, title=law.title,
+                      version_note=law.version_note, saved_at=law.updated_at, public=public, internal=law.internal, title=law.title,
                       valid_from=law.valid_from, valid_until=valid_until if public else ""))
 
 
-def public_versions(law: LawText) -> list:
-    return [v for v in law.versions if v.public]
+def public_versions(law: LawText, include_internal=False) -> list:
+    return [v for v in law.versions if v.public and (include_internal or not v.internal)]
 
 
-def version_for_date(law: LawText, day: str):
+def version_for_date(law: LawText, day: str, include_internal=False):
     """Fassung, die an einem Tag galt: None = aktuelle Fassung."""
     if not day or (law.valid_from and day >= law.valid_from) or not law.valid_from:
         return None
-    for v in public_versions(law):
+    for v in public_versions(law, include_internal=include_internal):
         if (not v.valid_from or v.valid_from <= day) and (not v.valid_until or day < v.valid_until):
             return v
     return None
@@ -756,10 +760,10 @@ def ref_map(db=None) -> dict[str, tuple[str, str, set[str]]]:
     try:
         anchors: dict[int, set[str]] = {}
         for law_id, anchor in db.execute(select(LawSection.law_id, LawSection.anchor).join(LawText)
-                                         .where(LawText.published.is_(True))):
+                                         .where(LawText.published.is_(True), LawText.internal.is_(False))):
             anchors.setdefault(law_id, set()).add(anchor)
         out = {}
-        for law in db.scalars(select(LawText).where(LawText.published.is_(True))):
+        for law in db.scalars(select(LawText).where(LawText.published.is_(True), LawText.internal.is_(False))):
             entry = (law.slug, law.short_title or law.title, anchors.get(law.id, set()))
             out[law.slug.lower()] = entry
             if law.short_title:
@@ -909,11 +913,11 @@ def _vocabulary(db) -> list[str]:
         return _vocab_cache["words"]
     seen: dict[str, int] = {}
     for title, plain in db.execute(select(LawSection.title, LawSection.plain).join(LawText)
-                                   .where(LawText.published.is_(True)).limit(20000)):
+                                   .where(LawText.published.is_(True), LawText.internal.is_(False)).limit(20000)):
         for w in re.findall(r"[A-Za-zÄÖÜäöüß]{4,}", f"{title} {plain}"):
             key = w.lower()
             seen[key] = seen.get(key, 0) + 1
-    for t, st in db.execute(select(LawText.title, LawText.short_title).where(LawText.published.is_(True))):
+    for t, st in db.execute(select(LawText.title, LawText.short_title).where(LawText.published.is_(True), LawText.internal.is_(False))):
         for w in re.findall(r"[A-Za-zÄÖÜäöüß]{2,}", f"{t} {st}"):
             seen[w.lower()] = seen.get(w.lower(), 0) + 5
     words = sorted(seen, key=lambda k: -seen[k])[:30000]
@@ -940,7 +944,7 @@ def did_you_mean(db, query: str) -> str:
     return " ".join(out) if changed else ""
 
 
-def quick(db, query: str, published_only: bool = True, limit: int = 8) -> list[dict]:
+def quick(db, query: str, published_only: bool = True, limit: int = 8, include_internal: bool = False) -> list[dict]:
     """Vorschläge beim Tippen: Titel, Abkürzungen und Einzelvorschriften („§ 3 HS“, „Ziffer 4 Vertrag“)."""
     q = (query or "").strip()
     if len(q) < 2:
@@ -948,6 +952,7 @@ def quick(db, query: str, published_only: bool = True, limit: int = 8) -> list[d
     like = f"%{q}%"
     out = []
     lq = select(LawText).where(or_(LawText.title.ilike(like), LawText.short_title.ilike(like)))
+    if not include_internal: lq = lq.where(LawText.internal.is_(False))
     if published_only:
         lq = lq.where(LawText.published.is_(True))
     for law in db.scalars(lq.order_by(LawText.title).limit(limit)):
@@ -959,6 +964,7 @@ def quick(db, query: str, published_only: bool = True, limit: int = 8) -> list[d
         rest = m.group(3).strip()
         if rest:
             sq = sq.where(or_(LawText.short_title.ilike(f"%{rest}%"), LawText.title.ilike(f"%{rest}%")))
+        if not include_internal: sq = sq.where(LawText.internal.is_(False))
         if published_only:
             sq = sq.where(LawText.published.is_(True))
         for sec in db.scalars(sq.limit(limit - len(out))):
@@ -966,6 +972,7 @@ def quick(db, query: str, published_only: bool = True, limit: int = 8) -> list[d
                         "slug": sec.law.slug, "anchor": sec.anchor})
     elif len(out) < limit:
         sq = select(LawSection).join(LawText).where(LawSection.kind == "norm", LawSection.title.ilike(like))
+        if not include_internal: sq = sq.where(LawText.internal.is_(False))
         if published_only:
             sq = sq.where(LawText.published.is_(True))
         for sec in db.scalars(sq.limit(limit - len(out))):
@@ -1032,7 +1039,7 @@ def form_refs(db, form, base: str = "/recht") -> list[dict]:
     out = []
     for r in refs if isinstance(refs, list) else []:
         law = db.get(LawText, r.get("law_id")) if isinstance(r, dict) and isinstance(r.get("law_id"), int) else None
-        if law is None or not law.published:
+        if law is None or not law.published or law.internal:
             continue
         anchors = {s.anchor for s in law.sections}
         url = f"{base}/{law.slug}" + (f"/{r['anchor']}" if r.get("anchor") in anchors else "")

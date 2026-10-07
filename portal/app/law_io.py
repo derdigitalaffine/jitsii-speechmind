@@ -177,12 +177,12 @@ def export(db, laws: list[LawText], *, versions: bool = True, attachments: bool 
     data = {"format": FORMAT, "exported_at": utcnow().isoformat(timespec="seconds"), "laws": []}
     for law in laws:
         item = {k: getattr(law, k) for k in ("title", "short_title", "slug", "doc_type", "body_md", "version_note",
-                                              "issued_on", "valid_from", "valid_until", "published", "planned_md",
+                                              "issued_on", "valid_from", "valid_until", "published", "internal", "planned_md",
                                               "planned_valid_from", "planned_note")}
         item["topics"] = law_catalog.topics(law)
         item["level_path"] = _level_path(law.level)
         if versions:
-            item["versions"] = [{"saved_at": v.saved_at.isoformat(timespec="seconds"), "saved_by": v.saved_by,
+            item["versions"] = [{"saved_at": v.saved_at.isoformat(timespec="seconds"), "saved_by": v.saved_by, "internal": v.internal,
                                  "version_note": v.version_note, "body_md": v.body_md, "public": v.public, "title": v.title,
                                  "valid_from": v.valid_from, "valid_until": v.valid_until} for v in law.versions]
         if attachments:
@@ -190,7 +190,7 @@ def export(db, laws: list[LawText], *, versions: bool = True, attachments: bool 
             for a in law.attachments:
                 path = files_dir(law.id) / a.file
                 if path.is_file():
-                    item["attachments"].append({"name": a.name, "data": base64.b64encode(path.read_bytes()).decode()})
+                    item["attachments"].append({"name": a.name, "internal": a.internal, "data": base64.b64encode(path.read_bytes()).decode()})
         data["laws"].append(item)
     return json.dumps(data, ensure_ascii=False, indent=1).encode("utf-8")
 
@@ -261,14 +261,20 @@ def import_(db, raw: bytes, user, *, update_existing: bool) -> tuple[int, int]:
         law.planned_note = " ".join(str(item.get("planned_note") or "").split())[:255]
         law.level_id = level.id if level else None
         law.body_md = md
+        if "internal" in item or existing is None:
+            law.internal = item.get("internal") is True or law.doc_type == "dienstanweisung"
         law.published = bool(item.get("published")) if existing is None else law.published
+        if law.doc_type == "dienstanweisung": law.internal = True
+        if law.internal:
+            for saved in law.versions: saved.internal = True
+            for attachment in law.attachments: attachment.internal = True
         law.updated_by = user.id
         db.flush()
         if existing is None:
             for v in (item.get("versions") or [])[:MAX_VERSIONS]:
                 if isinstance(v, dict) and v.get("body_md"):
                     db.add(LawVersion(law_id=law.id, saved_by=str(v.get("saved_by") or "")[:255],
-                                      version_note=str(v.get("version_note") or "")[:255], body_md=str(v["body_md"])[:lx.MAX_SIZE],
+                                      version_note=str(v.get("version_note") or "")[:255], internal=law.internal or v.get("internal") is True, body_md=str(v["body_md"])[:lx.MAX_SIZE],
                                       public=bool(v.get("public")), title=str(v.get("title") or "")[:400],
                                       valid_from=_date(v.get("valid_from")), valid_until=_date(v.get("valid_until"))))
         for n, a in enumerate((item.get("attachments") or [])[:30]):
@@ -277,7 +283,8 @@ def import_(db, raw: bytes, user, *, update_existing: bool) -> tuple[int, int]:
             except (ValueError, AttributeError):
                 continue
             if content.startswith(b"%PDF") and len(content) <= MAX_ATTACHMENT:
-                add_attachment(law, str(a.get("name") or "Anlage.pdf"), content, position=n)
+                attachment = add_attachment(law, str(a.get("name") or "Anlage.pdf"), content, position=n)
+                attachment.internal = law.internal or a.get("internal") is True
         lx.store(db, law)
     lx.invalidate_refs()
     return created, updated
@@ -288,7 +295,7 @@ def add_attachment(law: LawText, name: str, content: bytes, position: int | None
     file = secrets.token_hex(10) + ".pdf"
     (files_dir(law.id) / file).write_bytes(content)
     clean = re.sub(r"[\x00-\x1f/\\]", "", name).strip()[:255] or "Anlage.pdf"
-    att = LawAttachment(name=clean, file=file, size=len(content),
+    att = LawAttachment(internal=law.internal, name=clean, file=file, size=len(content),
                         position=position if position is not None else len(law.attachments))
     law.attachments.append(att)
     return att

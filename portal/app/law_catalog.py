@@ -103,8 +103,9 @@ def _fold(column):
     return func.replace(func.lower(column), 'ß', 'ss')
 
 
-def visible_query(editor=False, query=''):
+def visible_query(editor=False, query='', authenticated=False):
     stmt = select(LawText).options(defer(LawText.body_md), defer(LawText.planned_md))
+    if not authenticated: stmt = stmt.where(LawText.internal.is_(False))
     if not editor: stmt = stmt.where(LawText.published.is_(True))
     for word in search_terms(query):
         # Escape SQL wildcards: user text remains a literal search term.
@@ -137,13 +138,17 @@ def choose(rows, levels, f, *, query_ids=None, omit=''):
     return result
 
 
-def browse(db, params, *, editor=False, focus=None, base='/recht'):
+def browse(db, params, *, editor=False, focus=None, base='/recht', authenticated=False):
     f = filters(params, focus)
     levels = {level.id: level for level in db.scalars(select(LawLevel))}
-    rows = list(db.scalars(visible_query(editor).order_by(LawText.title)))
+    visibility = params.get('sicht', 'public') if authenticated else 'public'
+    if visibility not in {'public','internal','all'}: visibility='public'
+    f['sicht'] = visibility
+    rows = list(db.scalars(visible_query(editor, authenticated=authenticated).order_by(LawText.title)))
+    if visibility != 'all': rows = [law for law in rows if law.internal == (visibility == 'internal')]
     query_ids = None
     if f['q']:
-        query_ids = {law.id for law in db.scalars(visible_query(editor, f['q']))} if lx.terms(f['q']) else set()
+        query_ids = {law.id for law in db.scalars(visible_query(editor, f['q'], authenticated=authenticated))} if lx.terms(f['q']) else set()
     results = choose(rows, levels, f, query_ids=query_ids)
     words = search_terms(f['q'])
     if f['sort'] == 'neu': results.sort(key=lambda law: (law.updated_at, law.id), reverse=True)
