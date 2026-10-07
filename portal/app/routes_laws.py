@@ -1,14 +1,16 @@
 """Rechtstexte: öffentliche Ansicht unter /recht, Pflege unter /laws (Recht „laws“)."""
 
 import re
+import json
 from datetime import date
+from urllib.parse import urlencode
 
 from fastapi import Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import law_io, laws as lx, laws_meta, links, sessions
+from . import law_catalog as catalog, law_io, laws as lx, laws_meta, links, sessions
 from .db import Form as FormModel
 from .db import (
     LawAttachment, LawLevel, LawSection, LawText, LawVersion, SessionLocal, User, get_settings, set_setting,
@@ -102,22 +104,11 @@ def _cookieless(request: Request, response):
     return response
 
 
-def _index(request: Request, db: Session, embed: bool):
+def _index(request: Request, db: Session, embed: bool, focus=None):
     user, ctx = _ctx(db, request, embed)
-    editor = ctx["editor"]
-    q = select(LawText).order_by(LawText.title)
-    if not editor:
-        q = q.where(LawText.published.is_(True))
-    all_laws = list(db.scalars(q))
-    by_level: dict[int | None, list[LawText]] = {}
-    archived = [law for law in all_laws if lx.expired(law)]
-    for law in all_laws:
-        if not lx.expired(law):
-            by_level.setdefault(law.level_id, []).append(law)
-    recent = sorted((x for x in all_laws if x.published and not lx.expired(x)), key=lambda x: x.updated_at, reverse=True)[:6]
-    return _cookieless(request, render(request, "recht.html", user, roots=lx.level_tree(db), by_level=by_level,
-                  counts=lx.law_counts(db, published_only=not editor), recent=[] if embed else recent,
-                  total=len(all_laws), archived=archived, **ctx))
+    result = catalog.browse(db, request.query_params, editor=ctx['editor'], focus=focus, base=ctx['R'])
+    return _cookieless(request, render(request, "recht.html", user, catalog=result, focus=focus,
+                                     law_topics=catalog.topics, today=lx.today_iso(), **ctx))
 
 
 def _search(request: Request, db: Session, embed: bool, q: str, ebene: int | None, gesetz: str, art: str = "",
@@ -147,6 +138,9 @@ def _suggest(request: Request, db: Session, embed: bool, q: str):
     user, ctx = _ctx(db, request, embed)
     from .main import rate_limit
     rate_limit(request, "recht-suggest", limit=300, window=60)
+    if request.query_params.get('catalog') == '1':
+        result = catalog.browse(db, {**dict(request.query_params), 'q':q, 'seite':'1'}, editor=ctx['editor'], base=ctx['R'])
+        return JSONResponse([{'label':law.title, 'url':f"{ctx['R']}/{law.slug}?" + urlencode({'q':q})} for law in result['items'][:8]] if lx.terms(q) else [], headers={'Cache-Control':'no-store'})
     items = lx.quick(db, q, published_only=not ctx["editor"])
     R = ctx["R"]
     return JSONResponse([{"label": i["label"], "url": f"{R}/{i['slug']}" + (f"/{i['anchor']}" if i["anchor"] else "")}
@@ -154,23 +148,11 @@ def _suggest(request: Request, db: Session, embed: bool, q: str):
 
 
 def _level(request: Request, db: Session, embed: bool, level_id: int):
-    user, ctx = _ctx(db, request, embed)
+    _ctx(db, request, embed)
     level = db.get(LawLevel, level_id)
     if level is None:
         raise HTTPException(404, "Ebene nicht gefunden.")
-    q = select(LawText).where(LawText.level_id.in_(lx.descendant_ids(level))).order_by(LawText.title)
-    if not ctx["editor"]:
-        q = q.where(LawText.published.is_(True))
-    by_level: dict[int | None, list[LawText]] = {}
-    archived = []
-    for law in db.scalars(q):
-        if lx.expired(law):
-            archived.append(law)
-        else:
-            by_level.setdefault(law.level_id, []).append(law)
-    return _cookieless(request, render(request, "recht.html", user, roots=[level], by_level=by_level, focus=level,
-                  counts=lx.law_counts(db, published_only=not ctx["editor"]), recent=[], archived=archived,
-                  total=sum(len(v) for v in by_level.values()), **ctx))
+    return _index(request, db, embed, focus=level)
 
 
 def _markdown(request: Request, db: Session, embed: bool, slug: str):
@@ -333,7 +315,12 @@ def laws_list(request: Request, level: int | None = None, user: User = Depends(l
 
 
 def _form_page(request: Request, db: Session, user: User, law: LawText | None, values: dict | None = None):
-    return render(request, "law_edit.html", user, law=law, v=values or {}, level_options=lx.level_options(db),
+    try:
+        selected = catalog.form_topics(values) if values and "topics_present" in values else catalog.topics(law) if law else []
+    except ValueError:
+        selected = [name for key,name in catalog.TOPICS.items() if values.get("topic_"+key)=="1"]
+    return render(request, "law_edit.html", user, law=law, v=values or {}, topic_options=catalog.TOPICS,
+                  selected_topics=selected, other_topics=values.get("other_topics", "") if values and "topics_present" in values else ", ".join(t for t in selected if t not in catalog.TOPICS.values()), level_options=lx.level_options(db),
                   outline_modes=lx.OUTLINE_MODES, **_common(db, user))
 
 
@@ -382,6 +369,10 @@ def _take_meta(db: Session, md: str, data) -> tuple[str, dict, list[str]]:
 def _apply(db: Session, law: LawText, data, md: str, user: User) -> str | None:
     """Felder übernehmen; gibt eine Fehlermeldung zurück oder None."""
     outline = data.get("outline") if data.get("outline") in lx.OUTLINE_MODES else (law.outline or "")
+    try:
+        chosen_topics = catalog.form_topics(data) if "topics_present" in data else None
+    except ValueError as exc:
+        return str(exc)
     parsed = lx.parse(md, outline)
     title = " ".join((data.get("title") or "").split())[:400] or parsed.title
     if not title:
@@ -401,6 +392,8 @@ def _apply(db: Session, law: LawText, data, md: str, user: User) -> str | None:
                          .order_by(LawVersion.saved_at.desc()).offset(MAX_VERSIONS - 1)).all()
         for v in old:
             db.delete(v)
+    if chosen_topics is not None:
+        law.topics_json = json.dumps(chosen_topics, ensure_ascii=False)
     law.title = title
     law.short_title = " ".join((data.get("short_title") or "").split())[:80]
     law.level_id = level.id if level else None

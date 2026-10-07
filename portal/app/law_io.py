@@ -10,7 +10,7 @@ from xml.etree import ElementTree as ET
 
 from sqlalchemy import select
 
-from . import laws as lx
+from . import laws as lx, law_catalog
 from .config import settings
 from .db import LawAttachment, LawLevel, LawText, LawVersion, utcnow
 
@@ -179,6 +179,7 @@ def export(db, laws: list[LawText], *, versions: bool = True, attachments: bool 
         item = {k: getattr(law, k) for k in ("title", "short_title", "slug", "doc_type", "body_md", "version_note",
                                               "issued_on", "valid_from", "valid_until", "published", "planned_md",
                                               "planned_valid_from", "planned_note")}
+        item["topics"] = law_catalog.topics(law)
         item["level_path"] = _level_path(law.level)
         if versions:
             item["versions"] = [{"saved_at": v.saved_at.isoformat(timespec="seconds"), "saved_by": v.saved_by,
@@ -246,6 +247,11 @@ def import_(db, raw: bytes, user, *, update_existing: bool) -> tuple[int, int]:
             db.add(law)
             created += 1
         law.title = " ".join(str(item.get("title") or lx.parse(md).title or "Rechtstext").split())[:400]
+        if "topics" in item:
+            try:
+                law.topics_json = json.dumps(law_catalog.clean_topics(item["topics"]), ensure_ascii=False)
+            except ValueError as exc:
+                raise LawImportError(str(exc)) from exc
         law.short_title = " ".join(str(item.get("short_title") or "").split())[:80]
         law.doc_type = item.get("doc_type") if item.get("doc_type") in lx.DOC_TYPES else "sonstiges"
         law.version_note = " ".join(str(item.get("version_note") or "").split())[:255]

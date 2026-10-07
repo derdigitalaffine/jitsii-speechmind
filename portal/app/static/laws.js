@@ -2,61 +2,8 @@
 (function () {
   'use strict';
   var toc = document.querySelector('.lex-toc');
-
-  /* Overview filter keeps matching documents and their complete hierarchy visible. */
-  var browser = document.querySelector('[data-law-browser]');
-  if (browser) {
-    var treeFilter = browser.querySelector('#law-tree-filter'), tools = browser.querySelector('.lex-browser-tools');
-    var branches = Array.from(browser.querySelectorAll('.lex-branch')), documents = Array.from(browser.querySelectorAll('.lex-doc'));
-    var disclosures = Array.from(browser.querySelectorAll('details')), beforeFilter = null, filtering = false;
-    var storageKey = 'law-tree:' + location.pathname, stored = {};
-    try { stored = JSON.parse(sessionStorage.getItem(storageKey) || '{}'); } catch (e) {}
-    if (!stored || typeof stored !== 'object') { stored = {}; }
-    branches.forEach(function (branch) { if (typeof stored[branch.dataset.level] === 'boolean') { branch.open = stored[branch.dataset.level]; } });
-    function remember() {
-      if (filtering) { return; }
-      var states = {}; branches.forEach(function (branch) { states[branch.dataset.level] = branch.open; });
-      try { sessionStorage.setItem(storageKey, JSON.stringify(states)); } catch (e) {}
-    }
-    branches.forEach(function (branch) { branch.addEventListener('toggle', remember); });
-    var expandButtons = browser.querySelectorAll('[data-law-expand]');
-    expandButtons.forEach(function (button) { button.addEventListener('click', function () { disclosures.forEach(function (d) { d.open = button.dataset.lawExpand === '1'; }); remember(); }); });
-    if (tools && treeFilter) {
-      tools.hidden = false;
-      var count = browser.querySelector('[data-law-count]');
-      function filterTree() {
-        var q = treeFilter.value.trim().toLocaleLowerCase('de');
-        if (q && !filtering) { beforeFilter = disclosures.map(function (d) { return d.open; }); }
-        filtering = !!q;
-        documents.forEach(function (doc) {
-          var matches = !q || doc.textContent.toLocaleLowerCase('de').includes(q), ancestor = doc.parentElement;
-          while (!matches && ancestor && ancestor !== browser) {
-            if (ancestor.classList.contains('lex-branch')) { matches = ancestor.querySelector('summary').textContent.toLocaleLowerCase('de').includes(q); }
-            ancestor = ancestor.parentElement;
-          }
-          doc.hidden = !matches;
-          if (q && matches) { ancestor = doc.parentElement; while (ancestor && ancestor !== browser) { if (ancestor.tagName === 'DETAILS') { ancestor.open = true; } ancestor = ancestor.parentElement; } }
-        });
-        branches.slice().reverse().forEach(function (branch) {
-          var ownMatch = branch.querySelector('summary').textContent.toLocaleLowerCase('de').includes(q);
-          var children = Array.from(branch.querySelectorAll('.lex-doc'));
-          branch.hidden = !!q && !ownMatch && !children.some(function (doc) { return !doc.hidden; }) && !Array.from(branch.querySelectorAll('.lex-branch')).some(function (child) { return !child.hidden; });
-          if (q && ownMatch) { var node = branch; while (node && node !== browser) { if (node.tagName === 'DETAILS') { node.open = true; node.hidden = false; } node = node.parentElement; } }
-        });
-        if (!q && beforeFilter) { disclosures.forEach(function (d, i) { d.open = beforeFilter[i]; }); beforeFilter = null; }
-        expandButtons.forEach(function (button) { button.disabled = !!q; });
-        var visible = documents.filter(function (doc) { return !doc.hidden; }).length;
-        count.textContent = q ? (visible ? visible + ' passende Rechtstexte. Treffer können in der Übersicht geöffnet werden.' : 'Keine passenden Titel oder Ebenen. Nutzen Sie die Volltextsuche für Inhalte.') : documents.length + ' Rechtstexte in der Übersicht. Ebenen lassen sich auf- und zuklappen.';
-      }
-      treeFilter.addEventListener('input', filterTree);
-      browser.querySelector('[data-law-filter-clear]').addEventListener('click', function () { treeFilter.value = ''; filterTree(); treeFilter.focus(); });
-      filterTree();
-    }
-    if (location.hash) { try { var target = document.getElementById(decodeURIComponent(location.hash.slice(1))); if (target && target.closest('[data-law-browser]') === browser) { var node = target; while (node && node !== browser) { if (node.tagName === 'DETAILS') { node.open = true; } node = node.parentElement; } var branch = target.querySelector('.lex-branch'); if (branch) { branch.open = true; } } } catch (e) {} }
-    var printedStates;
-    window.addEventListener('beforeprint', function () { printedStates = disclosures.map(function (d) { return d.open; }); disclosures.forEach(function (d) { d.open = true; }); });
-    window.addEventListener('afterprint', function () { if (printedStates) { disclosures.forEach(function (d, i) { d.open = printedStates[i]; }); printedStates = null; } });
-  }
+  var catalogFilters = document.querySelector('[data-catalog-filters]');
+  if (catalogFilters && window.matchMedia && window.matchMedia('(max-width: 575.98px)').matches) { catalogFilters.open = false; }
 
   /* Table of contents: fold whole branches, filter without losing the prior state. */
   var filter = document.getElementById('toc-filter');
@@ -186,7 +133,8 @@
       if (q.length < 2) { list.classList.add('d-none'); return; }
       t = setTimeout(function () {
         var my = ++seq;
-        fetch(input.dataset.suggest + '?q=' + encodeURIComponent(q), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (items) {
+        var suggestionUrl = new URL(input.dataset.suggest, location.href); suggestionUrl.searchParams.set('q', q);
+        fetch(suggestionUrl.toString(), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (items) {
           if (my !== seq || input.value.trim() !== q) return;
           list.innerHTML = '';
           items.forEach(function (it) {

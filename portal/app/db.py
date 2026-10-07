@@ -2091,6 +2091,7 @@ class LawText(Base):
                                                         order_by="LawVersion.saved_at.desc()", passive_deletes=True)
     attachments: Mapped[list["LawAttachment"]] = relationship(back_populates="law", cascade="all, delete-orphan",
                                                               order_by="LawAttachment.position", passive_deletes=True)
+    topics_json: Mapped[str] = mapped_column(Text, default="")  # empty = editorial suggestions; [] = no topics
     # Vorbereitete neue Fassung: wird am Tag des Inkrafttretens automatisch übernommen (siehe laws.apply_planned)
     planned_md: Mapped[str] = mapped_column(Text, default="")
     planned_valid_from: Mapped[str] = mapped_column(String(10), default="")
@@ -2571,7 +2572,8 @@ _NEW_COLUMNS = {
     "law_levels": {"org_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL"},
     "krank_employers": {"org_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL"},
     "law_texts": {"planned_md": "TEXT NOT NULL DEFAULT ''", "planned_valid_from": "VARCHAR(10) NOT NULL DEFAULT ''",
-                  "planned_note": "VARCHAR(255) NOT NULL DEFAULT ''", "outline": "VARCHAR(20) NOT NULL DEFAULT ''"},
+                  "planned_note": "VARCHAR(255) NOT NULL DEFAULT ''", "outline": "VARCHAR(20) NOT NULL DEFAULT ''",
+                  "topics_json": "TEXT NOT NULL DEFAULT ''"},
     "law_versions": {"public": "BOOLEAN NOT NULL DEFAULT 0", "title": "VARCHAR(400) NOT NULL DEFAULT ''",
                      "valid_from": "VARCHAR(10) NOT NULL DEFAULT ''", "valid_until": "VARCHAR(10) NOT NULL DEFAULT ''"},
 }
