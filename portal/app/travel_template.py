@@ -15,7 +15,7 @@ def col(key,label,kind='text',**extra):return {'id':key,'label':label,'type':kin
 def application_items():
     return forms.clean_schema([
       question('intro','text','Dienstreise beantragen',description='Die Reise wird grundsätzlich ab Dienststätte geplant. Abweichende Start-/Zielpunkte begründen. Jede Person stellt einen eigenen Antrag und rechnet ihre eigenen Kosten ab.'),
-      question('employee','short','Name',required=True),question('mail','short','Dienstliche E-Mail-Adresse',subtype='email',required=True),
+      question('employee','short','Name',required=True,profile_value='name'),question('mail','short','Dienstliche E-Mail-Adresse',subtype='email',required=True,profile_value='email'),
       question('personnel','short','Personalnummer'),question('department','short','Dienststelle / Organisationseinheit',required=True),
       question('office','short','Reguläre Dienststätte',required=True),question('purpose','long','Anlass und Dienstgeschäft',required=True),
       question('area','radio','Reisegebiet',required=True,options=[{'label':x} for x in ['Innerhalb des Landkreises','Außerhalb des Landkreises','Ausland']]),

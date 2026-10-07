@@ -19,7 +19,7 @@
 </div></div>
 {% endif %}
 
-{% if user.is_admin %}<div class="card mb-4"><div class="card-body"><h2 class="h5">Dienstreisevorlage</h2><p>Interner Antrag, Genehmigung, Abrechnung und Dokument für die Personalabteilung mit allgemeinen Formularfeldern und Prozessschritten.</p><form method="post" action="/forms/templates/travel"><input type="hidden" name="csrf" value="{{csrf}}"><button class="btn btn-outline-primary">Dienstreisevorlage als Entwurf anlegen</button> <a href="/settings/expense-rules">Satzfassungen konfigurieren</a></form></div></div>{% endif %}
+{% if user.is_admin %}<details class="mb-3 border rounded"><summary class="px-3 py-2 small">Vorlagen übernehmen</summary><div class="px-3 pb-3"><form method="post" action="/forms/templates/travel" class="d-flex flex-wrap align-items-center gap-2"><input type="hidden" name="csrf" value="{{csrf}}"><button class="btn btn-sm btn-outline-primary">Dienstreisevorlage übernehmen</button><a class="small" href="/settings/expense-rules">Reisekostensätze</a><span class="small text-secondary">Wird als inaktiver Entwurf angelegt.</span></form></div></details>{% endif %}
 
 {% if shared %}
 <h2 class="h5 mb-3"><i class="fa-solid fa-share-nodes me-2 text-secondary"></i>Mit mir geteilt</h2>

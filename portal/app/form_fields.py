@@ -288,3 +288,13 @@ def display(item, value):
     if kind == 'calculation':
         return str(value).replace('.', ',') + (' ' + item['unit'] if item.get('unit') else '')
     return str(value)
+
+
+def profile_values(items, values, user):
+    """Only the current session's public profile values; submitted inputs take priority."""
+    result=dict(values or {})
+    if user is not None:
+        for item in items:
+            if item['type'] in ('short','long') and item.get('profile_value') in ('name','email') and item['id'] not in result:
+                result[item['id']]=getattr(user,item['profile_value']) or ''
+    return result

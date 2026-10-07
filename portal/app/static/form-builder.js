@@ -58,6 +58,7 @@
   }
   function settingsHtml(it) {
     var h = '';
+    if (it.type === 'short' || it.type === 'long') {h += field('Aus Benutzerprofil vorbelegen', '<select class="form-select" data-key="profile_value">'+[['','Keine Vorbelegung'],['name','Name'],['email','E-Mail-Adresse']].map(function(o){return '<option value="'+o[0]+'"'+(it.profile_value===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>');}
     switch (it.type) {
       case 'table':
         h += '<div class="col-12"><div class="d-grid gap-2">' + (it.columns || []).map(function (c, n) {
@@ -85,12 +86,7 @@
         h += field('Wortlaut der Erklärung', '<textarea class="form-control" data-key="statement" maxlength="2000">' + esc(it.statement || '') + '</textarea>', '12');
         break;
       case 'calculation':
-        h += field('Berechnung', '<select class="form-select" data-key="operation">' + [['sum','Summe'],['difference','Erster Wert minus weitere'],['product','Produkt'],['table_total','Summe einer Tabellenspalte']].map(function (o) {return '<option value="'+o[0]+'"'+(it.operation === o[0] ? ' selected' : '')+'>'+o[1]+'</option>';}).join('')+'</select>');
-        h += '<div class="col-12"><span class="form-label small">Quellfelder</span><div class="d-grid gap-1">' + items.filter(function (q) {return q.id !== it.id && (q.type === 'table' || q.type === 'calculation' || (q.type === 'short' && q.subtype === 'number'));}).map(function (q) { var selectedSources = Array.isArray(it.sources) ? it.sources : String(it.sources || '').split(','); return '<label class="border rounded p-2"><input type="checkbox" data-calculation-source="'+esc(q.id)+'"'+(selectedSources.indexOf(q.id)>=0 ? ' checked' : '')+'> '+esc(q.title || 'Unbenanntes Feld')+'</label>'; }).join('')+'</div></div>';
-        h += field('Tabellenspalte (ID)', input('column', it.column || 'amount'));
-        h += field('Mengen-Spalte (optional)', input('quantity_column', it.quantity_column || ''));
-        h += field('Einheit', input('unit', it.unit || ''));
-        h += field('Nachkommastellen', input('precision', it.precision == null ? 2 : it.precision, 'type="number" min="0" max="4"'));
+        h += CalculationEditor.render(it, items);
         break;
       case 'short':
         h += field('Art der Eingabe', '<select class="form-select form-select-sm" data-key="subtype">' +
@@ -418,6 +414,7 @@
       (copy.options || []).forEach(function (o) { o.id = uid(); });
       items.splice(f.index + 1, 0, copy);
       selected = copy.id;
+    } else if (btn.dataset.calc) {CalculationEditor.handle(btn,f.item,items);
     } else if (btn.hasAttribute('data-delete')) {
       items.splice(f.index, 1);
     } else if (btn.hasAttribute('data-remove-option')) {
@@ -436,6 +433,7 @@
     var f = find(ev.target);
     if (!f) { return; }
     var el = ev.target;
+    if (el.dataset.calc) {CalculationEditor.handle(el,f.item,items);markDirty();if(el.tagName==='SELECT'){render();}return;}
     if (el.dataset.columnKey) { var column = f.item.columns[Number(el.closest('[data-column-index]').dataset.columnIndex)]; column[el.dataset.columnKey] = el.type === 'checkbox' ? el.checked : el.dataset.columnKey === 'options' ? el.value.split('\n').filter(Boolean) : el.value; markDirty(); if (el.tagName === 'SELECT') { render(); } return; }
     if (el.dataset.calculationSource) { var selectedSources = Array.isArray(f.item.sources) ? f.item.sources : []; f.item.sources = selectedSources.filter(function (id) {return id !== el.dataset.calculationSource;}); if (el.checked) {f.item.sources.push(el.dataset.calculationSource);} markDirty(); return; }
     if (el.dataset.ckey) { if (el.tagName === 'INPUT') { condChange(f, el); } return; }

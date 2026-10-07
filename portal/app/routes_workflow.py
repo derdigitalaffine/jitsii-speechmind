@@ -14,7 +14,7 @@ from .db import (
     LOCAL_TZ, ApplicationDocument, ApplicationRequest, ApplicationTask, FormResponse, Group, Process,
     RequestTemplate, User, utcnow,
 )
-from .main import app, check_csrf, current_user, enabled_modules, flash, get_db, rate_limit, redirect, render, require
+from .main import app, check_csrf, current_user, enabled_modules, flash, get_db, session_user, rate_limit, redirect, render, require
 from .routes_forms import SAFE_MIME
 
 process_user = require("processes")
@@ -313,6 +313,7 @@ def _request_page(request: Request, db: Session, resp: FormResponse, req: Applic
             v = current.get(q["id"])
             if q["type"] != "file" and v is not None:
                 values[q["id"]] = v
+    values = fm.form_fields.profile_values(items,values,session_user(request,db))
     geo = any(i["type"] in ("geo", "route") for i in items)
     response = render(request, "application_request.html", None, resp=resp, req=req, form=resp.form,
                       extra=req.items, reopen=wf.reopen_items(resp, req), values=values, errors=errors or {},

@@ -47,15 +47,13 @@
         [['period_source','Tatsächlicher Zeitraum'],['route_source','Fahrtstrecken'],['costs_source','Kostenpositionen'],['days_source','Verpflegung je Tag'],['advance_source','Vorschuss'],['reason_source','Triftige Gründe'],['special_source','Besonderheiten'],['year_km_source','Bisherige Jahreskilometer']].forEach(function(pair){h += '<label class="col-sm-6">'+pair[1]+'<select class="form-select" data-k="'+pair[0]+'"><option value="">Bitte wählen …</option>'+items.filter(function(q){return q.id!==it.id;}).map(function(q){return '<option value="'+esc(q.id)+'"'+(it[pair[0]]===q.id?' selected':'')+'>'+esc(q.title || 'Unbenanntes Feld')+'</option>';}).join('')+'</select></label>';});
       }
       if (it.type === 'route') {h += '<label class="col-12">Höchstens Fahrtabschnitte<input class="form-control" data-k="max_legs" type="number" min="1" max="30" value="'+(it.max_legs || 10)+'"></label>';}
+      if (it.type==='short'||it.type==='long') {h += '<label class="col-12 small">Aus Benutzerprofil vorbelegen<select class="form-select" data-k="profile_value">'+[['','Keine Vorbelegung'],['name','Name'],['email','E-Mail-Adresse']].map(function(o){return '<option value="'+o[0]+'"'+(it.profile_value===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></label>';}
       if (it.type === 'period') {h += '<label class="col-12"><input type="checkbox" data-k="with_time"'+(it.with_time !== false?' checked':'')+'> Mit Uhrzeit</label>';}
       if (it.type === 'table') {
         h += '<div class="col-12 d-grid gap-2">'+(it.columns || []).map(function(c,n){return '<div class="border rounded p-2" data-fl-column="'+n+'"><label>Spaltenüberschrift<input class="form-control" data-fl-column-key="label" value="'+esc(c.label)+'"></label><label>Eingabe<select class="form-select" data-fl-column-key="type">'+[['text','Text'],['number','Zahl'],['amount','Betrag'],['date','Datum'],['time','Uhrzeit'],['datetime','Datum mit Uhrzeit'],['select','Auswahl'],['checkbox','Ja / Nein']].map(function(o){return '<option value="'+o[0]+'"'+(c.type===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></label>'+(c.type==='select'?'<label>Antwortmöglichkeiten (eine je Zeile)<textarea class="form-control" data-fl-column-key="options">'+esc((c.options || []).join('\n'))+'</textarea></label>':'')+'<label class="d-block"><input type="checkbox" data-fl-column-key="required"'+(c.required?' checked':'')+'> Pflichtangabe</label><button class="btn btn-sm btn-outline-danger" type="button" data-fl-column-remove="'+n+'">Spalte entfernen</button></div>';}).join('')+'<button type="button" class="btn btn-sm btn-outline-primary" data-fl-column-add>Spalte hinzufügen</button></div>';
         h += '<label class="col-sm-6">Höchstens Positionen<input class="form-control" type="number" min="1" max="100" data-k="max_rows" value="'+esc(it.max_rows || 30)+'"></label>';
       }
-      if (it.type === 'calculation') {
-        h += '<label class="col-sm-6">Berechnung<select class="form-select" data-k="operation">'+[['sum','Summe'],['difference','Erster Wert minus weitere'],['product','Produkt'],['table_total','Tabellensumme']].map(function(o){return '<option value="'+o[0]+'"'+(it.operation===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></label>';
-        h += '<div class="col-12">Quellfelder'+items.filter(function(q){return q.id!==it.id && (q.type==='table' || q.type==='calculation' || (q.type==='short' && q.subtype==='number'));}).map(function(q){return '<label class="d-block"><input type="checkbox" data-fl-source="'+esc(q.id)+'"'+((it.sources || []).indexOf(q.id)>=0?' checked':'')+'> '+esc(q.title || 'Unbenanntes Feld')+'</label>';}).join('')+'</div><label class="col-sm-6">Tabellenspalte<input class="form-control" data-k="column" value="'+esc(it.column || 'amount')+'"></label><label class="col-sm-6">Einheit<input class="form-control" data-k="unit" value="'+esc(it.unit || '')+'"></label>';
-      }
+      if (it.type === 'calculation') {h += CalculationEditor.render(it,items);}
       if (it.type === 'short') {
         h += '<div class="col-sm-6"><select class="form-select form-select-sm" data-k="subtype" aria-label="Art der Eingabe">' + subKeys.filter(function (k) { return k !== 'regex'; }).map(function (k) {
           return '<option value="' + k + '"' + (it.subtype === k ? ' selected' : '') + '>' + esc(subtypes[k]) + '</option>'; }).join('') + '</select></div>';
@@ -95,6 +93,7 @@
       var r = ev.target.closest('.fl-row'), k = ev.target.dataset.k;
       if (!r) {return;}
       var currentItem=items[+r.dataset.i];
+      if(ev.target.dataset.calc){CalculationEditor.handle(ev.target,currentItem,items);changed();if(ev.target.tagName==='SELECT'){render();}return;}
       if (ev.target.dataset.flColumnKey) {var col=currentItem.columns[Number(ev.target.closest('[data-fl-column]').dataset.flColumn)];col[ev.target.dataset.flColumnKey]=ev.target.type==='checkbox'?ev.target.checked:ev.target.dataset.flColumnKey==='options'?ev.target.value.split('\n').filter(Boolean):ev.target.value;changed();if(ev.target.tagName==='SELECT'){render();}return;}
       if(ev.target.dataset.flSource){currentItem.sources=(currentItem.sources || []).filter(function(id){return id!==ev.target.dataset.flSource;});if(ev.target.checked){currentItem.sources.push(ev.target.dataset.flSource);}changed();return;}
       if (!k) {return;}
@@ -118,6 +117,7 @@
       if (k === 'capture_location') { it.capture_location = ev.target.checked; changed(); }
     });
     root.addEventListener('click', function (ev) {
+      var calc=ev.target.closest('[data-calc]');if(calc&&calc.tagName==='BUTTON'){CalculationEditor.handle(calc,items[Number(calc.closest('.fl-row').dataset.i)],items);changed();render();return;}
       var b = ev.target.closest('button');
       if (!b || !root.contains(b)) { return; }
       var r = b.closest('.fl-row'), i = r ? +r.dataset.i : -1;
