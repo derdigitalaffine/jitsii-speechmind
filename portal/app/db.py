@@ -959,6 +959,7 @@ class Payment(Base):
     methods: Mapped[str] = mapped_column(String(60), default="paypal,transfer")   # erlaubte Zahlarten
     method: Mapped[str] = mapped_column(String(20), default="")      # tatsächlich: paypal | transfer | cash | free
     status: Mapped[str] = mapped_column(String(20), default="open", index=True)
+    active_refund: Mapped[str] = mapped_column(String(36), default="")
     refunded_cents: Mapped[int] = mapped_column(Integer, default=0)
     cost_center: Mapped[str] = mapped_column(String(120), default="")   # Kostenstelle / Haushaltsstelle
     payer_name: Mapped[str] = mapped_column(String(255), default="")
@@ -972,6 +973,39 @@ class Payment(Base):
     reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     overdue_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # Frist abgelaufen (gemeldet)
     log_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class PaymentReceipt(Base):
+    __tablename__ = "payment_receipts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id", ondelete="CASCADE"), index=True)
+    event_key: Mapped[str] = mapped_column(String(100), unique=True)
+    ref: Mapped[str] = mapped_column(String(100), unique=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    cents: Mapped[int] = mapped_column(Integer)
+    method: Mapped[str] = mapped_column(String(20))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    snapshot_json: Mapped[str] = mapped_column(Text)
+
+
+class PaymentRefund(Base):
+    """Durable refund intent; request_id remains stable across retries."""
+    __tablename__ = "payment_refunds"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id", ondelete="CASCADE"), index=True)
+    request_id: Mapped[str] = mapped_column(String(36), unique=True)
+    provider_id: Mapped[str] = mapped_column(String(64), default="", index=True)
+    cents: Mapped[int] = mapped_column(Integer)
+    method: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(16), default="created")
+    note: Mapped[str] = mapped_column(String(300), default="")
+    actor: Mapped[str] = mapped_column(String(255), default="")
+    fire_event: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    occurred_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    error: Mapped[str] = mapped_column(String(500), default="")
 
 
 class Vote(Base):
@@ -1180,6 +1214,8 @@ class Resource(Base):
     wkd_block: Mapped[int] = mapped_column(Integer, default=0)
     wkd_hour: Mapped[int] = mapped_column(Integer, default=0)
     deposit_cents: Mapped[int] = mapped_column(Integer, default=0)
+    deposit_methods: Mapped[str] = mapped_column(String(60), default="cash")
+    deposit_guest_choice: Mapped[bool] = mapped_column(Boolean, default=False)
     pay_methods: Mapped[str] = mapped_column(String(60), default="paypal,transfer,cash")
     pay_days: Mapped[int] = mapped_column(Integer, default=7)
     cost_center: Mapped[str] = mapped_column(String(120), default="")
@@ -1370,6 +1406,8 @@ class ResourceBooking(Base):
     staff_reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     resource: Mapped[Resource] = relationship()
+    deposit_payment_id: Mapped[int | None] = mapped_column(ForeignKey("payments.id", ondelete="SET NULL"), nullable=True)
+    deposit_payment: Mapped["Payment | None"] = relationship(foreign_keys=[deposit_payment_id])
     payment: Mapped["Payment | None"] = relationship(foreign_keys=[payment_id])
     club: Mapped["ResourceClub | None"] = relationship()
 
@@ -2388,6 +2426,7 @@ DEFAULT_SETTINGS = {
 
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)
 _NEW_COLUMNS = {
+    "payments": {"active_refund": "VARCHAR(36) NOT NULL DEFAULT ''"},
     "groups": {"lead_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL"},
     "booking_pages": {"listed": "BOOLEAN NOT NULL DEFAULT 0", "extended": "BOOLEAN NOT NULL DEFAULT 0",
                       "days_ahead": "INTEGER NOT NULL DEFAULT 60", "step_minutes": "INTEGER NOT NULL DEFAULT 15",
@@ -2444,14 +2483,14 @@ _NEW_COLUMNS = {
                     "area_manual": "BOOLEAN NOT NULL DEFAULT 0",
                     "booking_id": "INTEGER REFERENCES resource_bookings(id) ON DELETE SET NULL"},
     "processes": {"dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL"},
-    "resources": {"provider_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL",
+    "resources": {"deposit_methods": "VARCHAR(60) NOT NULL DEFAULT 'cash'", "deposit_guest_choice": "BOOLEAN NOT NULL DEFAULT 0", "provider_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL",
                   "deposit_release": "BOOLEAN NOT NULL DEFAULT 0", "protocol_to_booker": "BOOLEAN NOT NULL DEFAULT 1",
                   "protocol_to_staff": "BOOLEAN NOT NULL DEFAULT 1", "caretaker_public": "BOOLEAN NOT NULL DEFAULT 0",
                   "caretaker_remind": "BOOLEAN NOT NULL DEFAULT 0",
                   "legal_json": "TEXT NOT NULL DEFAULT '[]'",
                   "remind_days": "INTEGER NOT NULL DEFAULT 2", "remind_staff_days": "INTEGER NOT NULL DEFAULT 1",
                   "remind_text": "TEXT NOT NULL DEFAULT ''", "waitlist": "BOOLEAN NOT NULL DEFAULT 1"},
-    "resource_bookings": {"group_ref": "VARCHAR(40) NOT NULL DEFAULT ''", "cancel_json": "TEXT NOT NULL DEFAULT '[]'",
+    "resource_bookings": {"deposit_payment_id": "INTEGER REFERENCES payments(id) ON DELETE SET NULL", "group_ref": "VARCHAR(40) NOT NULL DEFAULT ''", "cancel_json": "TEXT NOT NULL DEFAULT '[]'",
                           "club_id": "INTEGER REFERENCES resource_clubs(id) ON DELETE SET NULL",
                           "billing": "VARCHAR(10) NOT NULL DEFAULT ''",
                           "billed_payment_id": "INTEGER REFERENCES payments(id) ON DELETE SET NULL",

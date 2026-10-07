@@ -228,6 +228,8 @@ def _staff_booking(rid: int, d, *, price_paid: bool = False, email: str = "kunde
         if price_paid:
             from app import payments as pay
             pay.mark_paid(db, b.payment, "transfer", "Test")
+            if b.deposit_payment:
+                pay.mark_paid(db, b.deposit_payment, "cash", "Test")
         db.commit()
         return b.id
 

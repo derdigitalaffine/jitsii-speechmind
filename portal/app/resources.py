@@ -804,10 +804,28 @@ def _note(b: ResourceBooking, text: str) -> None:
     b.note = (b.note + f"\n[{stamp}] {text}").strip()
 
 
+def _new_deposit_payment(db, b):
+    if not b.deposit_cents or b.deposit_payment_id or b.payment_id:
+        return b.deposit_payment
+    res = b.resource
+    allowed = [m for m in (res.deposit_methods or "cash").split(",") if m in ("paypal", "transfer", "cash")]
+    methods = ",".join(allowed if res.deposit_guest_choice else allowed[:1]) or "cash"
+    p = pay.create(db, kind="resource_deposit", subject_id=b.id, purpose=f"Kaution {b.ref}: {res.name}",
+                   lines=[{"label": "Kaution", "unit_cents": b.deposit_cents}], payer_name=b.name,
+                   payer_email=b.email, methods=methods, cost_center=res.cost_center, due_days=0,
+                   back_url=f"/r/b/{b.token}", deposit_cents=b.deposit_cents)
+    b.deposit_payment_id = p.id
+    db.flush()
+    db.refresh(b, ["deposit_payment"])
+    return p
+
+
 def new_payment(db, bookings: list[ResourceBooking]):
     """Eine Zahlung für eine Buchung oder für alle bestätigten Buchungen einer Sammelbuchung (mit Frist).
     Bei „Rechnung“ (Vereine) nur per Überweisung und ohne Verfall der Reservierung."""
-    bookings = [b for b in bookings if b.total_cents > 0 and b.billing != "monthly"]
+    for b in bookings:
+        _new_deposit_payment(db, b)
+    bookings = [b for b in bookings if b.total_cents - (b.deposit_cents if b.deposit_payment_id else 0) > 0 and b.billing != "monthly"]
     if not bookings:
         return None
     first, res = bookings[0], bookings[0].resource
@@ -819,13 +837,13 @@ def new_payment(db, bookings: list[ResourceBooking]):
     method_text = "transfer" if invoice else ",".join(m for m in ("paypal", "transfer", "cash") if m in methods) or "transfer"
     many = len(bookings) > 1
     lines = [{"label": (f"{b.resource.name}: " if many else "") + ln["label"], "qty": 1, "unit_cents": ln["cents"]}
-             for b in bookings for ln in lines_of(b)]
+             for b in bookings for ln in lines_of(b) if not (b.deposit_payment_id and ln.get("kind") == "deposit")]
     purpose = (f"Sammelbuchung {first.group_ref}: " + ", ".join(b.resource.name for b in bookings) if many
                else f"{res.name}, {when_text(first)} ({first.ref})")
     p = pay.create(db, kind="resource", subject_id=first.id, purpose=purpose[:255], lines=lines, payer_name=first.name,
                    payer_email=first.email, methods=method_text, cost_center=res.cost_center,
                    due_days=(res.pay_days or 14) if invoice else min(res.pay_days or 7, days_left),
-                   back_url=f"/r/b/{first.token}", deposit_cents=sum(b.deposit_cents for b in bookings))
+                   back_url=f"/r/b/{first.token}", deposit_cents=sum(b.deposit_cents for b in bookings if not b.deposit_payment_id))
     for b in bookings:
         b.payment_id = p.id
     db.flush()
@@ -947,11 +965,12 @@ def cancel(db, b: ResourceBooking, by: str, reason: str = "", staff: bool = Fals
     fee = sum(x["cents"] for x in fee_lines)
     info = ""
     p = b.payment
+    rent_total = b.total_cents - (b.deposit_cents if b.deposit_payment_id else 0)
     others = [m for m in db.scalars(select(ResourceBooking).where(ResourceBooking.payment_id == p.id,
                                                                   ResourceBooking.id != b.id))] if p is not None else []
     if p is not None:
         if p.status in ("paid", "partially_refunded"):
-            back = (min(b.total_cents, p.amount_cents - p.refunded_cents) if others
+            back = (min(rent_total, p.amount_cents - p.refunded_cents) if others
                     else p.amount_cents - p.refunded_cents) - fee
             if back > 0:
                 err = pay.refund(db, p, back, by, f"Stornierung {b.ref}", fire=False)
@@ -975,6 +994,15 @@ def cancel(db, b: ResourceBooking, by: str, reason: str = "", staff: bool = Fals
                 b.payment_id = fp.id
                 pay.request_payment(db, fp)
                 info = f"Stornogebühr: {pay.money(fee)} (Zahlungsaufforderung folgt)."
+    dp = b.deposit_payment
+    if dp is not None:
+        if dp.status in ("paid", "partially_refunded") and dp.method != "paypal":
+            info += " Kaution bitte tatsächlich zurückzahlen und die Auszahlung separat bestätigen."
+        elif dp.status in ("paid", "partially_refunded"):
+            err = pay.refund(db, dp, dp.amount_cents - dp.refunded_cents, by, f"Stornierung {b.ref}", fire=False)
+            info += " " + (err or "Kaution erstattet.")
+        else:
+            pay.cancel(db, dp, by, f"Buchung {b.ref} storniert", fire=False)
     b.status, b.cancelled_at = "cancelled", utcnow()
     _note(b, f"Storniert von {by}{': ' + reason if reason else ''}. {info}".strip())
     _mail(db, b, "res_cancelled", {"grund": reason, "erstattung": info})
@@ -1017,6 +1045,7 @@ def change(db, b: ResourceBooking, res: Resource, q: dict, user: User, *, contac
     Gleicht die Zahlung aus: Offenes wird neu angefordert, zu viel Bezahltes erstattet, Mehrbetrag nachgefordert."""
     old_res, old_start, old_end, old_when = b.resource, b.starts_at, b.ends_at, when_text(b)
     old_total = b.total_cents
+    old_deposit = b.deposit_cents
     b.resource_id, b.resource = res.id, res
     b.mode, b.starts_at, b.ends_at = q["mode"], q["start"], q["end"]
     b.unit_ids = ",".join(str(i) for i in sorted(q["unit_ids"])) if q["unit_ids"] else ""
@@ -1034,7 +1063,21 @@ def change(db, b: ResourceBooking, res: Resource, q: dict, user: User, *, contac
     for key, value in (contact or {}).items():
         setattr(b, key, value)
     b.reminded_at = b.staff_reminded_at = None
-    info = _rebalance(db, b, old_total, user) if b.status == "confirmed" else ""
+    rent_old = old_total - (old_deposit if b.deposit_payment_id else 0)
+    info = _rebalance(db, b, rent_old, user) if b.status == "confirmed" else ""
+    if b.status == "confirmed" and b.deposit_payment and old_deposit != b.deposit_cents:
+        dp = b.deposit_payment
+        if dp.status == "open":
+            pay.cancel(db, dp, user.name, "Kaution geändert", fire=False)
+            b.deposit_payment_id = None
+            # Existing rent payment must not suppress replacement of a separate deposit.
+            old_payment_id = b.payment_id
+            b.payment_id = None
+            _new_deposit_payment(db, b)
+            b.payment_id = old_payment_id
+        else:
+            info += " Kautionsbetrag geändert: vorhandene Kautionszahlung separat prüfen und ausgleichen."
+
     what = f"Geändert von {user.name}: {old_when}{' (' + old_res.name + ')' if old_res.id != res.id else ''} → {when_text(b)}"
     _note(b, f"{what}{' (' + res.name + ')' if old_res.id != res.id else ''}. {reason} {info}".strip())
     if notify_person and b.email and b.status in ACTIVE:
@@ -1049,18 +1092,19 @@ def change(db, b: ResourceBooking, res: Resource, q: dict, user: User, *, contac
 
 def _rebalance(db, b: ResourceBooking, old_total: int, user: User) -> str:
     p = b.payment
+    total = b.total_cents - (b.deposit_cents if b.deposit_payment_id else 0)
     if b.billing == "monthly":
         return ""
     if p is None or p.status in ("cancelled", "expired"):
-        if b.total_cents > 0:
+        if total > 0:
             np = new_payment(db, [b])
             if np is not None:
                 pay.request_payment(db, np)
-                return f"Neue Zahlungsaufforderung über {pay.money(b.total_cents)}."
+                return f"Neue Zahlungsaufforderung über {pay.money(total)}."
         return ""
     shared = [m for m in db.scalars(select(ResourceBooking).where(ResourceBooking.payment_id == p.id))]
     if p.status in ("open", "pending"):
-        if b.total_cents == old_total:
+        if total == old_total:
             return ""
         pay.cancel(db, p, user.name, f"Buchung {b.ref} geändert", fire=False)
         for m in shared:
@@ -1071,7 +1115,7 @@ def _rebalance(db, b: ResourceBooking, old_total: int, user: User) -> str:
             return f"Neue Zahlungsaufforderung über {pay.money(np.amount_cents)} (die bisherige ist storniert)."
         return "Die offene Zahlung ist storniert – es ist nichts mehr zu zahlen."
     if p.status in ("paid", "partially_refunded"):
-        diff = b.total_cents - old_total
+        diff = total - old_total
         if diff < 0:
             err = pay.refund(db, p, min(-diff, p.amount_cents - p.refunded_cents), user.name, f"Änderung {b.ref}", fire=False)
             return err or f"{pay.money(-diff)} werden erstattet."
@@ -1088,8 +1132,8 @@ def _rebalance(db, b: ResourceBooking, old_total: int, user: User) -> str:
 def payments_of(db, b: ResourceBooking) -> list:
     """Alle Zahlungen einer Buchung (Hauptzahlung, Nachzahlungen, Stornogebühr)."""
     from .db import Payment
-    ids = {b.payment_id} - {None}
-    q = select(Payment).where(or_(Payment.id.in_(ids or [-1]), (Payment.kind == "resource") & (Payment.subject_id == b.id)))
+    ids = {b.payment_id, b.deposit_payment_id} - {None}
+    q = select(Payment).where(or_(Payment.id.in_(ids or [-1]), Payment.kind.in_(("resource", "resource_deposit")) & (Payment.subject_id == b.id)))
     return list(db.scalars(q.order_by(Payment.created_at)))
 
 
@@ -1139,7 +1183,7 @@ def record_handover(db, b: ResourceBooking, actor: str, part: str, data, by_care
         entry["keep_cents"] = min(keep, b.deposit_cents)
         h["back"] = entry
         if b.deposit_cents and not h.get("deposit_done"):
-            if by_caretaker and b.resource.deposit_release:
+            if data.get("deposit_defer") == "1" or (by_caretaker and b.resource.deposit_release):
                 h["deposit_pending"] = {"keep_cents": entry["keep_cents"], "by": actor[:200], "at": entry["at"]}
                 info = "Kaution wartet auf die Freigabe durch die Verwaltung."
             else:
@@ -1159,17 +1203,21 @@ def record_handover(db, b: ResourceBooking, actor: str, part: str, data, by_care
 
 
 def _refund_deposit(db, b: ResourceBooking, h: dict, keep_cents: int, actor: str) -> str:
-    p = b.payment
+    p = b.deposit_payment or b.payment
     back = b.deposit_cents - keep_cents
     if back > 0 and p is not None and p.status in ("paid", "partially_refunded"):
         err = pay.refund(db, p, back, actor, f"Kaution {b.ref}" + (f", {pay.money(keep_cents)} einbehalten" if keep_cents else ""), fire=False)
         if err:
             return err
         h["deposit_done"] = True
+        if keep_cents:
+            pay.make_receipt(db, p, "retained", keep_cents, p.method, actor, f"Kaution {b.ref}", event=f"retained-{b.id}")
         return f"Kaution {pay.money(back)} erstattet."
     if p is None or p.status not in ("paid", "partially_refunded"):
         return "Kaution war nicht bezahlt – nichts zu erstatten."
     h["deposit_done"] = True
+    if keep_cents:
+        pay.make_receipt(db, p, "retained", keep_cents, p.method, actor, f"Kaution {b.ref}", event=f"retained-{b.id}")
     return f"Kaution vollständig einbehalten ({pay.money(keep_cents)})." if keep_cents else ""
 
 
@@ -1303,6 +1351,20 @@ def _can_manage_payment(db, user, p) -> bool:
     b = db.get(ResourceBooking, p.subject_id) if p.subject_id else None
     return b is not None and level(db, user, b.resource) >= 3
 
+
+def on_deposit_payment(db, p, event):
+    b = db.get(ResourceBooking, p.subject_id) if p.subject_id else None
+    if b:
+        _note(b, f"Kaution {p.ref}: {pay.STATUSES.get(p.status, (p.status,))[0]} ({pay.METHODS.get(p.method, ('',))[0]}).")
+        if event == "refunded" and p.status == "refunded":
+            h = handover(b)
+            h["deposit_done"] = True
+            b.handover_json = json.dumps(h, ensure_ascii=False)
+        sync_dms(db, b)
+
+
+pay.register("resource_deposit", event=on_deposit_payment, can_manage=_can_manage_payment,
+             link=lambda p: f"/resources/bookings/{p.subject_id}")
 
 pay.register("resource", event=on_payment, can_manage=_can_manage_payment,
              link=lambda p: f"/resources/bookings/{p.subject_id}")

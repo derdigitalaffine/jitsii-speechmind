@@ -281,6 +281,12 @@ async def resource_save(request: Request, rid: int, user: User = Depends(current
     for key in ("price_day", "price_block", "price_hour", "wkd_day", "wkd_block", "wkd_hour", "deposit_cents"):
         setattr(res, key, rs.parse_cents(data.get(key, "")))
     res.pay_methods = ",".join(m for m in ("paypal", "transfer", "cash") if m in data.getlist("pay_methods")) or "transfer"
+    deposit_methods = [m for m in ("cash", "transfer", "paypal") if m in data.getlist("deposit_methods")]
+    preferred = str(data.get("deposit_method", "cash"))
+    if preferred not in ("cash", "transfer", "paypal"):
+        preferred = "cash"
+    res.deposit_guest_choice = data.get("deposit_guest_choice") == "1"
+    res.deposit_methods = ",".join([preferred] + [m for m in deposit_methods if m != preferred])
     res.pay_days = _int(data.get("pay_days"), 1, 90, 7)
     res.cost_center = text("cost_center", 120)
     res.self_cancel = data.get("self_cancel") == "1"
@@ -971,11 +977,11 @@ def booking_detail(request: Request, bid: int, user: User = Depends(current_user
     series = db.scalars(select(ResourceBooking).where(ResourceBooking.series_id == b.series_id,
                                                       ResourceBooking.id != b.id).order_by(ResourceBooking.starts_at)).all() if b.series_id else []
     group = [m for m in rs.group_members(db, b) if m.id != b.id] if b.group_ref else []
-    extra_payments = [p for p in rs.payments_of(db, b) if p.id != b.payment_id]
+    extra_payments = [p for p in rs.payments_of(db, b) if p.id not in (b.payment_id, b.deposit_payment_id)]
     return render(request, "resource_booking.html", user, b=b, res=res, level=lvl, statuses=rs.STATUSES, when=rs.when_text,
                   units=rs.unit_label(res, rs.unit_ids(b)), lines=rs.lines_of(b), extras=rs.extras_of(b), money=pay.money,
                   questions=items, answers=answers, display=fm.display, handover=rs.handover(b), series=series,
-                  group=group, extra_payments=extra_payments, billing=b.billing,
+                  group=group, extra_payments=extra_payments, billing=b.billing, deposit_box=pay.box(db, user, b.deposit_payment, f"/resources/bookings/{b.id}"),
                   manage_link=rs.manage_link(b), **pay.box(db, user, b.payment, f"/resources/bookings/{b.id}"))
 
 

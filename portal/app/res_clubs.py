@@ -149,10 +149,10 @@ def bill(db, club: ResourceClub, month: str, user) -> object | None:
     first = items[0].resource
     label = datetime.strptime(month, "%Y-%m").strftime("%m/%Y")
     p = pay.create(db, kind="resource_club", subject_id=club.id, purpose=f"Sammelrechnung {label} {club.name}"[:255],
-                   lines=[{"label": f"{b.ref} {b.resource.name}, {rs.when_text(b)}", "qty": 1, "unit_cents": b.total_cents}
+                   lines=[{"label": f"{b.ref} {b.resource.name}, {rs.when_text(b)}", "qty": 1, "unit_cents": b.total_cents - (b.deposit_cents if b.deposit_payment_id else 0)}
                           for b in items],
                    payer_name=club.name, payer_email=club.email, methods="transfer", cost_center=first.cost_center,
-                   due_days=14, deposit_cents=sum(b.deposit_cents for b in items))
+                   due_days=14, deposit_cents=sum(b.deposit_cents for b in items if not b.deposit_payment_id))
     for b in items:
         b.billed_payment_id = p.id
         rs._note(b, f"Abgerechnet mit Sammelrechnung {p.ref} durch {user.name}.")
