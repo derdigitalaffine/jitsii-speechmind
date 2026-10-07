@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from . import csvsafe, payments as pay
+from . import csvsafe, epaybl, payments as pay
 from .db import LOCAL_TZ, Payment, PaymentReceipt, utcnow, User, get_settings, set_setting, to_local
 from .main import admin_user, app, check_csrf, current_user, flash, get_db, rate_limit, redirect, render, require, safe_next, session_user
 from .security import encrypt
@@ -36,6 +36,12 @@ def pay_page(request: Request, token: str, db: Session = Depends(get_db)):
     p = _payment(db, token)
     return render(request, "pay.html", session_user(request, db), **_ctx(db, p),
                   notice=request.session.pop("pay_notice", ""))
+
+
+@app.post("/pay/{token}/epaybl", dependencies=[Depends(check_csrf)])
+def pay_epaybl(request: Request, token: str, db: Session = Depends(get_db)):
+    _payment(db, token)
+    raise HTTPException(503, f"{epaybl.STATUS}. {epaybl.REASON}")
 
 
 @app.post("/pay/{token}/paypal", dependencies=[Depends(check_csrf)])
@@ -303,7 +309,8 @@ def admin_payments_save(request: Request, paypal_enabled: str = Form(""), paypal
                         paypal_client_id: str = Form(""), paypal_secret: str = Form(""), paypal_webhook_id: str = Form(""),
                         pay_transfer: str = Form(""), pay_recipient: str = Form(""), pay_iban: str = Form(""),
                         pay_bic: str = Form(""), pay_bank: str = Form(""), pay_prefix: str = Form("Z"),
-                        pay_days: str = Form("14"), user: User = Depends(admin_user), db: Session = Depends(get_db)):
+                        pay_days: str = Form("14"), epaybl_operator: str = Form(""), epaybl_tenant: str = Form(""),
+                        epaybl_interface: str = Form(""), epaybl_accounting_reference: str = Form(""), user: User = Depends(admin_user), db: Session = Depends(get_db)):
     iban = pay_iban.replace(" ", "").upper()
     if iban and not (15 <= len(iban) <= 34 and iban[:2].isalpha() and iban[2:4].isdigit() and iban.isalnum()):
         flash(request, "Die IBAN sieht nicht gültig aus.", "error")
@@ -325,6 +332,8 @@ def admin_payments_save(request: Request, paypal_enabled: str = Form(""), paypal
     set_setting(db, "pay_bank", " ".join(pay_bank.split())[:120])
     set_setting(db, "pay_prefix", "".join(c for c in pay_prefix.upper() if c.isalnum())[:6] or "Z")
     set_setting(db, "pay_days", str(days))
+    for key, value in {"epaybl_operator": epaybl_operator, "epaybl_tenant": epaybl_tenant, "epaybl_interface": epaybl_interface, "epaybl_accounting_reference": epaybl_accounting_reference}.items():
+        set_setting(db, key, " ".join(value.split())[:200])
     db.commit()
     flash(request, "Zahlungseinstellungen gespeichert.")
     return redirect("/admin/payments")

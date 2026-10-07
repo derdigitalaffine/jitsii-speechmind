@@ -35,7 +35,7 @@ def clean(raw: dict, form: Form) -> dict:
         rules.append({"q": r["q"], "op": r.get("op") if r.get("op") in OPS else "eq",
                       "value": " ".join(str(r.get("value", "")).split())[:200],
                       "cents": cents, "label": " ".join(str(r.get("label", "")).split())[:120]})
-    methods = ",".join(m for m in ("paypal", "transfer", "cash") if m in (raw.get("methods") or [])) or "transfer"
+    methods = ",".join(m for m in ("paypal", "transfer", "cash", "epaybl") if m in (raw.get("methods") or [])) or "transfer"
     try:
         days = max(1, min(90, int(raw.get("days") or 14)))
     except (TypeError, ValueError):

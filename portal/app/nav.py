@@ -142,6 +142,8 @@ ITEMS: list[Item] = [
     Item("users", "admin", "/admin/users", "fa-users", "Benutzer & Gruppen", lambda c: c.can("users"), _is("/admin/users")),
     Item("orgs", "admin", "/admin/orgs", "fa-landmark-flag", "Körperschaften", lambda c: c.can("orgs"), _pre("/admin/orgs")),
     Item("payments", "admin", "/payments", "fa-euro-sign", "Zahlungen", lambda c: c.can("payments"), _pre("/payments")),
+    Item("expense_rules", "admin", "/settings/expense-rules", "fa-calculator", "Reisekostensätze", lambda c: c.admin, _pre("/settings/expense-rules")),
+    Item("locations", "know", "/settings/locations", "fa-location-dot", "Orte und Fahrtstrecken", lambda c: "forms" in c.modules, _pre("/settings/locations")),
     Item("map_layers", "admin", "/admin/maps", "fa-layer-group", "Kartenlayer", lambda c: c.can("maps_admin"),
          _pre("/admin/maps")),
     Item("recordings", "admin", "/admin/recordings", "fa-file-audio", "Aufnahmen", lambda c: c.admin,
