@@ -46,7 +46,7 @@
   <form method="post" action="/forms/blocks/{{ block.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-secondary" type="submit"><i class="fa-regular fa-clone me-1"></i>Kopie anlegen</button></form>
   <form method="post" action="/forms/blocks/{{ block.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" type="submit" {% if used_in %}disabled title="Wird noch in Formularen verwendet"{% endif %} data-confirm-title="Datenblock löschen?" data-confirm="Der Block wird aus der Bibliothek entfernt." data-confirm-button="Löschen"><i class="fa-regular fa-trash-can me-1"></i>Löschen</button></form>
 </div>
-<script type="application/json" id="builder-data">{{ {'items': schema, 'types': types, 'subtypes': subtypes, 'maxFileMb': max_file_mb, 'ops': cond_ops, 'widths': widths, 'blocks': {}, 'canBlocks': false} | tojson }}</script>
+<script type="application/json" id="builder-data">{{ {'profileOptions': profile_options, 'items': schema, 'types': types, 'subtypes': subtypes, 'maxFileMb': max_file_mb, 'ops': cond_ops, 'widths': widths, 'blocks': {}, 'canBlocks': false} | tojson }}</script>
 {% endblock %}
 {% block scripts %}
 <script src="/static/vendor/sortablejs/Sortable.min.js"></script>

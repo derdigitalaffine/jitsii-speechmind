@@ -108,6 +108,7 @@ def form_builder(request: Request, form_id: int, user: User = Depends(current_us
 def builder_extras(db, user: User | None = None) -> dict:
     """Zusätzliche Daten für den Baukasten (Reihenfolge als Listen, weil tojson Schlüssel sortiert)."""
     from .db import FormBlock
+    from .profiles import options as profile_options
     blocks = {}
     for b in db.scalars(select(FormBlock).order_by(FormBlock.name)):
         try:
@@ -117,7 +118,7 @@ def builder_extras(db, user: User | None = None) -> dict:
         blocks[str(b.id)] = {"id": b.id, "name": b.name, "icon": b.icon, "description": b.description,
                              "items": [{"id": c.get("id"), "type": c.get("type"), "title": c.get("title", ""),
                                         "options": c.get("options", [])} for c in children if isinstance(c, dict)]}
-    return {"cond_ops": list(fm.COND_OPS.items()), "widths": list(fm.WIDTHS.items()),
+    return {"profile_options": profile_options(), "cond_ops": list(fm.COND_OPS.items()), "widths": list(fm.WIDTHS.items()),
             "hidden_types": fm.HIDDEN_TYPES, "blocks": blocks,
             "block_order": [b["id"] for b in sorted(blocks.values(), key=lambda b: b["name"].lower())],
             "can_blocks": bool(user and user.can("formblocks"))}

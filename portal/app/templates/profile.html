@@ -8,6 +8,41 @@
 {% if user.must_change_password %}
 <div class="alert alert-warning"><i class="fa-solid fa-key me-2"></i><strong>Bitte vergeben Sie jetzt ein eigenes Passwort.</strong> Erst danach sind die anderen Seiten erreichbar.</div>
 {% endif %}
+<section id="details" class="mb-5" aria-labelledby="details-title">
+  <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center mb-2">
+    <h2 class="h4 mb-0" id="details-title">Freiwillige Angaben</h2>
+    <a class="btn btn-sm btn-outline-secondary" href="/profile/details/export">Eigene Angaben als JSON herunterladen</a>
+  </div>
+  <p class="text-secondary">Sie entscheiden, was Sie angeben. Diese Angaben werden verschlüsselt gespeichert und sind kein öffentliches Benutzerverzeichnis. Beschäftigungsangaben vergeben keine Rechte. Ihre Anmelde-E-Mail ändern Sie hier nicht.</p>
+  {% if profile_error %}<div class="alert alert-danger" role="alert">{{ profile_error }}</div>{% endif %}
+  <form method="post" action="/profile/details">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="card mb-3"><div class="card-body">
+      <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="profile-prefill" name="prefill_enabled" value="1" {% if details.get('prefill_enabled') %}checked{% endif %}>
+      <label class="form-check-label fw-semibold" for="profile-prefill">Meine freiwilligen Angaben für meine Formulare vorbelegen</label></div>
+      <p class="form-text mb-0">Nur bei angemeldeter Nutzung und wenn das Formular diese Vorbelegung vorsieht. Sie können jede Antwort ändern oder entfernen. Erst beim Absenden erhält die zuständige Stelle die Formularangaben. Anzeigename und Anmelde-E-Mail bleiben wie bisher vorbelegbar.</p>
+    </div></div>
+    <div class="row g-3">
+      {% for group, fields in profile_groups %}
+      <div class="col-12 col-xl-6"><details class="card h-100" {% if loop.first or profile_error %}open{% endif %}>
+        <summary class="card-header fw-semibold">{{ group }} <span class="fw-normal text-secondary small">· {{ fields|selectattr('0', 'in', details)|list|length }} Angaben</span></summary>
+        <div class="card-body"><div class="row g-3">
+          {% for key, label, kind, limit, autocomplete in fields %}
+          <div class="col-12 col-sm-6"><label class="form-label" for="profile-{{ key }}">{{ label }}</label>
+            <input class="form-control" id="profile-{{ key }}" name="{{ key }}" type="{{ kind }}" value="{{ details.get(key, '') }}" maxlength="{{ limit }}" autocomplete="{{ autocomplete or 'off' }}" {% if key.endswith('_country') %}placeholder="DE"{% elif key == 'zoneinfo' %}placeholder="Europe/Berlin"{% elif key == 'locale' %}placeholder="de-DE"{% endif %}>
+          </div>
+          {% endfor %}
+        </div></div>
+      </details></div>
+      {% endfor %}
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center mt-3"><button class="btn btn-primary" type="submit">Freiwillige Angaben speichern</button><span class="small text-secondary">Alle Felder sind optional.</span></div>
+  </form>
+  <form method="post" action="/profile/details/clear" class="mt-3">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" data-confirm-title="Freiwillige Angaben löschen?" data-confirm="Alle freiwilligen Angaben und die Zustimmung zur Vorbelegung werden entfernt. Bereits eingereichte Formulare bleiben erhalten." data-confirm-button="Angaben löschen">Alle freiwilligen Angaben löschen</button>
+  </form>
+</section>
+<h2 class="h4">Konto und Zugang</h2>
 <form method="post" action="/profile" class="row g-4">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <div class="col-12 col-xl-6"><div class="card h-100"><div class="card-header"><i class="fa-regular fa-user me-2"></i>Konto</div><div class="card-body">
