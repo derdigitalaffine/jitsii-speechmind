@@ -227,6 +227,7 @@
         fields[i].reportValidity();
         var q = fields[i].closest('.question');
         if (q) { q.classList.add('has-error'); }
+        fields[i].setAttribute('aria-invalid', 'true');
         return false;
       }
     }
@@ -286,6 +287,7 @@
     }
     var q = ev.target.closest('.question');
     if (q) { q.classList.remove('has-error'); }
+    ev.target.removeAttribute('aria-invalid');
     if (condItems.length || condPages.length) { applyConditions(); }
     if (draftKey) { clearTimeout(saveTimer); saveTimer = setTimeout(saveDraft, 800); }
   });
@@ -321,7 +323,7 @@
   });
   form.addEventListener('keydown', function (ev) {
     // Enter in einem Textfeld blättert weiter statt vorzeitig abzusenden
-    if (ev.key === 'Enter' && ev.target.tagName === 'INPUT' && ev.target.type !== 'submit' && !inReview) {
+    if (ev.key === 'Enter' && ev.target.tagName === 'INPUT' && ['submit', 'button', 'checkbox', 'radio', 'file', 'search'].indexOf(ev.target.type) < 0 && !inReview) {
       ev.preventDefault();
       if (!next.classList.contains('d-none')) { next.click(); }
     }

@@ -549,3 +549,16 @@ a.dash-num:hover > span { text-decoration: underline; }
 .dash-action-danger { border-color: rgba(var(--bs-danger-rgb), .45); } .dash-action-danger i, .dash-action-danger .dash-action-n { color: var(--bs-danger); }
 .dash-action-warning { border-color: rgba(var(--bs-warning-rgb), .6); } .dash-action-warning i { color: #b8860b; }
 .dash-action-primary i, .dash-action-primary .dash-action-n { color: var(--bs-primary); }
+
+/* Shared by public forms, embedded forms and supplementary submissions. */
+.fill-choices { display: grid; gap: .65rem; }
+.fill-choice { position: relative; min-width: 0; }
+.fill-choice > .form-check-input { position: absolute; z-index: 1; top: .95rem; left: .9rem; margin: 0; cursor: pointer; }
+.fill-choice-label { display: block; min-height: 3rem; padding: .75rem .9rem .75rem 2.7rem; border: 1px solid var(--bs-border-color); border-radius: .6rem; background: var(--bs-body-bg); cursor: pointer; overflow-wrap: anywhere; }
+.fill-choice-label:hover { border-color: var(--bs-primary); background: rgba(var(--bs-primary-rgb), .04); }
+.fill-choice > input:checked + .fill-choice-label { border-color: var(--bs-primary); background: rgba(var(--bs-primary-rgb), .1); box-shadow: inset .25rem 0 var(--bs-primary); font-weight: 600; }
+.fill-choice > input:focus-visible + .fill-choice-label { outline: 3px solid rgba(var(--bs-primary-rgb), .55); outline-offset: 2px; }
+.fill-choice-other .js-other { margin-top: .4rem; }
+.question:focus-within { border-color: rgba(var(--bs-primary-rgb), .55); }
+.question.has-error { border-color: var(--bs-danger); }
+.fill-choice > input:disabled + .fill-choice-label { opacity: .65; cursor: default; }

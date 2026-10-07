@@ -10,7 +10,7 @@
     var info = box.querySelector('.js-addr-info'), help = info ? info.textContent : '';
     var search = box.querySelector('.js-addr-search'), results = box.querySelector('.js-addr-results');
     var cities = document.getElementById(name + '__cities');
-    var found = [], active = -1, timer = null, lastQuery = '';
+    var found = [], active = -1, timer = null, lastQuery = '', requestVersion = 0;
 
     function say(text, error) { if (info) { info.textContent = text || help; info.classList.toggle('text-danger', !!error); } }
     function fill(a) {
@@ -35,13 +35,15 @@
       var q = search.value.trim();
       if (q.length < 3 || q === lastQuery) { return; }
       lastQuery = q;
+      var version = ++requestVersion;
       results.innerHTML = '<div class="list-group-item small text-secondary"><span class="spinner-border spinner-border-sm me-2"></span>Suche …</div>';
       results.classList.remove('d-none');
-      getJSON('/geo/search?q=' + encodeURIComponent(q)).then(function (d) { found = d.results || []; active = -1; render(); })
-        .catch(function () { results.innerHTML = '<div class="list-group-item small text-danger">Suche gerade nicht möglich – bitte Felder selbst ausfüllen.</div>'; });
+      getJSON('/geo/search?q=' + encodeURIComponent(q)).then(function (d) { if (version !== requestVersion || search.value.trim() !== q) { return; } found = d.results || []; active = -1; render(); })
+        .catch(function () { if (version !== requestVersion || search.value.trim() !== q) { return; } results.innerHTML = '<div class="list-group-item small text-danger">Suche gerade nicht möglich – bitte Felder selbst ausfüllen.</div>'; });
     }
     if (search) {
-      search.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(run, 700); });   // kurze Tipp-Pause (schont den Dienst)
+      search.addEventListener('input', function () { lastQuery = ''; close(); });
+      box.querySelector('.js-addr-run').addEventListener('click', run);
       search.addEventListener('keydown', function (ev) {
         if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); if (active >= 0 && found[active]) { fill(found[active]); close(); } else { clearTimeout(timer); lastQuery = ''; run(); } }
         else if (ev.key === 'ArrowDown' && found.length) { ev.preventDefault(); active = Math.min(active + 1, found.length - 1); render(); }
@@ -75,22 +77,24 @@
 
     var zip = f('zip'), city = f('city'), lastZip = '';
     if (zip) {
-      zip.addEventListener('input', function () {
+      box.querySelector('.js-addr-postcode').addEventListener('click', function () {
         zip.value = zip.value.replace(/\D/g, '').slice(0, 5);
-        if (zip.value.length !== 5 || zip.value === lastZip) { return; }
+        if (zip.value.length !== 5) { return; }
         lastZip = zip.value;
+        var requestedZip = zip.value, requestedCity = city.value;
         getJSON('/geo/postcode?plz=' + zip.value).then(function (d) {
+          if (zip.value !== requestedZip || city.value !== requestedCity) { return; }
           var list = d.results || [];
           if (cities) { cities.innerHTML = list.map(function (r) { return '<option value="' + esc(r.city) + '">' + esc(r.district ? r.city + ' – ' + r.district : r.city) + '</option>'; }).join(''); }
           if (!list.length) { say('Zu dieser PLZ ist kein Ort bekannt – bitte selbst eintragen.'); return; }
           var names = list.map(function (r) { return r.city; }).filter(function (v, i, a) { return a.indexOf(v) === i; });
-          if (names.length === 1 && (!city.value || names.indexOf(city.value) < 0)) {
+          if (names.length === 1 && !city.value.trim()) {
             city.value = names[0];
             city.dispatchEvent(new Event('input', { bubbles: true }));
             say('Ort zur PLZ ergänzt.');
           } else if (names.length > 1) {
             say('Mehrere Orte zu dieser PLZ: ' + names.join(', ') + ' – bitte im Feld „Ort“ auswählen.');
-            if (names.indexOf(city.value) < 0) { city.value = ''; city.focus(); }
+            if (!city.value.trim()) { city.focus(); }
           }
         }).catch(function () { /* ohne Ortsvorschlag weiter */ });
       });
