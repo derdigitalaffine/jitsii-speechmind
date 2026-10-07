@@ -3,14 +3,17 @@
 {% block head %}<link rel="stylesheet" href="/static/laws.css">{% endblock %}
 {% set f = catalog.filters %}
 {% block content %}
+{% if user and not embed %}<nav class="d-flex flex-wrap gap-2 mb-3" aria-label="Sichtbarkeit der Texte"><a class="btn btn-sm {{ 'btn-primary' if catalog.filters.sicht=='public' else 'btn-outline-secondary' }}" href="{{ catalog.url(sicht='public',seite=1) }}">Öffentliches Ortsrecht</a><a class="btn btn-sm {{ 'btn-primary' if catalog.filters.sicht=='internal' else 'btn-outline-secondary' }}" href="{{ catalog.url(sicht='internal',bereich='alle',seite=1) }}"><i class="fa-solid fa-lock me-1"></i>Interne Dienstanweisungen</a><a class="btn btn-sm {{ 'btn-primary' if catalog.filters.sicht=='all' else 'btn-outline-secondary' }}" href="{{ catalog.url(sicht='all',bereich='alle',seite=1) }}">Alle lesbaren Texte</a></nav>{% endif %}
+
 <div class="lex-hero lex-catalog-hero mb-4">
   {% if focus %}<nav aria-label="Pfad" class="small mb-2"><a href="{{ R }}">Alle Rechtstexte</a> › {{ focus.name }}</nav>{% endif %}
   <h1 class="h2 mb-2">{{ focus.name if focus else 'Ortsrecht & Rechtstexte' }}</h1>
   <p class="text-secondary mb-3">Satzungen und Regeln für Ihre Gemeinde. Suchen Sie nach einem Titel oder einem Anliegen, zum Beispiel „Friedhofsgebühren“.</p>
   <form method="get" action="{{ R ~ ('/ebene/' ~ focus.id if focus else '') }}#catalog-results" class="lex-catalog-form" role="search">
+<input type="hidden" name="sicht" value="{{ catalog.filters.sicht }}">
     <label class="form-label fw-semibold" for="catalog-q">Titel, Abkürzung oder Inhalt suchen</label>
     <div class="input-group mb-3">
-      <input id="catalog-q" class="form-control" type="search" name="q" value="{{ f.q }}" placeholder="z. B. Hauptsatzung, Hundesteuer oder § 5" aria-label="Titel und Inhalte durchsuchen" data-suggest="{{ R }}/suche.json?catalog=1&amp;{{ {'bereich':f.bereich,'ebene':f.ebene,'thema':f.thema,'art':f.art,'geltung':f.geltung}|urlencode }}">
+      <input id="catalog-q" class="form-control" type="search" name="q" value="{{ f.q }}" placeholder="z. B. Hauptsatzung, Hundesteuer oder § 5" aria-label="Titel und Inhalte durchsuchen" data-suggest="{{ R }}/suche.json?catalog=1&amp;{{ {'bereich':f.bereich,'ebene':f.ebene,'thema':f.thema,'art':f.art,'geltung':f.geltung,'sicht':f.sicht}|urlencode }}">
       <button class="btn btn-primary" type="submit">Suchen</button>
     </div>
     <details class="lex-catalog-filters" data-catalog-filters open><summary>Gemeinde und weitere Filter{% if f.ebene or f.thema or f.art or f.geltung != 'aktuell' or f.bereich != 'ort' or f.sort != 'titel' %} <span class="badge text-bg-primary ms-1">Auswahl aktiv</span>{% endif %}</summary>
@@ -39,7 +42,7 @@
   {% for law in catalog['items'] %}
     <article class="card lex-law-card">
       <div class="card-body">
-        <div class="lex-law-meta mb-2"><span class="badge text-bg-light border">{{doc_types.get(law.doc_type,law.doc_type)}}</span>{% if not law.published %}<span class="badge text-bg-warning">Entwurf · nicht veröffentlicht</span>{% elif expired(law) %}<span class="badge text-bg-secondary">Außer Kraft seit {{fmt_date(law.valid_until)}}</span>{% elif law.valid_from and law.valid_from > today %}<span class="badge text-bg-info">Gilt ab {{fmt_date(law.valid_from)}}</span>{% elif law.valid_from %}<span class="badge text-bg-success">In Kraft seit {{fmt_date(law.valid_from)}}</span>{% else %}<span class="badge text-bg-light border">Veröffentlicht</span>{% endif %}</div>
+        <div class="lex-law-meta mb-2"><span class="badge text-bg-light border">{{doc_types.get(law.doc_type,law.doc_type)}}</span>{% if not law.published %}<span class="badge text-bg-warning">Entwurf · nicht veröffentlicht</span>{% elif expired(law) %}<span class="badge text-bg-secondary">Außer Kraft seit {{fmt_date(law.valid_until)}}</span>{% elif law.valid_from and law.valid_from > today %}<span class="badge text-bg-info">Gilt ab {{fmt_date(law.valid_from)}}</span>{% elif law.valid_from %}<span class="badge text-bg-success">In Kraft seit {{fmt_date(law.valid_from)}}</span>{% else %}<span class="badge text-bg-light border">{{ 'Intern' if law.internal else 'Veröffentlicht' }}</span>{% endif %}</div>
         <h3 class="h5 mb-2"><a class="lex-law-title" href="{{ R }}/{{law.slug}}{{('?q=' ~ (f.q|urlencode)) if f.q else ''}}">{{law.title}}</a></h3>
         {% if law.short_title %}<p class="small text-secondary mb-2">{{law.short_title}}</p>{% endif %}
         <p class="lex-law-place small mb-2"><i class="fa-solid fa-location-dot me-1" aria-hidden="true"></i>{{law.level.name if law.level else 'Geltungsbereich noch nicht zugeordnet'}}</p>

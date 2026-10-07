@@ -215,7 +215,7 @@ def item_access(db, user, item):
                     and dms.record_level(db, user, obj.record) >= dms.READ)
     if item['kind'] == 'law':
         obj = db.get(LawText, item['id'])
-        return bool(obj and obj.published and get_settings(db).get('module_laws') == '1')
+        return bool(obj and obj.published and (not obj.internal or user) and get_settings(db).get('module_laws') == '1')
     if item['kind'] == 'form':
         obj = db.get(Form, item['id'])
         return bool(obj and obj.active and obj.public_token and get_settings(db).get('module_forms') == '1'
@@ -240,6 +240,8 @@ def publish(db, row, user, reack=True):
         if item['kind'] in {'law', 'form', 'dms'}:
             item['title'], item['url'] = source(db, user, item)
         if item['kind'] == 'law':
+            if db.get(LawText, item['id']).internal and (c['public'] or c['audience']['guests']):
+                raise HTTPException(422, 'Interne Dienstanweisungen sind nur für angemeldete Benutzer verfügbar.')
             # Public law text is frozen for meaningful document acknowledgement.
             item['body'] = db.get(LawText, item['id']).body_md
         if item['kind'] == 'dms':

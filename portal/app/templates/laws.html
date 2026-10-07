@@ -44,7 +44,7 @@
         <td class="small">{{ law.version_note }}</td>
         <td data-order="{{ 1 if law.published else 0 }}">
           <form method="post" action="/laws/{{ law.id }}/publish"><input type="hidden" name="csrf" value="{{ csrf }}">
-            <button class="btn btn-sm badge border-0 {{ 'text-bg-success' if law.published else 'text-bg-secondary' }}" type="submit" title="Klicken zum Umschalten">{{ 'öffentlich' if law.published else 'Entwurf' }}</button></form>
+            <button class="btn btn-sm badge border-0 {{ 'text-bg-success' if law.published else 'text-bg-secondary' }}" type="submit" title="Klicken zum Umschalten">{{ ('intern' if law.internal else 'öffentlich') if law.published else 'Entwurf' }}</button></form>
         </td>
         <td data-order="{{ law.updated_at.isoformat() }}" class="small">{{ law.updated_at | local('%d.%m.%Y') }}{% if law.editor %}<div class="text-secondary">{{ law.editor.name }}</div>{% endif %}</td>
         <td class="text-end text-nowrap">
