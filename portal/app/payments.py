@@ -13,15 +13,16 @@ import re
 import secrets
 import threading
 import time
+import uuid
 from datetime import timedelta
 from typing import Callable
 
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from . import mailtpl, notify
 from .config import settings
-from .db import Payment, SessionLocal, get_settings, to_local, utcnow
+from .db import Payment, PaymentReceipt, PaymentRefund, SessionLocal, get_settings, to_local, utcnow
 from .security import decrypt
 
 log = logging.getLogger("portal.payments")
@@ -36,7 +37,7 @@ STATUSES = {
 }
 METHODS = {"paypal": ("PayPal", "fa-brands fa-paypal"), "transfer": ("Überweisung", "fa-solid fa-building-columns"),
            "cash": ("bar", "fa-solid fa-coins"), "free": ("kostenlos", "fa-solid fa-gift")}
-KINDS = {"resource": "Ressourcenbuchung", "resource_club": "Sammelrechnung (Ressourcen)", "application": "Antrag", "form": "Formular", "step": "Prozessschritt",
+KINDS = {"resource_deposit": "Kaution (Ressourcen)", "resource": "Ressourcenbuchung", "resource_club": "Sammelrechnung (Ressourcen)", "application": "Antrag", "form": "Formular", "step": "Prozessschritt",
          "other": "Sonstiges"}
 API = {"sandbox": "https://api-m.sandbox.paypal.com", "live": "https://api-m.paypal.com"}
 MAX_CENTS = 10_000_000   # 100.000 € je Zahlung
@@ -218,7 +219,14 @@ def send_mail(db, p: Payment, key: str, extra: dict | None = None) -> bool:
     if not p.payer_email:
         return False
     subject, body = mailtpl.render(db, key, {**_mail_values(db, p), **(extra or {})})
-    return notify.enqueue(db, p.payer_email, subject, body, key)
+    attachments = []
+    if key in ("pay_receipt", "pay_refund"):
+        import base64
+        kind = "received" if key == "pay_receipt" else "refunded"
+        receipt = db.scalar(select(PaymentReceipt).where(PaymentReceipt.payment_id == p.id, PaymentReceipt.kind == kind).order_by(PaymentReceipt.id.desc()))
+        if receipt:
+            attachments.append({"filename": f"{receipt.ref}.pdf", "mime": "application/pdf", "content_b64": base64.b64encode(receipt_pdf(receipt)).decode("ascii")})
+    return notify.enqueue(db, p.payer_email, subject, body, key, attachments=attachments)
 
 
 def request_payment(db, p: Payment) -> bool:
@@ -230,13 +238,16 @@ def request_payment(db, p: Payment) -> bool:
 
 # --- Statuswechsel ---------------------------------------------------------------------------
 
-def mark_paid(db, p: Payment, method: str, who: str = "", note: str = "", capture_id: str = "") -> bool:
+def mark_paid(db, p: Payment, method: str, who: str = "", note: str = "", capture_id: str = "", occurred_at=None) -> bool:
     if p.status in ("paid", "partially_refunded", "refunded"):
         return False
-    p.status, p.method, p.paid_at = "paid", method, utcnow()
+    p.status, p.method, p.paid_at = "paid", method, occurred_at or utcnow()
     if capture_id:
         p.paypal_capture_id = capture_id
     _log(p, f"Bezahlt ({METHODS.get(method, (method,))[0]}){': ' + note if note else ''}.", who)
+    if occurred_at:
+        _log(p, f"Tatsächlich erhalten am {to_local(occurred_at).strftime('%d.%m.%Y %H:%M')}; nachträglich erfasst.", who)
+    make_receipt(db, p, "received", p.amount_cents, method, who, note, occurred_at, "received")
     send_mail(db, p, "pay_receipt")
     _fire(db, p, "paid")
     return True
@@ -252,37 +263,158 @@ def cancel(db, p: Payment, who: str = "", note: str = "", fire: bool = True) -> 
     return True
 
 
-def refund(db, p: Payment, cents: int, who: str = "", note: str = "", fire: bool = True) -> str:
-    """Erstatten (PayPal automatisch, sonst als erledigt vermerkt). Gibt eine Fehlermeldung oder "" zurück."""
+def _complete_refund(db, p, intent):
+    """Exactly once, including when a webhook races with a status check."""
+    applied = db.execute(update(PaymentRefund).where(PaymentRefund.id == intent.id,
+                        PaymentRefund.completed_at.is_(None)).values(status="completed", completed_at=utcnow()))
+    if not applied.rowcount:
+        db.refresh(p)
+        return
+    db.execute(update(Payment).where(Payment.id == p.id).values(
+        refunded_cents=Payment.refunded_cents + intent.cents, active_refund=""))
+    db.refresh(p)
+    p.status = "refunded" if p.refunded_cents >= p.amount_cents else "partially_refunded"
+    _log(p, f"{money(intent.cents)} erstattet ({METHODS.get(intent.method, (intent.method,))[0]}), Auftrag {intent.request_id}. {intent.note}", intent.actor)
+    if intent.occurred_at:
+        _log(p, f"Tatsächliche Auszahlung: {to_local(intent.occurred_at).strftime('%d.%m.%Y %H:%M')}; nachträglich erfasst.", intent.actor)
+    make_receipt(db, p, "refunded", intent.cents, intent.method, intent.actor, intent.note, intent.occurred_at, intent.request_id)
+    send_mail(db, p, "pay_refund", {"erstattet": money(intent.cents), "grund": intent.note})
+    if intent.fire_event or p.kind == "resource_deposit":
+        _fire(db, p, "refunded")
+
+
+def _refund_result(db, p, intent, result):
+    intent.provider_id = str(result.get("id") or intent.provider_id)[:64]
+    amount = result.get("amount") or {}
+    if amount and (amount.get("currency_code") != p.currency or parse_amount(amount.get("value")) != intent.cents):
+        intent.status, intent.error = "unknown", "Abweichender Betrag oder Währung beim Anbieter."
+        return intent.error
+    status = result.get("status")
+    if status == "COMPLETED" and intent.provider_id:
+        _complete_refund(db, p, intent)
+        return ""
+    if status in ("FAILED", "CANCELLED"):
+        intent.status, p.active_refund = "failed", ""
+        intent.error = f"PayPal-Status: {status}"
+        return "PayPal hat die Erstattung nicht ausgeführt."
+    intent.status = "pending" if status == "PENDING" else "unknown"
+    return "Erstattung noch nicht bestätigt. Bitte den gespeicherten Auftrag abgleichen; keine weitere Auszahlung veranlassen."
+
+
+def reconcile_refund(db, p: Payment) -> str:
+    intent = db.scalar(select(PaymentRefund).where(PaymentRefund.request_id == p.active_refund)) if p.active_refund else None
+    if intent is None:
+        return "Kein offener Erstattungsauftrag."
+    try:
+        if intent.provider_id:
+            result = _api(db, "GET", f"/v2/payments/refunds/{intent.provider_id}")
+        elif utcnow() - intent.created_at < timedelta(hours=24):
+            # Repeat exactly the persisted payload, never a newly generated ID.
+            result = _api(db, "POST", f"/v2/payments/captures/{p.paypal_capture_id}/refund",
+                          {"amount": {"value": _value(intent.cents), "currency_code": p.currency},
+                           "note_to_payer": (intent.note or f"Erstattung {p.ref}")[:255]}, request_id=intent.request_id)
+        else:
+            return "Unklarer Auftrag ohne PayPal-ID älter als 24 Stunden: in PayPal prüfen; keine automatische Wiederholung."
+    except PayPalError as exc:
+        intent.error = str(exc)[:500]
+        return f"Abgleich nicht möglich: {exc}"
+    return _refund_result(db, p, intent, result)
+
+
+def refund(db, p: Payment, cents: int, who: str = "", note: str = "", fire: bool = True,
+           method: str = "", occurred_at=None) -> str:
+    """Persist intent before contacting provider; uncertain results stay reserved."""
+    db.refresh(p)
+    if p.active_refund:
+        return "Ein Erstattungsauftrag ist noch offen. Bitte zuerst dessen Status abgleichen."
     if p.status not in ("paid", "partially_refunded"):
         return "Nur bezahlte Zahlungen lassen sich erstatten."
     left = p.amount_cents - p.refunded_cents
     if cents <= 0 or cents > left:
         return f"Erstattbar sind höchstens {money(left)}."
-    if p.method == "paypal" and p.paypal_capture_id:
+    actual_method = method or p.method
+    if actual_method not in ("paypal", "cash", "transfer"):
+        return "Ungültiger Erstattungsweg."
+    if method and method != p.method and not note.strip():
+        return "Ein abweichender Erstattungsweg benötigt eine Begründung."
+    if actual_method == "paypal" and not p.paypal_capture_id:
+        return "Keine PayPal-Transaktion für diese Zahlung vorhanden."
+    request_id = str(uuid.uuid4())
+    locked = db.execute(update(Payment).where(Payment.id == p.id, Payment.active_refund == "",
+                        Payment.refunded_cents == p.refunded_cents).values(active_refund=request_id))
+    if not locked.rowcount:
+        db.rollback()
+        return "Zahlung wurde gleichzeitig geändert. Bitte neu laden."
+    intent = PaymentRefund(payment_id=p.id, request_id=request_id, cents=cents, method=actual_method,
+                           note=note[:300], actor=who[:255], fire_event=fire, occurred_at=occurred_at)
+    db.add(intent)
+    db.commit()  # durable idempotency key before a potentially successful external side effect
+    if actual_method == "paypal":
         try:
-            _api(db, "POST", f"/v2/payments/captures/{p.paypal_capture_id}/refund",
-                 {"amount": {"value": _value(cents), "currency_code": p.currency},
-                  "note_to_payer": (note or f"Erstattung {p.ref}")[:255]},
-                 request_id=f"refund-{p.id}-{p.refunded_cents}-{cents}")
+            result = _api(db, "POST", f"/v2/payments/captures/{p.paypal_capture_id}/refund",
+                          {"amount": {"value": _value(cents), "currency_code": p.currency},
+                           "note_to_payer": (intent.note or f"Erstattung {p.ref}")[:255]}, request_id=request_id)
         except PayPalError as exc:
-            return f"PayPal hat die Erstattung abgelehnt: {exc}"
-        how = "über PayPal"
-    else:
-        how = f"({METHODS.get(p.method, ('manuell',))[0]}, manuell ausgezahlt)"
-    p.refunded_cents += cents
-    p.status = "refunded" if p.refunded_cents >= p.amount_cents else "partially_refunded"
-    _log(p, f"{money(cents)} erstattet {how}{': ' + note if note else ''}.", who)
-    send_mail(db, p, "pay_refund", {"erstattet": money(cents), "grund": note})
-    if fire:
-        _fire(db, p, "refunded")
+            intent.status, intent.error = ("failed" if exc.definite else "unknown"), str(exc)[:500]
+            if exc.definite:
+                p.active_refund = ""
+            db.commit()
+            return f"PayPal-Erstattung nicht bestätigt: {exc}. Auftrag gespeichert; bitte abgleichen."
+        message = _refund_result(db, p, intent, result)
+        db.commit()
+        return message
+    _complete_refund(db, p, intent)
     return ""
+
+
+def make_receipt(db, p, kind, cents, method, actor="", note="", occurred_at=None, event=""):
+    key = f"{p.id}:{event or kind}"
+    found = db.scalar(select(PaymentReceipt).where(PaymentReceipt.event_key == key))
+    if found:
+        return found
+    count = db.scalar(select(func.count(PaymentReceipt.id)).where(PaymentReceipt.payment_id == p.id)) or 0
+    receipt = PaymentReceipt(payment_id=p.id, event_key=key, ref=f"{p.ref}-B{count+1:03d}", kind=kind,
+                             cents=cents, method=method, occurred_at=occurred_at or utcnow(),
+                             snapshot_json=json.dumps({"payer": p.payer_name, "purpose": p.purpose,
+                                                       "actor": actor, "note": note}, ensure_ascii=False))
+    db.add(receipt)
+    db.flush()
+    return receipt
+
+
+def receipts(db, p):
+    return list(db.scalars(select(PaymentReceipt).where(PaymentReceipt.payment_id == p.id).order_by(PaymentReceipt.id)))
+
+
+def receipt_pdf(receipt):
+    from xml.sax.saxutils import escape
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+    import io
+    data = json.loads(receipt.snapshot_json)
+    buf = io.BytesIO()
+    styles = getSampleStyleSheet()
+    title = {"received": "Zahlungseingangsquittung", "refunded": "Rückzahlungsquittung", "retained": "Kautionseinbehalt"}.get(receipt.kind, "Zahlungsbeleg")
+    rows = [Paragraph(escape(title), styles["Title"]), Spacer(1, 8*mm)]
+    for label, value in [("Belegnummer", receipt.ref), ("Vorgang", data.get("purpose", "")),
+                         ("Zahlende Person", data.get("payer", "")), ("Betrag", money(receipt.cents)),
+                         ("Zahlweg", METHODS.get(receipt.method, (receipt.method,))[0]),
+                         ("Tatsächlicher Zeitpunkt", to_local(receipt.occurred_at).strftime("%d.%m.%Y %H:%M")),
+                         ("Erfasst am", to_local(receipt.created_at).strftime("%d.%m.%Y %H:%M")),
+                         ("Erfasst durch", data.get("actor", "")), ("Bemerkung", data.get("note", ""))]:
+        rows.extend([Paragraph(f"<b>{escape(label)}:</b> {escape(str(value))}", styles["BodyText"]), Spacer(1, 3*mm)])
+    SimpleDocTemplate(buf, pagesize=A4, rightMargin=20*mm, leftMargin=20*mm).build(rows)
+    return buf.getvalue()
 
 
 # --- PayPal ----------------------------------------------------------------------------------
 
 class PayPalError(Exception):
-    pass
+    def __init__(self, message, definite=False):
+        super().__init__(message)
+        self.definite = definite
 
 
 _token: dict = {"key": "", "value": "", "until": 0.0}
@@ -328,7 +460,8 @@ def _api(db, method: str, path: str, payload: dict | None = None, request_id: st
         data = {}
     if r.status_code >= 400:
         detail = (data.get("details") or [{}])[0].get("issue") or data.get("name") or data.get("message") or r.status_code
-        raise PayPalError(str(detail))
+        debug = str(data.get("debug_id") or "")[:100]
+        raise PayPalError(str(detail) + (f" (Referenz {debug})" if debug else ""), definite=400 <= r.status_code < 500 and r.status_code != 409 and str(detail) not in ("DUPLICATE_REQUEST_ID", "DUPLICATE_REQUEST"))
     return data
 
 
@@ -426,6 +559,10 @@ def handle_webhook(db, headers: dict, raw: bytes) -> str:
         if p is not None and p.status in ("open", "pending"):
             finish_paypal(db, p, p.paypal_order_id)
     elif kind in ("PAYMENT.CAPTURE.REFUNDED", "PAYMENT.CAPTURE.REVERSED"):
+        intent = db.scalar(select(PaymentRefund).where(PaymentRefund.provider_id == res.get("id", ""))) if res.get("id") else None
+        if intent is not None:
+            payment = db.get(Payment, intent.payment_id)
+            _refund_result(db, payment, intent, {**res, "status": "COMPLETED"} if kind == "PAYMENT.CAPTURE.REFUNDED" else res)
         cap = ""
         for lnk in res.get("links", []):
             if lnk.get("rel") == "up":

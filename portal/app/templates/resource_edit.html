@@ -125,6 +125,13 @@
   <div class="tab-pane fade" id="zahlung" role="tabpanel"><div class="row g-3">
     <div class="col-lg-6"><div class="card h-100"><div class="card-body row g-2">
       <div class="col-6"><label class="form-label small mb-1" for="z-days">Zahlfrist (Tage)</label><input class="form-control form-control-sm" type="number" min="1" max="90" id="z-days" name="pay_days" value="{{ res.pay_days }}"></div>
+      <div class="col-12 border rounded p-3"><strong>Kaution separat bezahlen</strong>
+        <label class="form-label small d-block mt-2" for="deposit-method">Vorgegebener Zahlweg</label>
+        <select class="form-select form-select-sm" id="deposit-method" name="deposit_method">{% for k in ('cash', 'transfer', 'paypal') %}<option value="{{ k }}" {% if k == res.deposit_methods.split(',')[0] %}selected{% endif %}>{{ pay_methods[k][0] }}</option>{% endfor %}</select>
+        <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="deposit-choice" name="deposit_guest_choice" value="1" {% if res.deposit_guest_choice %}checked{% endif %}><label class="form-check-label" for="deposit-choice">Gast darf weitere Zahlwege wählen</label></div>
+        <div class="mt-2">{% for k in ('cash', 'transfer', 'paypal') %}<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="deposit_methods" value="{{ k }}" id="dm-{{ k }}" {% if k in res.deposit_methods.split(',') %}checked{% endif %}><label class="form-check-label" for="dm-{{ k }}">{{ pay_methods[k][0] }}</label></div>{% endfor %}</div>
+        <div class="form-text">Kaution und Hauptzahlung haben eigene Zahlungsnummern. Einnahme und Rückzahlung vor Ort können später mit ihrem tatsächlichen Datum erfasst werden.</div>
+      </div>
       <div class="col-12"><span class="form-label small d-block mb-1">Zahlarten</span>{% for k in ('paypal', 'transfer', 'cash') %}<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="pay_methods" value="{{ k }}" id="pm-{{ k }}" {% if k in res.pay_methods.split(',') %}checked{% endif %}><label class="form-check-label" for="pm-{{ k }}">{{ pay_methods[k][0] }}</label></div>{% endfor %}
         <div class="form-text">PayPal und Bankverbindung richten Admins unter Verwaltung › PayPal &amp; Bankverbindung ein. Ohne Zahlung bis zur Frist verfällt die Reservierung.</div></div>
       <div class="col-12"><label class="form-label small mb-1" for="z-cc">Kostenstelle / Haushaltsstelle</label><input class="form-control form-control-sm" id="z-cc" name="cost_center" value="{{ res.cost_center }}"></div>

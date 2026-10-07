@@ -64,7 +64,7 @@ def test_caretaker_handover_release_and_protocol():
         b = db.get(ResourceBooking, bid)
         h = rs.handover(b)
         assert h["deposit_done"] and not h.get("deposit_pending") and h["back"]["keep_cents"] == 2000
-        assert db.get(Payment, b.payment_id).refunded_cents == 28000
+        assert db.get(Payment, b.deposit_payment_id).refunded_cents == 28000
     assert admin.get(f"/resources/bookings/{bid}/protokoll.pdf").content[:4] == b"%PDF"
     # Kontakt vor Ort für Buchende
     with SessionLocal() as db:
@@ -97,7 +97,7 @@ def test_without_release_refunds_directly_and_reminder():
     hm.post(f"{path}/{bid}", data={"csrf": token, "part": "back", "damages": "", "keep": "0"})
     with SessionLocal() as db:
         b = db.get(ResourceBooking, bid)
-        assert rs.handover(b)["deposit_done"] and b.payment.refunded_cents == 10000
+        assert rs.handover(b)["deposit_done"] and b.deposit_payment.refunded_cents == 10000
     # Erinnerung an Hausmeister:in mit funktionierendem Link; der Link aus der ersten Mail bleibt gültig
     bid2 = _staff_booking(rid, day(3))
     with SessionLocal() as db:
