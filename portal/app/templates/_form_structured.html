@@ -1,4 +1,7 @@
-{% if item.type == 'route' %}
+{% if item.type == 'expense_accounting' %}
+<p class="small">Die Personalabteilung erhält eine Berechnung mit geprüfter Satzfassung und allen Einzelpositionen. Vorschüsse und bereits bezahlte Anteile werden abgezogen. Sie können den Vorgang ohne Auszahlungskennzeichnung abschließen.</p>
+{% if val %}<pre class="text-wrap small">{{ display(item,val) if display is defined else '' }}</pre>{% else %}<div class="form-text">Der verbindlich geprüfte Berechnungsvorschlag entsteht beim Absenden, auf Basis Ihrer vollständigen Angaben.</div>{% endif %}
+{% elif item.type == 'route' %}
 {% include '_form_route.html' %}
 {% elif item.type == 'period' %}
 <div class="js-period" data-name="{{ name }}" data-value="{{ val | tojson | forceescape }}"><div class="row g-2">
@@ -6,7 +9,7 @@
   <div class="col-md-6"><label class="form-label" for="{{ name }}__end">Bis</label><input class="form-control" id="{{ name }}__end" name="{{ name }}__end" type="{{ 'datetime-local' if item.with_time else 'date' }}" {% if item.required %}required{% endif %}></div>
 </div><input class="js-structured-value" type="hidden" name="{{ name }}"></div>
 {% elif item.type == 'table' %}
-<div class="js-table" data-name="{{ name }}" data-columns="{{ item.columns | tojson | forceescape }}" data-max="{{ item.max_rows }}" data-min="{{ item.min_rows }}" data-required="{{ '1' if item.required else '' }}" data-value="{{ val | tojson | forceescape }}">
+<div class="js-table" data-name="{{ name }}" data-period-source="{{ item.period_source or '' }}" data-columns="{{ item.columns | tojson | forceescape }}" data-max="{{ item.max_rows }}" data-min="{{ item.min_rows }}" data-required="{{ '1' if item.required else '' }}" data-value="{{ val | tojson | forceescape }}">
   <input class="js-structured-value" type="hidden" name="{{ name }}"><div class="js-table-rows d-grid gap-3"></div>
   <button type="button" class="btn btn-outline-primary mt-2 js-table-add"><i class="fa-solid fa-plus me-1"></i>Position hinzufügen</button>
   <div class="form-text">Bis zu {{ item.max_rows }} Positionen. Beträge werden mit zwei Nachkommastellen erfasst.</div>

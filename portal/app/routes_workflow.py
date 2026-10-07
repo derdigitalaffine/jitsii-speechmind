@@ -179,7 +179,7 @@ async def request_create(request: Request, form_id: int, resp_id: int, user: Use
     except ValueError:
         items = []
     items = wf.clean_request_items(items)
-    known = {q["id"] for q in fm.questions(fm.schema(resp.form))}
+    known = {q["id"] for q in wf.case_questions(resp)}
     reopen = [q for q in data.getlist("reopen") if q in known]
     message = str(data.get("message", "")).replace("\r\n", "\n").strip()[:10000]
     if not items and not reopen:

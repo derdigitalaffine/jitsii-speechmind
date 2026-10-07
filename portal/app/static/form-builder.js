@@ -70,6 +70,10 @@
         h += field('Mindestens Positionen', input('min_rows', it.min_rows || 0, 'type="number" min="0" max="100"'));
         h += field('Höchstens Positionen', input('max_rows', it.max_rows || 30, 'type="number" min="1" max="100"'));
         break;
+      case 'expense_accounting':
+        h += field('Satzprofil', input('profile', it.profile || 'rlp'));
+        [['period_source','Tatsächlicher Zeitraum'],['route_source','Fahrtstrecken'],['costs_source','Kostenpositionen'],['days_source','Verpflegung je Tag'],['advance_source','Vorschuss'],['reason_source','Triftige Gründe'],['special_source','Besonderheiten'],['year_km_source','Bisherige Jahreskilometer']].forEach(function(pair){h += field(pair[1],'<select class="form-select" data-key="'+pair[0]+'"><option value="">Bitte wählen …</option>'+items.filter(function(q){return q.id!==it.id;}).map(function(q){return '<option value="'+esc(q.id)+'"'+(it[pair[0]]===q.id?' selected':'')+'>'+esc(q.title || 'Unbenanntes Feld')+'</option>';}).join('')+'</select>');});
+        break;
       case 'route':
         h += field('Höchstens Fahrtabschnitte', input('max_legs', it.max_legs || 10, 'type="number" min="1" max="30"'));
         ['allow_roundtrip','allow_deviation'].forEach(function (key) {h += '<div class="col-12"><label><input type="checkbox" data-flag="'+key+'"'+(it[key] !== false ? ' checked' : '')+'> '+(key === 'allow_roundtrip' ? 'Rückfahrt anbieten' : 'Begründete Kilometerabweichungen ermöglichen')+'</label></div>';});

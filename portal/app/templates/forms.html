@@ -19,6 +19,8 @@
 </div></div>
 {% endif %}
 
+{% if user.is_admin %}<div class="card mb-4"><div class="card-body"><h2 class="h5">Dienstreisevorlage</h2><p>Interner Antrag, Genehmigung, Abrechnung und Dokument für die Personalabteilung mit allgemeinen Formularfeldern und Prozessschritten.</p><form method="post" action="/forms/templates/travel"><input type="hidden" name="csrf" value="{{csrf}}"><button class="btn btn-outline-primary">Dienstreisevorlage als Entwurf anlegen</button> <a href="/settings/expense-rules">Satzfassungen konfigurieren</a></form></div></div>{% endif %}
+
 {% if shared %}
 <h2 class="h5 mb-3"><i class="fa-solid fa-share-nodes me-2 text-secondary"></i>Mit mir geteilt</h2>
 <div class="row g-3 mb-4">

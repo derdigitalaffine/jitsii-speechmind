@@ -2651,3 +2651,5 @@ from . import routes_krank  # noqa: E402,F401
 from . import routes_orgs  # noqa: E402,F401
 
 from . import routes_locations  # noqa: E402,F401
+
+from . import routes_expenses  # noqa: E402,F401

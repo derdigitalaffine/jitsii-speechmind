@@ -220,7 +220,7 @@ def application_detail(request: Request, form_id: int, resp_id: int, user: User 
                                                                 if t.kind == "payment"] if p is not None]
     case_payments = [pay.box(db, user, p, f"/forms/{resp.form_id}/applications/{resp.id}") for p in case_payments]
     return render(request, "application.html", user, resp=resp, form=resp.form, level=level, items=items, case_payments=case_payments,
-                  questions=fm.questions(items), display=fm.display, statuses=apps.STATUSES, closed=apps.CLOSED,
+                  questions=workflow.case_questions(resp), display=fm.display, statuses=apps.STATUSES, closed=apps.CLOSED,
                   users=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(),
                   groups=db.scalars(select(Group).order_by(Group.name)).all(), now=utcnow(),
                   track_link=apps.track_link(resp), applicant=apps.applicant_email(resp.form, resp),
@@ -311,7 +311,7 @@ def application_status(request: Request, token: str, db: Session = Depends(get_d
     resp = _tracked(db, token, request)
     items = fm.schema(resp.form)
     response = render(request, "application_status.html", session_user(request, db), resp=resp, form=resp.form,
-                      questions=fm.questions(items), display=fm.display, statuses=apps.STATUSES, closed=apps.CLOSED,
+                      questions=workflow.case_questions(resp), display=fm.display, statuses=apps.STATUSES, closed=apps.CLOSED,
                       events=[e for e in resp.events if e.public], progress=workflow.progress(resp),
                       open_requests=workflow.open_requests(resp), current=workflow.current_answers(resp),
                       confirm_task=workflow.open_confirm(resp), applicant=apps.applicant_email(resp.form, resp),
