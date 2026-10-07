@@ -439,6 +439,8 @@ async def run_forever() -> None:
             if time.monotonic() - _last_chat_prune[0] >= 3600:
                 _last_chat_prune[0] = time.monotonic()
                 await asyncio.to_thread(chat.prune)
+                from . import form_mail
+                await asyncio.to_thread(form_mail.purge_expired)
                 from . import updates
                 await asyncio.to_thread(updates.check)
         except Exception:  # noqa: BLE001

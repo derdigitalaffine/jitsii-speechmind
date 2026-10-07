@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ question.title }} · {{ form.title }}{% endblock %}
+{% block content %}
+<a class="btn btn-outline-secondary mb-3" href="/forms/{{ form.id }}/responses/{{ resp.id }}">Zurück zur Antwort</a>
+<h1 class="h4">{{ question.title }} · {{ form.title }}</h1>
+<p class="small text-secondary">Rot: eingezeichnete Objekte · Blau: Gerätestandort</p>
+{% if geo_features %}<div class="map-response js-geo-view" data-features='{{ geo_features | tojson }}' role="img" aria-label="Gespeicherte Ortsangaben"></div>{% else %}<p>Keine gespeicherten Ortsangaben vorhanden.</p>{% endif %}
+{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/vendor/maplibre/maplibre-gl.css"><link rel="stylesheet" href="/static/map.css">{% endblock %}
+{% block scripts %}{% include "_geo_view_scripts.html" %}{% endblock %}

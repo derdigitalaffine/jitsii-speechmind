@@ -425,6 +425,13 @@ class Form(Base):
     notify_answers: Mapped[bool] = mapped_column(Boolean, default=True)  # Antworten im Mailtext
     notify_json: Mapped[bool] = mapped_column(Boolean, default=False)
     notify_csv: Mapped[bool] = mapped_column(Boolean, default=False)
+    notify_pdf: Mapped[bool] = mapped_column(Boolean, default=False)
+    notify_files: Mapped[bool] = mapped_column(Boolean, default=False)
+    pdf_uploads: Mapped[bool] = mapped_column(Boolean, default=True)
+    confirm_csv: Mapped[bool] = mapped_column(Boolean, default=False)
+    confirm_json: Mapped[bool] = mapped_column(Boolean, default=False)
+    confirm_pdf: Mapped[bool] = mapped_column(Boolean, default=True)
+    confirm_files: Mapped[bool] = mapped_column(Boolean, default=False)
     notify_scope: Mapped[str] = mapped_column(String(10), default="single")  # single | all
     review: Mapped[bool] = mapped_column(Boolean, default=True)    # Übersicht vor dem Absenden
     # Online-Antrag (siehe applications.py): Aktenzeichen, Status, Zuständigkeit, PDF, Antragskatalog
@@ -502,6 +509,17 @@ class FormInvite(Base):
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     form: Mapped[Form] = relationship(back_populates="invites")
+
+
+class FormMailDownload(Base):
+    __tablename__ = "form_mail_downloads"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    response_id: Mapped[int] = mapped_column(ForeignKey("form_responses.id", ondelete="CASCADE"), index=True)
+    applicant: Mapped[bool] = mapped_column(Boolean, default=False)
+    token_hash: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    payload_enc: Mapped[str] = mapped_column(Text)
 
 
 class FormResponse(Base):
@@ -2416,7 +2434,10 @@ _NEW_COLUMNS = {
                  "ics_uid": "VARCHAR(255)", "ics_sequence": "INTEGER NOT NULL DEFAULT 0",
                  "cancelled_at": "DATETIME", "guest_token": "VARCHAR(64)"},
     "notifications": {"reply_to": "VARCHAR(255)", "attachments_json": "TEXT"},
-    "forms": {"kind": "VARCHAR(12) NOT NULL DEFAULT 'survey'", "app_prefix": "VARCHAR(12) NOT NULL DEFAULT ''",
+    "forms": {"notify_pdf": "BOOLEAN NOT NULL DEFAULT 0", "notify_files": "BOOLEAN NOT NULL DEFAULT 0",
+              "pdf_uploads": "BOOLEAN NOT NULL DEFAULT 1", "confirm_csv": "BOOLEAN NOT NULL DEFAULT 0",
+              "confirm_json": "BOOLEAN NOT NULL DEFAULT 0", "confirm_pdf": "BOOLEAN NOT NULL DEFAULT 1",
+              "confirm_files": "BOOLEAN NOT NULL DEFAULT 0", "kind": "VARCHAR(12) NOT NULL DEFAULT 'survey'", "app_prefix": "VARCHAR(12) NOT NULL DEFAULT ''",
               "app_category": "VARCHAR(100) NOT NULL DEFAULT ''", "app_icon": "VARCHAR(48) NOT NULL DEFAULT ''",
               "app_color": "VARCHAR(7) NOT NULL DEFAULT ''", "app_info": "TEXT NOT NULL DEFAULT ''",
               "app_fee": "VARCHAR(255) NOT NULL DEFAULT ''", "app_duration": "VARCHAR(255) NOT NULL DEFAULT ''",
@@ -2475,6 +2496,8 @@ def _migrate() -> None:
             for name, ddl in columns.items():
                 if name not in existing:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+            if table == "forms" and "confirm_pdf" not in existing:
+                conn.execute(text("UPDATE forms SET confirm_pdf = CASE WHEN kind = 'application' THEN app_pdf ELSE 0 END"))
         for name, table, column in (("ix_recordings_status", "recordings", "status"),
                                     ("ix_recordings_meeting_id", "recordings", "meeting_id"),
                                     ("ix_form_responses_ref_no", "form_responses", "ref_no"),

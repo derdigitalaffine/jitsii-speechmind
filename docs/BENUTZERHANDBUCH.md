@@ -613,7 +613,15 @@ Die **Bibliothek** (Menü **Datenblöcke**) sehen alle mit dem Recht „Formular
 | Anhang CSV / JSON | die Formulardaten als Datei: **CSV** für Excel, **JSON** für Fachverfahren und automatische Weiterverarbeitung |
 | nur die neue Antwort / jeweils alle Antworten | einzelne Antwort oder jedes Mal die komplette Tabelle |
 
-Hochgeladene Dateien werden nicht angehängt; sie bleiben im Portal.
+Die Einstellungen gelten auch für Online-Anträge. PDF, CSV, JSON und **hochgeladene Originaldateien** sind unabhängig auswählbar. Für die Eingangsbestätigung gibt es eine getrennte Auswahl; die ausfüllende Person erhält ausschließlich ihre eigene Antwort. Bei Anträgen lassen sich PDF-/Bild-Uploads zusätzlich in das Antrags-PDF einbetten.
+
+Anhänge werden beim Eingang und beim Eingang einer Nachforderung versendet. Bei Nachforderungen enthalten CSV/JSON und PDF den aktuellen Stand einschließlich Nachreichungen; Originaldateien stammen nur aus der neuen Nachreichung. „Alle bisherigen Antworten“ betrifft ausschließlich interne CSV-/JSON-Exporte.
+
+Die **gesamte E-Mail darf höchstens 10 MB (10 × 1024 × 1024 Bytes)** umfassen, einschließlich Kodierung, Mailtext und Logo. Größere Anhänge werden durch Downloadlinks ersetzt. Interne Downloads erfordern Anmeldung und Zugriffsrechte; Links für die eigene Antwort gelten **7 Tage**. Originaldateien bleiben im Portal; die befristete Downloadkopie wird danach gelöscht.
+
+CSV enthält den **Formularnamen pro Antwortzeile**, JSON in den Formularinformationen und pro Antwort. Kartenfragen erhalten in CSV zusätzliche Spalten für Breitengrad, Längengrad, GPS-Genauigkeit, den separat erfassten Gerätestandort und vollständiges GeoJSON. JSON enthält alle Geometrien und den Gerätestandort. Koordinaten verwenden WGS84; GeoJSON ordnet sie als Länge, Breite an.
+
+In der Einzelantwort zeigt eine Karte die gespeicherten Punkte, Linien und Flächen. **In Karte anzeigen** öffnet eine größere Ansicht mit allen Objekten. Rot kennzeichnet eingezeichnete Objekte, Blau den Gerätestandort. Auch ältere gespeicherte Koordinatenformate werden gelesen.
 
 ---
 

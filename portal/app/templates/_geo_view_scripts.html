@@ -1,0 +1,7 @@
+{% if geo_bundle %}
+<script type="application/json" id="geo-bundle">{{ geo_bundle | tojson }}</script>
+<script type="module" src="/static/maplibre-global.js"></script>
+<script type="module" src="/static/map-core.js"></script>
+<script type="module" src="/static/map-draw.js"></script>
+<script type="module" src="/static/geo-view.js"></script>
+{% endif %}

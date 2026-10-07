@@ -717,6 +717,18 @@ def parse_geo(item: dict, raw: str, pos_raw=None, accuracy=None, source=None) ->
 
 def geo_parts(value) -> tuple[list[dict], dict | None]:
     """Gespeicherte Antwort → (Objekte, eigener Standort); liest auch ältere Formate (nur Punkt bzw. eine Form)."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (ValueError, TypeError):
+            point = parse_point(value)
+            return ([{"type": "point", **point}], None) if point else ([], None)
+    if isinstance(value, dict) and (value.get("type") in ("FeatureCollection", "Point", "LineString", "Polygon")
+                                  or any("geometry" in f for f in value.get("features", []) if isinstance(f, dict))):
+        normalized, error = parse_geo({"geometries": ["point", "line", "polygon"], "max_features": 50}, json.dumps(value))
+        if not error and normalized:
+            normalized["position"] = value.get("position")
+            value = normalized
     if not isinstance(value, dict):
         return [], None
     if isinstance(value.get("features"), list):
@@ -797,7 +809,8 @@ def _geometry(f: dict) -> dict | None:
 def geo_features(value, label: str = "") -> list[dict]:
     """Antwort einer Kartenfrage als GeoJSON-Features (für Karten in Auswertung und Vorgang)."""
     feats, pos = geo_parts(value)
-    out = [{"type": "Feature", "geometry": g, "properties": {"label": label}} for g in (_geometry(f) for f in feats) if g]
+    out = [{"type": "Feature", "geometry": g, "properties": {"label": label, "acc": f.get("acc"), "src": f.get("src")}}
+           for f in feats if (g := _geometry(f))]
     if pos:
         out.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": [pos["lon"], pos["lat"]]},
                     "properties": {"label": (label + " – " if label else "") + "Standort", "position": 1}})
@@ -844,7 +857,7 @@ def display(item: dict, value) -> str:
         return ", ".join(f.get("name", "") for f in value if isinstance(f, dict))
     if kind == "address":
         return address_text(value)
-    if kind == "geo" and isinstance(value, dict):
+    if kind == "geo" and value:
         feats, pos = geo_parts(value)
         parts = [_describe(f) for f in feats]
         if pos:
@@ -884,30 +897,64 @@ def _headers(items: list[dict]) -> list[str]:
     return heads
 
 
+def export_questions(form, responses):
+    items = questions(schema(form))
+    seen = {q["id"] for q in items}
+    for resp in responses:
+        for req in getattr(resp, "requests", []):
+            if req.state == "answered":
+                for q in questions(req.items):
+                    if q["id"] not in seen:
+                        items.append({**q, "title": f"{req.title}: {q.get('title') or 'Angabe'}"})
+                        seen.add(q["id"])
+    return items
+
+
+def export_answers(resp):
+    answers = dict(resp.answers)
+    for req in sorted(getattr(resp, "requests", []), key=lambda r: r.answered_at or r.created_at):
+        if req.state == "answered":
+            answers.update(req.answers)
+    return answers
+
+
+def geo_csv(value):
+    feats, pos = geo_parts(value)
+    point = next((f for f in feats if "lat" in f), {})
+    geometries = [g for g in (_geometry(f) for f in feats) if g]
+    return [point.get("lat", ""), point.get("lon", ""), point.get("acc", ""),
+            (pos or {}).get("lat", ""), (pos or {}).get("lon", ""), (pos or {}).get("acc", ""),
+            json.dumps({"type": "FeatureCollection", "features": geo_features(value)}, ensure_ascii=False) if geometries or pos else ""]
+
+
 def to_csv(form: Form, responses: list[FormResponse]) -> str:
     """CSV für Excel: Semikolon, UTF-8 mit BOM."""
-    items = questions(schema(form))
+    items = export_questions(form, responses)
     buf = io.StringIO()
     writer = csvsafe.writer(buf, delimiter=";")
-    writer.writerow(["Nr.", "Eingang", "Von (Name)", "Von (E-Mail)", *_headers(items)])
+    heads = _headers(items)
+    geo_heads = [f"{h} – {suffix}" for q, h in zip(items, heads) if q["type"] == "geo"
+                 for suffix in ("Breitengrad", "Längengrad", "GPS-Genauigkeit (m)", "Standort Breitengrad", "Standort Längengrad", "Standort Genauigkeit (m)", "GeoJSON")]
+    writer.writerow(["Nr.", "Eingang", "Von (Name)", "Von (E-Mail)", *heads, "Formularname", *geo_heads])
     for n, resp in enumerate(responses, start=1):
-        answers = resp.answers
+        answers = export_answers(resp)
         writer.writerow([n, to_local(resp.created_at).strftime("%d.%m.%Y %H:%M:%S"), resp.name, resp.email,
-                         *[display(q, answers.get(q["id"])) for q in items]])
+                         *[display(q, answers.get(q["id"])) for q in items], form.title,
+                         *[v for q in items if q["type"] == "geo" for v in geo_csv(answers.get(q["id"]))]])
     return "﻿" + buf.getvalue()
 
 
 def to_json(form: Form, responses: list[FormResponse]) -> str:
-    items = questions(schema(form))
+    items = export_questions(form, responses)
     heads = _headers(items)
     data = {
         "formular": {"id": form.id, "titel": form.title, "beschreibung": form.description,
                      "exportiert": to_local(utcnow()).isoformat(timespec="seconds")},
         "fragen": [{"id": q["id"], "titel": h, "typ": q["type"]} for q, h in zip(items, heads)],
         "antworten": [
-            {"nr": n, "id": r.id, "eingang": to_local(r.created_at).isoformat(timespec="seconds"),
+            {"nr": n, "id": r.id, "formularname": form.title, "eingang": to_local(r.created_at).isoformat(timespec="seconds"),
              "name": r.name or None, "email": r.email or None,
-             "werte": {h: _json_value(q, r.answers.get(q["id"])) for q, h in zip(items, heads)}}
+             "werte": {h: _json_value(q, export_answers(r).get(q["id"])) for q, h in zip(items, heads)}}
             for n, r in enumerate(responses, start=1)],
     }
     return json.dumps(data, ensure_ascii=False, indent=2)
@@ -916,10 +963,11 @@ def to_json(form: Form, responses: list[FormResponse]) -> str:
 def _json_value(item: dict, value):
     if item["type"] == "file" and isinstance(value, list):
         return [f.get("name") for f in value if isinstance(f, dict)]
-    if item["type"] == "geo" and isinstance(value, dict):
+    if item["type"] == "geo" and value:
         feats, pos = geo_parts(value)   # GeoJSON-Geometrien, dazu Länge/Fläche in Metern
         out = {"objekte": [{"geometrie": _geometry(f), "laenge_m": f.get("length"), "flaeche_m2": f.get("area"),
-                            "genauigkeit_m": f.get("acc")} for f in feats]}
+                            "genauigkeit_m": f.get("acc"), "quelle": f.get("src"),
+                            "breitengrad": f.get("lat"), "laengengrad": f.get("lon")} for f in feats]}
         if pos:
             out["standort"] = pos
         return out
@@ -933,8 +981,8 @@ def _json_value(item: dict, value):
 
 def answers_text(form: Form, resp: FormResponse) -> str:
     lines = []
-    answers = resp.answers
-    for q in questions(schema(form)):
+    answers = export_answers(resp)
+    for q in export_questions(form, [resp]):
         value = display(q, answers.get(q["id"]))
         lines.append(f"{q.get('title') or TYPES[q['type']][0]}:\n  {value or '–'}")
     return "\n".join(lines)
@@ -944,7 +992,7 @@ def summary(form: Form, responses: list[FormResponse]) -> list[dict]:
     """Auswertung je Frage: Häufigkeiten bei Auswahl und Skala, sonst die letzten Antworten."""
     result = []
     for q in questions(schema(form)):
-        values = [r.answers.get(q["id"]) for r in responses]
+        values = [export_answers(r).get(q["id"]) for r in responses]
         given = [v for v in values if v not in (None, "", [])]
         entry = {"q": q, "count": len(given), "total": len(responses)}
         if q["type"] in CHOICE_TYPES:
@@ -1068,31 +1116,24 @@ def notify_new_response(db, form: Form, resp: FormResponse) -> None:
         return
     all_responses = list(form.responses)
     number = next((n for n, r in enumerate(all_responses, start=1) if r.id == resp.id), len(all_responses))
-    scope = all_responses if form.notify_scope == "all" else [resp]
-    slug = re.sub(r"[^a-z0-9]+", "-", form.title.lower()).strip("-")[:40] or "formular"
-    name = f"{slug}-alle-antworten" if form.notify_scope == "all" else f"{slug}-antwort-{number}"
-    attachments = []
-    if form.notify_csv:
-        attachments.append({"filename": f"{name}.csv", "content": to_csv(form, scope), "mime": "text/csv"})
-    if form.notify_json:
-        attachments.append({"filename": f"{name}.json", "content": to_json(form, scope),
-                            "mime": "application/json"})
     subject, body = mailtpl.render(db, "form_response", {
         "titel": form.title, "nummer": number, "anzahl": len(all_responses),
         "zeitpunkt": to_local(resp.created_at).strftime("%d.%m.%Y, %H:%M Uhr"),
         "von": respondent(resp), "antworten": answers_text(form, resp) if form.notify_answers else "",
         "link": f"{settings.portal_base_url}/forms/{form.id}/responses/{resp.id}"}, cfg)
     for addr in recipients:
-        notify.enqueue(db, addr, subject, body, "form_response", cfg, attachments=attachments or None)
+        from . import form_mail
+        form_mail.enqueue(db, form, resp, addr, subject, body, "form_response", cfg=cfg)
 
 
-def confirm_to_respondent(db, form: Form, resp: FormResponse, email: str, name: str) -> None:
+def confirm_to_respondent(db, form: Form, resp: FormResponse, email: str, name: str, request=None) -> None:
     if not form.confirm_mail or not email:
         return
     subject, body = mailtpl.render(db, "form_confirmation", {
         "name": name or email, "titel": form.title, "antworten": answers_text(form, resp),
         "zeitpunkt": to_local(resp.created_at).strftime("%d.%m.%Y, %H:%M Uhr")})
-    notify.enqueue(db, email, subject, body, "form_confirmation", per_hour=5)
+    from . import form_mail
+    form_mail.enqueue(db, form, resp, email, subject, body, "form_confirmation", applicant=True, request=request, per_hour=5)
 
 
 def respondent_email(form: Form, answers: dict) -> str:
@@ -1117,7 +1158,8 @@ def copy_form(db, form: Form, owner: User) -> Form:
                  schema_json=json.dumps(items, ensure_ascii=False), anonymous=form.anonymous,
                  multiple=form.multiple, submit_message=form.submit_message, confirm_mail=form.confirm_mail,
                  notify=form.notify, notify_answers=form.notify_answers, notify_json=form.notify_json,
-                 notify_csv=form.notify_csv, notify_scope=form.notify_scope, active=True)
+                 notify_csv=form.notify_csv, notify_scope=form.notify_scope, active=True,
+                 **{k: getattr(form, k) for k in ("notify_pdf", "notify_files", "pdf_uploads", "confirm_csv", "confirm_json", "confirm_pdf", "confirm_files")})
     db.add(clone)
     return clone
 
