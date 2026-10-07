@@ -50,7 +50,9 @@ def live_edit(request: Request, poll_id: int, user: User = Depends(vote_user), d
     return render(request, "live_edit.html", user, poll=poll, kinds=lv.KINDS, charts=lv.CHARTS, pacing=lv.PACING,
                   show_results=lv.SHOW_RESULTS, statuses=lv.STATUSES, opts=lv.opts, settings_of=lv.settings,
                   join=join_url(poll), counts={q.id: lv.tally(db, q)["total"] for q in poll.questions},
-                  words={q.id: lv.raw_words(db, q) for q in poll.questions if q.kind == "words"})
+                  words={q.id: lv.raw_words(db, q) for q in poll.questions if q.kind == "words"},
+                  entries={q.id: lv.entry_payload(db, q, None, True)["entries"] for q in poll.questions
+                           if q.kind in lv.ENTRY_KINDS})
 
 
 @app.post("/votes/live/{poll_id:int}/settings", dependencies=[Depends(check_csrf)])
@@ -294,6 +296,51 @@ async def live_answer(request: Request, token: str, db: Session = Depends(get_db
     value, error = lv.read_answer(q, body.get("value"))
     if error:
         return JSONResponse({"ok": False, "error": error}, status_code=400)
-    lv.save_answer(db, poll, q, lv.device_hash(raw), value)
+    if q.kind in lv.ENTRY_KINDS:
+        _entry, error = lv.add_entry(db, poll, q, lv.device_hash(raw), value)
+        if error:
+            return JSONResponse({"ok": False, "error": error}, status_code=400)
+    else:
+        lv.save_answer(db, poll, q, lv.device_hash(raw), value)
     db.commit()
     return JSONResponse({"ok": True, **lv.state(db, poll, lv.device_hash(raw))})
+
+
+@app.post("/l/{token}/upvote")
+async def live_upvote(request: Request, token: str, db: Session = Depends(get_db)):
+    """Q&A: Frage hochstimmen bzw. Stimme zurücknehmen (je Gerät einmal)."""
+    rate_limit(request, "live-answer", limit=120, window=60)
+    poll = _public_poll(db, token)
+    raw = _device(request)
+    if not raw or request.headers.get("x-live-device") != raw:
+        raise HTTPException(403, "Bitte die Seite neu laden.")
+    try:
+        body = json.loads((await request.body())[:2000] or b"{}")
+    except ValueError:
+        body = {}
+    q = next((x for x in poll.questions if str(x.id) == str(body.get("question"))), None)
+    if q is None or poll.status != "open" or (poll.pacing == "moderated" and q.id != poll.current_id):
+        return JSONResponse({"ok": False, "error": "Diese Frage ist gerade nicht aktiv."}, status_code=409)
+    error = lv.upvote(db, q, int(body.get("answer") or 0), lv.device_hash(raw))
+    if error:
+        return JSONResponse({"ok": False, "error": error}, status_code=400)
+    db.commit()
+    return JSONResponse({"ok": True, **lv.state(db, poll, lv.device_hash(raw))})
+
+
+@app.post("/votes/live/{poll_id:int}/beitraege/{aid:int}/{action}", dependencies=[Depends(check_csrf)])
+def live_entry_action(request: Request, poll_id: int, aid: int, action: str, user: User = Depends(vote_user),
+                      db: Session = Depends(get_db)):
+    """Moderation von Pinnwand- und Q&A-Beiträgen: freigeben, ausblenden, beantwortet markieren."""
+    from .db import LiveAnswer
+    poll = _poll(db, poll_id, user)
+    a = db.get(LiveAnswer, aid)
+    if a is None or a.poll_id != poll.id:
+        raise HTTPException(404)
+    error = lv.moderate_entry(a, action)
+    if error:
+        raise HTTPException(400, error)
+    db.commit()
+    if request.headers.get("accept", "").startswith("application/json"):
+        return JSONResponse(lv.state(db, poll, staff=True))
+    return redirect(f"/votes/live/{poll.id}#frage-{a.question_id}")

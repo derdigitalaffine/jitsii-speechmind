@@ -11,6 +11,12 @@
     <textarea class="form-control" id="{{ fid }}-o" name="options" rows="4" required>{% if q %}{% for o in opts(q) %}{{ o.label }}
 {% endfor %}{% endif %}</textarea></div>
   {% if k == 'multi' %}<div class="col-md-4"><label class="form-label small" for="{{ fid }}-mx">Höchstens wählbar</label><input class="form-control" type="number" id="{{ fid }}-mx" name="max_choices" min="1" max="20" value="{{ st.max_choices or 3 }}"></div>{% endif %}
+  {% elif k in ('open', 'qa') %}
+  <div class="col-sm-4"><label class="form-label small" for="{{ fid }}-me">Beiträge je Person</label><input class="form-control" type="number" id="{{ fid }}-me" name="max_entries" min="1" max="20" value="{{ st.max_entries if q else (3 if k == 'open' else 5) }}"></div>
+  <div class="col-sm-4"><label class="form-label small" for="{{ fid }}-ml">Höchstlänge</label><div class="input-group"><input class="form-control" type="number" id="{{ fid }}-ml" name="max_len" min="20" max="1000" value="{{ st.max_len if q else 280 }}"><span class="input-group-text">Zeichen</span></div></div>
+  <div class="col-sm-4 d-flex flex-column justify-content-end">
+    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="{{ fid }}-ap" name="approve" value="1" {% if (q and st.approve) or (not q and k == 'qa') %}checked{% endif %}><label class="form-check-label small" for="{{ fid }}-ap">Freigabe vor Anzeige</label></div>
+    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="{{ fid }}-bf" name="filter" value="1" {% if not q or st.filter %}checked{% endif %}><label class="form-check-label small" for="{{ fid }}-bf">Schimpfwortfilter</label></div></div>
   {% elif k == 'words' %}
   <div class="col-sm-4"><label class="form-label small" for="{{ fid }}-mw">Begriffe je Person</label><input class="form-control" type="number" id="{{ fid }}-mw" name="max_words" min="1" max="10" value="{{ st.max_words if q else 3 }}"></div>
   <div class="col-sm-4"><label class="form-label small" for="{{ fid }}-ml">Höchstlänge</label><div class="input-group"><input class="form-control" type="number" id="{{ fid }}-ml" name="max_len" min="5" max="60" value="{{ st.max_len if q else 30 }}"><span class="input-group-text">Zeichen</span></div></div>
@@ -82,6 +88,22 @@
               </form></td></tr>{% endfor %}
             </tbody></table></div>
           {% else %}<p class="small text-secondary mb-0">Noch keine Begriffe.</p>{% endif %}
+        </div>
+        {% elif q.kind in ('open', 'qa') %}
+        {% set es = entries[q.id] %}{% set pending = es | selectattr('approved', 'equalto', false) | rejectattr('hidden') | list %}
+        <div class="mb-3">
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2"><strong class="small">Beiträge moderieren</strong>
+            {% if pending %}<span class="badge text-bg-warning">{{ pending | length }} warten auf Freigabe</span>{% endif %}
+            <a class="btn btn-sm btn-outline-secondary ms-auto" href="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/export.csv"><i class="fa-solid fa-file-csv me-1"></i>CSV</a></div>
+          {% if es %}
+          <ul class="list-group small live-mod-list">{% for e in es %}
+            <li class="list-group-item d-flex flex-wrap gap-2 align-items-start {{ 'list-group-item-warning' if not e.approved and not e.hidden }} {{ 'text-secondary text-decoration-line-through' if e.hidden }}">
+              <span class="flex-grow-1">{{ e.text }}{% if q.kind == 'qa' %} <span class="badge text-bg-light border"><i class="fa-solid fa-thumbs-up me-1"></i>{{ e.upvotes }}</span>{% endif %}{% if e.answered %} <span class="badge text-bg-success">beantwortet</span>{% endif %}</span>
+              <form method="post" action="/votes/live/{{ poll.id }}/beitraege/{{ e.id }}/approve" class="d-inline">{% if not e.approved or e.hidden %}<input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-success py-0">freigeben</button>{% endif %}</form>
+              {% if not e.hidden %}<form method="post" action="/votes/live/{{ poll.id }}/beitraege/{{ e.id }}/hide" class="d-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-secondary py-0">ausblenden</button></form>{% endif %}
+              {% if q.kind == 'qa' and e.approved and not e.hidden %}<form method="post" action="/votes/live/{{ poll.id }}/beitraege/{{ e.id }}/answered" class="d-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-primary py-0">{{ 'offen' if e.answered else 'beantwortet' }}</button></form>{% endif %}
+            </li>{% endfor %}</ul>
+          {% else %}<p class="small text-secondary mb-0">Noch keine Beiträge.</p>{% endif %}
         </div>
         {% else %}
         <div class="mb-3 small"><a href="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/export.csv"><i class="fa-solid fa-file-csv me-1"></i>Ergebnis als CSV</a></div>

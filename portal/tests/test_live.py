@@ -1,6 +1,8 @@
 """Live-Umfragen: anlegen, Fragen (Auswahl, Ja/Nein, Skala, Sterne, Schieberegler), Teilnahme per QR ohne Namen
 (je Gerät eine änderbare Antwort), moderierter/freier Ablauf, Ergebnis sofort/nach Freigabe, Präsentationsmodus."""
 
+import json
+
 import pytest
 from sqlalchemy import delete, select
 
@@ -163,3 +165,58 @@ def test_word_cloud_normalize_filter_moderate_export():
     assert png.headers["content-type"] == "image/png" and png.content[:8] == b"\x89PNG\r\n\x1a\n"
     st = c1.get(f"/l/{token}/state.json").json()
     assert st["questions"][0]["mine"] == {"w": ["Radweg", "Café"]} and st["questions"][0]["results"]["rows"][0]["label"] == "Radweg"
+
+
+def test_wall_and_qa_with_approval_upvotes_and_moderation():
+    admin = login(*ADMIN)
+    page = admin.get("/votes")
+    r = admin.post("/votes/live/new", data={"csrf": csrf_of(page.text), "title": "Podium", "pacing": "free"})
+    pid = int(r.headers["location"].rsplit("/", 1)[1])
+    tok = csrf_of(admin.get(f"/votes/live/{pid}").text)
+    admin.post(f"/votes/live/{pid}/fragen", data={"csrf": tok, "kind": "open", "title": "Ihre Wünsche", "max_entries": "2",
+                                                  "filter": "1"})
+    admin.post(f"/votes/live/{pid}/fragen", data={"csrf": tok, "kind": "qa", "title": "Fragen an den Bürgermeister",
+                                                  "approve": "1", "filter": "1"})
+    admin.post(f"/votes/live/{pid}/status", data={"csrf": tok, "action": "open"})
+    with SessionLocal() as db:
+        poll = db.get(LivePoll, pid)
+        wall, qa, token = poll.questions[0].id, poll.questions[1].id, poll.public_token
+    c1, d1 = join(token)
+    c2, d2 = join(token)
+    # Pinnwand: ohne Freigabe sofort sichtbar, höchstens 2 je Person, keine Dubletten, Filter
+    assert answer(c1, token, d1, wall, {"t": "Mehr Bänke am Weiher"}).json()["ok"]
+    assert answer(c1, token, d1, wall, {"t": "mehr bänke am weiher"}).json()["error"].startswith("Diesen Beitrag")
+    assert "beleidigende" in answer(c1, token, d1, wall, {"t": "Der Rat ist ein Idiot"}).json()["error"]
+    assert answer(c1, token, d1, wall, {"t": "Öffentliches WLAN"}).json()["ok"]
+    assert "Höchstens 2" in answer(c1, token, d1, wall, {"t": "Noch was"}).json()["error"]
+    st = c2.get(f"/l/{token}/state.json").json()
+    assert [e["text"] for e in st["questions"][0]["entries"]] == ["Öffentliches WLAN", "Mehr Bänke am Weiher"]
+    # Q&A: erst nach Freigabe für andere sichtbar
+    r = answer(c1, token, d1, qa, {"t": "Wann kommt der Radweg?"}).json()
+    own = r["questions"][1]["entries"]
+    assert own[0]["mine"] and not own[0]["approved"]
+    assert c2.get(f"/l/{token}/state.json").json()["questions"][1]["entries"] == []
+    answer(c2, token, d2, qa, {"t": "Was kostet das neue Bürgerhaus?"})
+    with SessionLocal() as db:
+        ids = {json.loads(a.value_json)["t"]: a.id for a in db.scalars(select(LiveAnswer).where(LiveAnswer.question_id == qa))}
+    edit = admin.get(f"/votes/live/{pid}")
+    assert "2 warten auf Freigabe" in edit.text
+    for t in ids.values():
+        admin.post(f"/votes/live/{pid}/beitraege/{t}/approve", data={"csrf": tok})
+    # Upvotes: je Gerät einmal, eigene nicht, Umschalten nimmt zurück
+    up = lambda c, d, aid: c.post(f"/l/{token}/upvote", json={"question": qa, "answer": aid}, headers={"X-Live-Device": d})
+    assert up(c2, d2, ids["Wann kommt der Radweg?"]).json()["ok"]
+    assert up(c2, d2, ids["Was kostet das neue Bürgerhaus?"]).json()["error"].startswith("Eigene")
+    c3, d3 = join(token)
+    up(c3, d3, ids["Wann kommt der Radweg?"])
+    up(c3, d3, ids["Was kostet das neue Bürgerhaus?"])
+    up(c3, d3, ids["Was kostet das neue Bürgerhaus?"])                      # zurückgenommen
+    entries = c3.get(f"/l/{token}/state.json").json()["questions"][1]["entries"]
+    assert [(e["text"], e["upvotes"]) for e in entries] == [("Wann kommt der Radweg?", 2), ("Was kostet das neue Bürgerhaus?", 0)]
+    # beantwortet → ans Ende, ausblenden → für alle weg
+    admin.post(f"/votes/live/{pid}/beitraege/{ids['Wann kommt der Radweg?']}/answered", data={"csrf": tok})
+    admin.post(f"/votes/live/{pid}/beitraege/{ids['Was kostet das neue Bürgerhaus?']}/hide", data={"csrf": tok})
+    entries = c3.get(f"/l/{token}/state.json").json()["questions"][1]["entries"]
+    assert [(e["text"], e["answered"]) for e in entries] == [("Wann kommt der Radweg?", True)]
+    csv = admin.get(f"/votes/live/{pid}/fragen/{qa}/export.csv").text
+    assert "Wann kommt der Radweg?;2;beantwortet" in csv and "ausgeblendet" in csv

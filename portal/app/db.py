@@ -1118,6 +1118,14 @@ class LiveAnswer(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class LiveUpvote(Base):
+    """Q&A: „Diese Frage interessiert mich auch“ – je Gerät höchstens einmal je Beitrag."""
+    __tablename__ = "live_upvotes"
+
+    answer_id: Mapped[int] = mapped_column(ForeignKey("live_answers.id", ondelete="CASCADE"), primary_key=True)
+    device: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+
 class VoteShare(Base):
     """Freigabe einer Abstimmung im Portal (Stufen wie bei Formularen, siehe shares.py)."""
     __tablename__ = "vote_shares"
