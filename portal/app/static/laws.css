@@ -137,3 +137,26 @@
 .lex-toc a { overflow-wrap: anywhere; }
 
 .lex-browser-tools .btn, .lex-toc-controls .btn { min-height: 2.75rem; }
+
+/* Search-first catalogue: flat cards with a mobile-first filter form. */
+.lex-catalog-hero { padding: 1.5rem; }
+.lex-catalog-form .form-control, .lex-catalog-form .form-select, .lex-catalog-form .btn,
+.lex-topic-links .btn, .lex-law-card .btn, .lex-catalog-pages .btn { min-height: 2.75rem; }
+.lex-catalog-form .form-control { min-width: 0; }
+.lex-catalog-more > summary { min-height: 2.75rem; display: list-item; cursor: pointer; padding: .5rem 0; }
+.lex-topic-links .btn { white-space: normal; text-align: left; }
+.lex-catalog-grid { display: grid; grid-template-columns: minmax(0,1fr); gap: 1rem; }
+.lex-law-card { min-width: 0; border-color: var(--bs-border-color); }
+.lex-law-card:hover { border-color: rgba(var(--bs-primary-rgb), .55); }
+.lex-law-card .card-body { display: flex; flex-direction: column; min-width: 0; padding: 1.15rem; }
+.lex-law-title { display: block; min-height: 2.75rem; color: var(--bs-body-color); line-height: 1.45; text-decoration: none; white-space: normal; overflow-wrap: anywhere; hyphens: auto; }
+.lex-law-title:hover { color: var(--bs-primary); text-decoration: underline; }
+.lex-law-meta { display: flex; gap: .4rem; flex-wrap: wrap; }
+.lex-law-meta .badge { white-space: normal; line-height: 1.4; text-align: left; }
+.lex-law-place, .lex-law-topics { overflow-wrap: anywhere; }
+.lex-law-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin-top: auto; padding-top: .8rem; }
+.lex-law-title:focus-visible { outline: 3px solid rgba(var(--bs-primary-rgb), .7); outline-offset: 3px; }
+.lex-catalog-empty { grid-column: 1/-1; }
+@media (min-width: 768px) { .lex-catalog-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 575.98px) { .lex-catalog-hero { padding: 1rem; } .lex-law-card .card-body { padding: 1rem; } .lex-topic-links .btn { font-size: .9rem; } }
+@media print { .lex-catalog-form, .lex-topic-links, .lex-catalog-pages { display: none; } .lex-law-card { break-inside: avoid; } }
