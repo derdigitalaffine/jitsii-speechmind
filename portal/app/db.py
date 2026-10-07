@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import (
-    Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, create_engine, event, inspect, select, text,
+    Boolean, Date, DateTime, Float, UniqueConstraint, ForeignKey, Integer, String, Text, create_engine, event, inspect, select, text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
@@ -100,6 +100,9 @@ class User(Base):
 
 # Bereiche, die einzeln pro Benutzer freigeschaltet werden
 PERMISSIONS = {
+    "circulations_create": ("Umläufe erstellen", "fa-folder-open", "Aushänge und Sammelmappen als Entwurf erstellen"),
+    "circulations_publish": ("Umläufe veröffentlichen", "fa-bullhorn", "Eigene Umläufe veröffentlichen und redaktionell freigegebene Entwürfe übernehmen"),
+    "circulations_manage": ("Umläufe verwalten", "fa-list-check", "Fremde Umläufe, Nachweise, Ausnahmen und Verteiler verwalten"),
     "locations_manage": ("Zentrale Orte pflegen", "fa-location-dot", "Dienststätten und Einrichtungen als Start-/Zielpunkte pflegen und importieren"),
     "internal_forms": ("Interne Formulare ausfüllen", "fa-user-lock", "Beschäftigte dürfen geschützte interne Formulare und Anträge einreichen"),
     "video": ("Videokonferenzen", "fa-video", "Meetings anlegen, planen, moderieren und aufnehmen"),
@@ -124,6 +127,82 @@ PERMISSIONS = {
     "users": ("Benutzerverwaltung", "fa-users-gear", "Benutzer und Gruppen anlegen, bearbeiten und löschen"),
 }
 
+
+
+class Circulation(Base):
+    """Editable draft; published versions and their acknowledgements remain separate."""
+    __tablename__ = "circulations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    draft_json: Mapped[str] = mapped_column(Text, default="{}")
+    current_version: Mapped[int] = mapped_column(Integer, default=0)
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class CirculationVersion(Base):
+    __tablename__ = "circulation_versions"
+    __table_args__ = (UniqueConstraint("circulation_id", "number"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    circulation_id: Mapped[int] = mapped_column(ForeignKey("circulations.id"), index=True)
+    number: Mapped[int] = mapped_column(Integer)
+    content_json: Mapped[str] = mapped_column(Text)
+    digest: Mapped[str] = mapped_column(String(64))
+    published_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    published_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class CirculationRecipient(Base):
+    __tablename__ = "circulation_recipients"
+    __table_args__ = (UniqueConstraint("version_id", "user_id"), UniqueConstraint("version_id", "email"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    version_id: Mapped[int] = mapped_column(ForeignKey("circulation_versions.id"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    email: Mapped[str] = mapped_column(String(255))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
+    token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    decision: Mapped[str] = mapped_column(String(24), default="")
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reason: Mapped[str] = mapped_column(Text, default="")
+    recorded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+
+class CirculationReceipt(Base):
+    __tablename__ = "circulation_receipts"
+    __table_args__ = (UniqueConstraint("recipient_id", "item_key"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    recipient_id: Mapped[int] = mapped_column(ForeignKey("circulation_recipients.id"), index=True)
+    item_key: Mapped[str] = mapped_column(String(80))
+    acknowledged_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    method: Mapped[str] = mapped_column(String(24), default="self")
+    recorded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    evidence: Mapped[str] = mapped_column(Text, default="")
+
+
+class CirculationEvent(Base):
+    __tablename__ = "circulation_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    circulation_id: Mapped[int] = mapped_column(ForeignKey("circulations.id"), index=True)
+    version_id: Mapped[int | None] = mapped_column(ForeignKey("circulation_versions.id"), nullable=True)
+    recipient_id: Mapped[int | None] = mapped_column(ForeignKey("circulation_recipients.id"), nullable=True)
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    kind: Mapped[str] = mapped_column(String(30))
+    text: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class CirculationDistributor(Base):
+    __tablename__ = "circulation_distributors"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    audience_json: Mapped[str] = mapped_column(Text, default="{}")
 
 class GroupMember(Base):
     __tablename__ = "group_members"
@@ -2427,6 +2506,7 @@ DEFAULT_SETTINGS = {
     # Online-Anträge (Teil des Formularservers) und öffentlicher Antragskatalog
     "module_applications": "1",
     "module_dms": "1",
+    "module_circulations": "1",
     "module_resources": "1",
     "holiday_state": "RP",            # Bundesland für Feiertagspreise
     "resources_embed": "1",

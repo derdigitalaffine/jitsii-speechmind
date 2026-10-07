@@ -114,6 +114,8 @@ ITEMS: list[Item] = [
     Item("krank_staff", "service", "/krankmelder", "fa-user-nurse", "Krankmeldungen",
          lambda c: bool(c.krank_nav.get("staff")), _pre("/krankmelder"), _krank_badge),
     # Kommunikation
+    Item("circulations", "comm", "/umlaeufe", "fa-bullhorn", "Umläufe & Aushänge",
+         lambda c: "circulations" in c.modules, _pre("/umlaeufe")),
     Item("meetings", "comm", "/meetings", "fa-video", "Meetings", lambda c: c.can("video"),
          lambda p: (p == "/meetings" or p.startswith("/meetings/")) and p != "/meetings/plan"),
     Item("meeting_plan", "comm", "/meetings/plan", "fa-calendar-plus", "Besprechung planen", lambda c: c.can("video"),

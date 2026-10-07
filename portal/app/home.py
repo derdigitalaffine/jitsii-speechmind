@@ -13,6 +13,7 @@ from .db import (
 )
 
 TILES = {
+    "circulations": ("Umläufe & Kenntnisnahmen", "fa-bullhorn"),
     "tasks": ("Meine Aufgaben", "fa-list-check"),
     "applications": ("Antragseingang", "fa-file-signature"),
     "meetings": ("Termine & Meetings", "fa-video"),
@@ -199,6 +200,8 @@ def tiles(db, user: User, modules: set, ctx=None, cache: dict | None = None) -> 
     cache = cache if cache is not None else {}
     from . import dms
     available = []
+    if "circulations" in modules:
+        available.append("circulations")
     if "applications" in modules and _case_worker(db, user):
         available += ["tasks", "applications"]
     if user.can("video"):
@@ -232,7 +235,8 @@ def tiles(db, user: User, modules: set, ctx=None, cache: dict | None = None) -> 
     p = prefs(user)
     order = [k for k in p.get("order", []) if k in available] + [k for k in available if k not in p.get("order", [])]
     hidden = set(p.get("hidden", []))
-    loaders = {"tasks": _tasks, "applications": _applications, "meetings": _meetings, "polls": _polls,
+    from . import circulations
+    loaders = {"circulations": circulations.overview,"tasks": _tasks, "applications": _applications, "meetings": _meetings, "polls": _polls,
                "bookings": _bookings, "inbox": _inbox, "responses": _responses, "dms": _dms,
                "resources": _resources, "krank": _krank, "votes": _votes, "laws": _laws, "shortlinks": _shortlinks,
                "favorites": lambda d, u: _favorites(d, u, ctx), "absence": _absence}
