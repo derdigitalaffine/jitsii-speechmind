@@ -2330,6 +2330,10 @@ DEFAULT_SETTINGS = {
     "resources_embed": "1",
     "resources_embed_origins": "",
     # Zahlungen (PayPal Checkout, Überweisung, bar) – siehe payments.py
+    "epaybl_operator": "",
+    "epaybl_tenant": "",
+    "epaybl_interface": "",
+    "epaybl_accounting_reference": "",
     "paypal_enabled": "0",
     "paypal_mode": "sandbox",          # sandbox | live
     "paypal_client_id": "",

@@ -280,7 +280,7 @@ async def resource_save(request: Request, rid: int, user: User = Depends(current
     res.buffer_after = _int(data.get("buffer_after"), 0, 1440, 0)
     for key in ("price_day", "price_block", "price_hour", "wkd_day", "wkd_block", "wkd_hour", "deposit_cents"):
         setattr(res, key, rs.parse_cents(data.get(key, "")))
-    res.pay_methods = ",".join(m for m in ("paypal", "transfer", "cash") if m in data.getlist("pay_methods")) or "transfer"
+    res.pay_methods = ",".join(m for m in ("paypal", "transfer", "cash", "epaybl") if m in data.getlist("pay_methods")) or "transfer"
     res.pay_days = _int(data.get("pay_days"), 1, 90, 7)
     res.cost_center = text("cost_center", 120)
     res.self_cancel = data.get("self_cancel") == "1"

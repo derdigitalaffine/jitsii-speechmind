@@ -816,7 +816,7 @@ def new_payment(db, bookings: list[ResourceBooking]):
     methods = set((res.pay_methods or "transfer").split(","))
     for b in bookings[1:]:
         methods &= set((b.resource.pay_methods or "transfer").split(","))
-    method_text = "transfer" if invoice else ",".join(m for m in ("paypal", "transfer", "cash") if m in methods) or "transfer"
+    method_text = "transfer" if invoice else ",".join(m for m in ("paypal", "transfer", "cash", "epaybl") if m in methods) or "transfer"
     many = len(bookings) > 1
     lines = [{"label": (f"{b.resource.name}: " if many else "") + ln["label"], "qty": 1, "unit_cents": ln["cents"]}
              for b in bookings for ln in lines_of(b)]

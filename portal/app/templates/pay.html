@@ -14,6 +14,7 @@
     </div>
   </div></div>
 
+  {% if 'epaybl' in p.methods.split(',') %}<div class="alert alert-info" role="status">ePayBL ist vorbereitet, aber noch nicht verfügbar. Bitte einen angebotenen Zahlweg nutzen.</div>{% endif %}
   {% if notice %}<div class="alert alert-warning" role="status"><i class="fa-solid fa-circle-info me-1"></i>{{ notice }}</div>{% endif %}
 
   {% if items %}

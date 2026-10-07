@@ -206,7 +206,7 @@ def clean_definition(raw) -> dict:
             raw_methods = src.get("methods") or ["paypal", "transfer"]
             if isinstance(raw_methods, str):
                 raw_methods = raw_methods.split(",")
-            step["methods"] = [m for m in raw_methods if m in ("paypal", "transfer", "cash")] or ["transfer"]
+            step["methods"] = [m for m in raw_methods if m in ("paypal", "transfer", "cash", "epaybl")] or ["transfer"]
             step["on_expire"] = src.get("on_expire") if src.get("on_expire") in EXPIRE_ACTIONS else "notify"
             step["cost_center"] = _s(src.get("cost_center"), 120)
             step["message"] = _s(src.get("message"), 5000)
