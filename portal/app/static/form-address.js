@@ -4,11 +4,11 @@
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var getJSON = function (url) { return fetch(url, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.json(); }); };
 
-  var policy = getJSON('/geo/info');
+  var policy = GeoSearch.policy;
   document.querySelectorAll('.js-address').forEach(function (box) {
     var ready = false, publicOnly = true;
-    policy.then(function (d) { publicOnly = d.public_only; ready = true; var scope = box.querySelector('.js-addr-public-scope'); if (scope) { scope.classList.toggle('d-none', !publicOnly); } }).catch(function () { say('Adressdienst nicht verfügbar. Bitte manuell ausfüllen.', true); });
-    function permitted() { var control = box.querySelector('.js-addr-public'); if (!ready || (publicOnly && (!control || !control.checked))) { say('Bitte bestätigen, dass nur ein öffentlicher Ort gesucht wird; persönliche Adressen manuell eingeben.', true); return false; } return true; }
+    policy.then(function (d) { publicOnly = d.public_only; ready = true; var scope = box.querySelector('.js-addr-public-scope'); if (scope) { scope.classList.toggle('d-none', !publicOnly); } var button = box.querySelector('.js-addr-run'); if (button) { button.textContent = publicOnly ? 'Öffentlichen Ort suchen' : 'Adresse suchen'; } var gps = box.querySelector('.js-addr-locate'); if (gps) { gps.disabled = publicOnly; gps.title = publicOnly ? 'Für persönliche Standorte einen eigenen geeigneten Adressdienst konfigurieren.' : ''; } }).catch(function () { say('Adressdienst nicht verfügbar. Bitte manuell ausfüllen.', true); });
+    function permitted() { if (!ready) { say('Adressdienst wird geladen. Bitte kurz warten.', true); return false; } return true; }
     var name = box.dataset.name, full = !!box.dataset.full;
     var f = function (part) { return box.querySelector('[name="' + name + '__' + part + '"]'); };
     var info = box.querySelector('.js-addr-info'), help = info ? info.textContent : '';
@@ -35,19 +35,12 @@
       }).join('');
       results.classList.remove('d-none');
     }
-    function run() {
-      if (!permitted()) { return; }
-      var q = search.value.trim();
-      if (q.length < 3 || q === lastQuery) { return; }
-      lastQuery = q;
-      var version = ++requestVersion;
-      results.innerHTML = '<div class="list-group-item small text-secondary"><span class="spinner-border spinner-border-sm me-2"></span>Suche …</div>';
-      results.classList.remove('d-none');
-      getJSON('/geo/search?public_place=1&q=' + encodeURIComponent(q)).then(function (d) { if (version !== requestVersion || search.value.trim() !== q) { return; } found = d.results || []; active = -1; render(); })
-        .catch(function () { if (version !== requestVersion || search.value.trim() !== q) { return; } results.innerHTML = '<div class="list-group-item small text-danger">Suche gerade nicht möglich – bitte Felder selbst ausfüllen.</div>'; });
-    }
+    var run = search ? GeoSearch.bind(search, function (items, live) {
+      found = items; active = -1;
+      if (live && !items.length) { close(); return; }
+      render();
+    }, function () { say('Suche gerade nicht möglich – bitte Felder selbst ausfüllen.', true); }) : function () {};
     if (search) {
-      search.addEventListener('input', function () { lastQuery = ''; close(); });
       box.querySelector('.js-addr-run').addEventListener('click', run);
       search.addEventListener('keydown', function (ev) {
         if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); if (active >= 0 && found[active]) { fill(found[active]); close(); } else { clearTimeout(timer); lastQuery = ''; run(); } }
@@ -65,7 +58,7 @@
     var locate = box.querySelector('.js-addr-locate');
     if (locate) {
       locate.addEventListener('click', function () {
-        if (!permitted()) { return; }
+        if (!permitted() || publicOnly) { say('Für persönliche Standorte einen eigenen geeigneten Adressdienst konfigurieren.', true); return; }
         if (!navigator.geolocation) { say('Ihr Browser kann den Standort nicht ermitteln.', true); return; }
         var old = locate.innerHTML;
         locate.disabled = true; locate.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Standort wird ermittelt …';
@@ -81,29 +74,37 @@
       });
     }
 
-    var zip = f('zip'), city = f('city'), lastZip = '';
-    if (zip) {
-      box.querySelector('.js-addr-postcode').addEventListener('click', function () {
-        zip.value = zip.value.replace(/\D/g, '').slice(0, 5);
-        if (zip.value.length !== 5) { return; }
-        lastZip = zip.value;
-        var requestedZip = zip.value, requestedCity = city.value;
-        getJSON('/geo/postcode?plz=' + zip.value).then(function (d) {
-          if (zip.value !== requestedZip || city.value !== requestedCity) { return; }
-          var list = d.results || [];
-          if (cities) { cities.innerHTML = list.map(function (r) { return '<option value="' + esc(r.city) + '">' + esc(r.district ? r.city + ' – ' + r.district : r.city) + '</option>'; }).join(''); }
-          if (!list.length) { say('Zu dieser PLZ ist kein Ort bekannt – bitte selbst eintragen.'); return; }
-          var names = list.map(function (r) { return r.city; }).filter(function (v, i, a) { return a.indexOf(v) === i; });
-          if (names.length === 1 && !city.value.trim()) {
-            city.value = names[0];
-            city.dispatchEvent(new Event('input', { bubbles: true }));
-            say('Ort zur PLZ ergänzt.');
-          } else if (names.length > 1) {
-            say('Mehrere Orte zu dieser PLZ: ' + names.join(', ') + ' – bitte im Feld „Ort“ auswählen.');
-            if (!city.value.trim()) { city.focus(); }
-          }
-        }).catch(function () { /* ohne Ortsvorschlag weiter */ });
-      });
+    var zip = f('zip'), city = f('city'), lastZip = '', zipTimer, zipVersion = 0;
+    var cityChoices = box.querySelector('.js-addr-city-choices'), autoCity = '';
+    function pickCity(r) {
+      city.value = r.city; autoCity = r.city;
+      if (f('district')) { f('district').value = r.district || ''; }
+      if (f('lat')) { f('lat').value = ''; f('lon').value = ''; }
+      city.dispatchEvent(new Event('input', {bubbles: true}));
+      cityChoices.replaceChildren(); say('Ort zur PLZ übernommen.');
+    }
+    function lookupZip() {
+      if (!/^\d{5}$/.test(zip.value) || zip.value === lastZip) { return; }
+      var requestedZip = zip.value, requestedCity = city.value, version = ++zipVersion;
+      lastZip = requestedZip;
+      getJSON('/geo/postcode?plz=' + requestedZip).then(function (d) {
+        if (version !== zipVersion || zip.value !== requestedZip || city.value !== requestedCity) { return; }
+        var list = d.results || [];
+        if (cities) { cities.innerHTML = list.map(function (r) { return '<option value="' + esc(r.city) + '">' + esc(r.district ? r.city + ' – ' + r.district : r.city) + '</option>'; }).join(''); }
+        cityChoices.replaceChildren();
+        if (!list.length) { say('Zu dieser PLZ ist kein Ort bekannt – bitte selbst eintragen.'); lastZip = ''; return; }
+        if (list.length === 1 && (!city.value.trim() || city.value === autoCity)) { pickCity(list[0]); return; }
+        list.forEach(function (r) {
+          var button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-outline-primary text-start';
+          button.textContent = r.city + (r.district ? ' · ' + r.district : '');
+          button.addEventListener('click', function () { pickCity(r); }); cityChoices.append(button);
+        });
+        say('Ort mit einem Klick auswählen. Vorhandene Eingaben bleiben erhalten.');
+      }).catch(function () { if (version === zipVersion) { lastZip = ''; say('Ortsvorschläge gerade nicht verfügbar – bitte Ort selbst eintragen.'); } });
+    }
+    if (zip && cityChoices) {
+      zip.addEventListener('input', function () { clearTimeout(zipTimer); ++zipVersion; lastZip = ''; cityChoices.replaceChildren(); if (/^\d{5}$/.test(zip.value)) { zipTimer = setTimeout(lookupZip, 600); } });
+      zip.addEventListener('change', lookupZip);
     }
     // Manuelle Änderung der Adresse: gespeicherte Koordinate passt nicht mehr
     ['street', 'house_no', 'zip', 'city'].forEach(function (k) {

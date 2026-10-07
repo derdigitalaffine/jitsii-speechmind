@@ -96,6 +96,7 @@ async def location_services(request:Request,user=Depends(admin_user),db=Depends(
         if parsed.scheme not in ('https','http') or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
             flash(request,'Bitte gültige Dienstadressen ohne Zugangsdaten angeben.','error');return redirect('/settings/locations')
     for key,url in urls.items():set_setting(db,'routing_'+key+'_url',url[:500])
+    set_setting(db,'routing_auto','1' if data.get('routing_auto')=='1' else '0')
     groups={str(g.id) for g in db.scalars(select(Group))}
     set_setting(db,'location_manager_groups',','.join(x for x in data.getlist('manager_groups') if x in groups))
     db.commit();flash(request,'Dienste und Pflegeberechtigungen gespeichert.');return redirect('/settings/locations')
@@ -106,6 +107,7 @@ def location_options(request:Request,db=Depends(get_db)):
     user=session_user(request,db)
     favorites=set(db.scalars(select(LocationFavorite.location_id).where(LocationFavorite.user_id==user.id))) if user else set()
     return JSONResponse({'locations':[locations.data(p)|{'label':locations.label(p),'favorite':p.id in favorites} for p in locations.visible(db,user)],
+                         'routing_auto':get_settings(db).get('routing_auto','1')=='1',
                          'categories':{k:v[0] for k,v in routing.CATEGORIES.items()},
                          'public_routing':{k:routing.public_service(v) for k,v in routing.config().items()}},headers={'Cache-Control':'no-store'})
 

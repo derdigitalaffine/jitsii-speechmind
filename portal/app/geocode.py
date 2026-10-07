@@ -8,8 +8,6 @@ Nominatim-Dienstes). Ein eigener Nominatim-Server lässt sich in den Karteneinst
 import hashlib
 import json
 import re
-import threading
-import time
 from datetime import timedelta
 from urllib.parse import urlparse
 from .geo_services import paced
@@ -22,8 +20,6 @@ from .db import GeoCache, SessionLocal, get_settings, utcnow
 
 DEFAULT_URL = "https://nominatim.openstreetmap.org"
 CACHE_DAYS = 30
-_lock = threading.Lock()
-_last = [0.0]
 ZIP_RE = re.compile(r"^\d{5}$")
 
 
@@ -32,10 +28,12 @@ def config() -> dict:
         cfg = get_settings(db)
     return {"url": (cfg.get("geocoder_url") or DEFAULT_URL).rstrip("/"),
             "countries": cfg.get("geocoder_countries", "de") or "",
+            "search_mode": cfg.get("geocoder_search_mode", "auto"),
+            "delay_ms": cfg.get("geocoder_delay_ms", "300"),
             "contact": cfg.get("geocoder_contact") or cfg.get("mail_from") or ""}
 
 
-def _fetch(path: str, params: dict) -> list | dict | None:
+def _fetch(path: str, params: dict, cache_only: bool = False) -> list | dict | None:
     cfg = config()
     params = {**params, "format": "jsonv2", "addressdetails": 1}
     if cfg["countries"] and path == "/search":
@@ -45,15 +43,16 @@ def _fetch(path: str, params: dict) -> list | dict | None:
         hit = db.get(GeoCache, key)
         if hit and hit.created_at > utcnow() - timedelta(days=CACHE_DAYS):
             return json.loads(hit.value_json)
+    if cache_only:
+        return None
     headers = {"User-Agent": f"Verwaltungsportal ({settings.portal_base_url}{'; ' + cfg['contact'] if cfg['contact'] else ''})",
                "Accept-Language": "de"}
-    with paced("geocoder"):   # shared across all server workers
+    with paced("geocoder", 1.05 if public_only() else search_settings()["delay_ms"] / 1000):   # shared across all server workers
         try:
-            r = httpx.get(cfg["url"] + path, params=params, headers=headers, timeout=8, follow_redirects=True)
+            r = httpx.get(cfg["url"] + path, params=params, headers=headers, timeout=8, follow_redirects=False)
             data = r.json() if r.status_code == 200 else None
         except (httpx.HTTPError, ValueError):
             data = None
-        _last[0] = time.monotonic()
     if data is not None:
         with SessionLocal() as db:
             db.merge(GeoCache(key=key, value_json=json.dumps(data), created_at=utcnow()))
@@ -89,11 +88,11 @@ def _label(addr: dict, fallback: str) -> str:
     return ", ".join(parts) or fallback
 
 
-def search(q: str, limit: int = 6) -> list[dict]:
+def search(q: str, limit: int = 6, cache_only: bool = False) -> list[dict]:
     q = " ".join(q.split())[:200]
     if len(q) < 3:
         return []
-    data = _fetch("/search", {"q": q, "limit": max(1, min(limit, 10))}) or []
+    data = _fetch("/search", {"q": q, "limit": max(1, min(limit, 10))}, cache_only=cache_only) or []
     out = []
     for item in data if isinstance(data, list) else []:
         addr = _address(item)
@@ -153,3 +152,18 @@ def cache_count() -> int:
 
 def public_only():
     return (urlparse(config()["url"]).hostname or "").lower() == "nominatim.openstreetmap.org"
+
+
+def search_settings() -> dict:
+    cfg = config()
+    public = (urlparse(cfg["url"]).hostname or "").lower() == "nominatim.openstreetmap.org"
+    mode = cfg.get("search_mode", "auto")
+    if mode not in ("auto", "live", "manual"):
+        mode = "auto"
+    try:
+        delay = max(250, min(5000, int(cfg.get("delay_ms", 300))))
+    except (ValueError, TypeError):
+        delay = 300
+    return {"public_only": public, "search_mode": mode,
+            "live_upstream": not public and mode != "manual",
+            "delay_ms": 1000 if public else delay}

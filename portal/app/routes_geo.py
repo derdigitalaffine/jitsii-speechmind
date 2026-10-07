@@ -9,15 +9,18 @@ from .main import app, rate_limit
 
 
 def _json(data) -> JSONResponse:
-    return JSONResponse(data, headers={"Cache-Control": "private, max-age=3600"})
+    return JSONResponse(data, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/geo/search")
-async def geo_search(request: Request, q: str = "", limit: int = 6, public_place: bool = False):
-    rate_limit(request, "geo", limit=60, window=60)
-    if geocode.public_only() and not public_place:
-        raise HTTPException(400, "Bitte bestätigen, dass nur ein öffentlicher Ort gesucht wird.")
-    return _json({"results": await run_in_threadpool(geocode.search, q, limit)})
+async def geo_search(request: Request, q: str = "", limit: int = 6, public_place: bool = False, live: bool = False):
+    policy = geocode.search_settings()
+    cache_only = live and not policy["live_upstream"]
+    if not cache_only:
+        rate_limit(request, "geo", limit=60 if policy["public_only"] else 240, window=60)
+    if policy["public_only"] and not public_place and not cache_only:
+        raise HTTPException(400, "Öffentliche Orte bitte über den Suchbutton suchen.")
+    return _json({"results": await run_in_threadpool(geocode.search, q, limit, cache_only)})
 
 
 @app.get("/geo/reverse")
@@ -36,4 +39,4 @@ async def geo_postcode(request: Request, plz: str = ""):
 
 @app.get("/geo/info")
 def geo_info():
-    return JSONResponse({"public_only": geocode.public_only()}, headers={"Cache-Control": "no-store"})
+    return JSONResponse(geocode.search_settings(), headers={"Cache-Control": "no-store"})

@@ -2417,6 +2417,9 @@ DEFAULT_SETTINGS = {
     "routing_car_url": "https://routing.openstreetmap.de/routed-car",
     "routing_bike_url": "https://routing.openstreetmap.de/routed-bike",
     "routing_foot_url": "https://routing.openstreetmap.de/routed-foot",
+    "geocoder_search_mode": "auto",
+    "geocoder_delay_ms": "300",
+    "routing_auto": "1",
     "geocoder_url": "https://nominatim.openstreetmap.org",   # Adress-/Ortssuche (eigener Nominatim-Server möglich)
     "geocoder_countries": "de",
     "geocoder_contact": "",

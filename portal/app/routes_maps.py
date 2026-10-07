@@ -484,7 +484,8 @@ def admin_maps(request: Request, user: User = Depends(maps_admin_user), db: Sess
 def admin_maps_settings(request: Request, map_center_lat: str = Form(""), map_center_lon: str = Form(""),
                         map_zoom: str = Form("11"), map_cache_mb: str = Form("500"), maps_embed: str = Form(""),
                         maps_embed_origins: str = Form(""), geocoder_url: str = Form(""), geocoder_countries: str = Form("de"),
-                        geocoder_contact: str = Form(""), user: User = Depends(maps_admin_user),
+                        geocoder_contact: str = Form(""), geocoder_search_mode: str = Form("auto"),
+                        geocoder_delay_ms: str = Form("300"), user: User = Depends(maps_admin_user),
                         db: Session = Depends(get_db)):
     try:
         lat, lon, zoom = float(map_center_lat.replace(",", ".")), float(map_center_lon.replace(",", ".")), float(map_zoom)
@@ -498,6 +499,14 @@ def admin_maps_settings(request: Request, map_center_lat: str = Form(""), map_ce
     if not re.match(r"^https?://[^\s/]+", geo_url):
         flash(request, "Die Adresse des Geocoders muss mit http:// oder https:// beginnen.", "error")
         return redirect("/admin/maps#einstellungen")
+    try:
+        delay = int(geocoder_delay_ms)
+        assert 250 <= delay <= 5000 and geocoder_search_mode in ("auto", "live", "manual")
+    except (ValueError, AssertionError):
+        flash(request, "Bitte Suchmodus und Verzögerung von 250 bis 5000 ms prüfen.", "error")
+        return redirect("/admin/maps#einstellungen")
+    set_setting(db, "geocoder_search_mode", geocoder_search_mode)
+    set_setting(db, "geocoder_delay_ms", str(delay))
     set_setting(db, "geocoder_url", geo_url[:300])
     set_setting(db, "geocoder_countries", ",".join(c for c in re.split(r"[\s,;]+", geocoder_countries.lower()) if re.fullmatch(r"[a-z]{2}", c)))
     set_setting(db, "geocoder_contact", geocoder_contact.strip()[:200])
