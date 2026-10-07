@@ -7,7 +7,7 @@ from .config import settings
 
 
 @contextmanager
-def paced(service):
+def paced(service, interval=1.05):
     directory = Path(settings.data_dir) / 'service-limits'
     directory.mkdir(parents=True, exist_ok=True)
     with (directory / (service + '.lock')).open('a+') as handle:
@@ -18,7 +18,7 @@ def paced(service):
                 previous = float(handle.read() or 0)
             except ValueError:
                 previous = 0
-            delay = min(1.05, max(0, 1.05 - (time.time() - previous)))
+            delay = min(interval, max(0, interval - (time.time() - previous)))
             if delay:
                 time.sleep(delay)
             yield

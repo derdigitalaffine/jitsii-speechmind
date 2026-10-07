@@ -4,7 +4,7 @@
   'use strict';
   var bundle = JSON.parse(document.getElementById('map-bundle').textContent);
   var publicGeocoder = true;
-  fetch('/geo/info').then(function(r){return r.json();}).then(function(d){publicGeocoder=d.public_only;}).catch(function(){});
+  GeoSearch.policy.then(function(d){publicGeocoder=d.public_only;var hint=document.createElement('div');hint.className='small text-secondary';hint.textContent=publicGeocoder?'Öffentliche Orte: neue Suche mit Enter, gespeicherte Treffer beim Tippen.':'Adresse suchen – Live-Suche gemäß Einstellungen.';document.getElementById('coord-search').append(hint);}).catch(function(){});
   var meta = JSON.parse(document.getElementById('map-meta').textContent);
   var csrf = (document.querySelector('meta[name="csrf"]') || {}).content || '';
   var esc = MapKit.esc;
@@ -143,30 +143,20 @@
     if (Math.abs(a) <= 90) { return (a < 20 && b > 40) ? [a, b] : [b, a]; }   // üblich: Breite, Länge
     return [a, b];
   }
+  var searchInput=document.getElementById('coord-input');
+  function mapResults(res,live) {
+      if (!res.length) { searchBox.innerHTML = live ? '' : '<div class="small text-secondary py-1">Nichts gefunden.</div>'; return; }
+      searchBox.replaceChildren();res.filter(function(r){return r.lat!=null&&r.lon!=null;}).forEach(function(r){var b=document.createElement('button');b.type='button';b.className='list-group-item list-group-item-action small';b.textContent=r.label;b.onclick=function(){jump([r.lon,r.lat],r.label,r.type==='house'?null:r.bbox);};searchBox.append(b);});
+      if(!live&&res.length===1&&res[0].lat!=null&&res[0].lon!=null){jump([res[0].lon,res[0].lat],res[0].label,res[0].type==='house'?null:res[0].bbox);}
+  }
+  var runMapSearch=GeoSearch.bind(searchInput,mapResults,function(){searchBox.textContent='Suche gerade nicht möglich.';});
   document.getElementById('coord-search').addEventListener('submit', function (ev) {
     ev.preventDefault();
     var text = document.getElementById('coord-input').value.trim();
     if (!text) { return; }
     var lngLat = coordsFrom(text);
     if (lngLat) { searchBox.innerHTML = ''; jump(lngLat, lngLat[1].toFixed(6) + ', ' + lngLat[0].toFixed(6)); return; }
-    if (/^\d{5}$/.test(text)) { text = text + ', Deutschland'; }
-    searchBox.innerHTML = '<div class="small text-secondary py-1"><span class="spinner-border spinner-border-sm me-1"></span>Suche …</div>';
-    if (publicGeocoder && !window.confirm('Nur öffentliche Orte suchen. Persönliche oder vertrauliche Adressen dürfen nicht an den öffentlichen Adressdienst gesendet werden. Fortfahren?')) { searchBox.innerHTML = ''; return; }
-    fetch('/geo/search?public_place=1&q=' + encodeURIComponent(text), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
-      var res = d.results || [];
-      if (!res.length) { searchBox.innerHTML = '<div class="small text-secondary py-1">Nichts gefunden.</div>'; return; }
-      searchBox.innerHTML = '<div class="list-group list-group-flush small">' + res.map(function (r, i) {
-        return '<button type="button" class="list-group-item list-group-item-action px-2 py-1" data-i="' + i + '"><i class="fa-solid fa-location-dot me-1 text-secondary"></i>' +
-          esc(r.name && r.label.indexOf(r.name) < 0 ? r.name + ' – ' + r.label : r.label) + '</button>';
-      }).join('') + '</div>';
-      searchBox.onclick = function (e) {
-        var b = e.target.closest('[data-i]');
-        if (!b) { return; }
-        var r = res[+b.dataset.i];
-        jump([r.lon, r.lat], r.label, r.type === 'house' ? null : r.bbox);
-      };
-      if (res.length === 1) { jump([res[0].lon, res[0].lat], res[0].label, res[0].type === 'house' ? null : res[0].bbox); }
-    }).catch(function () { searchBox.innerHTML = '<div class="small text-danger py-1">Suche gerade nicht möglich.</div>'; });
+    runMapSearch();
   });
   /* UTM 32N → WGS84 (Näherung ausreichend für die Suche) */
   function utmToLngLat(e, n) {
