@@ -53,8 +53,11 @@
       if (el.type === 'hidden' || el.classList.contains('js-other')) { return; }
       if (el.type === 'checkbox') { return; }   // Mehrfachauswahl prüft die Gruppe
       if (el.type === 'radio') { el.required = on; return; }
+      if (el.closest('.js-table')) { return; }
       if (!el.closest('.js-address') || el.dataset.partRequired) { el.required = on; }
     });
+    var table = item.querySelector('.js-table');
+    if (table) { table.dataset.required = on ? '1' : ''; }
     var group = item.querySelector('.js-check-group');
     if (group) { if (on) { group.dataset.required = '1'; } else { delete group.dataset.required; } }
     var geo = item.querySelector('.js-geo-value');
@@ -140,6 +143,8 @@
         else { parts.push(el.value); }
       }
     });
+    var computed = item.querySelector('.js-calculation output');
+    if (computed) { parts.push(computed.textContent); }
     var geoList = item.querySelector('.js-geo-list');
     if (geoList) {
       parts = Array.prototype.map.call(geoList.querySelectorAll('[data-fid] .flex-grow-1'), function (x) { return x.textContent; });
@@ -241,7 +246,7 @@
   function collect() {
     var data = {};
     form.querySelectorAll('input, select, textarea').forEach(function (el) {
-      if (!el.name || el.name === 'csrf' || el.name === 'website' || el.type === 'file') { return; }
+      if (el.classList.contains('js-declaration') || el.closest('.js-signature') || !el.name || el.name === 'csrf' || el.name === 'website' || el.type === 'file') { return; }
       if (el.type === 'checkbox' || el.type === 'radio') { if (el.checked) { (data[el.name] = data[el.name] || []).push(el.value); } return; }
       if (el.value) { data[el.name] = el.value; }
     });
@@ -260,6 +265,7 @@
       var els = form.querySelectorAll('[name="' + CSS.escape(name) + '"]');
       var val = d.data[name];
       els.forEach(function (el) {
+        if (el.classList.contains('js-declaration') || el.closest('.js-signature')) { return; }
         if (el.type === 'checkbox' || el.type === 'radio') { el.checked = Array.isArray(val) && val.indexOf(el.value) >= 0; }
         else if (el.type !== 'file') { el.value = Array.isArray(val) ? val[0] : val; el.dispatchEvent(new Event('change', { bubbles: true })); }
       });

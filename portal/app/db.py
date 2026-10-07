@@ -100,6 +100,8 @@ class User(Base):
 
 # Bereiche, die einzeln pro Benutzer freigeschaltet werden
 PERMISSIONS = {
+    "locations_manage": ("Zentrale Orte pflegen", "fa-location-dot", "Dienststätten und Einrichtungen als Start-/Zielpunkte pflegen und importieren"),
+    "internal_forms": ("Interne Formulare ausfüllen", "fa-user-lock", "Beschäftigte dürfen geschützte interne Formulare und Anträge einreichen"),
     "video": ("Videokonferenzen", "fa-video", "Meetings anlegen, planen, moderieren und aufnehmen"),
     "shortlinks": ("Kurzlinks", "fa-link", "Kurzlinks anlegen und auswerten"),
     "forms": ("Formulare", "fa-clipboard-list", "Formulare erstellen, verteilen und auswerten"),
@@ -411,6 +413,7 @@ class Form(Base):
     title: Mapped[str] = mapped_column(String(255))
     description: Mapped[str] = mapped_column(Text, default="")
     schema_json: Mapped[str] = mapped_column(Text, default="[]")
+    internal: Mapped[bool] = mapped_column(Boolean, default=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Öffentlicher Link /f/<token>; None = ausgeschaltet
@@ -683,6 +686,7 @@ class ApplicationRequest(Base):
     title: Mapped[str] = mapped_column(String(200), default="")
     message: Mapped[str] = mapped_column(Text, default="")
     schema_json: Mapped[str] = mapped_column(Text, default="[]")     # zusätzliche Felder (wie im Baukasten)
+    prefill_json: Mapped[str] = mapped_column(Text, default="{}")
     reopen_json: Mapped[str] = mapped_column(Text, default="[]")     # IDs der Antragsfragen zur Korrektur
     answers_json: Mapped[str] = mapped_column(Text, default="{}")
     state: Mapped[str] = mapped_column(String(12), default="open", index=True)  # open | answered | cancelled
@@ -740,6 +744,40 @@ class ApplicationDocument(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     response: Mapped[FormResponse] = relationship(back_populates="documents")
+
+
+class ExpenseRuleSet(Base):
+    __tablename__ = "expense_rule_sets"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    profile: Mapped[str] = mapped_column(String(40), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    valid_from: Mapped[date] = mapped_column(Date)
+    valid_until: Mapped[date] = mapped_column(Date)
+    rates_json: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(Text, default="")
+    reviewed_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class PortalLocation(Base):
+    __tablename__ = "portal_locations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    category: Mapped[str] = mapped_column(String(100), default="")
+    street: Mapped[str] = mapped_column(String(255), default="")
+    zip: Mapped[str] = mapped_column(String(10), default="")
+    city: Mapped[str] = mapped_column(String(200), default="")
+    lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lon: Mapped[float | None] = mapped_column(Float, nullable=True)
+    public: Mapped[bool] = mapped_column(Boolean, default=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class LocationFavorite(Base):
+    __tablename__ = "location_favorites"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    location_id: Mapped[int] = mapped_column(ForeignKey("portal_locations.id", ondelete="CASCADE"), primary_key=True)
 
 
 class GeoCache(Base):
@@ -2375,6 +2413,10 @@ DEFAULT_SETTINGS = {
     "map_cache_mb": "500",           # Größe des Kachel-Zwischenspeichers
     "maps_embed": "1",
     "maps_embed_origins": "",
+    "location_manager_groups": "",
+    "routing_car_url": "https://routing.openstreetmap.de/routed-car",
+    "routing_bike_url": "https://routing.openstreetmap.de/routed-bike",
+    "routing_foot_url": "https://routing.openstreetmap.de/routed-foot",
     "geocoder_url": "https://nominatim.openstreetmap.org",   # Adress-/Ortssuche (eigener Nominatim-Server möglich)
     "geocoder_countries": "de",
     "geocoder_contact": "",
@@ -2386,6 +2428,10 @@ DEFAULT_SETTINGS = {
     "resources_embed": "1",
     "resources_embed_origins": "",
     # Zahlungen (PayPal Checkout, Überweisung, bar) – siehe payments.py
+    "epaybl_operator": "",
+    "epaybl_tenant": "",
+    "epaybl_interface": "",
+    "epaybl_accounting_reference": "",
     "paypal_enabled": "0",
     "paypal_mode": "sandbox",          # sandbox | live
     "paypal_client_id": "",
@@ -2444,6 +2490,7 @@ DEFAULT_SETTINGS = {
 
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)
 _NEW_COLUMNS = {
+    "application_requests": {"prefill_json": "TEXT NOT NULL DEFAULT '{}'"},
     "payments": {"active_refund": "VARCHAR(36) NOT NULL DEFAULT ''"},
     "groups": {"lead_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL"},
     "booking_pages": {"listed": "BOOLEAN NOT NULL DEFAULT 0", "extended": "BOOLEAN NOT NULL DEFAULT 0",
@@ -2473,7 +2520,7 @@ _NEW_COLUMNS = {
                  "ics_uid": "VARCHAR(255)", "ics_sequence": "INTEGER NOT NULL DEFAULT 0",
                  "cancelled_at": "DATETIME", "guest_token": "VARCHAR(64)"},
     "notifications": {"reply_to": "VARCHAR(255)", "attachments_json": "TEXT"},
-    "forms": {"notify_pdf": "BOOLEAN NOT NULL DEFAULT 0", "notify_files": "BOOLEAN NOT NULL DEFAULT 0",
+    "forms": {"internal": "BOOLEAN NOT NULL DEFAULT 0", "notify_pdf": "BOOLEAN NOT NULL DEFAULT 0", "notify_files": "BOOLEAN NOT NULL DEFAULT 0",
               "pdf_uploads": "BOOLEAN NOT NULL DEFAULT 1", "confirm_csv": "BOOLEAN NOT NULL DEFAULT 0",
               "confirm_json": "BOOLEAN NOT NULL DEFAULT 0", "confirm_pdf": "BOOLEAN NOT NULL DEFAULT 1",
               "confirm_files": "BOOLEAN NOT NULL DEFAULT 0", "kind": "VARCHAR(12) NOT NULL DEFAULT 'survey'", "app_prefix": "VARCHAR(12) NOT NULL DEFAULT ''",

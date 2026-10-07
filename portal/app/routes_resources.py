@@ -280,10 +280,10 @@ async def resource_save(request: Request, rid: int, user: User = Depends(current
     res.buffer_after = _int(data.get("buffer_after"), 0, 1440, 0)
     for key in ("price_day", "price_block", "price_hour", "wkd_day", "wkd_block", "wkd_hour", "deposit_cents"):
         setattr(res, key, rs.parse_cents(data.get(key, "")))
-    res.pay_methods = ",".join(m for m in ("paypal", "transfer", "cash") if m in data.getlist("pay_methods")) or "transfer"
-    deposit_methods = [m for m in ("cash", "transfer", "paypal") if m in data.getlist("deposit_methods")]
+    res.pay_methods = ",".join(m for m in ("paypal", "transfer", "cash", "epaybl") if m in data.getlist("pay_methods")) or "transfer"
+    deposit_methods = [m for m in ("cash", "transfer", "paypal", "epaybl") if m in data.getlist("deposit_methods")]
     preferred = str(data.get("deposit_method", "cash"))
-    if preferred not in ("cash", "transfer", "paypal"):
+    if preferred not in ("cash", "transfer", "paypal", "epaybl"):
         preferred = "cash"
     res.deposit_guest_choice = data.get("deposit_guest_choice") == "1"
     res.deposit_methods = ",".join([preferred] + [m for m in deposit_methods if m != preferred])

@@ -40,6 +40,10 @@
     if (type === 'file') { it.file_types = []; it.max_size_mb = Math.min(10, data.maxFileMb); it.max_files = 1; }
     if (type === 'geo') { it.title = 'Ort'; it.geometries = ['point']; it.max_features = 1; it.allow_gps = true; it.show_inputs = true; it.capture_location = false; }
     if (type === 'address') { it.title = 'Anschrift'; it.mode = 'full'; it.search = true; it.locate = true; it.district = false; it.coords = true; }
+    if (type === 'table') { it.columns = [{id: 'description', label: 'Beschreibung', type: 'text', required: true}, {id: 'amount', label: 'Betrag (€)', type: 'amount', required: true, min: '0'}]; it.max_rows = 30; it.min_rows = 0; }
+    if (type === 'period') { it.with_time = true; }
+    if (type === 'calculation') { it.operation = 'sum'; it.sources = []; it.precision = 2; }
+    if (type === 'declaration' || type === 'signature') { it.statement = 'Ich bestätige ausdrücklich die Richtigkeit und Vollständigkeit meiner Angaben.'; }
     if (type === 'heading') { it.title = 'Abschnitt'; }
     if (type === 'pagebreak') { it.title = ''; }
     return it;
@@ -55,6 +59,39 @@
   function settingsHtml(it) {
     var h = '';
     switch (it.type) {
+      case 'table':
+        h += '<div class="col-12"><div class="d-grid gap-2">' + (it.columns || []).map(function (c, n) {
+          return '<div class="border rounded p-2" data-column-index="' + n + '"><div class="row g-2">' +
+            field('Spaltenüberschrift', '<input class="form-control form-control-sm" data-column-key="label" value="' + esc(c.label) + '">') +
+            field('Eingabe', '<select class="form-select form-select-sm" data-column-key="type">' + [['text','Text'],['number','Zahl'],['amount','Betrag'],['date','Datum'],['time','Uhrzeit'],['datetime','Datum und Uhrzeit'],['select','Auswahl'],['checkbox','Ja / Nein']].map(function (o) {return '<option value="'+o[0]+'"'+(c.type === o[0] ? ' selected' : '')+'>'+o[1]+'</option>';}).join('')+'</select>') +
+            (c.type === 'select' ? field('Antwortmöglichkeiten (eine je Zeile)', '<textarea class="form-control form-control-sm" data-column-key="options">'+esc((c.options || []).join('\n'))+'</textarea>', '12') : '') +
+            '<div class="col-12 d-flex gap-3 align-items-center"><label><input type="checkbox" data-column-key="required"'+(c.required ? ' checked' : '')+'> Pflichtangabe</label><button type="button" class="btn btn-sm btn-outline-danger" data-column-remove="'+n+'">Spalte entfernen</button></div></div></div>';
+        }).join('') + '</div><button type="button" class="btn btn-sm btn-outline-primary mt-2" data-column-add>Spalte hinzufügen</button></div>';
+        h += field('Mindestens Positionen', input('min_rows', it.min_rows || 0, 'type="number" min="0" max="100"'));
+        h += field('Höchstens Positionen', input('max_rows', it.max_rows || 30, 'type="number" min="1" max="100"'));
+        break;
+      case 'expense_accounting':
+        h += field('Satzprofil', input('profile', it.profile || 'rlp'));
+        [['period_source','Tatsächlicher Zeitraum'],['route_source','Fahrtstrecken'],['costs_source','Kostenpositionen'],['days_source','Verpflegung je Tag'],['advance_source','Vorschuss'],['reason_source','Triftige Gründe'],['special_source','Besonderheiten'],['year_km_source','Bisherige Jahreskilometer']].forEach(function(pair){h += field(pair[1],'<select class="form-select" data-key="'+pair[0]+'"><option value="">Bitte wählen …</option>'+items.filter(function(q){return q.id!==it.id;}).map(function(q){return '<option value="'+esc(q.id)+'"'+(it[pair[0]]===q.id?' selected':'')+'>'+esc(q.title || 'Unbenanntes Feld')+'</option>';}).join('')+'</select>');});
+        break;
+      case 'route':
+        h += field('Höchstens Fahrtabschnitte', input('max_legs', it.max_legs || 10, 'type="number" min="1" max="30"'));
+        ['allow_roundtrip','allow_deviation'].forEach(function (key) {h += '<div class="col-12"><label><input type="checkbox" data-flag="'+key+'"'+(it[key] !== false ? ' checked' : '')+'> '+(key === 'allow_roundtrip' ? 'Rückfahrt anbieten' : 'Begründete Kilometerabweichungen ermöglichen')+'</label></div>';});
+        break;
+      case 'period':
+        h += '<div class="col-12 form-check"><input class="form-check-input" type="checkbox" data-flag="with_time"' + (it.with_time !== false ? ' checked' : '') + '><label class="form-check-label">Mit Uhrzeit</label></div>';
+        break;
+      case 'declaration': case 'signature':
+        h += field('Wortlaut der Erklärung', '<textarea class="form-control" data-key="statement" maxlength="2000">' + esc(it.statement || '') + '</textarea>', '12');
+        break;
+      case 'calculation':
+        h += field('Berechnung', '<select class="form-select" data-key="operation">' + [['sum','Summe'],['difference','Erster Wert minus weitere'],['product','Produkt'],['table_total','Summe einer Tabellenspalte']].map(function (o) {return '<option value="'+o[0]+'"'+(it.operation === o[0] ? ' selected' : '')+'>'+o[1]+'</option>';}).join('')+'</select>');
+        h += '<div class="col-12"><span class="form-label small">Quellfelder</span><div class="d-grid gap-1">' + items.filter(function (q) {return q.id !== it.id && (q.type === 'table' || q.type === 'calculation' || (q.type === 'short' && q.subtype === 'number'));}).map(function (q) { var selectedSources = Array.isArray(it.sources) ? it.sources : String(it.sources || '').split(','); return '<label class="border rounded p-2"><input type="checkbox" data-calculation-source="'+esc(q.id)+'"'+(selectedSources.indexOf(q.id)>=0 ? ' checked' : '')+'> '+esc(q.title || 'Unbenanntes Feld')+'</label>'; }).join('')+'</div></div>';
+        h += field('Tabellenspalte (ID)', input('column', it.column || 'amount'));
+        h += field('Mengen-Spalte (optional)', input('quantity_column', it.quantity_column || ''));
+        h += field('Einheit', input('unit', it.unit || ''));
+        h += field('Nachkommastellen', input('precision', it.precision == null ? 2 : it.precision, 'type="number" min="0" max="4"'));
+        break;
       case 'short':
         h += field('Art der Eingabe', '<select class="form-select form-select-sm" data-key="subtype">' +
           Object.keys(SUBTYPES).map(function (k) {
@@ -363,6 +400,9 @@
     if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.classList.contains('builder-compact')) { ev.preventDefault(); var f = find(ev.target); if (f) { select(f.item.id, true); } }
   });
   list.addEventListener('click', function (ev) {
+    var columnButton = ev.target.closest('[data-column-add], [data-column-remove]');
+    if (columnButton) { var columnItem = find(columnButton); if (columnItem) { if (columnButton.hasAttribute('data-column-add')) { (columnItem.item.columns = columnItem.item.columns || []).push({id:uid(), label:'Neue Spalte', type:'text', required:false}); } else {columnItem.item.columns.splice(Number(columnButton.dataset.columnRemove),1);} markDirty(); render(); } return; }
+
     var f = find(ev.target);
     if (!f) { return; }
     var btn = ev.target.closest('button');
@@ -396,10 +436,13 @@
     var f = find(ev.target);
     if (!f) { return; }
     var el = ev.target;
+    if (el.dataset.columnKey) { var column = f.item.columns[Number(el.closest('[data-column-index]').dataset.columnIndex)]; column[el.dataset.columnKey] = el.type === 'checkbox' ? el.checked : el.dataset.columnKey === 'options' ? el.value.split('\n').filter(Boolean) : el.value; markDirty(); if (el.tagName === 'SELECT') { render(); } return; }
+    if (el.dataset.calculationSource) { var selectedSources = Array.isArray(f.item.sources) ? f.item.sources : []; f.item.sources = selectedSources.filter(function (id) {return id !== el.dataset.calculationSource;}); if (el.checked) {f.item.sources.push(el.dataset.calculationSource);} markDirty(); return; }
     if (el.dataset.ckey) { if (el.tagName === 'INPUT') { condChange(f, el); } return; }
     if (el.dataset.ctoggle || el.hasAttribute('data-reqmode')) { return; }
     if (el.dataset.key) {
       var key = el.dataset.key, val = el.value;
+      if (key === 'columns_json') { try { val = JSON.parse(val); if (!Array.isArray(val)) { throw new Error('columns'); } f.item.columns = val; el.setCustomValidity(''); } catch (e) { el.setCustomValidity('Bitte gültige Spalten angeben.'); return; } }
       if (key === 'file_types') { val = val.split(/[\s,;]+/).filter(Boolean); }
       f.item[key] = val;
       if (key === 'subtype' || el.tagName === 'SELECT') { render(); }

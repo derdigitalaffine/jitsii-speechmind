@@ -1,0 +1,7 @@
+<div class="js-route" data-name="{{name}}" data-max="{{item.max_legs}}" data-return="{{1 if item.allow_roundtrip else 0}}" data-deviation="{{1 if item.allow_deviation else 0}}" data-value="{{val|tojson|forceescape}}" data-required="{{1 if item.required else 0}}">
+<input type="hidden" class="js-route-value" name="{{name}}"><div class="js-route-legs d-grid gap-3"></div>
+<button type="button" class="btn btn-outline-primary mt-2 js-route-add">Fahrtabschnitt hinzufügen</button>
+<div class="form-text mt-2">Start und Ziel aus gespeicherten Orten wählen oder ausdrücklich suchen. Rückfahrten werden separat berechnet. Die Routingstrecke ist ein Vorschlag; abweichende Kilometer müssen begründet und im Prozess genehmigt werden.</div>
+<div class="alert alert-light border mt-2 small">Öffentliche Dienste erhalten die gesuchten Adressen und Streckenpunkte. Persönliche oder vertrauliche Orte benötigen einen geeigneten konfigurierten Dienst. <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap-Mitwirkende</a></div>
+<output class="js-route-total fw-semibold d-block" aria-live="polite"></output><div class="js-route-map mt-3 rounded border" style="height:260px" aria-label="Berechnete Fahrtstrecken"></div>
+</div>

@@ -3,6 +3,8 @@
 (function () {
   'use strict';
   var bundle = JSON.parse(document.getElementById('map-bundle').textContent);
+  var publicGeocoder = true;
+  fetch('/geo/info').then(function(r){return r.json();}).then(function(d){publicGeocoder=d.public_only;}).catch(function(){});
   var meta = JSON.parse(document.getElementById('map-meta').textContent);
   var csrf = (document.querySelector('meta[name="csrf"]') || {}).content || '';
   var esc = MapKit.esc;
@@ -149,7 +151,8 @@
     if (lngLat) { searchBox.innerHTML = ''; jump(lngLat, lngLat[1].toFixed(6) + ', ' + lngLat[0].toFixed(6)); return; }
     if (/^\d{5}$/.test(text)) { text = text + ', Deutschland'; }
     searchBox.innerHTML = '<div class="small text-secondary py-1"><span class="spinner-border spinner-border-sm me-1"></span>Suche …</div>';
-    fetch('/geo/search?q=' + encodeURIComponent(text), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+    if (publicGeocoder && !window.confirm('Nur öffentliche Orte suchen. Persönliche oder vertrauliche Adressen dürfen nicht an den öffentlichen Adressdienst gesendet werden. Fortfahren?')) { searchBox.innerHTML = ''; return; }
+    fetch('/geo/search?public_place=1&q=' + encodeURIComponent(text), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
       var res = d.results || [];
       if (!res.length) { searchBox.innerHTML = '<div class="small text-secondary py-1">Nichts gefunden.</div>'; return; }
       searchBox.innerHTML = '<div class="list-group list-group-flush small">' + res.map(function (r, i) {

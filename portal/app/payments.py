@@ -20,7 +20,7 @@ from typing import Callable
 import httpx
 from sqlalchemy import func, select, update
 
-from . import mailtpl, notify
+from . import epaybl, mailtpl, notify
 from .config import settings
 from .db import Payment, PaymentReceipt, PaymentRefund, SessionLocal, get_settings, to_local, utcnow
 from .security import decrypt
@@ -35,7 +35,7 @@ STATUSES = {
     "refunded": ("erstattet", "secondary", "fa-rotate-left"),
     "cancelled": ("storniert", "dark", "fa-ban"),
 }
-METHODS = {"paypal": ("PayPal", "fa-brands fa-paypal"), "transfer": ("Überweisung", "fa-solid fa-building-columns"),
+METHODS = {"epaybl": ("ePayBL (noch nicht verfügbar)", "fa-solid fa-building-columns"), "paypal": ("PayPal", "fa-brands fa-paypal"), "transfer": ("Überweisung", "fa-solid fa-building-columns"),
            "cash": ("bar", "fa-solid fa-coins"), "free": ("kostenlos", "fa-solid fa-gift")}
 KINDS = {"resource_deposit": "Kaution (Ressourcen)", "resource": "Ressourcenbuchung", "resource_club": "Sammelrechnung (Ressourcen)", "application": "Antrag", "form": "Formular", "step": "Prozessschritt",
          "other": "Sonstiges"}
@@ -147,6 +147,8 @@ def available(cfg: dict, p: Payment) -> list[str]:
     out = []
     if "paypal" in allowed and paypal_ready(cfg):
         out.append("paypal")
+    if "epaybl" in allowed and epaybl.provider.ready(cfg):
+        out.append("epaybl")
     if "transfer" in allowed and transfer_ready(cfg):
         out.append("transfer")
     if "cash" in allowed:

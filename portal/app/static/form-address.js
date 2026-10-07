@@ -4,7 +4,11 @@
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var getJSON = function (url) { return fetch(url, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.json(); }); };
 
+  var policy = getJSON('/geo/info');
   document.querySelectorAll('.js-address').forEach(function (box) {
+    var ready = false, publicOnly = true;
+    policy.then(function (d) { publicOnly = d.public_only; ready = true; var scope = box.querySelector('.js-addr-public-scope'); if (scope) { scope.classList.toggle('d-none', !publicOnly); } }).catch(function () { say('Adressdienst nicht verfügbar. Bitte manuell ausfüllen.', true); });
+    function permitted() { var control = box.querySelector('.js-addr-public'); if (!ready || (publicOnly && (!control || !control.checked))) { say('Bitte bestätigen, dass nur ein öffentlicher Ort gesucht wird; persönliche Adressen manuell eingeben.', true); return false; } return true; }
     var name = box.dataset.name, full = !!box.dataset.full;
     var f = function (part) { return box.querySelector('[name="' + name + '__' + part + '"]'); };
     var info = box.querySelector('.js-addr-info'), help = info ? info.textContent : '';
@@ -32,13 +36,14 @@
       results.classList.remove('d-none');
     }
     function run() {
+      if (!permitted()) { return; }
       var q = search.value.trim();
       if (q.length < 3 || q === lastQuery) { return; }
       lastQuery = q;
       var version = ++requestVersion;
       results.innerHTML = '<div class="list-group-item small text-secondary"><span class="spinner-border spinner-border-sm me-2"></span>Suche …</div>';
       results.classList.remove('d-none');
-      getJSON('/geo/search?q=' + encodeURIComponent(q)).then(function (d) { if (version !== requestVersion || search.value.trim() !== q) { return; } found = d.results || []; active = -1; render(); })
+      getJSON('/geo/search?public_place=1&q=' + encodeURIComponent(q)).then(function (d) { if (version !== requestVersion || search.value.trim() !== q) { return; } found = d.results || []; active = -1; render(); })
         .catch(function () { if (version !== requestVersion || search.value.trim() !== q) { return; } results.innerHTML = '<div class="list-group-item small text-danger">Suche gerade nicht möglich – bitte Felder selbst ausfüllen.</div>'; });
     }
     if (search) {
@@ -60,11 +65,12 @@
     var locate = box.querySelector('.js-addr-locate');
     if (locate) {
       locate.addEventListener('click', function () {
+        if (!permitted()) { return; }
         if (!navigator.geolocation) { say('Ihr Browser kann den Standort nicht ermitteln.', true); return; }
         var old = locate.innerHTML;
         locate.disabled = true; locate.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Standort wird ermittelt …';
         navigator.geolocation.getCurrentPosition(function (pos) {
-          getJSON('/geo/reverse?lat=' + pos.coords.latitude + '&lon=' + pos.coords.longitude).then(function (d) {
+          getJSON('/geo/reverse?public_place=1&lat=' + pos.coords.latitude + '&lon=' + pos.coords.longitude).then(function (d) {
             locate.disabled = false; locate.innerHTML = old;
             if (d.result) { fill(d.result); } else { say('Zu Ihrem Standort wurde keine Adresse gefunden.', true); }
           }).catch(function () { locate.disabled = false; locate.innerHTML = old; say('Adresse konnte gerade nicht ermittelt werden.', true); });

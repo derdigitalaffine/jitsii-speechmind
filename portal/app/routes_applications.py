@@ -220,7 +220,7 @@ def application_detail(request: Request, form_id: int, resp_id: int, user: User 
                                                                 if t.kind == "payment"] if p is not None]
     case_payments = [pay.box(db, user, p, f"/forms/{resp.form_id}/applications/{resp.id}") for p in case_payments]
     return render(request, "application.html", user, resp=resp, form=resp.form, level=level, items=items, case_payments=case_payments,
-                  questions=fm.questions(items), display=fm.display, statuses=apps.STATUSES, closed=apps.CLOSED,
+                  questions=workflow.case_questions(resp), display=fm.display, statuses=apps.STATUSES, closed=apps.CLOSED,
                   users=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(),
                   groups=db.scalars(select(Group).order_by(Group.name)).all(), now=utcnow(),
                   track_link=apps.track_link(resp), applicant=apps.applicant_email(resp.form, resp),
@@ -297,19 +297,21 @@ def application_pdf(form_id: int, resp_id: int, user: User = Depends(current_use
 
 # --- Statusseite für Antragsteller:innen -----------------------------------------------
 
-def _tracked(db: Session, token: str) -> FormResponse:
+def _tracked(db: Session, token: str, request: Request) -> FormResponse:
     resp = db.scalar(select(FormResponse).where(FormResponse.track_token == token)) if len(token) > 20 else None
     if resp is None:
         raise HTTPException(404, "Diesen Antrag gibt es nicht (mehr). Bitte prüfen Sie den Link aus Ihrer Eingangsbestätigung.")
+    from .form_access import response_access
+    response_access(request, db, resp)
     return resp
 
 
 @app.get("/a/{token}")
 def application_status(request: Request, token: str, db: Session = Depends(get_db)):
-    resp = _tracked(db, token)
+    resp = _tracked(db, token, request)
     items = fm.schema(resp.form)
     response = render(request, "application_status.html", session_user(request, db), resp=resp, form=resp.form,
-                      questions=fm.questions(items), display=fm.display, statuses=apps.STATUSES, closed=apps.CLOSED,
+                      questions=workflow.case_questions(resp), display=fm.display, statuses=apps.STATUSES, closed=apps.CLOSED,
                       events=[e for e in resp.events if e.public], progress=workflow.progress(resp),
                       open_requests=workflow.open_requests(resp), current=workflow.current_answers(resp),
                       confirm_task=workflow.open_confirm(resp), applicant=apps.applicant_email(resp.form, resp),
@@ -323,7 +325,7 @@ def application_status(request: Request, token: str, db: Session = Depends(get_d
 @app.post("/a/{token}/reply", dependencies=[Depends(check_csrf)])
 def application_reply(request: Request, token: str, text: str = FormField(""), db: Session = Depends(get_db)):
     rate_limit(request, "app-reply", limit=10)
-    resp = _tracked(db, token)
+    resp = _tracked(db, token, request)
     text = text.replace("\r\n", "\n").strip()[:10000]
     if resp.closed_at:
         flash(request, "Der Antrag ist abgeschlossen. Bitte wenden Sie sich direkt an die Verwaltung.", "error")
@@ -340,7 +342,7 @@ def application_reply(request: Request, token: str, text: str = FormField(""), d
 @app.post("/a/{token}/withdraw", dependencies=[Depends(check_csrf)])
 def application_withdraw(request: Request, token: str, db: Session = Depends(get_db)):
     rate_limit(request, "app-reply", limit=10)
-    resp = _tracked(db, token)
+    resp = _tracked(db, token, request)
     if not resp.closed_at:
         apps.withdraw(db, resp)
         db.commit()
@@ -350,8 +352,8 @@ def application_withdraw(request: Request, token: str, db: Session = Depends(get
 
 
 @app.get("/a/{token}/pdf")
-def application_status_pdf(token: str, db: Session = Depends(get_db)):
-    resp = _tracked(db, token)
+def application_status_pdf(request: Request, token: str, db: Session = Depends(get_db)):
+    resp = _tracked(db, token, request)
     return Response(apps.pdf(resp.form, resp), media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="{resp.ref_no}.pdf"',
                              "Cache-Control": "no-store"})

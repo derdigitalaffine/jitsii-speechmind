@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
-{% block title %}PayPal & Bankverbindung{% endblock %}
+{% block title %}Zahlungsanbieter & Bankverbindung{% endblock %}
 {% block content %}
-{% call m.page_head('PayPal & Bankverbindung', 'Zahlarten für Ressourcenbuchungen, Antragsgebühren, Formulare und Prozessschritte. PayPal läuft über den Server (Weiterleitung zu PayPal, keine PayPal-Skripte im Portal).') %}
+{% call m.page_head('Zahlungsanbieter & Bankverbindung', 'Zahlarten für Ressourcenbuchungen, Antragsgebühren, Formulare und Prozessschritte. PayPal läuft über den Server (Weiterleitung zu PayPal, keine PayPal-Skripte im Portal).') %}
 <a class="btn btn-outline-secondary" href="/payments"><i class="fa-solid fa-list me-1"></i>Zahlungsübersicht</a>
 {% endcall %}
 
@@ -40,6 +40,11 @@
       <div class="col-12 small text-secondary">Barzahlung ist immer möglich: Die Verwaltung markiert die Zahlung im Vorgang als „bar erhalten“.</div>
     </div>
   </div></div>
+  <div class="col-12"><div class="card border-warning"><div class="card-header"><strong>ePayBL</strong> <span class="badge text-bg-warning">Noch nicht verfügbar</span></div><div class="card-body">
+    <p>Anbindung für Ressourcen, Kautionen, Anträge, Formulare und Prozessschritte vorbereitet. Erst nach Einbindung der Schnittstelle und erfolgreichen Tests kann ePayBL Zahlungen verarbeiten. Diese Angaben aktivieren keine Zahlung.</p>
+    <div class="row g-3">{% for key, label in [('epaybl_operator', 'Betreiber / zuständige Stelle'), ('epaybl_tenant', 'Mandantenkennung (sobald bekannt)'), ('epaybl_interface', 'Schnittstelle und Version (laut Betreiber)'), ('epaybl_accounting_reference', 'Buchungszuordnung / Kassenkennzeichen')] %}<div class="col-md-6"><label class="form-label" for="{{ key }}">{{ label }}</label><input class="form-control" id="{{ key }}" name="{{ key }}" value="{{ cfg.get(key, '') }}" maxlength="200"></div>{% endfor %}</div>
+    <div class="form-text mt-2">Zugangsdaten oder Zertifikate erst mit der fertigen Anbindung hinterlegen. Benötigt werden Betreiber-Dokumentation, Testmandant, Zahlungs- und Erstattungsverfahren sowie der Statusabgleich.</div>
+  </div></div></div>
   <div class="col-12 d-flex gap-2"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button></div>
 </form>
 <form method="post" action="/admin/payments/test" class="mt-2"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-secondary" type="submit"><i class="fa-solid fa-plug-circle-check me-1"></i>PayPal-Verbindung testen</button></form>
