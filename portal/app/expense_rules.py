@@ -38,6 +38,7 @@ def validate(raw):
         n=number(raw.get(key))
         upper=Decimal(1) if key.endswith('_fraction') or key=='training_factor' else Decimal(100000000) if key=='recognized_limit' else Decimal(10000)
         if n is None or not 0<=n<=upper:raise ValueError(f'Bitte einen gültigen Satz für „{LABELS[key]}“ angeben.')
+        if key=='recognized_limit' and n != n.to_integral_value():raise ValueError('Die Jahreskilometergrenze muss eine ganze Zahl sein.')
         rates[key]=str(n)
     return rates
 
