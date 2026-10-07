@@ -164,9 +164,10 @@ async def form_settings_save(request: Request, form_id: int, user: User = Depend
     form, level = _form(db, form_id, user, fm.EDIT)
     data = await request.form()
     flag = lambda key: data.get(key) == "1"  # noqa: E731
+    form.internal = flag("internal")
     form.active = flag("active")
     form.expires_at = _parse_local(str(data.get("expires_at", "")))
-    form.anonymous = flag("anonymous")
+    form.anonymous = flag("anonymous") and not form.internal
     form.multiple = flag("multiple")
     form.confirm_mail = flag("confirm_mail")
     form.review = flag("review")
@@ -507,6 +508,10 @@ def form_delete(request: Request, form_id: int, user: User = Depends(current_use
 
 def _fill_page(request: Request, form: Form, *, preview: bool = False, action: str = "", invite: FormInvite | None = None,
                values: dict | None = None, errors: dict | None = None, page_index: int = 0, status: int = 200):
+    if form.internal and not preview:
+        from .form_access import submitting_user
+        with SessionLocal() as db:
+            submitting_user(request, db, form)
     items = fm.schema(form)
     page_list = fm.pages(items)
     for p in page_list:
@@ -556,6 +561,8 @@ def _values_for_redisplay(items: list[dict], data) -> dict:
 
 
 async def _submit(request: Request, db: Session, form: Form, invite: FormInvite | None, action: str):
+    from .form_access import submitting_user
+    submitting_user(request, db, form)
     rate_limit(request, "form-submit", limit=30)
     data = await request.form()
     if data.get("website"):  # Honigtopf gegen Spam-Bots

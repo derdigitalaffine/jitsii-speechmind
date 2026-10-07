@@ -100,6 +100,7 @@ class User(Base):
 
 # Bereiche, die einzeln pro Benutzer freigeschaltet werden
 PERMISSIONS = {
+    "internal_forms": ("Interne Formulare ausfüllen", "fa-user-lock", "Beschäftigte dürfen geschützte interne Formulare und Anträge einreichen"),
     "video": ("Videokonferenzen", "fa-video", "Meetings anlegen, planen, moderieren und aufnehmen"),
     "shortlinks": ("Kurzlinks", "fa-link", "Kurzlinks anlegen und auswerten"),
     "forms": ("Formulare", "fa-clipboard-list", "Formulare erstellen, verteilen und auswerten"),
@@ -411,6 +412,7 @@ class Form(Base):
     title: Mapped[str] = mapped_column(String(255))
     description: Mapped[str] = mapped_column(Text, default="")
     schema_json: Mapped[str] = mapped_column(Text, default="[]")
+    internal: Mapped[bool] = mapped_column(Boolean, default=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Öffentlicher Link /f/<token>; None = ausgeschaltet
@@ -683,6 +685,7 @@ class ApplicationRequest(Base):
     title: Mapped[str] = mapped_column(String(200), default="")
     message: Mapped[str] = mapped_column(Text, default="")
     schema_json: Mapped[str] = mapped_column(Text, default="[]")     # zusätzliche Felder (wie im Baukasten)
+    prefill_json: Mapped[str] = mapped_column(Text, default="{}")
     reopen_json: Mapped[str] = mapped_column(Text, default="[]")     # IDs der Antragsfragen zur Korrektur
     answers_json: Mapped[str] = mapped_column(Text, default="{}")
     state: Mapped[str] = mapped_column(String(12), default="open", index=True)  # open | answered | cancelled
@@ -2406,6 +2409,7 @@ DEFAULT_SETTINGS = {
 
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)
 _NEW_COLUMNS = {
+    "application_requests": {"prefill_json": "TEXT NOT NULL DEFAULT '{}'"},
     "groups": {"lead_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL"},
     "booking_pages": {"listed": "BOOLEAN NOT NULL DEFAULT 0", "extended": "BOOLEAN NOT NULL DEFAULT 0",
                       "days_ahead": "INTEGER NOT NULL DEFAULT 60", "step_minutes": "INTEGER NOT NULL DEFAULT 15",
@@ -2434,7 +2438,7 @@ _NEW_COLUMNS = {
                  "ics_uid": "VARCHAR(255)", "ics_sequence": "INTEGER NOT NULL DEFAULT 0",
                  "cancelled_at": "DATETIME", "guest_token": "VARCHAR(64)"},
     "notifications": {"reply_to": "VARCHAR(255)", "attachments_json": "TEXT"},
-    "forms": {"notify_pdf": "BOOLEAN NOT NULL DEFAULT 0", "notify_files": "BOOLEAN NOT NULL DEFAULT 0",
+    "forms": {"internal": "BOOLEAN NOT NULL DEFAULT 0", "notify_pdf": "BOOLEAN NOT NULL DEFAULT 0", "notify_files": "BOOLEAN NOT NULL DEFAULT 0",
               "pdf_uploads": "BOOLEAN NOT NULL DEFAULT 1", "confirm_csv": "BOOLEAN NOT NULL DEFAULT 0",
               "confirm_json": "BOOLEAN NOT NULL DEFAULT 0", "confirm_pdf": "BOOLEAN NOT NULL DEFAULT 1",
               "confirm_files": "BOOLEAN NOT NULL DEFAULT 0", "kind": "VARCHAR(12) NOT NULL DEFAULT 'survey'", "app_prefix": "VARCHAR(12) NOT NULL DEFAULT ''",

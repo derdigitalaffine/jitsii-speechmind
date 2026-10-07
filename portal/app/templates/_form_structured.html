@@ -1,0 +1,25 @@
+{% if item.type == 'period' %}
+<div class="js-period" data-name="{{ name }}" data-value="{{ val | tojson | forceescape }}"><div class="row g-2">
+  <div class="col-md-6"><label class="form-label" for="{{ name }}__start">Von</label><input class="form-control" id="{{ name }}__start" name="{{ name }}__start" type="{{ 'datetime-local' if item.with_time else 'date' }}" {% if item.required %}required{% endif %}></div>
+  <div class="col-md-6"><label class="form-label" for="{{ name }}__end">Bis</label><input class="form-control" id="{{ name }}__end" name="{{ name }}__end" type="{{ 'datetime-local' if item.with_time else 'date' }}" {% if item.required %}required{% endif %}></div>
+</div><input class="js-structured-value" type="hidden" name="{{ name }}"></div>
+{% elif item.type == 'table' %}
+<div class="js-table" data-name="{{ name }}" data-columns="{{ item.columns | tojson | forceescape }}" data-max="{{ item.max_rows }}" data-min="{{ item.min_rows }}" data-required="{{ '1' if item.required else '' }}" data-value="{{ val | tojson | forceescape }}">
+  <input class="js-structured-value" type="hidden" name="{{ name }}"><div class="js-table-rows d-grid gap-3"></div>
+  <button type="button" class="btn btn-outline-primary mt-2 js-table-add"><i class="fa-solid fa-plus me-1"></i>Position hinzufügen</button>
+  <div class="form-text">Bis zu {{ item.max_rows }} Positionen. Beträge werden mit zwei Nachkommastellen erfasst.</div>
+</div>
+{% elif item.type == 'calculation' %}
+<div class="js-calculation" data-name="{{ name }}" data-operation="{{ item.operation }}" data-sources="{{ item.sources | tojson | forceescape }}" data-column="{{ item.column }}" data-quantity="{{ item.quantity_column }}" data-precision="{{ item.precision }}">
+  <output class="form-control bg-body-tertiary" aria-live="polite">{{ val or '0' }} {{ item.unit }}</output><div class="form-text">Wird aus Ihren Angaben berechnet und beim Absenden geprüft.</div>
+</div>
+{% elif item.type == 'declaration' %}
+<div class="fill-choice"><input class="form-check-input js-declaration" type="checkbox" name="{{ name }}" id="{{ name }}" value="1" {% if item.required %}required{% endif %}><label class="fill-choice-label" for="{{ name }}">{{ item.statement }}</label></div>
+{% elif item.type == 'signature' %}
+<div class="js-signature" data-name="{{ name }}" data-value="{{ val | tojson | forceescape }}" data-required="{{ '1' if item.required else '' }}">
+  <label class="form-label" for="{{ name }}-sign-name">Name der unterschreibenden Person</label><input class="form-control mb-2 js-sign-name" id="{{ name }}-sign-name" maxlength="200" autocomplete="name" {% if item.required %}required{% endif %}>
+  <p class="small">{{ item.statement }}</p><canvas class="border rounded w-100 js-sign-canvas" width="700" height="220" style="touch-action: none; height: 11rem" aria-label="Unterschrift mit Maus, Stift oder Finger zeichnen"></canvas>
+  <button type="button" class="btn btn-sm btn-outline-secondary mt-2 js-sign-clear">Unterschrift löschen</button><input class="js-structured-value" type="hidden" name="{{ name }}">
+  <div class="form-text" role="status">Mit Maus, Stift oder Finger zeichnen. Mit Tastatur: Leertaste beginnt oder beendet einen Strich, Pfeiltasten zeichnen. Keine qualifizierte elektronische Signatur.</div>
+</div>
+{% endif %}
