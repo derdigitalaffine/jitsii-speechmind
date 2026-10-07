@@ -50,6 +50,9 @@
         <a class="dash-num" href="/tasks"><span>{{ d.waiting }}</span>warten auf Antwort</a></div></div>
       <ul class="list-group list-group-flush small">{% for task in d['items'] %}{% set r = task.response %}<li class="list-group-item d-flex gap-2"><a class="flex-grow-1 text-truncate" href="/forms/{{ r.form_id }}/applications/{{ r.id }}#schritt">{{ task.name }} <span class="text-secondary">· {{ r.ref_no }}</span></a>{% if task.due_at %}<span class="{{ 'text-danger fw-semibold' if task.due_at < d.now else 'text-secondary' }} text-nowrap">{{ task.due_at | local('%d.%m.') }}</span>{% endif %}</li>{% else %}<li class="list-group-item text-secondary"><i class="fa-regular fa-face-smile me-1"></i>Keine offenen Aufgaben.</li>{% endfor %}</ul>
       <div class="card-footer small"><a href="/tasks">Alle Aufgaben <i class="fa-solid fa-arrow-right"></i></a></div>
+    {% elif t.key == 'circulations' %}
+      <div class="card-body"><div class="d-flex gap-3"><a class="dash-num" href="/umlaeufe?tab=open"><span>{{ d.count }}</span>offen</a><a class="dash-num" href="/umlaeufe?tab=open"><span>{{ d.overdue }}</span>überfällig</a></div></div>
+      <ul class="list-group list-group-flush small">{% for item in d['items'] %}<li class="list-group-item"><a href="/umlaeufe/{{ item.row.id }}">{{ item.title }}</a>{% if not item.ready %}<span class="text-secondary"> · wartet auf vorige Station</span>{% endif %}</li>{% else %}<li class="list-group-item text-secondary">Keine offenen Kenntnisnahmen.</li>{% endfor %}</ul><div class="card-footer small"><a href="/umlaeufe">Umläufe & Aushänge öffnen →</a></div>
     {% elif t.key == 'applications' %}
       <div class="card-body pb-2"><div class="d-flex gap-3 mb-2">
         <a class="dash-num" href="/forms/applications?status=open"><span>{{ d.open }}</span>offen</a>

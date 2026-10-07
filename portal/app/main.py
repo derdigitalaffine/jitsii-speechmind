@@ -180,6 +180,7 @@ MODULES = {
     "laws": ("Rechtstexte", "module_laws", ("/laws", "/recht")),
     "maps": ("Kartenbrowser", "module_maps", ("/karte", "/maps")),
     "applications": ("Online-Anträge", "module_applications", ("/antraege", "/a/", "/processes")),
+    "circulations": ("Umläufe & Aushänge", "module_circulations", ("/umlaeufe",)),
     "dms": ("Ablage (DMS)", "module_dms", ("/dms",)),
     "resources": ("Ressourcenbuchung", "module_resources", ("/resources", "/r/", "/r", "/r-embed")),
     "krank": ("BlueOtter Krankmelder", "module_krank", ("/krank", "/krankmelder")),
@@ -2125,7 +2126,8 @@ async def admin_groups_update(request: Request, gid: int, action: str = Form("sa
 def admin_modules(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
     from .db import (BookingPage, DmsRecord, Form as FormModel, FormResponse, KrankReport, LawText, Poll,
                      Resource as ResourceModel, ShortLink, UserMap)
-    stats = {"bookings": db.scalar(select(func.count(BookingPage.id))),
+    from .db import Circulation
+    stats = {"circulations": db.scalar(select(func.count(Circulation.id))), "bookings": db.scalar(select(func.count(BookingPage.id))),
              "dms": db.scalar(select(func.count(DmsRecord.id))),
              "maps": db.scalar(select(func.count(UserMap.id))),
              "applications": db.scalar(select(func.count(FormResponse.id)).where(FormResponse.ref_no.is_not(None))),
@@ -2638,6 +2640,7 @@ from . import routes_live  # noqa: E402,F401
 from . import routes_public  # noqa: E402,F401
 from . import routes_absences  # noqa: E402,F401
 from . import routes_sessions  # noqa: E402,F401
+from . import routes_circulations  # noqa: E402,F401
 from . import routes_laws  # noqa: E402,F401
 from . import routes_maps  # noqa: E402,F401
 from . import routes_payments  # noqa: E402,F401
