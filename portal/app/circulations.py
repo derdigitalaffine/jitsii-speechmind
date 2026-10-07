@@ -18,7 +18,7 @@ from sqlalchemy import select
 
 from . import absence, dms, forms, notify
 from .config import settings
-from .db import (Circulation, CirculationDistributor, CirculationEvent, CirculationReceipt,
+from .db import (Circulation, CirculationBundle, CirculationDistributor, CirculationEvent, CirculationReceipt,
                  CirculationRecipient, CirculationVersion, DmsFile, DmsRecord, Form, Group, GroupMember,
                  LawText, SessionLocal, User, get_settings, utcnow)
 
@@ -409,8 +409,28 @@ def form_data(data, previous):
     return c
 
 
+
+def ordered_items(items, references, raw):
+    """Order existing documents, new portal objects and uploads without accepting new data."""
+    try:
+        sequence = json.loads(raw)
+    except ValueError:
+        raise HTTPException(422, 'Ungültige Dokumentreihenfolge.') from None
+    if not isinstance(sequence, list) or len(sequence) > 100 or any(not isinstance(ref, str) for ref in sequence):
+        raise HTTPException(422, 'Ungültige Dokumentreihenfolge.')
+    result, seen = [], set()
+    for ref in sequence:
+        item = references.get(ref)
+        if item is None or item['key'] in seen:
+            raise HTTPException(422, 'Die Dokumentauswahl hat sich geändert. Bitte die Mappe neu laden.')
+        result.append(item)
+        seen.add(item['key'])
+    if seen != {item['key'] for item in items}:
+        raise HTTPException(422, 'Die Dokumentauswahl ist unvollständig. Bitte die Mappe neu laden.')
+    return result
+
 def files_dir(row):
-    path = settings.data_dir / 'circulations' / str(row.id)
+    path = settings.data_dir / ('circulation-bundles' if isinstance(row, CirculationBundle) else 'circulations') / str(row.id)
     path.mkdir(parents=True, exist_ok=True)
     return path
 
