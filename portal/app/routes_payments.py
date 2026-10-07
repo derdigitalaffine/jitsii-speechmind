@@ -9,7 +9,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from . import csvsafe, epaybl, payments as pay
-from .db import LOCAL_TZ, Payment, User, get_settings, set_setting, to_local
+from .db import LOCAL_TZ, Payment, PaymentReceipt, utcnow, User, get_settings, set_setting, to_local
 from .main import admin_user, app, check_csrf, current_user, flash, get_db, rate_limit, redirect, render, require, safe_next, session_user
 from .security import encrypt
 
@@ -26,7 +26,7 @@ def _payment(db, token: str) -> Payment:
 def _ctx(db, p: Payment) -> dict:
     cfg = get_settings(db)
     return {"p": p, "items": pay.items(p), "money": pay.money, "statuses": pay.STATUSES, "methods": pay.METHODS,
-            "available": pay.available(cfg, p), "cfg": cfg}
+            "available": pay.available(cfg, p), "cfg": cfg, "receipts": pay.receipts(db, p)}
 
 
 # --- Öffentliche Zahlseite --------------------------------------------------------------------
@@ -185,6 +185,49 @@ def _back(data, pid: int) -> RedirectResponse:
     return redirect(safe_next(nxt) if nxt else f"/payments/{pid}")
 
 
+def _occurred(value):
+    if not value:
+        return None
+    try:
+        stamp = datetime.fromisoformat(str(value))
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=LOCAL_TZ)
+        stamp = stamp.astimezone(timezone.utc).replace(tzinfo=None)
+        return stamp if stamp <= utcnow() else None
+    except (ValueError, TypeError):
+        return None
+
+
+@app.post("/payments/{pid:int}/refund/check", dependencies=[Depends(check_csrf)])
+async def payment_refund_check(request: Request, pid: int, db: Session = Depends(get_db)):
+    user = _user(request, db)
+    p = _managed(db, user, pid)
+    data = await request.form()
+    message = pay.reconcile_refund(db, p)
+    db.commit()
+    flash(request, message or "Erstattung bestätigt.", "error" if message else "success")
+    return _back(data, pid)
+
+
+@app.get("/payments/{pid:int}/receipts/{rid:int}.pdf")
+def payment_receipt(request: Request, pid: int, rid: int, db: Session = Depends(get_db)):
+    _managed(db, _user(request, db), pid)
+    return _receipt_response(db, pid, rid)
+
+
+@app.get("/pay/{token}/receipts/{rid:int}.pdf")
+def public_payment_receipt(token: str, rid: int, db: Session = Depends(get_db)):
+    return _receipt_response(db, _payment(db, token).id, rid)
+
+
+def _receipt_response(db, pid, rid):
+    receipt = db.get(PaymentReceipt, rid)
+    if receipt is None or receipt.payment_id != pid:
+        raise HTTPException(404, "Beleg nicht gefunden.")
+    return Response(pay.receipt_pdf(receipt), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{receipt.ref}.pdf"', "Cache-Control": "no-store"})
+
+
 @app.post("/payments/{pid:int}/paid", dependencies=[Depends(check_csrf)])
 async def payment_mark_paid(request: Request, pid: int, db: Session = Depends(get_db)):
     user = _user(request, db)
@@ -193,7 +236,11 @@ async def payment_mark_paid(request: Request, pid: int, db: Session = Depends(ge
     method = str(data.get("method", "cash"))
     if method not in ("cash", "transfer"):
         method = "cash"
-    if pay.mark_paid(db, p, method, user.name or user.email, str(data.get("note", ""))[:300]):
+    occurred = _occurred(data.get("occurred_at"))
+    if data.get("occurred_at") and occurred is None:
+        flash(request, "Bitte einen gültigen tatsächlichen Zeitpunkt in der Vergangenheit angeben.", "error")
+        return _back(data, pid)
+    if pay.mark_paid(db, p, method, user.name or user.email, str(data.get("note", ""))[:300], occurred_at=occurred):
         flash(request, f"{p.ref} als bezahlt ({pay.METHODS[method][0]}) vermerkt.")
     db.commit()
     return _back(data, pid)
@@ -205,7 +252,12 @@ async def payment_refund(request: Request, pid: int, db: Session = Depends(get_d
     p = _managed(db, user, pid)
     data = await request.form()
     cents = pay.parse_amount(data.get("amount", ""))
-    err = pay.refund(db, p, cents or 0, user.name or user.email, str(data.get("note", ""))[:300]) if cents else \
+    occurred = _occurred(data.get("occurred_at"))
+    method = str(data.get("refund_method", ""))
+    if method not in ("", "cash", "transfer") or (data.get("occurred_at") and occurred is None):
+        flash(request, "Ungültiger Zahlweg oder tatsächlicher Zeitpunkt.", "error")
+        return _back(data, pid)
+    err = pay.refund(db, p, cents or 0, user.name or user.email, str(data.get("note", ""))[:300], method=method, occurred_at=occurred) if cents else \
         "Bitte einen gültigen Betrag angeben."
     if err:
         db.rollback()

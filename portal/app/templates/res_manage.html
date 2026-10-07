@@ -51,4 +51,5 @@
   </div></div>
   <p class="small text-secondary">{{ rules }} Fragen? Antworten Sie einfach auf eine unserer E-Mails.</p>
 </div>
+{% if b.deposit_payment %}<div class="card mt-3"><div class="card-body"><h2 class="h5">Kaution separat</h2><p>{{ money(b.deposit_payment.amount_cents) }} · {{ pay_statuses[b.deposit_payment.status][0] }}</p><a class="btn btn-outline-primary" href="/pay/{{ b.deposit_payment.token }}">Kautionszahlung und Belege</a></div></div>{% endif %}
 {% endblock %}

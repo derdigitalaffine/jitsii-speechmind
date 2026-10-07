@@ -72,4 +72,5 @@
   </div></div>
   {% endif %}
 </div>
+{% if receipts %}<div class="card mt-3"><div class="card-body"><h2 class="h5">Quittungen und Belege</h2><ul>{% for receipt in receipts %}<li><a href="{{ '/pay/' ~ p.token if request.url.path.startswith('/pay/') else '/payments/' ~ p.id }}/receipts/{{ receipt.id }}.pdf">{{ receipt.ref }} · {{ money(receipt.cents) }}</a></li>{% endfor %}</ul></div></div>{% endif %}
 {% endblock %}
