@@ -1,3 +1,13 @@
+// Open the edited folder and its parent folders after server redirects to an anchor.
+(function () {
+  function reveal() {
+    const target = document.getElementById(location.hash.slice(1));
+    if (!target) return;
+    let node = target;
+    while (node) { if (node.tagName === 'DETAILS') node.open = true; node = node.parentElement; }
+  }
+  reveal(); window.addEventListener('hashchange', reveal);
+})();
 // Ablage: Einträge markieren und gesammelt verschieben.
 (function () {
   var all = document.getElementById('bulk-all');

@@ -6,8 +6,10 @@
 {% elif r.kind == 'buchung' %}<span class="badge text-bg-info"><i class="fa-solid fa-building me-1"></i>Buchung · {{ r.status }}</span>
 {% else %}{% set st = statuses.get(r.status, (r.status, 'secondary', 'fa-circle')) %}<span class="badge text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>{% endif %}
 {%- endmacro %}
+{% block head %}<link rel="stylesheet" href="/static/dms-browser.css">{% endblock %}
 {% block content %}
-{% call m.page_head('Ablage', 'Recherche in Online-Anträgen und abgelegten Vorgängen der Bereiche, für die Sie berechtigt sind.') %}
+{% import "_dms_folders.html" as folders_ui with context %}
+{% call m.page_head('Ablage', 'Ordner öffnen, Vorgänge finden und Dokumente lesen – mit Ihren vorhandenen Ablagerechten.') %}
 <a class="btn btn-outline-secondary" href="/dms/persons"><i class="fa-solid fa-address-book me-1"></i>Personen</a>
 {% if manager %}<a class="btn btn-outline-secondary" href="/dms/areas"><i class="fa-solid fa-sitemap me-1"></i>Aktenplan</a><a class="btn btn-outline-secondary" href="/dms/retention"><i class="fa-regular fa-calendar-xmark me-1"></i>Löschfristen</a>{% endif %}
 {% if can_write %}<a class="btn btn-primary" href="/dms/new{% if f.area %}?area={{ f.area }}{% endif %}"><i class="fa-solid fa-plus me-1"></i>Vorgang ablegen</a>{% endif %}
@@ -15,12 +17,15 @@
 
 <div class="row g-4">
   <div class="col-12 col-xl-3">
-    <form method="get" class="card" id="dms-filter"><div class="card-body">
+    <details class="card mb-3"><summary class="card-header"><i class="fa-solid fa-folder-tree me-2"></i>Ordnernavigation</summary><div class="card-body">{{ folders_ui.tree(folder_tree, selected_folder) }}</div></details>
+    <details class="card mb-3" {{ 'open' if filtering }}><summary class="card-header"><i class="fa-solid fa-filter me-2"></i>Suche & Filter</summary>
+    <form method="get" class="card border-0" id="dms-filter"><div class="card-body">
       <label class="form-label small mb-1" for="d-q">Volltext</label>
       <div class="input-group mb-3"><span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span><input class="form-control" id="d-q" name="q" value="{{ f.q }}" placeholder="Begriffe in Angaben, Notizen, Dateinamen" type="search"></div>
       <label class="form-label small mb-1" for="d-area">Bereich (mit Unterbereichen)</label>
       <select class="form-select form-select-sm mb-2" id="d-area" name="area"><option value="">alle meine Bereiche</option>
         {% for a, d in tree %}<option value="{{ a.id }}" {% if f.area == a.id | string %}selected{% endif %}>{{ '  ' * d }}{{ a.code ~ ' ' if a.code }}{{ a.name }}</option>{% endfor %}</select>
+      <label class="form-check small mb-3"><input class="form-check-input" type="checkbox" name="scope" value="all" {{ 'checked' if f.scope=='all' }}>Unterordner mit durchsuchen</label>
       <label class="form-label small mb-1" for="d-app">Antragsteller:in</label>
       <input class="form-control form-control-sm mb-2" id="d-app" name="applicant" value="{{ f.applicant }}" placeholder="Name oder E-Mail">
       <div class="row g-2 mb-2">
@@ -42,6 +47,7 @@
       </div>
       <div class="d-flex gap-2"><button class="btn btn-primary flex-grow-1" type="submit">Suchen</button><a class="btn btn-outline-secondary" href="/dms" title="Filter zurücksetzen"><i class="fa-solid fa-xmark"></i></a></div>
     </div></form>
+    </details>
 
     <div class="card mt-3"><div class="card-header small fw-semibold"><i class="fa-regular fa-bookmark me-1"></i>Gespeicherte Suchen</div>
       <div class="list-group list-group-flush small">
@@ -56,6 +62,11 @@
   </div>
 
   <div class="col-12 col-xl-9">
+    <nav class="dms-breadcrumb mb-3" aria-label="Ordnerpfad"><a href="/dms"><i class="fa-solid fa-house me-1"></i>Ablage</a>{% for a in breadcrumbs %}<span aria-hidden="true">›</span><a href="{{ folder_url(a) }}" {{ 'aria-current=page' if loop.last }}>{{ a.code ~ ' ' if a.code }}{{ a.name }}</a>{% endfor %}</nav>
+    <div class="d-flex flex-wrap justify-content-between gap-2 mb-3"><h2 class="h4 mb-0">{{ selected_folder.name if selected_folder else 'Meine Ordner' }}</h2>{% if breadcrumbs %}<a class="btn btn-sm btn-outline-secondary" href="{{ folder_url(breadcrumbs[-2] if breadcrumbs|length>1 else None) }}">↑ Übergeordneter Ordner</a>{% endif %}</div>
+    {% if selected_folder and selected_folder.description %}<p class="text-secondary">{{ selected_folder.description }}</p>{% endif %}
+    {% if folders %}<div class="dms-folder-grid" aria-label="Unterordner">{% for a in folders %}<a class="dms-folder-card" href="{{ folder_url(a) }}"><i class="fa-solid fa-folder" aria-hidden="true"></i><span><strong>{{ a.code ~ ' ' if a.code }}{{ a.name }}</strong><small class="d-block text-secondary">Ordner öffnen</small></span></a>{% endfor %}</div>{% endif %}
+    <p class="small text-secondary">{{ 'Suchergebnisse einschließlich Unterordnern' if f.scope=='all' else 'Vorgänge in diesem Ordner' }}</p>
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
       <strong>{{ total }} Treffer</strong>
       {% for k, v in active.items() %}<span class="badge text-bg-light border fw-normal">{{ {'q': 'Text', 'applicant': 'Antragsteller:in', 'ref': 'Aktenzeichen', 'area': 'Bereich', 'form': 'Antragsart', 'status': 'Status', 'from': 'ab', 'to': 'bis', 'place': 'Ort', 'kind': 'Art', 'person': 'Person'}[k] }}: {{ by_id[v | int].name if k == 'area' and v.isdigit() and (v | int) in by_id else (person_name if k == 'person' else v) }}</span>{% endfor %}
@@ -81,7 +92,7 @@
         <div class="flex-grow-1">
         <div class="d-flex flex-wrap align-items-center gap-2">
           <a class="font-monospace fw-semibold stretched-link" href="/dms/r/{{ r.id }}">{{ r.ref_no or '—' }}</a>
-          <span class="fw-semibold">{{ r.title }}</span>
+          <span class="fw-semibold"><i class="fa-solid fa-folder-open text-warning me-2"></i>{{ r.title }}</span>
           {{ status_badge(r) }}
           <span class="small text-secondary ms-auto">{{ r.received_at | local('%d.%m.%Y') }}</span>
         </div>
@@ -101,7 +112,7 @@
     </ul></nav>
     {% endif %}
     {% else %}
-    <div class="card"><div class="card-body text-center text-secondary py-5"><i class="fa-solid fa-box-open fa-3x mb-3"></i><p class="mb-0">{% if active %}Keine Treffer für diese Suche.{% else %}Die Ablage ist noch leer. Ordnen Sie Antragsformularen unter „Antrag“ einen Ablagebereich zu oder legen Sie einen Vorgang manuell ab.{% endif %}</p></div></div>
+    <div class="card"><div class="card-body text-center text-secondary py-5"><i class="fa-solid fa-box-open fa-3x mb-3"></i><p class="mb-0">{% if active %}Keine Vorgänge für diese Auswahl.{% else %}Hier sind keine Vorgänge abgelegt. Öffnen Sie einen Ordner oder legen Sie einen Vorgang ab.{% endif %}</p></div></div>
     {% endif %}
   </div>
 </div>

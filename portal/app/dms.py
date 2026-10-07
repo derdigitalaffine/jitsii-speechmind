@@ -329,16 +329,19 @@ def reconcile() -> int:
 
 # --- Recherche ---------------------------------------------------------------------------------
 
-FILTERS = ("q", "applicant", "ref", "area", "form", "status", "from", "to", "place", "kind", "sort", "person")
+FILTERS = ("q", "applicant", "ref", "area", "form", "status", "from", "to", "place", "kind", "sort", "person", "scope")
 
 
-def search(db, user: User, f: dict, limit: int = 50, offset: int = 0) -> tuple[list[DmsRecord], int]:
+def search(db, user: User, f: dict, limit: int = 50, offset: int = 0, root_ids=None) -> tuple[list[DmsRecord], int]:
     lv = levels(db, user)
     q = select(DmsRecord)
     if not user.is_admin:
         q = q.where(DmsRecord.area_id.in_(list(lv) or [-1]))
     if f.get("area", "").isdigit():
-        q = q.where(DmsRecord.area_id.in_(subtree_ids(db, int(f["area"]))))
+        ids = [int(f['area'])] if f.get('scope') == 'folder' else subtree_ids(db, int(f['area']))
+        q = q.where(DmsRecord.area_id.in_(ids))
+    elif f.get('scope') == 'folder' and root_ids is not None:
+        q = q.where(DmsRecord.area_id.in_(root_ids or [-1]))
     for term in (f.get("q") or "").lower().split()[:8]:
         q = q.where(DmsRecord.text.contains(term))
     if f.get("applicant"):
@@ -484,3 +487,16 @@ def delete_record(db, record: DmsRecord, user: User, reason: str) -> None:
         db.delete(resp)
     db.delete(record)
     log(db, user, "gelöscht", f"{desc} – {reason}")
+
+
+def folder_tree(all_areas):
+    """Visible folders only; readable descendants of hidden parents become visible roots."""
+    by_id = {a.id: a for a in all_areas}
+    children = {}
+    for a in all_areas:
+        children.setdefault(a.parent_id if a.parent_id in by_id else None, []).append(a)
+    def walk(parent, seen):
+        return [dict(area=a, children=walk(a.id, seen | {a.id})) for a in
+                sorted(children.get(parent, []), key=lambda a: (a.position, a.code, a.name.casefold()))
+                if a.id not in seen and len(seen) < 20]
+    return walk(None, set())

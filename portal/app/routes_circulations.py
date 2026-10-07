@@ -290,7 +290,7 @@ def file_send(db, row, ver, key, user=None):
     safe = item['mime'] in {'application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/gif'}
     return protect(FileResponse(path, filename=item['title'], media_type=item['mime'] if safe else 'application/octet-stream',
         content_disposition_type='inline' if safe else 'attachment',
-        headers={'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; sandbox"}))
+        headers={'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'SAMEORIGIN' if safe else 'DENY', 'Content-Security-Policy': "default-src 'none'; frame-ancestors 'self'; sandbox"}))
 
 
 @app.get('/umlaeufe/g/{token}/files/{key}')

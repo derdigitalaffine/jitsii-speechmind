@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
 {% block title %}Aktenplan · Ablage{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/dms-browser.css">{% endblock %}
 {% block content %}
 <nav aria-label="Pfad" class="small mb-2"><a href="/dms">Ablage</a> › Aktenplan</nav>
 {% call m.page_head('Aktenplan', 'Ablagebereiche mit Lese- und Schreibrechten für Gruppen und Personen. Rechte und Löschfristen gelten auch für alle Unterbereiche. Admins sehen immer alles.') %}
@@ -21,8 +22,8 @@
 
 {% if tree %}
 <div class="d-flex flex-column gap-2">
-{% for a, d in tree %}
-<div class="card" id="bereich-{{ a.id }}" style="margin-left: {{ d * 1.5 }}rem">
+{% macro render_folders(nodes) %}{% for node in nodes %}{% set a=node.area %}{% set d=0 %}
+<details class="card dms-plan-folder mb-2" id="bereich-{{ a.id }}"><summary><i class="fa-solid fa-folder text-warning me-2"></i><strong>{{ a.code ~ ' ' if a.code }}{{ a.name }}</strong> <span class="badge text-bg-light border">{{ counts.get(a.id,0) }} Vorgänge · {{ node.children|length }} Unterordner</span></summary>
   <div class="card-body py-2">
     <div class="d-flex flex-wrap align-items-center gap-2">
       <i class="fa-solid {{ 'fa-inbox' if a.system_key else ('fa-folder-tree' if d == 0 else 'fa-folder') }} {{ 'text-warning' if a.system_key else 'text-primary' }}"></i>
@@ -59,10 +60,12 @@
       </div>
     </div>
   </div>
-</div>
-{% endfor %}
+{% if node.children %}<div class="dms-plan-children">{{ render_folders(node.children) }}</div>{% endif %}</details>
+{% endfor %}{% endmacro %}{{ render_folders(folder_tree) }}
 </div>
 {% else %}
 <p class="text-secondary">Noch kein Aktenplan. Legen Sie oben den ersten Bereich an, z. B. „1 Ordnung und Sicherheit“ mit Unterbereich „1.2 Hundesteuer“.</p>
 {% endif %}
 {% endblock %}
+
+{% block scripts %}<script src="/static/dms.js" defer></script>{% endblock %}
