@@ -15,6 +15,7 @@ from .db import BookingPage, SessionLocal, get_settings
 
 # Schlüssel: (Bezeichnung, Symbol, Modul, Pfad, Beschreibung für die Startseite)
 ITEMS = {
+    "aushang": ("Aushänge", "fa-bullhorn", "circulations", "/umlaeufe", "Öffentliche Informationen und Bekanntmachungen lesen"),
     "antraege": ("Anträge", "fa-file-signature", "applications", "/antraege",
                  "Online-Anträge stellen und den Bearbeitungsstand verfolgen"),
     "raeume": ("Räume & Plätze", "fa-building", "resources", "/r",
@@ -69,6 +70,9 @@ def available(db, cfg: dict[str, str], modules: set[str]) -> dict[str, bool]:
         ok = module in modules
         if ok and key == "termine":
             ok = listed_bookings(db) > 0
+        if ok and key == "aushang":
+            from . import circulations
+            ok = circulations.public_available(db)
         if ok and key == "krank":
             ok = krank.public_open(cfg)
         out[key] = ok

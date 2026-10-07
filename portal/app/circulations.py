@@ -41,7 +41,7 @@ def markdown(text):
 
 
 def default():
-    return dict(title='', body='', category='Allgemeines', kind='notice', mode='ack', per_item=False,
+    return dict(title='', body='', category='Allgemeines', kind='notice', mode='info', per_item=False,
                 sequential=False, audience={'users': [], 'groups': [], 'all': False, 'guests': []},
                 dynamic=False, public=False, pinned=False, items=[], publish_on='', due_on='', expires_on='',
                 reminder_days=3, guest_days=30, escalate_id=None, review_requested=False)
@@ -53,6 +53,9 @@ def may_edit(db, user, row):
     if user.can('circulations_manage'):
         return True
     if row.owner_id == user.id:
+        return True
+    if user.can('circulations_publish') and db.scalar(select(CirculationVersion.id).where(
+        CirculationVersion.circulation_id == row.id, CirculationVersion.published_by == user.id)):
         return True
     owner = db.get(User, row.owner_id)
     return bool(owner and owner.active and row.owner_id in absence.represented(db, user)
@@ -102,6 +105,8 @@ def expired(ver):
 def readable(db, row, ver, user=None, guest=None):
     if may_edit(db, user, row) or (user and user.can('circulations_publish') and content(row).get('review_requested')):
         return True
+    if ver and content(ver)['publish_on'] and at(content(ver)['publish_on']) > utcnow():
+        return False
     if not ver or not active(row, ver):
         # Archived folders remain readable to their actual recipients.
         if not ver or not row.archived:
@@ -307,6 +312,8 @@ def dispatch(db, row, ver, reminders=False):
         return 0
     sent = 0
     for r in recipients(db, ver):
+        if r.user_id is None and r.token_expires_at and r.token_hash is None:
+            continue  # An explicit revocation survives reminder ticks until manually reissued.
         if c['mode'] != 'info' and not ready(db, ver, r):
             continue
         initial = r.notified_at is None
@@ -397,6 +404,8 @@ def form_data(data, previous):
     if len(guests) > 500: raise HTTPException(422, 'Maximal 500 Gäste pro Umlauf.')
     c['audience'] = dict(users=ids('users'), groups=ids('groups'), all=data.get('all') == '1', guests=guests)
     c['items'] = [i for i in previous.get('items', []) if i['key'] not in data.getlist('remove_item')]
+    try: c['items'].sort(key=lambda i: int(data.get('order_'+i['key'], 100)))
+    except (ValueError, TypeError): raise HTTPException(422, 'Ungültige Dokumentreihenfolge.')
     return c
 
 
@@ -411,3 +420,10 @@ def file_path(row, item):
     if not re.fullmatch(r'[a-f0-9]{32}\.[a-z0-9]{1,8}', name):
         raise HTTPException(404)
     return files_dir(row) / name
+
+
+def public_available(db):
+    rows = db.execute(select(Circulation, CirculationVersion).join(CirculationVersion,
+        (CirculationVersion.circulation_id == Circulation.id) &
+        (CirculationVersion.number == Circulation.current_version)).where(Circulation.archived.is_(False)))
+    return any(content(ver)['public'] and active(row, ver) and not expired(ver) for row, ver in rows)

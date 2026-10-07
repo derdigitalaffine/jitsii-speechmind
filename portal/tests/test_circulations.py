@@ -181,5 +181,47 @@ def test_upload_preview_keeps_auth_and_stale_save_is_rejected(db,actors):
     assert client().get(url).status_code==404
     recipient=login(actors[1].email,'passwort-test-123');pdf=recipient.get(url)
     assert pdf.status_code==200 and pdf.headers['content-disposition'].startswith('inline')
+    assert pdf.headers['x-frame-options']=='SAMEORIGIN'
     assert owner.post(f'/umlaeufe/{row.id}/save',data={'csrf':csrf_of(edit.text),'revision':rev}).status_code==409
     assert owner.post(f'/umlaeufe/{row.id}/publish',data={'revision':row.updated_at.isoformat()}).status_code==400
+
+
+def test_revoked_guests_are_not_reactivated_by_reminders(db,actors,monkeypatch):
+    row,ver,rec=make(db,actors,audience={'users':[],'groups':[],'all':False,'guests':[{'name':'Gast','email':'revoked@example.org'}]})
+    guest=cl.recipients(db,ver)[0]
+    cl.guest_url(db,row,ver,guest)
+    guest.token_hash=None;guest.notified_at=utcnow()-timedelta(days=4)
+    monkeypatch.setattr(cl.notify,'mail_configured',lambda cfg:True)
+    monkeypatch.setattr(cl.notify,'enqueue',lambda *a,**k:pytest.fail('Revoked guest must not get a fresh capability'))
+    assert cl.dispatch(db,row,ver,reminders=True)==0
+    assert not guest.token_hash
+
+
+def test_public_board_is_listed_only_when_available(db,actors):
+    from app import public_nav
+    public_nav.invalidate()
+    assert not cl.public_available(db)
+    row,ver,rec=make(db,actors,mode='info',public=True)
+    assert cl.public_available(db)
+    entries=public_nav.entries(db,cl.get_settings(db),{'circulations'})
+    assert next(e for e in entries if e['key']=='aushang')['available']
+    row.archived=True;db.commit();assert not cl.public_available(db)
+    public_nav.invalidate()
+
+
+def test_markdown_documents_render_safely_and_are_frozen(db,actors):
+    row,ver,rec=make(db,actors,items=[dict(key='md',kind='markdown',title='Checkliste',file='b'*32+'.md',mime='text/markdown',size=10,body='## Checkliste\n<script>alert(1)</script>')])
+    c=login(actors[1].email,'passwort-test-123');page=c.get(f'/umlaeufe/{row.id}')
+    assert page.status_code==200 and '<h2>Checkliste</h2>' in page.text
+    assert '<script>alert(1)</script>' not in page.text
+
+
+def test_confirmation_opens_next_station_and_custom_category_is_filterable(db,actors):
+    row,ver,rec=make(db,actors,category='Eigene Kategorie',sequential=True,audience={'users':[actors[1].id,actors[2].id],'groups':[],'all':False,'guests':[]})
+    next_rec=cl.own_recipient(db,ver,actors[2]);assert not cl.ready(db,ver,next_rec)
+    cl.acknowledge(db,row,ver,rec,actors[1],'all','ack');db.commit()
+    assert cl.ready(db,ver,next_rec)
+    c=login(actors[2].email,'passwort-test-123')
+    page=c.get('/umlaeufe',params={'category':'Eigene Kategorie'})
+    assert page.status_code==200 and '<option selected>Eigene Kategorie</option>' in page.text
+    assert row.id in {item['row'].id for item in cl.overview(db,actors[2])['items']}

@@ -25,7 +25,7 @@ Portal-Verweise gewähren keine neuen Quellrechte. DMS-Verweise sind intern, wer
 beim Veröffentlichen für jeden Empfänger geprüft und bei jeder Anzeige erneut geprüft.
 Für Gäste müssen ausdrücklich zur Verteilung freigegebene Kopien hochgeladen werden.
 Dateien bleiben fassungsgebunden erhalten. PDF und Rasterbilder werden inline angezeigt;
-Office-Dateien, E-Mails und Texte stehen als Download bereit. HTML/SVG sind ausgeschlossen.
+Zusätzliche Markdown-Dokumente werden sicher gerendert und als Original zum Download angeboten. Office-Dateien, E-Mails und andere Texte stehen als Download bereit. Die Reihenfolge der Dokumente ist im Editor einstellbar. HTML/SVG sind ausgeschlossen.
 
 Gastlinks sind zufällige, gehashte, befristete Fähigkeiten pro Person und Fassung.
 Die Verwaltung kann sie widerrufen oder neu per E-Mail ausstellen. Ohne eingerichteten
@@ -45,3 +45,5 @@ nach dokumentiertem Nachtrag als Kenntnisnahme. Rückfragen und Antworten bleibe
 
 Die PDF-Vorschau nutzt den Browserbetrachter mit Downloadfallback. Dessen Werkzeuge
 (Zoom, Suche, Druck) hängen vom Browser ab. OCR und Dokumentanmerkungen sind nicht enthalten.
+
+Öffentliche Aushänge erscheinen im bestehenden öffentlichen Menü nur, wenn ein aktuell lesbarer öffentlicher Aushang vorhanden ist. Interne Umläufe erscheinen dort nicht. Widerrufene Gastlinks bleiben auch bei Erinnerungen gesperrt, bis die Verwaltung sie ausdrücklich neu ausstellt.

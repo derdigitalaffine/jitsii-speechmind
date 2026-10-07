@@ -76,6 +76,7 @@ def circulation_list(request: Request, db: Session = Depends(get_db)):
     q = request.query_params.get('q', '').strip().lower()[:200]
     category = request.query_params.get('category', '')[:80]
     cards = []
+    category_options = set(cl.CATEGORIES)
     for row in db.scalars(select(Circulation).order_by(Circulation.updated_at.desc())):
         ver = cl.version(db, row)
         manager = cl.may_edit(db, user, row) or (user and cl.may_publish(db, user, row))
@@ -92,6 +93,7 @@ def circulation_list(request: Request, db: Session = Depends(get_db)):
             if tab == 'open':
                 rec = cl.own_recipient(db, ver, user)
                 if not rec or rec.decision or c['mode'] == 'info': continue
+        category_options.add(c['category'])
         if q and q not in (c['title'] + ' ' + c['body'] + ' ' + c['category']).lower(): continue
         if category and c['category'] != category: continue
         rec = cl.own_recipient(db, ver, user) if ver else None
@@ -99,7 +101,7 @@ def circulation_list(request: Request, db: Session = Depends(get_db)):
                           overdue=bool(ver and rec and not rec.decision and c['due_on'] and cl.at(c['due_on']) < utcnow())))
     cards.sort(key=lambda x: not x['c']['pinned'])
     return protect(render(request, 'circulations.html', user, cards=cards, tab=tab, q=q, category=category,
-                          categories=cl.CATEGORIES, can_create=bool(user and any(user.can(p) for p in ['circulations_create', 'circulations_publish', 'circulations_manage'])),
+                          categories=sorted(category_options), can_create=bool(user and any(user.can(p) for p in ['circulations_create', 'circulations_publish', 'circulations_manage'])),
                           can_review=bool(user and user.can('circulations_publish'))))
 
 
@@ -117,7 +119,7 @@ def editor_context(db, user, row):
         groups=db.scalars(select(Group).order_by(Group.name)).all(), distributors=distributors,
         laws=db.scalars(select(LawText).where(LawText.published.is_(True)).order_by(LawText.title)).all() if 'laws' in enabled_modules() else [],
         forms=db.scalars(select(Form).where(Form.active.is_(True), Form.public_token.is_not(None), True if user.can('internal_forms') else Form.internal.is_(False)).order_by(Form.title)).all() if 'forms' in enabled_modules() else [],
-        dms_files=[f for f in db.scalars(select(DmsFile).order_by(DmsFile.name)) if dms.record_level(db, user, f.record) >= dms.READ] if 'dms' in enabled_modules() else [],
+        dms_files=list(db.scalars(select(DmsFile).where(DmsFile.record_id.in_(select(cl.DmsRecord.id).where(cl.DmsRecord.area_id.in_(list(dms.levels(db,user)))))).order_by(DmsFile.name))) if 'dms' in enabled_modules() else [],
         can_publish=cl.may_publish(db, user, row), date_input=lambda value: to_local(cl.at(value)).strftime('%Y-%m-%dT%H:%M') if value else '')
 
 
@@ -178,8 +180,14 @@ async def circulation_save(request: Request, cid: int, user: User = Depends(curr
             file = secrets.token_hex(16) + ext
             path = cl.files_dir(row) / file
             path.write_bytes(blob); staged.append(path)
-            c['items'].append(dict(key=secrets.token_hex(12), kind='file', title=name, file=file,
+            c['items'].append(dict(key=secrets.token_hex(12), kind='markdown' if ext=='.md' else 'file', title=name, file=file,
                 mime=mimetypes.guess_type(name)[0] or 'application/octet-stream', size=len(blob), sha256=hashlib.sha256(blob).hexdigest()))
+        for item in c['items']:
+            if item['kind']=='markdown' and 'body' not in item:
+                blob = cl.file_path(row,item).read_bytes()
+                if len(blob)>100000: raise HTTPException(413, 'Markdown-Dokumente dürfen maximal 100 kB groß sein.')
+                try: item['body'] = blob.decode('utf-8-sig')
+                except UnicodeDecodeError: raise HTTPException(422, 'Markdown bitte als UTF-8 speichern.')
         row.draft_json, row.updated_at = cl.dumps(c), utcnow()
         cl.event(db, row, 'edit', user=user)
         if data.get('save_distributor'):
@@ -202,6 +210,8 @@ async def circulation_publish(request: Request, cid: int, user: User = Depends(c
         cl.publish(db, row, user, data.get('reack') != '0'); db.commit()
     except IntegrityError:
         db.rollback(); raise HTTPException(409, 'Diese Fassung wurde bereits veröffentlicht. Bitte neu laden.')
+    from . import public_nav
+    public_nav.invalidate()
     flash(request, 'Fassung veröffentlicht. Der vorhandene Portal-Mailversand übernimmt die Einladungen.')
     return redirect(f'/umlaeufe/{cid}')
 
@@ -213,7 +223,7 @@ def circulation_copy(request: Request, cid: int, user: User = Depends(current_us
     c = cl.content(source_row); c['title'] += ' (Kopie)'
     c.update(publish_on='', due_on='', expires_on='', review_requested=False)
     for item in c['items']:
-        if item['kind'] == 'file':
+        if item['kind'] in {'file','markdown'}:
             shutil.copyfile(cl.file_path(source_row, item), cl.file_path(row, item))
     row.draft_json = cl.dumps(c); db.commit()
     return redirect(f'/umlaeufe/{row.id}/edit')
@@ -237,7 +247,7 @@ def view(request, db, row, ver, user=None, guest=None, token=None):
         events=db.scalars(select(CirculationEvent).where(CirculationEvent.circulation_id == row.id).order_by(CirculationEvent.created_at.desc()).limit(100)).all() if manager else [],
         questions=db.scalars(select(CirculationEvent).where(CirculationEvent.circulation_id == row.id,
                     CirculationEvent.recipient_id == rec.id, CirculationEvent.kind.in_(['question', 'reply'])).order_by(CirculationEvent.created_at)).all() if rec else [],
-        now=utcnow(), expired=cl.expired(ver)))
+        now=utcnow(), expired=cl.expired(ver), mail_ready=cl.notify.mail_configured(cl.get_settings(db))))
 
 
 @app.get('/umlaeufe/g/{token}')
@@ -276,14 +286,16 @@ async def circulation_guest_ack(request: Request, token: str, db: Session = Depe
 @app.post('/umlaeufe/{cid:int}/ack', dependencies=[Depends(check_csrf)])
 async def circulation_ack(request: Request, cid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     row = row_of(db, cid); data = await request.form()
-    ver = cl.version(db, row, int(data.get('version', 0)))
+    number = str(data.get('version', ''))
+    if not number.isdigit(): raise HTTPException(422, 'Ungültige Fassung.')
+    ver = cl.version(db, row, int(number))
     if not ver: raise HTTPException(404)
     act(db, row, ver, cl.own_recipient(db, ver, user), user, data)
     return redirect(f'/umlaeufe/{cid}')
 
 
 def file_send(db, row, ver, key, user=None):
-    item = next((i for i in cl.content(ver)['items'] if i['key'] == key and i['kind'] == 'file'), None)
+    item = next((i for i in cl.content(ver)['items'] if i['key'] == key and i['kind'] in {'file','markdown'}), None)
     if not item: raise HTTPException(404)
     path = cl.file_path(row, item)
     if not path.is_file(): raise HTTPException(404)
@@ -308,6 +320,7 @@ def circulation_file(request: Request, cid: int, key: str, v: int = 0, db: Sessi
 
 async def question(db, row, ver, rec, user, data):
     text = str(data.get('text', '')).strip()[:4000]
+    if not cl.readable(db,row,ver,user,rec if rec and rec.user_id is None else None): raise HTTPException(404)
     if not rec or not text: raise HTTPException(422, 'Bitte eine Rückfrage eingeben.')
     cl.event(db, row, 'question', text, user, ver, rec)
     owner = db.get(User, row.owner_id)
@@ -345,16 +358,16 @@ async def circulation_recipient_manage(request: Request, cid: int, rid: int, use
             for key in cl.requirement_keys(cl.content(ver)):
                 if key not in {r.item_key for r in cl.receipts(db, rec)}:
                     db.add(CirculationReceipt(recipient_id=rec.id, item_key=key, method='offline', recorded_by=user.id, evidence=reason))
-    elif action == 'revoke': rec.token_hash, rec.token_expires_at = None, None
+    elif action == 'revoke': rec.token_hash, rec.token_expires_at = None, utcnow()
     elif action == 'resend':
         if rec.user_id is not None: raise HTTPException(422, 'Nur Gastlinks können neu ausgestellt werden.')
         if not cl.notify.mail_configured(cl.get_settings(db)): raise HTTPException(422, 'Zuerst den Portal-Mailversand konfigurieren.')
         if not cl.active(row, ver) or row.archived or cl.expired(ver): raise HTTPException(409, 'Diese Fassung ist nicht geöffnet.')
         url = cl.guest_url(db, row, ver, rec)
         cl.notify.enqueue(db, rec.email, cl.content(ver)['title'], 'Ihr neuer persönlicher Gastlink:\n' + url, 'circulation_personal')
+        rec.notified_at = utcnow()
     elif action == 'reply':
         if not reason: raise HTTPException(422, 'Bitte eine Antwort eingeben.')
-        cl.event(db, row, 'reply', reason, user, ver, rec)
         cl.notify.enqueue(db, rec.email, 'Antwort: ' + cl.content(ver)['title'], reason, 'circulation_reply')
     else: raise HTTPException(422)
     cl.event(db, row, action, reason, user, ver, rec)
@@ -366,14 +379,17 @@ async def circulation_recipient_manage(request: Request, cid: int, rid: int, use
 def circulation_archive(request: Request, cid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     row = edit_of(db, user, cid); row.archived = not row.archived
     cl.event(db, row, 'archive' if row.archived else 'restore', user=user); db.commit()
+    from . import public_nav
+    public_nav.invalidate()
     return redirect(f'/umlaeufe/{cid}')
 
 
 def evidence(db, row, ver):
+    labels = {'body':'Informationstext','all':'Gesamte Fassung', **{i['key']: i['title'] for i in cl.content(ver)['items']}}
     return dict(title=cl.content(ver)['title'], version=ver.number, digest=ver.digest,
         published_at=ver.published_at.isoformat(), recipients=[dict(name=r.name, email=r.email, decision=cl.DECISIONS[r.decision],
         decided_at=r.decided_at.isoformat() if r.decided_at else '', reason=r.reason, recorded_by=r.recorded_by,
-        receipts=[dict(item=x.item_key, at=x.acknowledged_at.isoformat(), method=x.method, recorded_by=x.recorded_by, evidence=x.evidence)
+        receipts=[dict(item=x.item_key, title=labels.get(x.item_key,x.item_key), at=x.acknowledged_at.isoformat(), method=x.method, recorded_by=x.recorded_by, evidence=x.evidence)
                   for x in cl.receipts(db, r)]) for r in cl.recipients(db, ver)])
 
 
@@ -399,7 +415,7 @@ def circulation_export(request: Request, cid: int, fmt: str, v: int = 0, user: U
             if fmt == 'signatures': para('Datum: ____________________    Unterschrift: ______________________________')
             else:
                 para(f'{r["decision"]} · {r["decided_at"]} UTC\n{r["reason"]}')
-                for receipt in r['receipts']: para(f'{receipt["item"]} · {receipt["method"]} · {receipt["at"]} UTC · {receipt["evidence"]}')
+                for receipt in r['receipts']: para(f'{receipt["title"]} · {receipt["method"]} · {receipt["at"]} UTC · {receipt["evidence"]}')
         para('Fassungsprüfsumme SHA-256: ' + ver.digest)
         SimpleDocTemplate(buf, title=data['title']).build(story); body, mime = buf.getvalue(), 'application/pdf'
     else: raise HTTPException(404)
