@@ -1,4 +1,8 @@
 (() => {
+  document.querySelector('#kind')?.addEventListener('change', event => {
+    const mode = document.querySelector('#mode');
+    if (mode) mode.value = event.target.value === 'circulation' ? 'ack' : 'info';
+  });
   const textarea = document.querySelector('#body');
   document.querySelectorAll('[data-md]').forEach(button => button.addEventListener('click', () => {
     if (!textarea) return;
