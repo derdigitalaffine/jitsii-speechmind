@@ -28,9 +28,12 @@ KINDS = {
     "stars": ("Sterne (1–5)", "fa-star", ("number", "column", "bar")),
     "slider": ("Schieberegler (Zahl)", "fa-ruler-horizontal", ("number", "column")),
     "words": ("Wortwolke (Begriffe sammeln)", "fa-cloud", ("cloud", "table", "bar")),
+    "open": ("Offene Antworten (Pinnwand)", "fa-note-sticky", ("wall",)),
+    "qa": ("Fragen ans Podium (Q&A)", "fa-comments", ("qa",)),
 }
+ENTRY_KINDS = ("open", "qa")      # mehrere Beiträge je Gerät statt einer Antwort
 CHARTS = {"bar": "Balken liegend", "column": "Säulen", "pie": "Torte", "donut": "Ring", "number": "Kennzahlen",
-          "cloud": "Wortwolke", "table": "Tabelle"}
+          "cloud": "Wortwolke", "table": "Tabelle", "wall": "Pinnwand", "qa": "Fragenliste"}
 SHOW_RESULTS = {"immediate": "sofort nach der Antwort", "release": "erst nach Freigabe", "never": "nie (nur Beamer)"}
 PACING = {"moderated": ("Moderiert", "Alle sehen die Frage, die Sie gerade zeigen – Frage für Frage."),
           "free": ("Frei", "Alle Fragen auf einmal, jede:r im eigenen Tempo.")}
@@ -69,6 +72,11 @@ def settings(q: LiveQuestion) -> dict:
                 "unit": str(data.get("unit", ""))[:12]}
     if q.kind == "multi":
         return {**data, "max_choices": _int(data.get("max_choices"), 1, MAX_OPTIONS, 3)}
+    if q.kind in ENTRY_KINDS:
+        return {**data, "max_entries": _int(data.get("max_entries"), 1, 20, 3 if q.kind == "open" else 5),
+                "max_len": _int(data.get("max_len"), 20, 1000, 280),
+                "approve": (data.get("approve", q.kind == "qa") in (True, "1", 1)),
+                "filter": data.get("filter", True) is not False}
     if q.kind == "words":
         merge = data.get("merge") if isinstance(data.get("merge"), dict) else {}
         hidden = data.get("hidden") if isinstance(data.get("hidden"), list) else []
@@ -116,7 +124,9 @@ def apply_question(q: LiveQuestion, data) -> str:
             out.append({"id": oid, "label": label})
         q.options_json = json.dumps(out, ensure_ascii=False)
     sett = {k: str(data.get(k, "")) for k in ("min", "max", "low", "high", "step", "unit", "max_choices", "max_words",
-                                               "max_len")}
+                                               "max_len", "max_entries")}
+    if kind in ENTRY_KINDS:
+        sett.update(approve=data.get("approve") == "1", filter=data.get("filter") == "1")
     if kind == "words":   # Moderation (zusammengefasst/ausgeblendet) beim Bearbeiten behalten
         old = settings(q) if q.settings_json and q.kind == "words" else {}
         sett.update(merge=old.get("merge", {}), hidden=old.get("hidden", []), filter=data.get("filter") == "1")
@@ -155,6 +165,14 @@ def read_answer(q: LiveQuestion, raw) -> tuple[dict | None, str]:
         if not s["min"] <= n <= s["max"]:
             return None, "Der Wert liegt außerhalb der Skala."
         return {"n": int(n) if q.kind != "slider" or n.is_integer() else round(n, 2)}, ""
+    if q.kind in ENTRY_KINDS:
+        s = settings(q)
+        text = " ".join(str(raw.get("t", "")).split())[:s["max_len"]]
+        if len(text) < 2:
+            return None, "Bitte einen Text eingeben." if q.kind == "open" else "Bitte Ihre Frage eingeben."
+        if s["filter"] and any(is_bad(normalize(w, 200)[0]) for w in text.split()):
+            return None, "Bitte formulieren Sie Ihren Beitrag ohne beleidigende Wörter."
+        return {"t": text}, ""
     if q.kind == "words":
         s = settings(q)
         raw_words = raw.get("w")
@@ -220,6 +238,8 @@ def tally(db, q: LiveQuestion) -> dict:
                     counts[c] += 1
         out["rows"] = [{"label": o["label"], "count": counts[o["id"]],
                         "pct": round(100 * counts[o["id"]] / total) if total else 0} for o in opts(q)]
+    elif q.kind in ENTRY_KINDS:
+        out["rows"] = []        # Beiträge liefert entries()
     elif q.kind == "words":
         s = settings(q)
         counts: dict[str, int] = {}
@@ -263,10 +283,12 @@ def visible_to_participants(q: LiveQuestion) -> bool:
     return q.show_results == "immediate" or (q.show_results == "release" and q.released)
 
 
-def question_payload(db, q: LiveQuestion, mine: dict | None = None, staff: bool = False) -> dict:
+def question_payload(db, q: LiveQuestion, mine: dict | None = None, staff: bool = False, device: str | None = None) -> dict:
     """Frage für die Teilnehmer- bzw. Präsentationsansicht (JSON)."""
     data = {"id": q.id, "kind": q.kind, "title": q.title, "options": opts(q), "settings": settings(q),
             "chart": q.chart, "locked": q.locked, "answered": mine is not None, "mine": mine}
+    if q.kind in ENTRY_KINDS:
+        return {**data, **entry_payload(db, q, device, staff)}
     if staff or (mine is not None and visible_to_participants(q)):
         data["results"] = tally(db, q)
     if staff:
@@ -283,7 +305,7 @@ def state(db, poll: LivePoll, device: str | None = None, staff: bool = False) ->
     else:
         shown = list(poll.questions)
     return {"status": poll.status, "pacing": poll.pacing, "title": poll.title, "current": poll.current_id,
-            "questions": [question_payload(db, q, mine.get(q.id), staff) for q in shown],
+            "questions": [question_payload(db, q, mine.get(q.id), staff, device) for q in shown],
             "participants": len(set(db.scalars(select(LiveAnswer.device).where(LiveAnswer.poll_id == poll.id))))}
 
 
@@ -374,6 +396,13 @@ def to_csv(db, q: LiveQuestion) -> str:
     buf = io.StringIO()
     w = csvsafe.writer(buf, delimiter=";")
     w.writerow([q.title])
+    if q.kind in ENTRY_KINDS:
+        w.writerow(["Beitrag", "Stimmen", "Status", "Zeit"])
+        for e in entry_payload(db, q, None, True)["entries"]:
+            status = "ausgeblendet" if e.get("hidden") else ("beantwortet" if e["answered"] else
+                                                               ("freigegeben" if e["approved"] else "wartet"))
+            w.writerow([e["text"], e["upvotes"], status, e["at"][:16].replace("T", " ")])
+        return "\ufeff" + buf.getvalue()
     w.writerow(["Begriff" if q.kind == "words" else "Antwort", "Anzahl", "Anteil %"])
     for r in res["rows"]:
         w.writerow([r["label"], r["count"], r["pct"]])
@@ -436,3 +465,80 @@ def cloud_png(db, q: LiveQuestion, width: int = 1600, height: int = 900, dark: b
     buf = io.BytesIO()
     img.save(buf, "PNG", optimize=True)
     return buf.getvalue()
+
+
+# --- Pinnwand und Q&A: mehrere Beiträge je Gerät, Freigabe, Upvotes ---------------------------------
+
+def add_entry(db, poll: LivePoll, q: LiveQuestion, device: str, value: dict) -> tuple[LiveAnswer | None, str]:
+    s = settings(q)
+    mine = db.scalars(select(LiveAnswer).where(LiveAnswer.question_id == q.id, LiveAnswer.device == device)).all()
+    if len(mine) >= s["max_entries"]:
+        return None, f"Höchstens {s['max_entries']} Beiträge je Person."
+    if any(json.loads(a.value_json or "{}").get("t", "").casefold() == value["t"].casefold() for a in mine):
+        return None, "Diesen Beitrag haben Sie schon geschickt."
+    a = LiveAnswer(poll_id=poll.id, question_id=q.id, device=device, value_json=json.dumps(value, ensure_ascii=False),
+                   approved=not s["approve"])
+    db.add(a)
+    return a, ""
+
+
+def upvote(db, q: LiveQuestion, answer_id: int, device: str) -> str:
+    """Q&A: Stimme für einen freigegebenen Beitrag setzen bzw. zurücknehmen (je Gerät einmal)."""
+    from .db import LiveUpvote
+    a = db.get(LiveAnswer, answer_id)
+    if a is None or a.question_id != q.id or a.hidden or not a.approved or q.kind != "qa":
+        return "Diesen Beitrag gibt es nicht."
+    if a.device == device:
+        return "Eigene Fragen lassen sich nicht hochstimmen."
+    existing = db.get(LiveUpvote, (a.id, device))
+    if existing is None:
+        db.add(LiveUpvote(answer_id=a.id, device=device))
+        a.upvotes += 1
+    else:
+        db.delete(existing)
+        a.upvotes = max(0, a.upvotes - 1)
+    return ""
+
+
+def entry_payload(db, q: LiveQuestion, device: str | None, staff: bool) -> dict:
+    """Beiträge für Teilnehmende (freigegebene + eigene) bzw. die Moderation (alle)."""
+    from .db import LiveUpvote
+    rows = db.scalars(select(LiveAnswer).where(LiveAnswer.question_id == q.id)).all()
+    voted = set(db.scalars(select(LiveUpvote.answer_id).where(
+        LiveUpvote.device == device, LiveUpvote.answer_id.in_([a.id for a in rows] or [-1])))) if device else set()
+    out = []
+    for a in rows:
+        own = device is not None and a.device == device
+        if not staff and (a.hidden or not (a.approved or own)):
+            continue
+        try:
+            text = json.loads(a.value_json or "{}").get("t", "")
+        except ValueError:
+            continue
+        item = {"id": a.id, "text": text, "upvotes": a.upvotes, "answered": a.answered, "approved": a.approved,
+                "mine": own, "voted": a.id in voted, "at": a.created_at.isoformat() if a.created_at else ""}
+        if staff:
+            item["hidden"] = a.hidden
+        out.append(item)
+    if q.kind == "qa":
+        out.sort(key=lambda x: (x["answered"], -x["upvotes"], x["at"]))
+    else:
+        out.sort(key=lambda x: x["at"], reverse=True)
+    visible = [x for x in out if x["approved"] and not x.get("hidden")]
+    return {"entries": out, "results": {"total": len(visible), "rows": [],
+                                        "pending": sum(1 for x in out if not x["approved"] and not x.get("hidden"))},
+            "answered": any(x["mine"] for x in out), "mine": None}
+
+
+def moderate_entry(a: LiveAnswer, action: str) -> str:
+    if action == "approve":
+        a.approved, a.hidden = True, False
+    elif action == "hide":
+        a.hidden = True
+    elif action == "unhide":
+        a.hidden = False
+    elif action == "answered":
+        a.answered = not a.answered
+    else:
+        return "Unbekannte Aktion."
+    return ""

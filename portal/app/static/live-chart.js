@@ -65,8 +65,26 @@
       '</tbody></table></div>' : '<p class="text-secondary">Noch keine Antworten.</p>';
   }
 
+  // Pinnwand und Q&A (nur freigegebene, nicht ausgeblendete Beiträge)
+  function entries(box, q, big) {
+    var list = (q.entries || []).filter(function (e) { return e.approved && !e.hidden; });
+    var pending = q.results && q.results.pending ? '<div class="small text-secondary mb-2">' + q.results.pending + ' Beitr' + (q.results.pending === 1 ? 'ag wartet' : 'äge warten') + ' auf Freigabe</div>' : '';
+    if (!list.length) { box.innerHTML = pending + '<p class="text-secondary">Noch keine Beiträge.</p>'; return; }
+    if (q.kind === 'qa') {
+      box.innerHTML = pending + '<ol class="live-qa ' + (big ? 'is-big' : '') + '">' + list.map(function (e) {
+        return '<li class="' + (e.answered ? 'is-answered' : '') + '"><span class="live-qa-votes"><i class="fa-solid fa-thumbs-up"></i> ' + e.upvotes + '</span><span class="live-qa-text">' + esc(e.text) + '</span>' + (e.answered ? '<span class="badge text-bg-success ms-2">beantwortet</span>' : '') + '</li>';
+      }).join('') + '</ol>';
+      return;
+    }
+    var colors = ['#fff3bf', '#d3f9d8', '#d0ebff', '#ffe3e3', '#f3d9fa', '#c5f6fa'];
+    box.innerHTML = pending + '<div class="live-wall ' + (big ? 'is-big' : '') + '">' + list.map(function (e, i) {
+      return '<div class="live-note" style="background:' + colors[i % colors.length] + '">' + esc(e.text) + '</div>';
+    }).join('') + '</div>';
+  }
+
   function render(box, q, opts) {
     opts = opts || {};
+    if (q.kind === 'open' || q.kind === 'qa') { destroy(box); entries(box, q, opts.big); return; }
     var r = q.results;
     if (!r) { box.innerHTML = ''; return; }
     var type = q.chart || 'bar';

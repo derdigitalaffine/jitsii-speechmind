@@ -13,7 +13,7 @@
   function load() {
     if (busy) return;
     var ae = document.activeElement;
-    if (ae && ae.classList && ae.classList.contains('js-word')) return;   // nicht beim Tippen neu zeichnen
+    if (ae && ae.classList && (ae.classList.contains('js-word') || ae.classList.contains('js-entry'))) return;   // nicht beim Tippen neu zeichnen
     fetch('/l/' + token + '/state.json', { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.json(); }).then(render).catch(function () { /* nächster Versuch */ });
   }
@@ -60,6 +60,23 @@
     return out + '<button type="button" class="btn btn-primary js-send-words" data-q="' + q.id + '">' + (mine.length ? 'Begriffe ändern' : 'Absenden') + '</button></div>';
   }
 
+  function entryBox(q) {
+    var s = q.settings, list = q.entries || [], qa = q.kind === 'qa';
+    var mineCount = list.filter(function (e) { return e.mine; }).length;
+    var form = q.locked ? '<p class="text-secondary"><i class="fa-solid fa-lock me-1"></i>Keine neuen Beiträge mehr möglich.</p>'
+      : (mineCount >= s.max_entries ? '<p class="small text-secondary">Sie haben ' + mineCount + ' Beiträge geschickt – mehr geht hier nicht.</p>' :
+      '<textarea class="form-control mb-2 js-entry" data-q="' + q.id + '" rows="2" maxlength="' + s.max_len + '" placeholder="' + (qa ? 'Ihre Frage …' : 'Ihre Antwort …') + '" aria-label="' + (qa ? 'Ihre Frage' : 'Ihre Antwort') + '">' + esc(drafts[q.id] || '') + '</textarea>' +
+      '<button type="button" class="btn btn-primary js-send-entry" data-q="' + q.id + '">' + (qa ? 'Frage stellen' : 'Absenden') + '</button>' +
+      (s.approve ? '<span class="small text-secondary ms-2">wird nach Freigabe angezeigt</span>' : ''));
+    var items = list.map(function (e) {
+      var badge = !e.approved ? '<span class="badge text-bg-warning ms-1">wartet auf Freigabe</span>' : (e.answered ? '<span class="badge text-bg-success ms-1">beantwortet</span>' : '');
+      var vote = qa && e.approved ? (e.mine ? '<span class="small text-secondary text-nowrap"><i class="fa-solid fa-thumbs-up"></i> ' + e.upvotes + '</span>'
+        : '<button type="button" class="btn btn-sm ' + (e.voted ? 'btn-primary' : 'btn-outline-primary') + ' js-upvote text-nowrap" data-q="' + q.id + '" data-a="' + e.id + '" aria-pressed="' + e.voted + '" aria-label="Frage unterstützen (' + e.upvotes + ')"><i class="fa-solid fa-thumbs-up"></i> ' + e.upvotes + '</button>') : '';
+      return '<div class="live-entry"><span class="live-entry-text">' + (e.mine ? '<i class="fa-regular fa-user me-1 text-secondary" title="Ihr Beitrag"></i>' : '') + esc(e.text) + badge + '</span>' + vote + '</div>';
+    }).join('');
+    return form + (items ? '<hr><div class="small text-secondary mb-1">' + (qa ? 'Fragen – die meistunterstützten zuerst' : 'Beiträge') + '</div>' + items : '');
+  }
+
   function render(state) {
     var key = JSON.stringify(state) + JSON.stringify(drafts);
     if (key === last) return;
@@ -76,13 +93,14 @@
     var focus = document.activeElement && document.activeElement.closest && document.activeElement.closest('[data-q]');
     var focusKey = focus ? focus.dataset.q + '|' + (focus.dataset.o || focus.dataset.n || '') : '';
     box.innerHTML = state.questions.map(function (q) {
-      var inner = q.locked ? '<p class="text-secondary mb-0"><i class="fa-solid fa-lock me-1"></i>Für diese Frage sind keine Antworten mehr möglich.</p>'
-        : (['single', 'multi', 'yesno'].indexOf(q.kind) >= 0 ? choiceButtons(q) : (q.kind === 'words' ? wordInputs(q) : scaleButtons(q)));
+      var entry = q.kind === 'open' || q.kind === 'qa';
+      var inner = entry ? entryBox(q) : (q.locked ? '<p class="text-secondary mb-0"><i class="fa-solid fa-lock me-1"></i>Für diese Frage sind keine Antworten mehr möglich.</p>'
+        : (['single', 'multi', 'yesno'].indexOf(q.kind) >= 0 ? choiceButtons(q) : (q.kind === 'words' ? wordInputs(q) : scaleButtons(q))));
       return '<section class="card live-q mb-3" aria-labelledby="lq-' + q.id + '"><div class="card-body">' +
         '<h2 class="h5 mb-3" id="lq-' + q.id + '">' + esc(q.title) + '</h2>' + inner +
-        (q.answered ? '<p class="live-done mt-3 mb-0"><i class="fa-solid fa-circle-check me-1"></i>Antwort gespeichert – ändern ist möglich.</p>' : '') +
+        (q.answered && !entry ? '<p class="live-done mt-3 mb-0"><i class="fa-solid fa-circle-check me-1"></i>Antwort gespeichert – ändern ist möglich.</p>' : '') +
         '<div class="small text-danger mt-2 js-err" data-q="' + q.id + '"></div>' +
-        (q.results ? '<hr><div class="small text-secondary mb-2">Ergebnis (' + q.results.total + ' Antworten)</div><div class="js-chart" data-q="' + q.id + '"></div>' : '') +
+        (q.results && !entry ? '<hr><div class="small text-secondary mb-2">Ergebnis (' + q.results.total + ' Antworten)</div><div class="js-chart" data-q="' + q.id + '"></div>' : '') +
         '</div></section>';
     }).join('');
     state.questions.forEach(function (q) {
@@ -129,13 +147,23 @@
       last = '';
       load();
     } else if (b.classList.contains('js-send-multi')) send(qid, { o: drafts[qid] || [] });
-    else if (b.classList.contains('js-send-words')) {
+    else if (b.classList.contains('js-send-entry')) {
+      var ta = box.querySelector('.js-entry[data-q="' + qid + '"]');
+      send(qid, { t: ta ? ta.value : '' });
+    } else if (b.classList.contains('js-upvote')) {
+      busy = true;
+      fetch('/l/' + token + '/upvote', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Live-Device': device },
+        body: JSON.stringify({ question: qid, answer: +b.dataset.a }) })
+        .then(function (r) { return r.json(); }).then(function (d) { busy = false; if (d.ok) { last = ''; render(d); } })
+        .catch(function () { busy = false; });
+    } else if (b.classList.contains('js-send-words')) {
       var words = Array.prototype.map.call(box.querySelectorAll('.js-word[data-q="' + qid + '"]'), function (x) { return x.value; })
         .filter(function (w) { return w.trim(); });
       send(qid, { w: words });
     } else if (b.classList.contains('js-send-range')) send(qid, { n: +box.querySelector('.js-range[data-q="' + qid + '"]').value });
   });
   box.addEventListener('input', function (e) {
+    if (e.target.classList.contains('js-entry')) { drafts[e.target.dataset.q] = e.target.value; return; }
     if (e.target.classList.contains('js-word')) {
       var q = e.target.dataset.q;
       drafts[q] = Array.prototype.map.call(box.querySelectorAll('.js-word[data-q="' + q + '"]'), function (x) { return x.value; });
