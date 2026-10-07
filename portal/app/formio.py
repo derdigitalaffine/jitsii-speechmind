@@ -26,6 +26,7 @@ MAX_FILES = 20000
 FILE_RE = re.compile(r"^[A-Za-z0-9_-]{1,40}(\.[a-z0-9]{1,10})?$")
 
 SETTINGS = ("description", "anonymous", "multiple", "submit_message", "confirm_mail", "notify", "notify_answers",
+            "notify_pdf", "notify_files", "pdf_uploads", "confirm_csv", "confirm_json", "confirm_pdf", "confirm_files",
             "notify_json", "notify_csv", "notify_scope", "review", "kind", "app_prefix", "app_category", "app_info",
             "app_fee", "app_duration", "app_deadline_days", "app_catalog", "app_pdf")
 RESPONSE_FIELDS = ("name", "email", "source", "ref_no", "status")
@@ -192,6 +193,8 @@ def import_form(db, data: dict, archive: zipfile.ZipFile | None, user: User, *, 
             setattr(form, key, str(value if value is not None else default)[:column.type.length or 20000])
     if form.kind not in ("survey", "application"):
         form.kind = "survey"
+    if "confirm_pdf" not in cfg:
+        form.confirm_pdf = form.kind == "application" and form.app_pdf
     if form.notify_scope not in ("single", "all"):
         form.notify_scope = "single"
     if form.app_prefix and not apps.PREFIX_RE.match(form.app_prefix):

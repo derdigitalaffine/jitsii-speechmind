@@ -9,7 +9,6 @@ Ein Formular wird zum Antrag, wenn seine Art „application“ ist. Beim Absende
 Jede Änderung (Status, Nachricht, Notiz, Zuweisung, Frist) landet im Verlauf.
 """
 
-import base64
 import hashlib
 import io
 import json
@@ -183,16 +182,6 @@ def applicant_email(form: Form, resp: FormResponse) -> str:
     return resp.email or fm.respondent_email(form, resp.answers)
 
 
-def _pdf_attachment(form: Form, resp: FormResponse) -> list[dict] | None:
-    if not form.app_pdf:
-        return None
-    data = pdf(form, resp)
-    if len(data) > 15 * 1024 * 1024:   # zu groß für viele Postfächer: Mail ohne eingebettete Anlagen
-        data = pdf(form, resp, with_attachments=False)
-    return [{"filename": f"{resp.ref_no}.pdf", "mime": "application/pdf",
-             "content_b64": base64.b64encode(data).decode("ascii")}]
-
-
 def _common(form: Form, resp: FormResponse) -> dict:
     return {"titel": form.title, "aktenzeichen": resp.ref_no, "status": status_label(resp.status),
             "status_link": track_link(resp), "link": staff_link(resp),
@@ -213,7 +202,11 @@ def notify_applicant(db, form: Form, resp: FormResponse, key: str, extra: dict |
     staff = _staff_addresses(db, form, resp)
     from . import absence
     note, deputy = absence.citizen_note(db, resp.assignee)   # zuständige Person abwesend → Hinweis, Antwort an Vertretung
-    return notify.enqueue(db, to, subject, note + body, key, attachments=_pdf_attachment(form, resp) if attach_pdf else None,
+    if key == "app_received":
+        from . import form_mail
+        return form_mail.enqueue(db, form, resp, to, subject, note + body, key, applicant=True,
+                                 reply_to=deputy or resp.route_email or (staff[0] if staff else None), per_hour=5)
+    return notify.enqueue(db, to, subject, note + body, key, attachments=None,
                           reply_to=deputy or resp.route_email or (staff[0] if staff else None),
                           per_hour=5 if key == "app_received" else None)
 
@@ -221,12 +214,14 @@ def notify_applicant(db, form: Form, resp: FormResponse, key: str, extra: dict |
 def notify_staff(db, form: Form, resp: FormResponse, key: str, extra: dict | None = None, attach_pdf: bool = False,
                  skip: str = "") -> int:
     count = 0
-    attachments = _pdf_attachment(form, resp) if attach_pdf else None
     for addr in _staff_addresses(db, form, resp):
         if addr == skip:
             continue
         subject, body = mailtpl.render(db, key, {**_common(form, resp), "von": fm.respondent(resp), **(extra or {})})
-        if notify.enqueue(db, addr, subject, body, key, attachments=attachments):
+        from . import form_mail
+        sent = form_mail.enqueue(db, form, resp, addr, subject, body, key) if key == "app_new" else notify.enqueue(
+            db, addr, subject, body, key)
+        if sent:
             count += 1
     return count
 
@@ -429,10 +424,12 @@ def _stamp(text: str, width: float, height: float) -> bytes:
     return buf.getvalue()
 
 
-def pdf(form: Form, resp: FormResponse, with_attachments: bool = True) -> bytes:
+def pdf(form: Form, resp: FormResponse, with_attachments: bool | None = None) -> bytes:
     """Antrag als PDF. Hochgeladene PDFs werden angehängt, Bilder als eigene Seiten eingebettet; das Deckblatt
     listet die Anlagen mit Seitenzahl. Nicht einbindbare Dateien (verschlüsselt, defekt, andere Formate) werden
     im Verzeichnis vermerkt und bleiben eigene Downloads."""
+    if with_attachments is None:
+        with_attachments = form.pdf_uploads
     files = _attachments(form, resp) if with_attachments else []
     if not files:
         return _base_pdf(form, resp, [])
@@ -556,7 +553,7 @@ def _base_pdf(form: Form, resp: FormResponse, parts: list[dict]) -> bytes:
                                     ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f2f4f7"))]))
     story += [meta_table, Spacer(1, 6 * mm)]
     rows = []
-    answers = resp.answers
+    answers = fm.export_answers(resp)
     corrected = {qid for r in resp.requests if r.state == "answered" for qid in r.reopen}
     for item in fm.schema(form):
         if item.get("type") in ("heading", "subheading", "pagebreak"):
@@ -571,7 +568,7 @@ def _base_pdf(form: Form, resp: FormResponse, parts: list[dict]) -> bytes:
         else:
             shown = fm.display(item, value)
         if item["id"] in corrected:
-            shown = (shown or "–") + "\n(später korrigiert – siehe Nachgereichte Angaben)"
+            shown = (shown or "–") + "\n(später korrigiert – aktueller Stand; siehe Nachgereichte Angaben)"
         rows.append([p(item.get("title") or fm.TYPES[item["type"]][0], bold), p(shown or "–")])
     if rows:
         table = Table(rows, colWidths=[60 * mm, 105 * mm], repeatRows=0)

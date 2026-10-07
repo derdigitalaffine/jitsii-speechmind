@@ -2626,6 +2626,7 @@ __all__ = ["app", "STATUS_RECORDED"]
 from . import routes_shortlinks  # noqa: E402,F401
 from . import routes_blocks  # noqa: E402,F401  (vor routes_forms: /forms/blocks vor /forms/{id})
 from . import routes_applications  # noqa: E402,F401  (vor routes_forms: /forms/applications vor /forms/{id})
+from . import routes_form_mail  # noqa: E402,F401
 from . import routes_forms  # noqa: E402,F401
 from . import routes_workflow  # noqa: E402,F401
 from . import routes_geo  # noqa: E402,F401

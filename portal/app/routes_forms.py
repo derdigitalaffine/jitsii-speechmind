@@ -80,7 +80,7 @@ def forms_create(request: Request, title: str = FormField(...), kind: str = Form
         items[1]["required"] = True
     form = Form(owner_id=user.id, title=" ".join(title.split())[:255] or "Neues Formular",
                 schema_json=json.dumps(items, ensure_ascii=False), kind="application" if application else "survey",
-                confirm_mail=application)
+                confirm_mail=application, confirm_pdf=application)
     db.add(form)
     db.commit()
     flash(request, "Online-Antrag angelegt. Legen Sie die Fragen fest und danach im Reiter „Antrag“ Aktenzeichen, "
@@ -177,6 +177,11 @@ async def form_settings_save(request: Request, form_id: int, user: User = Depend
     form.notify_answers = flag("notify_answers")
     form.notify_csv = flag("notify_csv")
     form.notify_json = flag("notify_json")
+    from .form_mail import OPTIONS
+    for option in OPTIONS:
+        setattr(form, option, flag(option))
+    if form.kind == "application":
+        form.app_pdf = flag("notify_pdf")
     form.notify_scope = "all" if data.get("notify_scope") == "all" else "single"
     if data.get("fee_json"):
         try:
@@ -357,9 +362,31 @@ def form_response_detail(request: Request, form_id: int, response_id: int, user:
         raise HTTPException(404)
     ids = [r.id for r in form.responses]
     pos = ids.index(resp.id)
+    items = fm.questions(fm.schema(form))
+    from .routes_maps import map_bundle
+    geo_bundle = map_bundle(db, request, user, purpose="forms") if any(q["type"] == "geo" for q in items) else None
     return render(request, "form_response.html", user, **_ctx(db, form, "results", level), resp=resp,
+                  geo_bundle=geo_bundle, geo_features=fm.geo_features, current_answers=fm.export_answers(resp),
                   items=fm.questions(fm.schema(form)), display=fm.display, number=pos + 1,
                   prev_id=ids[pos - 1] if pos > 0 else None, next_id=ids[pos + 1] if pos + 1 < len(ids) else None)
+
+
+@app.get("/forms/{form_id:int}/responses/{response_id:int}/map/{question_id}")
+def response_map(request: Request, form_id: int, response_id: int, question_id: str,
+                 user: User = Depends(current_user), db: Session = Depends(get_db)):
+    resp = db.get(FormResponse, response_id)
+    if resp is None or resp.form_id != form_id:
+        raise HTTPException(404)
+    form = resp.form
+    if not fm.access_level(db, form, user) and not (resp.ref_no and apps.access(db, user, resp)):
+        raise HTTPException(404)
+    q = next((q for q in fm.export_questions(form, [resp]) if q["id"] == question_id and q["type"] == "geo"), None)
+    if q is None:
+        raise HTTPException(404)
+    from .routes_maps import map_bundle
+    return render(request, "form_response_map.html", user, form=form, resp=resp, question=q,
+                  geo_features=fm.geo_features(fm.export_answers(resp).get(question_id), q.get("title") or "Ort"),
+                  geo_bundle=map_bundle(db, request, user, purpose="forms"))
 
 
 @app.post("/forms/{form_id}/responses/{response_id}/delete", dependencies=[Depends(check_csrf)])

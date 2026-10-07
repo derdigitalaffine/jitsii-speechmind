@@ -321,9 +321,19 @@ def process_queue() -> int:
         for n in due:
             n.attempts += 1
             try:
-                deliver(cfg, n.to_addr, n.subject, n.body,
-                        attachments=json.loads(n.attachments_json) if n.attachments_json else None,
-                        reply_to=n.reply_to)
+                attachments = json.loads(n.attachments_json) if n.attachments_json else None
+                # Vertretungsnotiz / geändertes Branding können die endgültige Größe erhöhen.
+                if attachments and attachments[0].get("form_response_id"):
+                    from . import form_mail
+                    from .db import FormResponse
+                    resp = db.get(FormResponse, attachments[0]["form_response_id"])
+                    if resp is None:
+                        raise MailError("Die Formularantwort wurde gelöscht.")
+                    n.body, attachments = form_mail.fit(db, resp.form, resp, n.to_addr, n.subject, n.body,
+                                                       attachments, cfg, applicant=attachments[0].get("applicant", False),
+                                                       reply_to=n.reply_to)
+                    n.attachments_json = json.dumps(attachments, ensure_ascii=False) if attachments else None
+                deliver(cfg, n.to_addr, n.subject, n.body, attachments=attachments, reply_to=n.reply_to)
             except MailError as exc:
                 n.error = str(exc)[:1000]
                 if n.attempts >= MAX_ATTEMPTS or not mail_configured(cfg):

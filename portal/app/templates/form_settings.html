@@ -38,12 +38,22 @@
       <div class="d-flex flex-wrap gap-4 mb-2">
         {{ sw('notify_csv', 'CSV (für Excel)', form.notify_csv) }}
         {{ sw('notify_json', 'JSON (für Fachverfahren)', form.notify_json) }}
+        {{ sw('notify_pdf', 'PDF der aktuellen Antwort / des Antrags', form.app_pdf if form.kind == 'application' else form.notify_pdf) }}
+        {{ sw('notify_files', 'Hochgeladene Originaldateien anhängen', form.notify_files) }}
       </div>
       <div class="ps-1">
         <div class="form-check"><input class="form-check-input" type="radio" name="notify_scope" id="sc1" value="single" {% if form.notify_scope != 'all' %}checked{% endif %}><label class="form-check-label" for="sc1">nur die neue Antwort</label></div>
         <div class="form-check"><input class="form-check-input" type="radio" name="notify_scope" id="sc2" value="all" {% if form.notify_scope == 'all' %}checked{% endif %}><label class="form-check-label" for="sc2">jeweils alle bisherigen Antworten (komplette Tabelle)</label></div>
       </div>
-      <div class="form-text mt-2"><i class="fa-solid fa-shield-halved me-1"></i>Anhänge enthalten personenbezogene Daten. Hochgeladene Dateien werden nicht angehängt, sondern bleiben im Portal.</div>
+      <div class="form-text mt-2"><i class="fa-solid fa-shield-halved me-1"></i>CSV/JSON: gewählter Umfang. PDF und Originaldateien: nur die aktuelle Einsendung; bei Nachforderungen nur neue Originaldateien. Versand beim Eingang und beim Eingang einer Nachforderung. Maximal 10 MB für die gesamte Mail; darüber Downloads im Portal (7 Tage, intern mit Anmeldung).
+      </div>
+      {% if form.kind == 'application' %}{{ sw('pdf_uploads', 'PDFs und Bilder aus Uploads in das Antrags-PDF einbetten', form.pdf_uploads, 'Originaldateien können unabhängig davon zusätzlich angehängt werden.') }}{% else %}<input type="hidden" name="pdf_uploads" value="1">{% endif %}
+      <div class="fw-semibold small mt-3 mb-2">Anhänge für die ausfüllende Person</div>
+      {{ sw('confirm_csv', 'Eigene Antwort als CSV', form.confirm_csv) }}
+      {{ sw('confirm_json', 'Eigene Antwort als JSON', form.confirm_json) }}
+      {{ sw('confirm_pdf', 'Eigene Antwort / Antrag als PDF', form.confirm_pdf) }}
+      {{ sw('confirm_files', 'Eigene hochgeladene Originaldateien', form.confirm_files) }}
+      <div class="form-text mt-2">Nur die eigene Antwort, niemals andere Einsendungen. Bei über 10 MB erhält die Person sichere Downloadlinks, gültig für 7 Tage. Anhänge enthalten personenbezogene Daten.</div>
     </div>
   </div></div>
   <div class="col-12" id="gebuehr"><div class="card">

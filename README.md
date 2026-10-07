@@ -70,7 +70,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - **Gliederung** mit Überschriften, Zwischenüberschriften, Hinweistexten, Trennlinien und **mehrseitigen Formularen**. Ziehen und Ablegen, Duplizieren, Vorschau.
 - **Verteilen:** öffentlicher Link (mit QR-Code und Kurzlink), persönliche Einladungen an Benutzer, **Gruppen** und Gäste per Mail, Erinnerungen, Frist, anonym, Mehrfachantworten, Eingangsbestätigung.
 - **Auswerten:** Zusammenfassung mit Diagrammen, Einzelansicht, Export **CSV** (Excel) und **JSON**.
-- **Benachrichtigung** bei neuen Antworten, wahlweise mit CSV- und/oder JSON-Anhang – nur die neue Antwort oder jeweils alle.
+- **Benachrichtigung** bei neuen Antworten, wahlweise mit PDF, CSV, JSON und hochgeladenen Originaldateien; CSV/JSON für die neue Antwort oder jeweils alle. Auch bei Online-Anträgen und Nachforderungen, getrennte Auswahl für Eingangsbestätigungen; ab 10 MB Gesamtmail sichere Downloads (7 Tage).
 - **Im Portal teilen** mit Personen oder Gruppen in drei Stufen: Ergebnisse einsehen · zusätzlich einladen · zusätzlich bearbeiten und löschen.
 - **Bedingte Felder:** Anzeige und Pflicht eines Feldes hängen auf Wunsch von Antworten anderer Felder ab – mehrere Regeln mit UND/ODER (ist gleich, ist nicht, enthält, ausgefüllt, leer, größer, kleiner); live beim Ausfüllen und auf dem Server geprüft.
 - **Datenblöcke:** zentrale Bibliothek wiederkehrender Feldgruppen (Antragsteller:in, Firma, Adresse, Bankverbindung, Hund, Fahrzeug als Startvorlagen, eigene frei anlegbar). In Formularen **verknüpft** eingefügt – Änderungen am Block wirken in allen Formularen. Eigenes Recht „Formularbausteine“.

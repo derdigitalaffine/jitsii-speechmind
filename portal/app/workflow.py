@@ -1066,8 +1066,10 @@ async def answer_request(db, resp: FormResponse, req: ApplicationRequest, data, 
         targets += _addresses(db, last[-1].completed_by_id, None)
     for addr in dict.fromkeys(targets):
         subject, body = mailtpl.render(db, "app_request_answered", {**apps._common(resp.form, resp),
-                                                                     "von": fm.respondent(resp), "antworten": "\n".join(lines)})
-        notify.enqueue(db, addr, subject, body, "app_request_answered")
+                                                                     "von": fm.respondent(resp), "antworten": "\n".join(lines) if resp.form.notify_answers else ""})
+        from . import form_mail
+        form_mail.enqueue(db, resp.form, resp, addr, subject, body, "app_request_answered", request=req)
+    fm.confirm_to_respondent(db, resp.form, resp, apps.applicant_email(resp.form, resp), resp.name, request=req)
     if task and task.state == "waiting":
         task.state, task.outcome, task.completed_at, task.completed_by = "done", "done", utcnow(), who_name
         if resp.status == "query":

@@ -383,7 +383,7 @@ Menü **Formulare** (Recht „Formulare“). Ein Formularserver mit Baukasten, v
 - Darstellung: Feldbreite je Feld (ganz, zwei Drittel, halb, Drittel; auf dem Handy immer ganz), **Zusammenfassung vor dem Absenden** (Reiter Einstellungen, ab drei Fragen), automatischer **Entwurf** im Browser der ausfüllenden Person (nur lokal, Dateien ausgenommen). Datum wahlweise **mit Uhrzeit**.
 - Verteilung: öffentlicher Link (mit QR-Code und Kurzlink), persönliche Einladungen an Benutzer, **Gruppen** und Gäste per E-Mail, Erinnerungen, Frist, anonyme Formulare, Mehrfachantworten.
 - Auswertung: Zusammenfassung mit Diagrammen, Einzelansicht, Export **CSV** (Semikolon, UTF-8 mit BOM – öffnet sich in Excel korrekt) und **JSON**.
-- Benachrichtigung bei neuen Antworten an die Besitzerin und weitere Adressen, wahlweise mit Antworten im Text und **CSV- und/oder JSON-Anhang** – nur die neue Antwort oder jeweils alle.
+- Benachrichtigung bei neuen Antworten an die Besitzerin und weitere Adressen, wahlweise mit Antworten im Text und **PDF, CSV, JSON und Originaldateien als getrennt auswählbare Anhänge**. CSV/JSON: nur die neue Antwort oder jeweils alle; PDF/Dateien: aktuelle Einsendung. Auch bei Anträgen und Nachforderungen, mit getrennten Einstellungen für Eingangsbestätigungen. Die fertige Mail einschließlich Kodierung darf 10 MB nicht überschreiten; größere Anhänge werden durch sichere Downloads ersetzt (7 Tage, intern nur nach Anmeldung mit Zugriffsprüfung).
 - Eingangsbestätigung mit Kopie der Antworten an die ausfüllende Person.
 - **Freigabe im Portal** an Personen oder Gruppen in drei Stufen: 1 Ergebnisse einsehen, 2 zusätzlich einladen, 3 zusätzlich bearbeiten und löschen. Freigaben verwaltet die Besitzerin bzw. ein Admin.
 
