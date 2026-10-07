@@ -32,14 +32,14 @@
     {% set chosen = val if val is iterable and val is not string else [val] %}
     {% set labels = item.options | map(attribute='label') | list %}
     {% set other_val = values.get(qid ~ '__other') %}
-    <div role="group" aria-labelledby="lbl-{{ qid }}" class="{{ 'js-check-group' if item.type == 'checkbox' }}" {% if item.type == 'checkbox' and item.required %}data-required="1"{% endif %} {% if item.min %}data-min="{{ item.min }}"{% endif %} {% if item.max %}data-max="{{ item.max }}"{% endif %}>
+    <div role="group" aria-labelledby="lbl-{{ qid }}" class="fill-choices {{ 'js-check-group' if item.type == 'checkbox' }}" {% if item.type == 'checkbox' and item.required %}data-required="1"{% endif %} {% if item.min %}data-min="{{ item.min }}"{% endif %} {% if item.max %}data-max="{{ item.max }}"{% endif %}>
     {% for o in item.options %}
-      <div class="form-check"><input class="form-check-input" type="{{ item.type }}" name="{{ name }}" id="{{ name }}-{{ o.id }}" value="{{ o.label }}" {% if o.label in chosen %}checked{% endif %} {% if item.type == 'radio' and item.required %}required{% endif %}>
-        <label class="form-check-label" for="{{ name }}-{{ o.id }}">{{ o.label }}</label></div>
+      <div class="fill-choice"><input class="form-check-input" type="{{ item.type }}" name="{{ name }}" id="{{ name }}-{{ o.id }}" value="{{ o.label }}" {% if o.label in chosen %}checked{% endif %} {% if item.type == 'radio' and item.required %}required{% endif %}>
+        <label class="fill-choice-label" for="{{ name }}-{{ o.id }}">{{ o.label }}</label></div>
     {% endfor %}
     {% if item.other %}
-      <div class="form-check d-flex align-items-center gap-2"><input class="form-check-input flex-none" type="{{ item.type }}" name="{{ name }}" id="{{ name }}-other" value="{{ other }}" {% if other in chosen or other_val %}checked{% endif %}>
-        <label class="form-check-label" for="{{ name }}-other">Sonstiges:</label>
+      <div class="fill-choice fill-choice-other"><input class="form-check-input flex-none" type="{{ item.type }}" name="{{ name }}" id="{{ name }}-other" value="{{ other }}" {% if other in chosen or other_val %}checked{% endif %}>
+        <label class="fill-choice-label" for="{{ name }}-other">Sonstiges:</label>
         <input class="form-control form-control-sm js-other" name="{{ name }}__other" value="{{ other_val or '' }}" maxlength="500" aria-label="Sonstiges" data-for="{{ name }}-other"></div>
     {% endif %}
     </div>
@@ -81,7 +81,7 @@
       <div class="d-flex flex-wrap gap-2 mb-2 position-relative">
         {% if item.search %}<div class="flex-grow-1 position-relative" style="min-width: 14rem">
           <div class="input-group input-group-sm"><span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
-            <input class="form-control js-addr-search" type="search" autocomplete="off" placeholder="{{ 'Adresse suchen, z. B. Hauptstraße 1 Otterberg' if full else 'Ort oder PLZ suchen' }}" aria-label="Adresse suchen"></div>
+            <input class="form-control js-addr-search" type="search" autocomplete="off" placeholder="{{ 'Adresse suchen, z. B. Hauptstraße 1 Otterberg' if full else 'Ort oder PLZ suchen' }}" aria-label="Adresse suchen"><button class="btn btn-outline-primary js-addr-run" type="button">Suchen</button></div>
           <div class="list-group addr-results js-addr-results d-none" role="listbox"></div></div>{% endif %}
         {% if item.locate %}<button class="btn btn-sm btn-outline-primary js-addr-locate" type="button"><i class="fa-solid fa-location-crosshairs me-1"></i>Meinen Standort übernehmen</button>{% endif %}
       </div>
@@ -96,7 +96,8 @@
         {% if item.district %}<div class="col-12 col-md-4"><label class="form-label small mb-0" for="{{ name }}__district">Ortsteil</label><input class="form-control" id="{{ name }}__district" name="{{ name }}__district" value="{{ a.district or '' }}" maxlength="200"></div>{% endif %}
       </div>
       {% if item.coords %}<input type="hidden" name="{{ name }}__lat" class="js-addr-lat" value="{{ a.lat or '' }}"><input type="hidden" name="{{ name }}__lon" class="js-addr-lon" value="{{ a.lon or '' }}">{% endif %}
-      <div class="form-text js-addr-info">{% if full %}Tipp: Adresse oben suchen und übernehmen – oder Felder selbst ausfüllen; {% endif %}die PLZ ergänzt den Ort automatisch.</div>
+      <button type="button" class="btn btn-sm btn-outline-secondary js-addr-postcode mt-2">Orte zur PLZ vorschlagen</button>
+      <div class="form-text js-addr-info" role="status" aria-live="polite">Felder selbst ausfüllen oder eine Suche ausdrücklich starten. Vorhandene Ortsangaben bleiben erhalten.</div>
     </div>
   {% elif item.type == 'geo' %}
     {% set kinds = item.geometries or [item.geometry or 'point'] %}{% set maxf = item.max_features or 1 %}
@@ -132,7 +133,7 @@
       {% endif %}
     </div>
   {% endif %}
-  {% if err %}<div class="text-danger small mt-2"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ err }}</div>{% endif %}
+  {% if err %}<div class="text-danger small mt-2" role="alert"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ err }}</div>{% endif %}
 </div></div>
 {% endif %}
 </div>

@@ -66,13 +66,15 @@ def _fetch(path: str, params: dict) -> list | dict | None:
 
 def _address(item: dict) -> dict:
     a = item.get("address") or {}
-    city = a.get("city") or a.get("town") or a.get("village") or a.get("municipality") or a.get("hamlet") or ""
+    city = a.get("city") or a.get("town") or a.get("village") or a.get("hamlet") or a.get("municipality") or ""
     district = a.get("suburb") or a.get("city_district") or a.get("borough") or a.get("quarter") or ""
-    if not district and (a.get("village") or a.get("hamlet")) and a.get("municipality"):
-        district, city = a.get("village") or a.get("hamlet"), a["municipality"]
+    # municipality may be a Verbandsgemeinde, not the Ortsgemeinde.
+    # Preserve the locality supplied by Nominatim and keep administrative levels separate.
+    if not district and (a.get("city") or a.get("town")):
+        district = a.get("village") or a.get("hamlet") or ""
     out = {"street": a.get("road") or a.get("pedestrian") or a.get("footway") or a.get("path") or "",
            "house_no": a.get("house_number") or "", "zip": a.get("postcode") or "", "city": city,
-           "district": district if district != city else "", "state": a.get("state") or "",
+           "district": district if district != city else "", "municipality": a.get("municipality") or "", "state": a.get("state") or "",
            "country": a.get("country") or ""}
     try:
         out["lat"], out["lon"] = round(float(item["lat"]), 6), round(float(item["lon"]), 6)
