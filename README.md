@@ -1,6 +1,6 @@
 # Videokonferenzserver der Verbandsgemeinde Otterbach-Otterberg
 
-**Selbst gehostetes Portal für Verwaltungen:** Videokonferenzen mit [Jitsi Meet](https://jitsi.org/), Aufnahme und Transkription über [SpeechMind](https://www.speechmind.com/), Besprechungsplanung mit Outlook-Einladungen, Terminumfragen wie Doodle, Abstimmungen und Wahlen, Terminbuchung wie Calendly, Buchung von Bürgerhäusern, Räumen, Grillplätzen und Geräten, Kurzlinks mit QR-Codes, ein Formularserver mit Online-Anträgen, Bezahlung per PayPal oder Überweisung, eine Ablage (DMS), ein Kartenbrowser und Rechtstexte (Ortsrecht online) – alles auf dem eigenen Server, ohne Daten an große Plattformen.
+**Selbst gehostetes Portal für Verwaltungen:** Videokonferenzen mit [Jitsi Meet](https://jitsi.org/), Aufnahme und Transkription über [SpeechMind](https://www.speechmind.com/), Besprechungsplanung mit Outlook-Einladungen, Terminumfragen wie Doodle, Abstimmungen und Wahlen, Terminbuchung wie Calendly, Buchung von Bürgerhäusern, Räumen, Grillplätzen und Geräten, Kurzlinks mit QR-Codes, ein Formularserver mit Online-Anträgen, Bezahlung per PayPal oder Überweisung, eine Ablage (DMS), ein Kartenbrowser, öffentliche und interne Rechtstexte sowie Aushänge und Dokumentenumläufe mit wiederverwendbaren Sammelmappen – alles auf dem eigenen Server, ohne Daten an große Plattformen.
 
 Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Software (MIT-Lizenz)** ausdrücklich für alle anderen Verwaltungen gedacht: Verbandsgemeinden, Städte, Kreise, Zweckverbände. Nutzen Sie es, passen Sie es an Ihr Haus an, und teilen Sie Verbesserungen, damit alle davon profitieren. Name, Farben und Logo stellen Sie in der Oberfläche um (Design & Branding), voreingestellt über `BRAND_NAME` und `BRAND_PRODUCT` in `.env`.
 
@@ -77,6 +77,24 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - **Adressfeld mit Komfort:** Straße, Hausnummer, PLZ, Ort (optional Ortsteil und Koordinaten); **Adresssuche** und **eigener Standort als Adresse** über Nominatim; alternativ nur **PLZ → Ort** automatisch. Alles je Feld einstellbar.
 - **Ausfüllen:** Feldbreiten (ganz, halb, Drittel), **Schrittanzeige** mit Seitennamen, **Zusammenfassung vor dem Absenden**, **Entwurf** wird im Browser gesichert, Datum wahlweise mit Uhrzeit.
 - **Fragetyp „Ort in der Karte“:** je Frage wählbar, ob **Punkte, Linien und/oder Flächen** eingezeichnet werden dürfen (auch mehrere Objekte); Punkte per Klick, GPS oder Eingabe, Linien und Flächen mit verschiebbaren Eckpunkten. Optional zusätzlich der **eigene Standort** der ausfüllenden Person (GPS mit Genauigkeit). Länge und Fläche werden berechnet; Auswertung als Karte, Export als GeoJSON-Geometrie.
+
+### Benutzerprofile und Formularvorbelegung
+
+- Freiwillige persönliche Angaben, Kontakt, Privat-/Dienstanschrift, Beschäftigung, Bankverbindung, Sprache und Zeitzone; verschlüsselt gespeichert, eigener Export und eigene Löschung.
+- Gruppierte Vorbelegung für Text, Datum und Anschrift im Formular- und Datenblockbaukasten. Neue freiwillige Angaben benötigen Zustimmung; bestehende Antworten bleiben vorrangig.
+- Profilumfang für eine spätere Identitätsanbieter-Anbindung festgelegt. **SSO mit Keycloak/Nextcloud und SCIM sind noch nicht implementiert.** [Umfang und Zuordnungen](docs/BENUTZERPROFILE.md).
+
+### Aushänge, Umläufe und Sammelmappen (abschaltbares Modul)
+
+- Blogartiges Schwarzes Brett und persönliche Kenntnisnahmen, optional Freigaben/Ablehnungen, Einzelbestätigungen und Stationsfolgen.
+- Eigenständige, wiederverwendbare Sammelmappen aus Dateien, Markdowntexten, Rechtstexten, Formularen und DMS-Dokumenten; eigene oder gemeinsame Vorlagen. Auswahl und direkter Wechsel zum Mappeneditor aus dem Umlauf.
+- Durchsuchbare Auswahl statt Mehrfach-Dropdowns, Inhaltskarten und zugängliche Reihenfolge; verbesserter Markdowneditor mit Werkzeugleiste und Vorschau.
+- Unabhängige Übernahmen, fassungsgebundene Nachweise und bestehende Quellrechte; Portalbenutzer, Gruppen und Gäste per persönlichem E-Mail-Link. [Anleitung](docs/UMLAEUFE-UND-SAMMELMAPPEN.md).
+
+### Dienstreisen und Reisekostensätze
+
+- Interne Dienstreisevorlage auf Basis allgemeiner Formulare und Prozesse, Reisekostenabrechnung mit Personalabteilungs-PDF und optionalen CSV-/JSON-Exporten.
+- Lesbare Satzübersicht, Profilfilter und vorausgefüllter Editor mit Einheiten, Prozentangaben und Änderungsübersicht. Bearbeiten speichert neue geprüfte Fassungen; vorhandene Abrechnungen behalten ihre Sätze. [Einrichtung und Fachprüfung](docs/DIENSTREISEN.md).
 
 ### Online-Anträge (abschaltbares Modul, Teil des Formularservers)
 
@@ -164,6 +182,8 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - Seite **„Über dieses Portal“** mit allen verwendeten Komponenten und ihren Lizenzen, der installierten **Version** und einem **Update-Hinweis** für Admins (täglicher Abgleich der Versionsnummer mit dem Repository, abschaltbar; aktualisiert wird weiter bewusst von Hand).
 
 ## Dokumentation
+
+Zusätzliche Modul-Anleitungen: [Benutzerprofile](docs/BENUTZERPROFILE.md), [Dienstreisen und Satzpflege](docs/DIENSTREISEN.md), [Aushänge und Sammelmappen](docs/UMLAEUFE-UND-SAMMELMAPPEN.md), [interne Rechtstexte](portal/docs/internal-laws.md), [DMS-Dateibrowser und PDF-Vorschau](portal/docs/dms-browser.md).
 
 | Für wen | Datei |
 |---|---|

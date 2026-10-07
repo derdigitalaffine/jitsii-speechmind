@@ -9,6 +9,14 @@ Die Vorlage wird im Formularbereich ausdrücklich als **inaktiver interner Entwu
 3. Unter `/settings/expense-rules` Sätze und Anwendbarkeit je Gültigkeitszeitraum prüfen. Vorschläge sind nicht aktiv und eine fehlende geprüfte Fassung verhindert die Abrechnung mit geratenen Sätzen. Neue Fassungen können ausdrücklich und begründet ältere im Zeitraum ersetzen; gespeicherte Abrechnungen behalten ihren vollständigen Satz-Snapshot.
 4. Prozess veröffentlichen und Formular aktivieren. Das Template allein aktiviert keinen produktiven Ablauf.
 
+## Reisekostensätze in der Oberfläche pflegen
+
+Die Verwaltung öffnet **Erstattungs- und Reisekostensätze** unter `/settings/expense-rules`. Die gespeicherten Fassungen zeigen Profil, Zeitraum, heutigen Status, Quelle, Prüfperson und Änderungsgrund. Kilometersätze und Tagegelder stehen direkt in der Übersicht; **Alle Sätze und Prüfgrundlage anzeigen** öffnet die vollständigen Bereiche. Der Profilfilter grenzt die Fassungen ein.
+
+**Bearbeiten / neue Fassung** übernimmt sämtliche vorhandenen Werte in ein vorausgefülltes Formular. **Neue Fassung** startet mit dem ausdrücklich zu prüfenden Vorschlag. Fahrtkosten, Tagegeld, Mahlzeiten und Übernachtung sind getrennt; Einheiten stehen an den Feldern. Prozentanteile werden als Prozent eingegeben (z. B. `20` für 20 %, nicht `0,20`). Die Jahreskilometergrenze ist eine ganze Zahl; `0` deaktiviert die Staffel.
+
+Zeitraum, Quelle und Sätze prüfen. Beim Bearbeiten zeigt der Editor die Satzänderungen gegenüber der gewählten Ausgangsfassung. Bei überschneidenden Zeiträumen sind Ersetzung und Änderungsgrund ausdrücklich zu bestätigen. Die fachliche Prüfung muss ebenfalls bestätigt werden. Fehler behalten die Eingaben. **Als neue geprüfte Fassung speichern** erzeugt eine neue Fassung und bearbeitet keinen historischen Datensatz in-place. Im überschneidenden Zeitraum gilt für neue Berechnungen die zuletzt gespeicherte Fassung, während bestehende Abrechnungen ihre Snapshots behalten. An der Berechnungsmethode oder den vorgeschlagenen rechtlichen Werten wurde mit dieser Oberflächenüberarbeitung nichts geändert.
+
 ## Ablauf
 
 Planung prüfen → gegebenenfalls korrigieren → Reise/Verkehrsmittel genehmigen → Genehmigungsdokument → Reise durchführen und tatsächlichen Verlauf abrechnen → sachlich/rechnerisch prüfen → gegebenenfalls Angaben korrigieren → Abrechnung feststellen → Personalabteilungs-PDF → abgeschlossen. Zuständigkeit ist in der Vorlage die Vorgangszuständigkeit und muss vor Freigabe passend eingerichtet werden. Auszahlung geschieht außerhalb des Portals. Ein freiwilliger Auszahlungshinweis ist vorbereitet, verhindert bei Leerwert den Abschluss aber nicht.
