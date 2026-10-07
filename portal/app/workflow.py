@@ -15,6 +15,7 @@ bleibt immer auf der Version, mit der er gestartet ist.
 import base64
 import io
 import json
+import math
 import re
 import secrets
 from datetime import timedelta
@@ -357,13 +358,7 @@ def _question_by_title(form: Form, title: str) -> dict | None:
 
 def current_answers(resp: FormResponse) -> dict:
     """Antworten inklusive nachgereichter Korrekturen (die jüngste gilt)."""
-    answers = dict(resp.answers)
-    for req in resp.requests:
-        if req.state == "answered":
-            for qid in req.reopen:
-                if qid in req.answers:
-                    answers[qid] = req.answers[qid]
-    return answers
+    return fm.export_answers(resp)
 
 
 def corrections(resp: FormResponse) -> dict:
@@ -381,7 +376,14 @@ def corrections(resp: FormResponse) -> dict:
 def _value_text(resp: FormResponse, source: str, key: str) -> str:
     if source == "frage":
         q = _question_by_title(resp.form, key)
-        return fm.display(q, current_answers(resp).get(q["id"])) if q else ""
+        if q:
+            return fm.display(q, current_answers(resp).get(q['id']))
+        for req in reversed(resp.requests):
+            if req.state == 'answered':
+                q = next((q for q in req.items if (q.get('title') or '').strip().lower() == key.strip().lower()), None)
+                if q:
+                    return fm.display(q, fm.export_answers(resp).get(q['id']))
+        return ''
     value = resp.fields.get(key, "")
     return _format_field(value)
 
@@ -729,7 +731,7 @@ def complete(db, task: ApplicationTask, user: User, outcome: str, comment: str, 
                 continue
             if raw and f["type"] in ("number", "money"):
                 num = _num(raw)
-                if num is None:
+                if num is None or not math.isfinite(num) or abs(num)>100000000:
                     errors.append(f"„{f['label']}“ ist keine Zahl")
                     continue
                 fields[f["key"]] = round(num, 2) if f["type"] == "money" else (int(num) if num.is_integer() else num)
@@ -995,7 +997,7 @@ def requested_text(resp: FormResponse, req: ApplicationRequest) -> str:
         if fm.TYPES.get(item["type"], ("", "", False))[2]:
             lines.append(f"– {item.get('title') or fm.TYPES[item['type']][0]}" + (" (Datei)" if item["type"] == "file" else ""))
     for qid in req.reopen:
-        q = next((x for x in fm.questions(fm.schema(resp.form)) if x["id"] == qid), None)
+        q = next((x for x in case_questions(resp) if x["id"] == qid), None)
         if q:
             lines.append(f"– {q.get('title') or 'Angabe'} (bitte prüfen/korrigieren)")
     return "\n".join(lines) or "– siehe Nachricht"
@@ -1012,6 +1014,15 @@ def create_request(db, resp: FormResponse, title: str, message: str, items: list
     if task is not None and task.state == "open":   # zusammengestellte Nachforderung: jetzt auf die Antwort warten
         task.state = "waiting"
     cleaned_items = clean_request_items(items)
+    selected = set(reopen) | {q['id'] for q in cleaned_items}
+    for q in case_questions(resp):
+        if q['type']=='expense_accounting' and selected & {q[k] for k in q if k.endswith('_source')} and q['id'] not in selected:
+            reopen.append(q['id']); selected.add(q['id'])
+    for previous in resp.requests:
+        if previous.state=='answered' and any(q['id'] in selected and q['type']=='expense_accounting' for q in previous.items):
+            for q in previous.items:
+                if q['type']=='declaration' and q.get('required') and q['id'] not in selected:
+                    reopen.append(q['id']);selected.add(q['id'])
     current = current_answers(resp)
     prefill = {i["id"]: current[i["prefill_from"]] for i in cleaned_items if i.get("prefill_from") in current and i["type"] not in ("declaration", "signature", "file", "calculation")}
     req = ApplicationRequest(prefill_json=json.dumps(prefill, ensure_ascii=False), title=title[:200] or "Nachforderung", message=message[:10000],
@@ -1035,16 +1046,26 @@ def open_requests(resp: FormResponse) -> list[ApplicationRequest]:
     return [r for r in resp.requests if r.state == "open"]
 
 
+def case_questions(resp):
+    """Original and subsequently supplied questions, retaining each field's configuration."""
+    by_id = {q['id']:q for q in fm.questions(fm.schema(resp.form))}
+    for previous in resp.requests:
+        if previous.state == 'answered':
+            for q in fm.questions(previous.items):
+                by_id.setdefault(q['id'],q)
+    return list(by_id.values())
+
+
 def reopen_items(resp: FormResponse, req: ApplicationRequest) -> list[dict]:
     """Die zur Korrektur geöffneten Antragsfragen (mit ihrer ursprünglichen Konfiguration)."""
-    by_id = {q["id"]: q for q in fm.questions(fm.schema(resp.form))}
+    by_id = {q["id"]: q for q in case_questions(resp)}
     return [by_id[qid] for qid in req.reopen if qid in by_id]
 
 
 async def answer_request(db, resp: FormResponse, req: ApplicationRequest, data, files) -> dict:
     """Prüft und speichert die Antwort der antragstellenden Person. Gibt Fehler je Feld zurück."""
     items = req.items + reopen_items(resp, req)
-    answers, errors, uploads = fm.validate(items, data, files)
+    answers, errors, uploads = fm.validate(items, data, files, base_answers=current_answers(resp))
     if errors:
         return errors
     stored = {}
@@ -1203,6 +1224,10 @@ def question_titles(db, process: Process) -> list[str]:
             t = (q.get("title") or "").strip()
             if t and t not in titles:
                 titles.append(t)
+    for step in definition_of(process).get('steps',[]):
+        for q in step.get('items',[]):
+            title=(q.get('title') or '').strip()
+            if title and title not in titles:titles.append(title)
     return titles
 
 

@@ -46,6 +46,10 @@
       sync(); if (focus) { row.querySelector('input, select').focus(); }
     }
     add.addEventListener('click', function () { append({}, true); });
+    if (box.dataset.periodSource && cols.some(function(c){return c.id==='date';})) {
+      var fillDays=document.createElement('button');fillDays.type='button';fillDays.className='btn btn-outline-secondary mt-2 ms-2';fillDays.textContent='Fehlende Tage aus dem Reisezeitraum ergänzen';box.append(fillDays);
+      fillDays.onclick=function(){var source=form.querySelector('[name="q_'+CSS.escape(box.dataset.periodSource)+'"]'),period=value(source&&source.value,{}),start=period.start&&new Date(period.start.slice(0,10)+'T12:00:00'),end=period.end&&new Date(period.end.slice(0,10)+'T12:00:00');if(!start||!end||isNaN(start)||isNaN(end)||end<start){fillDays.setCustomValidity('Bitte zuerst den Reisezeitraum angeben.');fillDays.reportValidity();return;}fillDays.setCustomValidity('');var seen=value(hidden.value,[]).map(function(r){return r.date;});for(var d=start;d<=end && area.children.length<max;d.setDate(d.getDate()+1)){var iso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');if(seen.indexOf(iso)<0){append({date:iso},false);}}};
+    }
     if (!Array.isArray(initial)) { initial = []; }
     initial.forEach(function (row) { append(row, false); });
     while (area.children.length < min) { append({}, false); }

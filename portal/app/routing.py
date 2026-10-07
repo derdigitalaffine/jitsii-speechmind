@@ -169,6 +169,6 @@ def display(item, value):
     rows = []
     for leg in value.get('legs', []):
         q = leg.get('quote') or {}
-        text = ' → '.join(p.get('label', '') for p in q.get('points', []))
+        text = ' -> '.join(p.get('label', '') for p in q.get('points', []))
         rows.append(f"{CATEGORIES.get(q.get('category'), ('',))[0]}: {text}; {int(leg.get('meters', q.get('meters',0)))/1000:.3f} km" + (f" (berechnet {q.get('meters',0)/1000:.3f} km; Abweichung: {leg.get('reason','')})" if leg.get('deviation') else ''))
     return '\n'.join(rows)

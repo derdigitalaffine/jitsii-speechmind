@@ -18,7 +18,7 @@
   <{{ 'label' if label_for else 'div' }} class="form-label fw-semibold d-block" {% if label_for %}for="{{ name }}"{% else %}id="lbl-{{ qid }}"{% endif %}>{{ item.title or types[item.type][0] }}{% if item.required %} <span class="req" title="Pflichtfeld">*</span>{% endif %}</{{ 'label' if label_for else 'div' }}>
   {% if item.description %}<div class="form-text mt-0 mb-2">{{ item.description | richtext }}</div>{% endif %}
 
-  {% if item.type in ('period', 'table', 'calculation', 'declaration', 'signature', 'route') %}
+  {% if item.type in ('period', 'table', 'calculation', 'declaration', 'signature', 'route', 'expense_accounting') %}
     {% include '_form_structured.html' %}
   {% elif item.type == 'short' %}
     {% set st = item.subtype %}

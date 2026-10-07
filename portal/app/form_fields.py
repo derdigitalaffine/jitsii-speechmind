@@ -6,6 +6,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 TYPES = {
+    'expense_accounting': ('Reisekostenberechnung', 'fa-file-invoice-dollar', True),
     'route': ('Fahrtstrecken', 'fa-route', True),
     'period': ('Zeitraum', 'fa-calendar-days', True),
     'table': ('Wiederholbare Tabelle / Kostenpositionen', 'fa-table', True),
@@ -45,11 +46,14 @@ def number(value):
 
 
 def clean(kind, raw):
+    if kind == 'expense_accounting':
+        from . import expense_rules
+        return expense_rules.clean(raw)
     if kind == 'route':
         from . import routing
         return routing.clean(raw)
     if kind == 'period':
-        return {'with_time': raw.get('with_time') is not False}
+        return {'with_time': raw.get('with_time') is not False, 'within_source': str(raw.get('within_source') or '') if ID.fullmatch(str(raw.get('within_source') or '')) else ''}
     if kind == 'declaration':
         return {'statement': str(raw.get('statement') or 'Ich bestätige ausdrücklich die Richtigkeit und Vollständigkeit meiner Angaben.').strip()[:2000]}
     if kind == 'signature':
@@ -77,7 +81,7 @@ def clean(kind, raw):
         return {'columns': columns or [{'id': 'description', 'label': 'Beschreibung', 'type': 'text', 'required': True},
                                        {'id': 'amount', 'label': 'Betrag (€)', 'type': 'amount', 'required': True, 'min': '0'}],
                 'min_rows': bounded(raw.get('min_rows'), 0, 100, 0),
-                'max_rows': bounded(raw.get('max_rows'), 1, 100, 30)}
+                'max_rows': bounded(raw.get('max_rows'), 1, 100, 30), 'period_source': str(raw.get('period_source') or '') if ID.fullmatch(str(raw.get('period_source') or '')) else ''}
     if kind == 'calculation':
         sources = raw.get('sources') or []
         if isinstance(sources, str):
@@ -104,7 +108,7 @@ def parse(item, data, name):
             return None, 'Bitte die Erklärung ausdrücklich bestätigen.' if required else ''
         from .db import utcnow
         return {'confirmed': True, 'text': item['statement'], 'at': utcnow().isoformat(timespec='seconds')}, ''
-    if kind == 'calculation':
+    if kind in ('calculation', 'expense_accounting'):
         return None, ''  # Never trust the submitted result.
     if kind == 'period':
         value = load(raw, {})
@@ -245,13 +249,36 @@ def calculate(items, answers, errors):
             errors[qid] = str(exc)
 
 
+    for item in items:
+        if item['type']=='period' and item.get('within_source') and answers.get(item['id']):
+            parent=answers.get(item['within_source']);child=answers[item['id']]
+            if not isinstance(parent,dict) or child['start']<parent['start'] or child['end']>parent['end']:
+                errors[item['id']]='Das Dienstgeschäft muss innerhalb des Reisezeitraums liegen.'
+    for item in items:
+        if item['type'] != 'expense_accounting': continue
+        try:
+            if any(errors.get(item[k]) for k in item if k.endswith('_source')):
+                raise ValueError('Bitte zuerst die Quelldaten der Abrechnung prüfen.')
+            from . import expense_rules
+            answers[item['id']] = expense_rules.calculate(item, answers)
+        except (ValueError, KeyError, TypeError, InvalidOperation) as exc:
+            errors[item['id']] = str(exc)
+
 def display(item, value):
     kind = item['type']
     if kind == 'route':
         from . import routing
         return routing.display(item, value)
+    if kind == 'expense_accounting':
+        from . import expense_rules
+        return expense_rules.display(item, value)
     if kind == 'period' and isinstance(value, dict):
-        return f"{value.get('start', '')} bis {value.get('end', '')}"
+        def readable(raw):
+            try:
+                parsed=datetime.fromisoformat(raw)
+                return parsed.strftime('%d.%m.%Y %H:%M') if 'T' in raw else parsed.strftime('%d.%m.%Y')
+            except (ValueError,TypeError):return str(raw or '')
+        return f"{readable(value.get('start', ''))} bis {readable(value.get('end', ''))}"
     if kind == 'table' and isinstance(value, list):
         return '\n'.join(f"{index+1}. " + '; '.join(f"{c['label']}: {'ja' if row.get(c['id']) is True else 'nein' if row.get(c['id']) is False else row.get(c['id'], '')}" for c in item['columns']) for index, row in enumerate(value))
     if kind == 'declaration' and isinstance(value, dict):

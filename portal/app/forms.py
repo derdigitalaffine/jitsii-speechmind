@@ -374,7 +374,7 @@ def _parse_date(value: str) -> date | None:
         return None
 
 
-def validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
+def validate(items: list[dict], data, files, base_answers=None) -> tuple[dict, dict, dict]:
     """Prüft die Eingaben. Gibt (Antworten, Fehler je Frage-ID, Uploads je Frage-ID) zurück.
 
     Bedingungen: Zuerst werden alle Eingaben ohne Pflichtprüfung gelesen, daraus ergibt sich, welche Felder
@@ -382,9 +382,10 @@ def validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
     data: Formularwerte (getlist/get), files: {feldname: [UploadFile]}
     """
     if not any(i.get("show_if") or i.get("show_if2") or i.get("required_if") for i in items):
-        return _validate(items, data, files)
+        return _validate(items, data, files, base_answers)
     loose = [{**i, "required": False, "location_required": False} for i in items]
-    first, _e, _u = _validate(loose, data, files)
+    first, _e, _u = _validate(loose, data, files, base_answers)
+    first = {**(base_answers or {}), **first}
     shown = visibility(items, first)
     effective = []
     for item in items:
@@ -393,10 +394,10 @@ def validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
         if item.get("required_if") and TYPES[item["type"]][2]:
             item = {**item, "required": condition_met(item["required_if"], first)}
         effective.append(item)
-    return _validate(effective, data, files)
+    return _validate(effective, data, files, base_answers)
 
 
-def _validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
+def _validate(items: list[dict], data, files, base_answers=None) -> tuple[dict, dict, dict]:
     answers, errors, uploads = {}, {}, {}
     for item in questions(items):
         qid, kind, name = item["id"], item["type"], f"q_{item['id']}"
@@ -535,7 +536,11 @@ def _validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
             value = raw or None
         if value is not None and qid not in errors:
             answers[qid] = value
-    form_fields.calculate(questions(items), answers, errors)
+    calculation_answers = {**(base_answers or {}), **answers}
+    form_fields.calculate(questions(items), calculation_answers, errors)
+    for item in questions(items):
+        if item["type"] in ("calculation", "expense_accounting") and item["id"] in calculation_answers:
+            answers[item["id"]] = calculation_answers[item["id"]]
     return answers, errors, uploads
 
 

@@ -746,6 +746,19 @@ class ApplicationDocument(Base):
     response: Mapped[FormResponse] = relationship(back_populates="documents")
 
 
+class ExpenseRuleSet(Base):
+    __tablename__ = "expense_rule_sets"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    profile: Mapped[str] = mapped_column(String(40), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    valid_from: Mapped[date] = mapped_column(Date)
+    valid_until: Mapped[date] = mapped_column(Date)
+    rates_json: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(Text, default="")
+    reviewed_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class PortalLocation(Base):
     __tablename__ = "portal_locations"
     id: Mapped[int] = mapped_column(primary_key=True)
