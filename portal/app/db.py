@@ -142,6 +142,17 @@ class Circulation(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class CirculationBundle(Base):
+    """Reusable document collection; imports are independent copies, not live publications."""
+    __tablename__ = "circulation_bundles"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    draft_json: Mapped[str] = mapped_column(Text, default="{}")
+    shared: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class CirculationVersion(Base):
     __tablename__ = "circulation_versions"
     __table_args__ = (UniqueConstraint("circulation_id", "number"),)
