@@ -1,12 +1,53 @@
 {% extends 'base.html' %}
 {% block title %}Erstattungs- und Reisekostensätze{% endblock %}
 {% block content %}
-<h1 class="h3">Erstattungs- und Reisekostensätze</h1>
-<p>Unveränderliche Satzfassungen mit Gültigkeitszeitraum. Abrechnungen speichern die verwendeten Sätze, Quelle und Prüffassung. Neue Sätze verändern abgeschlossene Berechnungen nicht.</p>
-<div class="alert alert-warning">Die vorausgefüllten RLP-Werte sind ein Vorschlag. Vor Aktivierung Anwendbarkeit, Gültigkeit, Sachbezugswerte und Sonderfälle prüfen. Übernachtung ohne Nachweis und Fußwege sind zunächst mit 0 vorbelegt und benötigen Ihre Prüfung. Auslandssätze und Sonderfälle werden durch die Personalabteilung geprüft. <a href="{{source}}" target="_blank" rel="noopener">Amtliche Hinweise</a></div>
-{% for rule in rules %}<details class="card mb-2"><summary class="card-header">{{rule.name}} · {{rule.profile}} · {{rule.valid_from}} bis {{rule.valid_until}} · Fassung #{{rule.id}}</summary><div class="card-body"><p>Geprüft von Benutzer #{{rule.reviewed_by}} am {{rule.created_at}} · {{rule.source}}</p><pre>{{rule.rates_json}}</pre></div></details>{% endfor %}
-<form method="post" class="card mt-4"><div class="card-header">Neue geprüfte Fassung</div><div class="card-body row g-3"><input name="csrf" type="hidden" value="{{csrf}}">
-{% for key,label,val,type in [('profile','Profil','rlp','text'),('name','Bezeichnung','','text'),('valid_from','Gültig ab','','date'),('valid_until','Gültig bis','','date'),('source','Quelle',source,'url')] %}<div class="col-md-6"><label class="form-label" for="rate-{{key}}">{{label}}</label><input class="form-control" id="rate-{{key}}" name="{{key}}" value="{{val}}" type="{{type}}" required></div>{% endfor %}
-{% for key,label in labels.items() %}<div class="col-md-6"><label class="form-label" for="rate-{{key}}">{{label}}</label><input class="form-control" name="{{key}}" id="rate-{{key}}" type="number" min="0" step="0.0001" value="{{proposal[key]}}" required></div>{% endfor %}
-<div class="col-12"><label><input type="checkbox" name="supersede" value="1"> Eine ältere Fassung im überlappenden Zeitraum durch diese neue Fassung ersetzen (alte Berechnungen bleiben unverändert)</label><label class="d-block mt-2" for="rate-change-reason">Änderungsgrund</label><input class="form-control" id="rate-change-reason" name="change_reason" maxlength="500"></div><div class="col-12"><label><input type="checkbox" name="reviewed" value="1" required> Ich habe die Sätze, ihren Gültigkeitszeitraum und ihre Anwendbarkeit geprüft.</label></div><div class="col-12"><button class="btn btn-primary">Geprüfte Fassung speichern</button></div></div></form>
+<div class="d-flex flex-wrap gap-3 justify-content-between align-items-start mb-3">
+  <div><h1 class="h3">Erstattungs- und Reisekostensätze</h1><p class="text-secondary mb-0">Sätze pflegen, Gültigkeit prüfen und Änderungen nachvollziehen.</p></div>
+  {% if not editing %}<a class="btn btn-primary" href="/settings/expense-rules?new=1#rate-editor">Neue Fassung</a>{% else %}<a class="btn btn-outline-secondary" href="/settings/expense-rules">Zur Übersicht</a>{% endif %}
+</div>
+<p class="small text-secondary">Bearbeiten speichert eine neue geprüfte Fassung. Bestehende Abrechnungen behalten ihre gespeicherten Sätze; im überlappenden Zeitraum gilt für neue Berechnungen die zuletzt gespeicherte Fassung.</p>
+{% if editing %}
+<section id="rate-editor" aria-labelledby="editor-title" class="mb-4">
+  <h2 class="h4" id="editor-title">{% if base %}Fassung #{{base.id}} bearbeiten{% else %}Neue Satzfassung{% endif %}</h2>
+  {% if base %}<div class="alert alert-info">Die gespeicherten Werte sind vorausgefüllt. Ihre Änderungen werden als neue Fassung gespeichert. Die ursprüngliche Fassung bleibt erhalten.</div>{% else %}<div class="alert alert-warning">Die vorausgefüllten RLP-Werte sind ein Vorschlag. Anwendbarkeit, Gültigkeit, Sachbezugswerte und Sonderfälle vor dem Speichern prüfen. Übernachtung ohne Nachweis und Fußwege sind mit 0 vorbelegt. <a href="{{source}}" target="_blank" rel="noopener">Amtliche Hinweise</a></div>{% endif %}
+  {% if error %}<div class="alert alert-danger" role="alert">{{error}}</div>{% endif %}
+  <form method="post" action="/settings/expense-rules" id="expense-editor">
+    <input name="csrf" type="hidden" value="{{csrf}}"><input name="editor_format" type="hidden" value="percent"><input name="base_id" type="hidden" value="{{values.get('base_id','')}}">
+    <div class="card mb-3"><div class="card-header fw-semibold">Bezeichnung und Gültigkeit</div><div class="card-body row g-3">
+      {% for key,label,kind,limit in [('profile','Satzprofil (z. B. rlp)','text',40),('name','Bezeichnung','text',200),('valid_from','Gültig ab','date',10),('valid_until','Gültig bis','date',10),('source','Quelle / fachliche Grundlage','text',500)] %}
+      <div class="{{'col-12' if key=='source' else 'col-12 col-md-6'}}"><label class="form-label" for="rate-{{key}}">{{label}}</label><input class="form-control" id="rate-{{key}}" name="{{key}}" value="{{values.get(key,'')}}" type="{{kind}}" maxlength="{{limit}}" {% if key=='profile' %}pattern="[A-Za-z0-9_]+"{% endif %} required></div>
+      {% endfor %}
+      <div class="col-12 small text-secondary">Das Satzprofil verbindet diese Fassung mit den Formularen. Der Gültigkeitszeitraum bezieht sich auf den Reisetag, nicht auf das Abrechnungsdatum.</div>
+    </div></div>
+    <div class="row g-3">
+    {% for title,help,keys in groups %}
+      <div class="col-12 col-xl-6"><fieldset class="card h-100"><legend class="card-header h6 mb-0">{{title}}</legend><div class="card-body"><p class="small text-secondary">{{help}}</p><div class="row g-3">
+        {% for key in keys %}<div class="col-12 col-md-6"><label class="form-label small" for="rate-{{key}}">{{labels[key]}}</label><div class="input-group"><input class="form-control" name="{{key}}" id="rate-{{key}}" data-rate-label="{{labels[key]}}" data-rate-unit="{{units[key]}}" type="number" min="0" max="{{100 if key in percent else 100000000 if key=='recognized_limit' else 10000}}" step="{{1 if key=='recognized_limit' else '0.01' if key in percent else '0.0001'}}" value="{{values.get(key,'')}}" aria-describedby="unit-{{key}}" required><span class="input-group-text" id="unit-{{key}}">{{units[key]}}</span></div></div>{% endfor %}
+      </div></div></fieldset></div>
+    {% endfor %}
+    </div>
+    <div class="card mt-3"><div class="card-header fw-semibold">Prüfen und speichern</div><div class="card-body">
+      {% if base %}<p class="small text-secondary mb-2">Änderungen an den Sätzen gegenüber Fassung #{{base.id}}:</p><ul id="rate-changes" class="small" aria-live="polite"></ul>{% endif %}
+      <div class="mb-3"><label class="form-label" for="rate-change-reason">Änderungsgrund <span class="small text-secondary">(bei Überschneidung erforderlich)</span></label><input class="form-control" id="rate-change-reason" name="change_reason" maxlength="500" value="{{values.get('change_reason','')}}" placeholder="Zum Beispiel: neue fachlich geprüfte Sätze ab Januar"></div>
+      <div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="rate-supersede" name="supersede" value="1" {% if values.get('supersede')=='1' %}checked{% endif %}><label class="form-check-label" for="rate-supersede">Bei überschneidender Gültigkeit die ältere Fassung für neue Berechnungen ersetzen</label><div class="form-text">Dies verändert keine bereits gespeicherte Abrechnung. Bestätigung und Änderungsgrund sind bei Überschneidungen erforderlich.</div></div>
+      <div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="rate-reviewed" name="reviewed" value="1" required {% if values.get('reviewed')=='1' %}checked{% endif %}><label class="form-check-label" for="rate-reviewed">Ich habe Sätze, Gültigkeitszeitraum und Anwendbarkeit geprüft.</label></div>
+      <div class="d-flex flex-wrap gap-2"><button class="btn btn-primary" type="submit">Als neue geprüfte Fassung speichern</button><a class="btn btn-outline-secondary" href="/settings/expense-rules">Abbrechen</a></div>
+    </div></div>
+  </form>
+  <script type="application/json" id="expense-original">{{original|tojson}}</script>
+</section>
+{% endif %}
+{% if rules %}
+<section aria-labelledby="history-title">
+  <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center mb-3"><h2 class="h4 mb-0" id="history-title">Gespeicherte Fassungen <span class="text-secondary">({{rules|length}})</span></h2><div><label class="visually-hidden" for="rate-profile-filter">Satzprofil filtern</label><select class="form-select" id="rate-profile-filter"><option value="">Alle Satzprofile</option>{% for profile in profiles %}<option value="{{profile}}">{{profile}}</option>{% endfor %}</select></div></div>
+  {% for version in rules %}{% set row=version.row %}
+  <article class="card mb-3" data-rule-profile="{{row.profile}}"><div class="card-body">
+    <div class="d-flex flex-wrap gap-3 justify-content-between align-items-start"><div><span class="badge {{'text-bg-success' if version.status=='Heute aktiv' else 'text-bg-secondary'}} mb-2">{{version.status}}</span><h3 class="h5">{{row.name}}</h3><p class="small text-secondary mb-1">{{row.profile}} · Fassung #{{row.id}} · {{row.valid_from.strftime('%d.%m.%Y')}} bis {{row.valid_until.strftime('%d.%m.%Y')}}</p><p class="small text-secondary">Geprüft von {{reviewers.get(row.reviewed_by,'Benutzer #' ~ row.reviewed_by)}} · {{row.created_at.strftime('%d.%m.%Y')}}</p></div><a class="btn btn-outline-primary" href="/settings/expense-rules?edit={{row.id}}#rate-editor">Bearbeiten / neue Fassung</a></div>
+    <div class="row g-2 mb-3">{% for key in ['private_car','recognized_car','day8','day24'] %}<div class="col-6 col-lg-3"><div class="bg-body-tertiary rounded p-2 h-100"><div class="small text-secondary">{{labels[key]}}</div><strong>{{version['values'][key] or 'Nicht hinterlegt'}} {{units[key] if version['values'][key] else ''}}</strong></div></div>{% endfor %}</div>
+    <details><summary class="text-primary">Alle Sätze und Prüfgrundlage anzeigen</summary><div class="row g-3 mt-1">{% for title,help,keys in groups %}<div class="col-12 col-lg-6"><h4 class="h6">{{title}}</h4><dl class="mb-0">{% for key in keys %}<div class="d-flex gap-3 justify-content-between border-bottom py-2"><dt class="fw-normal small">{{labels[key]}}</dt><dd class="mb-0 text-end text-nowrap">{{version['values'][key] or '—'}} {{units[key] if version['values'][key] else ''}}</dd></div>{% endfor %}</dl></div>{% endfor %}</div><p class="small mt-3 mb-1 text-break">Quelle: {{version.source}}</p>{% if version.reason %}<p class="small mb-0 text-break">Änderungsgrund: {{version.reason}}</p>{% endif %}</details>
+  </div></article>
+  {% endfor %}
+</section>
+{% endif %}
 {% endblock %}
+{% block scripts %}<script src="/static/expense-editor.js"></script>{% endblock %}
