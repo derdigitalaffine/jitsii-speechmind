@@ -1628,12 +1628,55 @@ def recording_fetch(request: Request, rec_id: int, user: User = Depends(video_us
 
 # --- Profil -------------------------------------------------------------------
 
-@app.get("/profile")
-def profile(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def _profile_page(request, user, db, details=None, profile_error=""):
+    from . import profiles
     cfg = get_settings(db)
     return render(request, "profile.html", user,
                   allow_user_keys=cfg.get("allow_user_keys") == "1",
-                  own_key_mask=mask_secret(decrypt(user.sm_api_key_enc)))
+                  own_key_mask=mask_secret(decrypt(user.sm_api_key_enc)),
+                  profile_groups=profiles.GROUPS,
+                  details=profiles.read(user) if details is None else details,
+                  profile_error=profile_error)
+
+
+@app.get("/profile")
+def profile(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    return _profile_page(request, user, db)
+
+
+@app.post("/profile/details", dependencies=[Depends(check_csrf)])
+async def profile_details(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    from . import profiles
+    raw = dict(await request.form())
+    try:
+        encrypted = profiles.store(raw)
+    except ValueError as exc:
+        # Only known, voluntary inputs are redisplayed. Never echo credentials or tokens.
+        details = {k: str(raw.get(k) or '')[:field[3]] for k, field in profiles.FIELDS.items()}
+        details['prefill_enabled'] = raw.get('prefill_enabled') == '1'
+        response = _profile_page(request, user, db, details, str(exc))
+        response.status_code = 422
+        return response
+    db.get(User, user.id).profile_data_enc = encrypted
+    db.commit()
+    flash(request, "Freiwillige Profilangaben gespeichert.")
+    return redirect("/profile#details")
+
+
+@app.post("/profile/details/clear", dependencies=[Depends(check_csrf)])
+def profile_details_clear(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    db.get(User, user.id).profile_data_enc = None
+    db.commit()
+    flash(request, "Freiwillige Profilangaben gelöscht. Bereits eingereichte Formulare bleiben erhalten.")
+    return redirect("/profile#details")
+
+
+@app.get("/profile/details/export")
+def profile_details_export(user: User = Depends(current_user)):
+    from .profiles import read
+    from fastapi.responses import Response
+    return Response(json.dumps(read(user), ensure_ascii=False, indent=2), media_type="application/json",
+                    headers={"Content-Disposition": 'attachment; filename="mein-profil.json"', "Cache-Control": "no-store"})
 
 
 @app.post("/profile", dependencies=[Depends(check_csrf)])

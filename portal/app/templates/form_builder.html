@@ -47,7 +47,7 @@
     <span class="small text-secondary ms-auto d-none d-md-inline" id="builder-count"></span>
   </div>
 </form>
-<script type="application/json" id="builder-data">{{ {'items': schema, 'types': types, 'subtypes': subtypes, 'maxFileMb': max_file_mb, 'ops': cond_ops, 'widths': widths, 'blocks': blocks, 'canBlocks': can_blocks} | tojson }}</script>
+<script type="application/json" id="builder-data">{{ {'profileOptions': profile_options, 'items': schema, 'types': types, 'subtypes': subtypes, 'maxFileMb': max_file_mb, 'ops': cond_ops, 'widths': widths, 'blocks': blocks, 'canBlocks': can_blocks} | tojson }}</script>
 {% endblock %}
 {% block scripts %}
 <script src="/static/vendor/sortablejs/Sortable.min.js"></script>

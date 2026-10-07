@@ -116,7 +116,8 @@ def clean_schema(raw) -> list[dict]:
                 item[key] = cond
         if TYPES[kind][2]:
             item["required"] = bool(src.get("required"))
-        if kind in ('short','long') and src.get('profile_value') in ('name','email'):
+        from .profiles import allowed as profile_allowed
+        if profile_allowed(kind, src.get('profile_value')):
             item['profile_value'] = src['profile_value']
         if kind in form_fields.TYPES:
             item.update(form_fields.clean(kind, src))

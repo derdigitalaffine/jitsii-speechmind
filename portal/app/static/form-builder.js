@@ -58,7 +58,12 @@
   }
   function settingsHtml(it) {
     var h = '';
-    if (it.type === 'short' || it.type === 'long') {h += field('Aus Benutzerprofil vorbelegen', '<select class="form-select" data-key="profile_value">'+[['','Keine Vorbelegung'],['name','Name'],['email','E-Mail-Adresse']].map(function(o){return '<option value="'+o[0]+'"'+(it.profile_value===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>');}
+    var profileGroups = (data.profileOptions || {})[it.type];
+    if (profileGroups) {
+      h += field('Aus eigenem Benutzerprofil vorbelegen', '<select class="form-select" data-key="profile_value"><option value="">Keine Vorbelegung</option>' + profileGroups.map(function(group) {
+        return '<optgroup label="'+esc(group.label)+'">'+group.options.map(function(o) { return '<option value="'+esc(o[0])+'"'+(it.profile_value===o[0]?' selected':'')+'>'+esc(o[1])+'</option>'; }).join('')+'</optgroup>';
+      }).join('')+'</select><div class="form-text">Freiwillige Angaben nur mit Zustimmung der angemeldeten Person. Vorbelegungen bleiben bearbeitbar.</div>');
+    }
     switch (it.type) {
       case 'table':
         h += '<div class="col-12"><div class="d-grid gap-2">' + (it.columns || []).map(function (c, n) {

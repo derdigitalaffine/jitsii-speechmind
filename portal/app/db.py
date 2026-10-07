@@ -60,6 +60,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    profile_data_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Optional eigener SpeechMind-Zugang (überschreibt die globale Anbindung)
     sm_api_key_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
     sm_project_slug: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -2591,6 +2592,7 @@ _NEW_COLUMNS = {
                         "cancel_rule": "VARCHAR(8) NOT NULL DEFAULT ''", "cancel_days": "INTEGER NOT NULL DEFAULT 0"},
     "resource_photos": {"thumb": "VARCHAR(80) NOT NULL DEFAULT ''", "caption": "VARCHAR(300) NOT NULL DEFAULT ''"},
     "users": {
+        "profile_data_enc": "TEXT",
         "password_set": "BOOLEAN NOT NULL DEFAULT 1",
         "must_change_password": "BOOLEAN NOT NULL DEFAULT 0",
         "token_hash": "VARCHAR(64)",
