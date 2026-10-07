@@ -156,7 +156,7 @@ def browse(db, params, *, editor=False, focus=None, base='/recht'):
     def url(**changes):
         values = dict(f); values.update(changes)
         if focus: values.pop('ebene', None)
-        return path + '?' + urlencode({k:v for k,v in values.items() if v not in ('', None)})
+        return path + '?' + urlencode({k:v for k,v in values.items() if v not in ('', None)}) + '#catalog-results'
     topic_rows = choose(rows, levels, f, query_ids=query_ids, omit='thema')
     topic_counts, canonical_topics = Counter(), {}
     for law in topic_rows:

@@ -160,3 +160,6 @@
 @media (min-width: 768px) { .lex-catalog-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 575.98px) { .lex-catalog-hero { padding: 1rem; } .lex-law-card .card-body { padding: 1rem; } .lex-topic-links .btn { font-size: .9rem; } }
 @media print { .lex-catalog-form, .lex-topic-links, .lex-catalog-pages { display: none; } .lex-law-card { break-inside: avoid; } }
+
+.lex-catalog-filters > summary { cursor: pointer; min-height: 2.75rem; padding: .5rem 0; font-weight: 600; }
+#catalog-results { scroll-margin-top: 5rem; }

@@ -7,13 +7,14 @@
   {% if focus %}<nav aria-label="Pfad" class="small mb-2"><a href="{{ R }}">Alle Rechtstexte</a> › {{ focus.name }}</nav>{% endif %}
   <h1 class="h2 mb-2">{{ focus.name if focus else 'Ortsrecht & Rechtstexte' }}</h1>
   <p class="text-secondary mb-3">Satzungen und Regeln für Ihre Gemeinde. Suchen Sie nach einem Titel oder einem Anliegen, zum Beispiel „Friedhofsgebühren“.</p>
-  <form method="get" action="{{ R ~ ('/ebene/' ~ focus.id if focus else '') }}" class="lex-catalog-form" role="search">
+  <form method="get" action="{{ R ~ ('/ebene/' ~ focus.id if focus else '') }}#catalog-results" class="lex-catalog-form" role="search">
     <label class="form-label fw-semibold" for="catalog-q">Titel, Abkürzung oder Inhalt suchen</label>
     <div class="input-group mb-3">
       <input id="catalog-q" class="form-control" type="search" name="q" value="{{ f.q }}" placeholder="z. B. Hauptsatzung, Hundesteuer oder § 5" aria-label="Titel und Inhalte durchsuchen" data-suggest="{{ R }}/suche.json?catalog=1&amp;{{ {'bereich':f.bereich,'ebene':f.ebene,'thema':f.thema,'art':f.art,'geltung':f.geltung}|urlencode }}">
       <button class="btn btn-primary" type="submit">Suchen</button>
     </div>
-    <div class="row g-3">
+    <details class="lex-catalog-filters" data-catalog-filters open><summary>Gemeinde und weitere Filter{% if f.ebene or f.thema or f.art or f.geltung != 'aktuell' or f.bereich != 'ort' or f.sort != 'titel' %} <span class="badge text-bg-primary ms-1">Auswahl aktiv</span>{% endif %}</summary>
+    <div class="row g-3 pt-2">
       <div class="col-12 col-md-6 col-xl-4"><label class="form-label small" for="catalog-level">Gemeinde / Geltungsbereich</label>
         {% if focus %}<div id="catalog-level" class="form-control">{{ focus.name }}</div>{% else %}<select id="catalog-level" name="ebene" class="form-select"><option value="">Alle im gewählten Bereich</option>{% for lv in catalog.levels %}<option value="{{lv.id}}" {% if f.ebene == lv.id|string %}selected{% endif %}>{{lv.name}} · {{kinds.get(lv.kind,kinds.sonstige)[0]}}</option>{% endfor %}</select>{% endif %}</div>
       <div class="col-12 col-md-6 col-xl-4"><label class="form-label small" for="catalog-topic">Thema</label><select id="catalog-topic" name="thema" class="form-select"><option value="">Alle Themen</option>{% for name,n in catalog.topics %}<option value="{{name}}" {% if f.thema == name %}selected{% endif %}>{{name}} ({{n}})</option>{% endfor %}</select></div>
@@ -25,6 +26,7 @@
       <div class="col-12 col-md-4"><label class="form-label small" for="catalog-sort">Sortierung</label><select class="form-select" id="catalog-sort" name="sort"><option value="titel" {% if f.sort == 'titel' %}selected{% endif %}>Titel A–Z</option><option value="neu" {% if f.sort == 'neu' %}selected{% endif %}>Zuletzt aktualisiert</option></select></div>
     </div></details>
     <div class="d-flex flex-wrap gap-2 mt-3"><button type="submit" class="btn btn-primary">Auswahl anzeigen</button><a class="btn btn-outline-secondary" href="{{ R }}">Zurücksetzen</a><a class="btn btn-link" href="{{ R }}/suche?q={{f.q|urlencode}}">Erweiterte Volltextsuche</a></div>
+    </details>
   </form>
 </div>
 {% if editor %}<div class="alert alert-light border small"><a href="/laws">Rechtstexte und Themen pflegen</a> · Sie sehen als Bearbeiter:in auch Entwürfe. Die eingebettete Ansicht zeigt ausschließlich veröffentlichte Texte.</div>{% endif %}

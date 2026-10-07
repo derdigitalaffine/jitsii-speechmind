@@ -2,6 +2,8 @@
 (function () {
   'use strict';
   var toc = document.querySelector('.lex-toc');
+  var catalogFilters = document.querySelector('[data-catalog-filters]');
+  if (catalogFilters && window.matchMedia && window.matchMedia('(max-width: 575.98px)').matches) { catalogFilters.open = false; }
 
   /* Table of contents: fold whole branches, filter without losing the prior state. */
   var filter = document.getElementById('toc-filter');
