@@ -1,12 +1,13 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
 {% block title %}{{ record.ref_no or record.title }} · Ablage{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/dms-browser.css">{% endblock %}
 {% block content %}
 {% set base = '/dms/r/' ~ record.id %}
-<nav aria-label="Pfad" class="small mb-2"><a href="/dms">Ablage</a> › {% for a in label(record.area, by_id).split(' › ') %}{{ a }}{{ ' › ' if not loop.last }}{% endfor %}</nav>
+<nav aria-label="Pfad" class="dms-breadcrumb small mb-2"><a href="/dms">Ablage</a>{% for a in area_path %}<span>›</span><a href="/dms?area={{ a.id }}">{{ a.code ~ ' ' if a.code }}{{ a.name }}</a>{% endfor %}<span>›</span><span aria-current="page">{{ record.ref_no or record.title }}</span></nav>
 {% call m.page_head((record.ref_no ~ ' · ' if record.ref_no else '') ~ record.title, ((record.person.name if record.person else '') or record.applicant or record.applicant_email or '') ) %}
 {% if record.booking_id %}<a class="btn btn-outline-primary" href="/resources/bookings/{{ record.booking_id }}"><i class="fa-solid fa-building me-1"></i>Zur Buchung</a>{% endif %}
-{% if resp %}<a class="btn btn-outline-secondary" href="{{ base }}/pdf"><i class="fa-regular fa-file-pdf me-1"></i>Antrags-PDF mit Anlagen</a>
+{% if resp %}<button class="btn btn-outline-primary" type="button" data-dms-preview="{{ base }}/pdf?preview=1" data-title="Antrags-PDF">PDF-Vorschau</button><a class="btn btn-outline-secondary" href="{{ base }}/pdf"><i class="fa-regular fa-file-pdf me-1"></i>Antrags-PDF mit Anlagen</a>
 {% if case_access %}<a class="btn btn-outline-primary" href="/forms/{{ resp.form_id }}/applications/{{ resp.id }}"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Zum Vorgang</a>{% endif %}{% endif %}
 {% endcall %}
 
@@ -18,6 +19,7 @@
   {% if level < 2 %}<span class="badge text-bg-light border">nur Lesezugriff</span>{% endif %}
 </div>
 
+<section class="dms-preview-panel" id="dms-preview" hidden><div class="dms-preview-heading"><h2 class="h5 mb-0">Dokumentvorschau</h2><a class="btn btn-sm btn-outline-primary" data-preview-open target="_blank" rel="noopener">Groß öffnen</a><button class="btn btn-sm btn-outline-secondary" type="button" data-preview-close>Vorschau schließen</button></div><iframe title="PDF-Dokumentvorschau"></iframe><img hidden alt="Dokumentvorschau"><p class="small text-secondary mt-2 mb-0">Blättern, Zoom, Suche und Druck stehen im PDF-Betrachter Ihres Browsers bereit. Alternativ „Groß öffnen“ oder die Datei herunterladen.</p></section>
 <div class="row g-4">
   <div class="col-12 col-xxl-7">
     <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-circle-info me-2"></i>Angaben zum Eintrag</div><div class="card-body">
@@ -35,14 +37,14 @@
       <dl class="row mb-0">
         {% for q in questions %}{% set v = current.get(q.id) %}
         <dt class="col-sm-4">{{ q.title or 'Frage' }}</dt>
-        <dd class="col-sm-8 text-break" style="white-space: pre-line">{% if q.type == 'file' and v %}{% for f in v %}<a href="{{ base }}/case/a/{{ f.file }}"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a><br>{% endfor %}{% else %}{{ display(q, v) or '–' }}{% endif %}</dd>
+        <dd class="col-sm-8 text-break" style="white-space: pre-line">{% if q.type == 'file' and v %}{% for f in v %}{% if f.type in ['application/pdf','image/png','image/jpeg','image/webp','image/gif'] %}<button class="btn btn-sm btn-outline-primary me-2" type="button" data-dms-preview="{{ base }}/case/a/{{ f.file }}?preview=1" data-title="{{ f.name }}" data-mime="{{ f.type }}">Vorschau</button>{% endif %}<a href="{{ base }}/case/a/{{ f.file }}"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a><br>{% endfor %}{% else %}{{ display(q, v) or '–' }}{% endif %}</dd>
         {% endfor %}
         {% for k, v in resp.fields.items() %}<dt class="col-sm-4 text-secondary">{{ field_labels.get(k, k) }} <span class="badge text-bg-light border">intern</span></dt><dd class="col-sm-8">{{ v }}</dd>{% endfor %}
       </dl>
     </div></div>
     {% for r in resp.requests if r.state == 'answered' %}
     <div class="card mb-4"><div class="card-header small"><i class="fa-solid fa-file-circle-question me-2"></i>Nachgereicht am {{ r.answered_at | local }} – {{ r.title }}</div><div class="card-body"><dl class="row mb-0 small">
-      {% for q in r.items if q.type != 'text' %}{% set v = r.answers.get(q.id) %}<dt class="col-sm-4">{{ q.title }}</dt><dd class="col-sm-8">{% if q.type == 'file' and v %}{% for f in v %}<a href="{{ base }}/case/req{{ r.id }}/{{ f.file }}"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a><br>{% endfor %}{% else %}{{ display(q, v) or '–' }}{% endif %}</dd>{% endfor %}
+      {% for q in r.items if q.type != 'text' %}{% set v = r.answers.get(q.id) %}<dt class="col-sm-4">{{ q.title }}</dt><dd class="col-sm-8">{% if q.type == 'file' and v %}{% for f in v %}{% if f.type in ['application/pdf','image/png','image/jpeg','image/webp','image/gif'] %}<button class="btn btn-sm btn-outline-primary me-2" type="button" data-dms-preview="{{ base }}/case/req{{ r.id }}/{{ f.file }}?preview=1" data-title="{{ f.name }}" data-mime="{{ f.type }}">Vorschau</button>{% endif %}<a href="{{ base }}/case/req{{ r.id }}/{{ f.file }}"><i class="fa-solid fa-paperclip me-1"></i>{{ f.name }}</a><br>{% endfor %}{% else %}{{ display(q, v) or '–' }}{% endif %}</dd>{% endfor %}
     </dl></div></div>
     {% endfor %}
     <details class="card mb-4"><summary class="card-header"><i class="fa-solid fa-clock-rotate-left me-2"></i>Verlauf ({{ resp.events | length }})</summary>
@@ -89,12 +91,13 @@
 
     <div class="card mb-4" id="dateien"><div class="card-header"><i class="fa-solid fa-folder-open me-2"></i>Abgelegte Dateien</div>
       <ul class="list-group list-group-flush">
-        {% if resp %}{% for d in resp.documents %}<li class="list-group-item small d-flex gap-2 align-items-center"><i class="fa-regular fa-file-pdf text-danger"></i><a class="flex-grow-1" href="{{ base }}/document/{{ d.id }}">{{ d.name }}</a><span class="text-secondary">im Vorgang erzeugt</span></li>{% endfor %}{% endif %}
+        {% if resp %}{% for d in resp.documents %}<li class="list-group-item small d-flex gap-2 align-items-center"><i class="fa-regular fa-file-pdf text-danger"></i><a class="flex-grow-1" href="{{ base }}/document/{{ d.id }}">{{ d.name }}</a><button class="btn btn-sm btn-outline-primary" type="button" data-dms-preview="{{ base }}/document/{{ d.id }}?preview=1" data-title="{{ d.name }}">Vorschau</button><span class="text-secondary">im Vorgang erzeugt</span></li>{% endfor %}{% endif %}
         {% for f in record.files %}
         <li class="list-group-item small">
           <div class="d-flex gap-2 align-items-center"><i class="fa-regular {{ 'fa-file-pdf text-danger' if f.mime == 'application/pdf' else ('fa-file-image' if f.mime.startswith('image/') else 'fa-file') }}"></i>
             <a class="flex-grow-1 text-break" href="{{ base }}/files/{{ f.id }}">{{ f.name }}</a>
             <span class="text-secondary text-nowrap">{{ f.size | filesize }}</span>
+            {% if f.mime in ['application/pdf','image/png','image/jpeg','image/webp','image/gif'] %}<button class="btn btn-sm btn-outline-primary" type="button" data-dms-preview="{{ base }}/files/{{ f.id }}?preview=1" data-mime="{{ f.mime }}" data-title="{{ f.name }}">Vorschau</button>{% endif %}
             {% if level >= 2 and f.kind == 'upload' %}<form method="post" action="{{ base }}/files/{{ f.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger p-0" type="submit" title="Löschen" aria-label="Datei löschen" data-confirm-title="Datei löschen?" data-confirm="Die Löschung wird protokolliert." data-confirm-button="Löschen"><i class="fa-regular fa-trash-can"></i></button></form>{% endif %}</div>
           <div class="text-secondary">{{ {'abschluss': 'Abschlussstand', 'dokument': 'Dokument aus dem Vorgang', 'nachreichung': 'Nachreichung', 'upload': 'abgelegt'}.get(f.kind, f.kind) }} · {{ f.created_at | local }} · {{ f.uploaded_by }}{% if f.note %} · {{ f.note }}{% endif %}</div>
           <div class="text-secondary font-monospace text-truncate" title="SHA-256">SHA-256 {{ f.sha256 }}</div>
@@ -131,3 +134,5 @@
   </div>
 </div>
 {% endblock %}
+
+{% block scripts %}<script src="/static/dms-preview.js" defer></script>{% endblock %}

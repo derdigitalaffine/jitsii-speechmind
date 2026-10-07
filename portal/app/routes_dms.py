@@ -49,12 +49,23 @@ def _filters(request: Request) -> dict:
 def dms_search(request: Request, page: int = 1, user: User = Depends(current_user), db: Session = Depends(get_db)):
     lv = _user(db, user)
     f = _filters(request)
+    visible = {a.id: a for a in dms.areas(db) if a.id in lv}
+    selected = visible.get(int(f['area'])) if f['area'].isdigit() else None
+    if f['area'] and selected is None:
+        raise HTTPException(404, "Dieser Ordner ist nicht zugänglich.")
+    filtering = any(f[k] for k in dms.FILTERS if k not in {'area', 'sort', 'scope'})
+    f['scope'] = 'all' if filtering or f['scope'] == 'all' else 'folder'
+    folder_ids = [a.id for a in visible.values() if a.parent_id not in visible]
+    children = [a for a in visible.values() if a.parent_id == selected.id] if selected else [visible[i] for i in folder_ids]
+    children.sort(key=lambda a: (a.position, a.code, a.name.casefold()))
+    def folder_url(a=None):
+        return '/dms?' + urlencode({'area': a.id} if a else {})
     page = max(1, min(page, 1000))
-    records, total = dms.search(db, user, f, limit=50, offset=(page - 1) * 50)
+    records, total = dms.search(db, user, f, limit=50, offset=(page - 1) * 50, root_ids=folder_ids)
     tree = [(a, d) for a, d in dms.tree(db) if user.is_admin or a.id in lv]
-    by_id = {a.id: a for a in dms.areas(db)}
-    forms_titles = sorted({t for (t,) in db.execute(select(DmsRecord.form_title).distinct()) if t})
-    active = {k: v for k, v in f.items() if v and k != "sort"}
+    by_id = {a.id: a for a in dms.areas(db) if a.id in lv}
+    forms_titles = sorted({t for (t,) in db.execute(select(DmsRecord.form_title).where(DmsRecord.area_id.in_(list(lv))).distinct()) if t})
+    active = {k: v for k, v in f.items() if v and k not in {"sort", "scope"}}
     qs = urlencode({k: v for k, v in f.items() if v})
     return render(request, "dms.html", user, records=records, total=total, page=page, pages=(total + 49) // 50, f=f,
                   active=active, qs=qs, tree=tree, by_id=by_id, label=dms.label, levels=lv, form_titles=forms_titles,
@@ -62,7 +73,9 @@ def dms_search(request: Request, page: int = 1, user: User = Depends(current_use
                                                               .order_by(DmsSearch.name)).all(),
                   can_write=any(v >= dms.WRITE for v in lv.values()), manager=user.is_admin or user.can("dms_admin"),
                   write_areas=[(a, d) for a, d in dms.tree(db) if lv.get(a.id, 0) >= dms.WRITE],
-                  person_name=_person_name(db, user, f.get("person", "")))
+                  person_name=_person_name(db, user, f.get("person", "")), selected_folder=selected,
+                  folders=children, folder_url=folder_url, breadcrumbs=dms.path(selected, visible),
+                  folder_tree=dms.folder_tree(list(visible.values())), filtering=filtering, ancestor_ids=[a.id for a in dms.path(selected, visible)])
 
 
 def _person_name(db, user: User, pid: str) -> str:
@@ -74,9 +87,12 @@ def _person_name(db, user: User, pid: str) -> str:
 
 @app.get("/dms/export.csv")
 def dms_export(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    _user(db, user)
-    records, _total = dms.search(db, user, _filters(request), limit=10000)
-    by_id = {a.id: a for a in dms.areas(db)}
+    lv = _user(db, user)
+    f = _filters(request)
+    visible = [a for a in dms.areas(db) if a.id in lv]
+    root_ids = [a.id for a in visible if a.parent_id not in lv]
+    records, _total = dms.search(db, user, f, limit=10000, root_ids=root_ids)
+    by_id = {a.id: a for a in dms.areas(db) if a.id in lv}
     buf = io.StringIO()
     w = csvsafe.writer(buf, delimiter=";")
     w.writerow(["Aktenzeichen", "Titel", "Art", "Antragsteller:in", "E-Mail", "Straße", "PLZ", "Ort", "Ortsteil", "Eingang",
@@ -138,7 +154,7 @@ def dms_record(request: Request, record_id: int, user: User = Depends(current_us
                "display": fm.display, "case_access": apps.access(db, user, resp) > 0,
                "field_labels": {f["key"]: f["label"] for s in workflow.steps_of(resp) for f in s.get("fields", [])}}
     lv = dms.levels(db, user)
-    by_id = {a.id: a for a in dms.areas(db)}
+    by_id = {a.id: a for a in dms.areas(db) if a.id in lv}
     person_q = request.query_params.get("person_q", "").strip()[:100]
     candidates = []
     if person_q and level >= dms.WRITE:
@@ -149,28 +165,31 @@ def dms_record(request: Request, record_id: int, user: User = Depends(current_us
         candidates = db.scalars(q.order_by(Person.name).limit(15)).all()
     ctx.update(person_q=person_q, candidates=candidates)
     return render(request, "dms_record.html", user, record=record, level=level, by_id=by_id, label=dms.label,
-                  statuses=apps.STATUSES, write_areas=[(a, d) for a, d in dms.tree(db) if lv.get(a.id, 0) >= dms.WRITE],
+                  area_path=dms.path(record.area, by_id), statuses=apps.STATUSES, write_areas=[(a, d) for a, d in dms.tree(db) if lv.get(a.id, 0) >= dms.WRITE],
                   **ctx)
 
 
-def _send(path, name: str, mime: str):
+def _send(path, name: str, mime: str, preview: bool = False):
     safe = mime in SAFE_MIME or (mime.startswith("image/") and mime != "image/svg+xml")
+    inline = preview and mime in {"application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif"}
     return FileResponse(path, filename=name, media_type=mime if safe else "application/octet-stream",
-                        headers={"Content-Security-Policy": "default-src 'none'; sandbox", "X-Content-Type-Options": "nosniff"})
+                        content_disposition_type="inline" if inline else "attachment",
+                        headers={"Cache-Control": "private, no-store", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'self'; sandbox",
+                                 "X-Frame-Options": "SAMEORIGIN" if inline else "DENY", "X-Content-Type-Options": "nosniff"})
 
 
 @app.get("/dms/r/{record_id:int}/files/{file_id:int}")
-def dms_file(record_id: int, file_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def dms_file(record_id: int, file_id: int, preview: bool = False, user: User = Depends(current_user), db: Session = Depends(get_db)):
     record, _ = _record(db, user, record_id)
     f = next((x for x in record.files if x.id == file_id), None)
     path = dms.files_dir(record.id) / f.file if f else None
     if f is None or not path.is_file():
         raise HTTPException(404, "Datei nicht gefunden.")
-    return _send(path, f.name, f.mime)
+    return _send(path, f.name, f.mime, preview)
 
 
 @app.get("/dms/r/{record_id:int}/case/{src}/{name}")
-def dms_case_file(record_id: int, src: str, name: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def dms_case_file(record_id: int, src: str, name: str, preview: bool = False, user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Uploads aus dem Antrag (src=a) oder aus einer Nachforderung (src=req<nr>) – mit Leserecht der Ablage."""
     record, _ = _record(db, user, record_id)
     resp = record.response
@@ -186,27 +205,27 @@ def dms_case_file(record_id: int, src: str, name: str, user: User = Depends(curr
     entry = next((f for v in values if isinstance(v, list) for f in v if isinstance(f, dict) and f.get("file") == name), None)
     if entry is None or not path.is_file():
         raise HTTPException(404, "Datei nicht gefunden.")
-    return _send(path, entry.get("name") or name, entry.get("type") or "")
+    return _send(path, entry.get("name") or name, entry.get("type") or "", preview)
 
 
 @app.get("/dms/r/{record_id:int}/document/{doc_id:int}")
-def dms_case_document(record_id: int, doc_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def dms_case_document(record_id: int, doc_id: int, preview: bool = False, user: User = Depends(current_user), db: Session = Depends(get_db)):
     from . import workflow
     record, _ = _record(db, user, record_id)
     resp = record.response
     doc = next((d for d in resp.documents if d.id == doc_id), None) if resp else None
     if doc is None or not (workflow.documents_dir(resp) / doc.file).is_file():
         raise HTTPException(404)
-    return FileResponse(workflow.documents_dir(resp) / doc.file, filename=f"{resp.ref_no}-{doc.name}.pdf", media_type="application/pdf")
+    return _send(workflow.documents_dir(resp) / doc.file, f"{resp.ref_no}-{doc.name}.pdf", "application/pdf", preview)
 
 
 @app.get("/dms/r/{record_id:int}/pdf")
-def dms_record_pdf(record_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def dms_record_pdf(record_id: int, preview: bool = False, user: User = Depends(current_user), db: Session = Depends(get_db)):
     record, _ = _record(db, user, record_id)
     if record.response is None:
         raise HTTPException(404)
     return Response(apps.pdf(record.response.form, record.response), media_type="application/pdf",
-                    headers={"Content-Disposition": f'attachment; filename="{record.ref_no or record.id}.pdf"'})
+                    headers={"Content-Disposition": f'{"inline" if preview else "attachment"}; filename="{record.ref_no or record.id}.pdf"', "Cache-Control": "private, no-store", "X-Frame-Options": "SAMEORIGIN" if preview else "DENY", "X-Content-Type-Options": "nosniff"})
 
 
 @app.post("/dms/r/{record_id:int}/upload", dependencies=[Depends(check_csrf)])
@@ -339,7 +358,7 @@ async def dms_new_save(request: Request, user: User = Depends(current_user), db:
             if len(content) <= MAX_UPLOAD:
                 dms._store(record, f.filename.replace("/", "_").replace("\\", "_"), content, "upload", user.name, "", f.content_type or "")
                 n += 1
-    by_id = {a.id: a for a in dms.areas(db)}
+    by_id = {a.id: a for a in dms.areas(db) if a.id in lv}
     record.retention_until = dms.retention_date(record.closed_at, dms.retention_years(by_id[area_id], by_id))
     record.text = " ".join([title, record.ref_no, record.applicant, record.applicant_email, record.street, record.zip,
                             record.city, record.district, record.note, *[x.name for x in record.files]]).lower()
@@ -367,7 +386,7 @@ def dms_areas(request: Request, user: User = Depends(current_user), db: Session 
     for (aid,) in db.execute(select(DmsRecord.area_id)):
         counts[aid] = counts.get(aid, 0) + 1
     by_id = {a.id: a for a, _ in tree}
-    return render(request, "dms_areas.html", user, tree=tree, counts=counts, by_id=by_id, label=dms.label,
+    return render(request, "dms_areas.html", user, tree=tree, counts=counts, by_id=by_id, label=dms.label, folder_tree=dms.folder_tree(list(by_id.values())),
                   users=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(),
                   groups=db.scalars(select(Group).order_by(Group.name)).all(), levels=dms.LEVELS,
                   inherited={a.id: dms.retention_years(a, by_id) for a, _ in tree})
@@ -400,7 +419,7 @@ async def dms_area_save(request: Request, user: User = Depends(current_user), db
         area.retention_years = 0
     db.flush()
     # Fristen der vorhandenen abgeschlossenen Einträge neu berechnen
-    by_id = {a.id: a for a in dms.areas(db)}
+    by_id = {a.id: a for a in dms.areas(db) if a.id in lv}
     for record in db.scalars(select(DmsRecord).where(DmsRecord.area_id.in_(dms.subtree_ids(db, area.id)))):
         if record.closed_at:
             record.retention_until = dms.retention_date(record.closed_at, dms.retention_years(by_id[record.area_id], by_id))
@@ -473,7 +492,7 @@ def dms_access_delete(request: Request, access_id: int, user: User = Depends(cur
 @app.get("/dms/retention")
 def dms_retention(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
     _manager(user)
-    by_id = {a.id: a for a in dms.areas(db)}
+    by_id = {a.id: a for a in dms.areas(db) if a.id in lv}
     return render(request, "dms_retention.html", user, records=dms.expired(db), by_id=by_id, label=dms.label,
                   log=db.scalars(select(DmsLog).order_by(DmsLog.at.desc()).limit(200)).all())
 
@@ -553,7 +572,7 @@ def dms_persons(request: Request, user: User = Depends(current_user), db: Sessio
 def dms_person(request: Request, person_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     person = _person(db, user, person_id)
     records, total = dms.search(db, user, {"person": str(person.id)}, limit=500)
-    by_id = {a.id: a for a in dms.areas(db)}
+    by_id = {a.id: a for a in dms.areas(db) if a.id in lv}
     merge = []
     if user.is_admin or user.can("dms_admin"):
         like_name = " ".join(person.name.split()[-1:])
