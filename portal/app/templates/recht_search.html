@@ -10,7 +10,7 @@
       <div class="input-group"><input class="form-control" id="q" type="search" name="q" value="{{ q }}" data-suggest="{{ R }}/suche.json" placeholder="z. B. Bekanntmachung oder § 5" {% if not embed %}autofocus{% endif %}></div></div>
     {% if law %}
     <div class="col-12 col-lg-4"><label class="form-label small">Nur in</label>
-      <div class="input-group"><span class="form-control text-truncate">{{ law.short_title or law.title }}</span>
+      <div class="input-group"><span class="form-control lex-wrap">{{ law.short_title or law.title }}</span>
         <input type="hidden" name="gesetz" value="{{ law.slug }}"><a class="btn btn-outline-secondary" href="{{ R }}/suche?q={{ q | urlencode }}" title="In allen Texten suchen"><i class="fa-solid fa-xmark"></i></a></div></div>
     {% else %}
     <div class="col-6 col-lg-2"><label class="form-label small" for="art">Art</label>

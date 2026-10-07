@@ -11,7 +11,8 @@
 <li>
   {% if v.children %}
   <details open>
-    <summary><a href="{{ href(v) }}" class="{{ 'active' if current and current.section.id == v.section.id }}">{{ toc_label(v) }}</a></summary>
+    <summary><span class="lex-toc-label {{ 'active' if current and current.section.id == v.section.id }}">{{ toc_label(v) }}</span></summary>
+    <a class="lex-toc-open" href="{{ href(v) }}">{{ v.section.number or 'Abschnitt' }} anzeigen <i class="fa-solid fa-arrow-right ms-1" aria-hidden="true"></i></a>
     <ul>{% for c in v.children %}{{ toc_node(c) }}{% endfor %}</ul>
   </details>
   {% else %}
@@ -115,12 +116,13 @@
   {% if roots %}
   <div class="col-lg-4 col-xl-3 lex-noprint">
     <nav class="lex-toc card" data-mode="{{ 'single' if current else 'full' }}" aria-label="Inhaltsverzeichnis">
-      <div class="card-header d-flex align-items-center gap-2"><i class="fa-solid fa-sitemap text-secondary"></i><strong class="small">Inhaltsübersicht</strong>
-        <button class="btn btn-sm btn-link ms-auto p-0 d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#toc-body" aria-expanded="false">ein-/ausblenden</button></div>
-      <div class="collapse d-lg-block" id="toc-body">
-        <div class="p-2 border-bottom"><input class="form-control form-control-sm" id="toc-filter" type="search" placeholder="Verzeichnis filtern …" aria-label="Inhaltsübersicht filtern"></div>
+      <details class="lex-toc-panel" open>
+      <summary class="card-header"><i class="fa-solid fa-sitemap text-secondary" aria-hidden="true"></i><strong class="small">Inhaltsübersicht</strong><span class="small text-secondary ms-auto">auf-/zuklappen</span></summary>
+      <div id="toc-body">
+        <div class="p-2 border-bottom"><div class="d-flex flex-wrap gap-2 mb-2 lex-toc-controls" hidden><button type="button" class="btn btn-sm btn-outline-secondary" data-toc-expand="1">Alle aufklappen</button><button type="button" class="btn btn-sm btn-outline-secondary" data-toc-expand="0">Alle zuklappen</button></div><input class="form-control form-control-sm" id="toc-filter" type="search" placeholder="Verzeichnis filtern …" aria-label="Inhaltsübersicht filtern"></div>
         <div class="lex-toc-scroll p-2"><ul>{% for v in roots %}{{ toc_node(v) }}{% endfor %}</ul></div>
       </div>
+      </details>
     </nav>
   </div>
   {% endif %}

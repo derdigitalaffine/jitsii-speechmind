@@ -87,3 +87,53 @@
 .law-split .law-prev { max-height: 40rem; overflow: auto; background: var(--bs-body-bg); }
 .law-split .law-prev .lex { max-width: none; }
 .law-toolbar .btn { --bs-btn-padding-y: .15rem; }
+
+/* Browser: full titles, native disclosure controls and comfortable touch targets. */
+.lex-wrap, .lex-titlebar h1, .lex-doc-title, .lex-level-name, .lex-toc-label {
+  min-width: 0; white-space: normal; overflow-wrap: anywhere; hyphens: auto;
+}
+.lex-browser, .lex-browser .card-body { min-width: 0; }
+.lex-tree .lex-doc { display: block; padding: .7rem .8rem; margin: .4rem 0; border: 1px solid var(--bs-border-color); background: var(--bs-body-bg); }
+.lex-doc-title { display: block; font-weight: 600; line-height: 1.45; text-decoration: none; padding: .2rem 0; min-height: 2.75rem; }
+.lex-doc-title:hover { text-decoration: underline; }
+.lex-doc-short { display: block; font-size: .9rem; margin-bottom: .3rem; }
+.lex-doc-meta { display: flex; flex-wrap: wrap; gap: .4rem .6rem; align-items: baseline; }
+.lex-doc-meta > span { white-space: normal; overflow-wrap: anywhere; text-align: left; }
+.lex-branch { margin: .4rem 0; border: 1px solid var(--bs-border-color); border-radius: var(--bs-border-radius); }
+.lex-tree summary.lex-level { cursor: pointer; list-style: none; align-items: flex-start; padding: .7rem; min-height: 3rem; border-radius: var(--bs-border-radius); }
+.lex-tree summary.lex-level::-webkit-details-marker { display: none; }
+.lex-tree summary.lex-level::before { content: "\25B8"; flex: none; width: .85rem; transition: transform .15s; }
+.lex-branch[open] > summary::before { transform: rotate(90deg); }
+.lex-tree summary.lex-level:hover { background: var(--bs-tertiary-bg); }
+.lex-level-name { flex: 1; line-height: 1.5; }
+.lex-tree summary .badge { flex: none; margin-top: .2rem; }
+.lex-branch-body { padding: 0 .65rem .65rem; }
+.lex-branch-body > ul { margin-left: .35rem; padding-left: .6rem; }
+.lex-level-link { display: inline-flex; align-items: center; min-height: 2.75rem; margin-bottom: .25rem; font-size: .85rem; }
+.lex-tree summary:focus-visible, .lex-doc-title:focus-visible, .lex-toc summary:focus-visible { outline: 3px solid rgba(var(--bs-primary-rgb), .7); outline-offset: 2px; }
+.lex-toc summary, .lex-toc a { min-height: 2.75rem; padding: .5rem .4rem; line-height: 1.5; }
+.lex-toc summary > .lex-toc-label { flex: 1; font-weight: 600; }
+.lex-toc-label.active { color: var(--bs-primary); }
+.lex-toc .lex-toc-open { color: var(--bs-primary); font-size: .8rem; }
+.lex-browser [hidden], .lex-toc [hidden] { display: none !important; }
+@media (max-width: 575.98px) {
+  .lex-hero { padding: 1rem !important; }
+  .lex-hero .input-group-lg > .form-control, .lex-hero .input-group-lg > .btn, .lex-hero .input-group-lg > .input-group-text { font-size: 1rem; padding: .6rem; }
+  .lex-hero .input-group-text { display: none; }
+  .lex-browser > .card-body { padding: .7rem; }
+  .lex-tree summary.lex-level { gap: .35rem; padding: .65rem .4rem; }
+  .lex-tree summary .org-logo, .lex-tree summary .lex-kind-icon { width: 1.5rem; height: 1.5rem; }
+  .lex-branch-body { padding: 0 .4rem .4rem; }
+  .lex-branch-body > ul { margin-left: .15rem; padding-left: .3rem; }
+  .lex-toc-scroll { max-height: 60vh; }
+  .lex-titlebar h1 { font-size: 1.45rem; line-height: 1.4; }
+  .lex-suggest a { min-height: 2.75rem; white-space: normal; overflow-wrap: anywhere; }
+}
+@media (prefers-reduced-motion: reduce) { .lex-tree summary.lex-level::before, .lex-toc summary::before { transition: none; } }
+@media print { .lex-branch > .lex-branch-body { display: block !important; } .lex-tree summary.lex-level::before { display: none; } }
+
+.lex-toc-panel > summary { align-items: center; gap: .4rem; padding: .7rem; }
+.lex-toc-panel > summary::before { padding-top: 0; }
+.lex-toc a { overflow-wrap: anywhere; }
+
+.lex-browser-tools .btn, .lex-toc-controls .btn { min-height: 2.75rem; }
