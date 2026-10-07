@@ -513,6 +513,8 @@ def _fill_page(request: Request, form: Form, *, preview: bool = False, action: s
         with SessionLocal() as db:
             submitting_user(request, db, form)
     items = fm.schema(form)
+    with SessionLocal() as db:
+        values = fm.form_fields.profile_values(items, values, session_user(request,db))
     page_list = fm.pages(items)
     for p in page_list:
         for item in p["items"]:
