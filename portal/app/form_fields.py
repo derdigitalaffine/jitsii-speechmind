@@ -6,6 +6,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 TYPES = {
+    'route': ('Fahrtstrecken', 'fa-route', True),
     'period': ('Zeitraum', 'fa-calendar-days', True),
     'table': ('Wiederholbare Tabelle / Kostenpositionen', 'fa-table', True),
     'calculation': ('Berechnung', 'fa-calculator', True),
@@ -44,6 +45,9 @@ def number(value):
 
 
 def clean(kind, raw):
+    if kind == 'route':
+        from . import routing
+        return routing.clean(raw)
     if kind == 'period':
         return {'with_time': raw.get('with_time') is not False}
     if kind == 'declaration':
@@ -90,6 +94,9 @@ def clean(kind, raw):
 
 def parse(item, data, name):
     kind = item['type']
+    if kind == 'route':
+        from . import routing
+        return routing.parse(item, data, name)
     raw = data.get(name)
     required = item.get('required')
     if kind == 'declaration':
@@ -240,6 +247,9 @@ def calculate(items, answers, errors):
 
 def display(item, value):
     kind = item['type']
+    if kind == 'route':
+        from . import routing
+        return routing.display(item, value)
     if kind == 'period' and isinstance(value, dict):
         return f"{value.get('start', '')} bis {value.get('end', '')}"
     if kind == 'table' and isinstance(value, list):

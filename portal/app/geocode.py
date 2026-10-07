@@ -11,6 +11,8 @@ import re
 import threading
 import time
 from datetime import timedelta
+from urllib.parse import urlparse
+from .geo_services import paced
 
 import httpx
 from sqlalchemy import delete, select
@@ -45,10 +47,7 @@ def _fetch(path: str, params: dict) -> list | dict | None:
             return json.loads(hit.value_json)
     headers = {"User-Agent": f"Verwaltungsportal ({settings.portal_base_url}{'; ' + cfg['contact'] if cfg['contact'] else ''})",
                "Accept-Language": "de"}
-    with _lock:   # höchstens eine Anfrage je Sekunde an den Geocoder
-        wait = 1.05 - (time.monotonic() - _last[0])
-        if wait > 0:
-            time.sleep(wait)
+    with paced("geocoder"):   # shared across all server workers
         try:
             r = httpx.get(cfg["url"] + path, params=params, headers=headers, timeout=8, follow_redirects=True)
             data = r.json() if r.status_code == 200 else None
@@ -150,3 +149,7 @@ def clear_cache() -> int:
 def cache_count() -> int:
     with SessionLocal() as db:
         return len(db.scalars(select(GeoCache.key)).all())
+
+
+def public_only():
+    return (urlparse(config()["url"]).hostname or "").lower() == "nominatim.openstreetmap.org"

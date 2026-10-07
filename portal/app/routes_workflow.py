@@ -313,7 +313,7 @@ def _request_page(request: Request, db: Session, resp: FormResponse, req: Applic
             v = current.get(q["id"])
             if q["type"] != "file" and v is not None:
                 values[q["id"]] = v
-    geo = any(i["type"] == "geo" for i in items)
+    geo = any(i["type"] in ("geo", "route") for i in items)
     response = render(request, "application_request.html", None, resp=resp, req=req, form=resp.form,
                       extra=req.items, reopen=wf.reopen_items(resp, req), values=values, errors=errors or {},
                       types=fm.TYPES, other=fm.OTHER,

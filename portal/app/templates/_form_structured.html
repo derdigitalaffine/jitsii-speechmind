@@ -1,4 +1,6 @@
-{% if item.type == 'period' %}
+{% if item.type == 'route' %}
+{% include '_form_route.html' %}
+{% elif item.type == 'period' %}
 <div class="js-period" data-name="{{ name }}" data-value="{{ val | tojson | forceescape }}"><div class="row g-2">
   <div class="col-md-6"><label class="form-label" for="{{ name }}__start">Von</label><input class="form-control" id="{{ name }}__start" name="{{ name }}__start" type="{{ 'datetime-local' if item.with_time else 'date' }}" {% if item.required %}required{% endif %}></div>
   <div class="col-md-6"><label class="form-label" for="{{ name }}__end">Bis</label><input class="form-control" id="{{ name }}__end" name="{{ name }}__end" type="{{ 'datetime-local' if item.with_time else 'date' }}" {% if item.required %}required{% endif %}></div>
