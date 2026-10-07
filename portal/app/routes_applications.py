@@ -297,16 +297,18 @@ def application_pdf(form_id: int, resp_id: int, user: User = Depends(current_use
 
 # --- Statusseite für Antragsteller:innen -----------------------------------------------
 
-def _tracked(db: Session, token: str) -> FormResponse:
+def _tracked(db: Session, token: str, request: Request) -> FormResponse:
     resp = db.scalar(select(FormResponse).where(FormResponse.track_token == token)) if len(token) > 20 else None
     if resp is None:
         raise HTTPException(404, "Diesen Antrag gibt es nicht (mehr). Bitte prüfen Sie den Link aus Ihrer Eingangsbestätigung.")
+    from .form_access import response_access
+    response_access(request, db, resp)
     return resp
 
 
 @app.get("/a/{token}")
 def application_status(request: Request, token: str, db: Session = Depends(get_db)):
-    resp = _tracked(db, token)
+    resp = _tracked(db, token, request)
     items = fm.schema(resp.form)
     response = render(request, "application_status.html", session_user(request, db), resp=resp, form=resp.form,
                       questions=fm.questions(items), display=fm.display, statuses=apps.STATUSES, closed=apps.CLOSED,
@@ -323,7 +325,7 @@ def application_status(request: Request, token: str, db: Session = Depends(get_d
 @app.post("/a/{token}/reply", dependencies=[Depends(check_csrf)])
 def application_reply(request: Request, token: str, text: str = FormField(""), db: Session = Depends(get_db)):
     rate_limit(request, "app-reply", limit=10)
-    resp = _tracked(db, token)
+    resp = _tracked(db, token, request)
     text = text.replace("\r\n", "\n").strip()[:10000]
     if resp.closed_at:
         flash(request, "Der Antrag ist abgeschlossen. Bitte wenden Sie sich direkt an die Verwaltung.", "error")
@@ -340,7 +342,7 @@ def application_reply(request: Request, token: str, text: str = FormField(""), d
 @app.post("/a/{token}/withdraw", dependencies=[Depends(check_csrf)])
 def application_withdraw(request: Request, token: str, db: Session = Depends(get_db)):
     rate_limit(request, "app-reply", limit=10)
-    resp = _tracked(db, token)
+    resp = _tracked(db, token, request)
     if not resp.closed_at:
         apps.withdraw(db, resp)
         db.commit()
@@ -350,8 +352,8 @@ def application_withdraw(request: Request, token: str, db: Session = Depends(get
 
 
 @app.get("/a/{token}/pdf")
-def application_status_pdf(token: str, db: Session = Depends(get_db)):
-    resp = _tracked(db, token)
+def application_status_pdf(request: Request, token: str, db: Session = Depends(get_db)):
+    resp = _tracked(db, token, request)
     return Response(apps.pdf(resp.form, resp), media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="{resp.ref_no}.pdf"',
                              "Cache-Control": "no-store"})

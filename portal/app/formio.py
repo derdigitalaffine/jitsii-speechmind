@@ -25,7 +25,7 @@ MAX_ZIP = 500 * 1024 * 1024
 MAX_FILES = 20000
 FILE_RE = re.compile(r"^[A-Za-z0-9_-]{1,40}(\.[a-z0-9]{1,10})?$")
 
-SETTINGS = ("description", "anonymous", "multiple", "submit_message", "confirm_mail", "notify", "notify_answers",
+SETTINGS = ("internal", "description", "anonymous", "multiple", "submit_message", "confirm_mail", "notify", "notify_answers",
             "notify_pdf", "notify_files", "pdf_uploads", "confirm_csv", "confirm_json", "confirm_pdf", "confirm_files",
             "notify_json", "notify_csv", "notify_scope", "review", "kind", "app_prefix", "app_category", "app_info",
             "app_fee", "app_duration", "app_deadline_days", "app_catalog", "app_pdf")

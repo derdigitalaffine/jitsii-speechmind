@@ -5,7 +5,7 @@ import hashlib
 import json
 from urllib.parse import quote
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.responses import Response
 from sqlalchemy import select
 
@@ -30,10 +30,13 @@ def download(bundle, index):
 
 
 @app.get("/form-mail/{token}/{index:int}")
-def applicant_download(token: str, index: int, db=Depends(get_db)):
+def applicant_download(request: Request, token: str, index: int, db=Depends(get_db)):
     bundle = db.scalar(select(FormMailDownload).where(
         FormMailDownload.token_hash == hashlib.sha256(token.encode()).hexdigest(),
         FormMailDownload.applicant.is_(True))) if len(token) == 43 else None
+    if bundle is not None:
+        from .form_access import response_access
+        response_access(request, db, db.get(FormResponse, bundle.response_id))
     return download(bundle, index)
 
 

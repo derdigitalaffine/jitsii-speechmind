@@ -52,7 +52,7 @@ MAIL_TARGETS = {"applicant": "Antragsteller:in", "case": "Zuständige des Vorgan
 KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_]{0,39}$")
 STEP_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 TOKEN_RE = re.compile(r"\{(feld|frage):([^{}]{1,200})\}|\{([a-z_]{1,30})\}")
-REQUEST_TYPES = ("short", "long", "radio", "checkbox", "dropdown", "date", "file", "address", "geo", "text")
+REQUEST_TYPES = tuple(fm.form_fields.TYPES) + ("short", "long", "radio", "checkbox", "dropdown", "date", "file", "address", "geo", "text")
 CLOSED = apps.CLOSED
 
 
@@ -1011,8 +1011,11 @@ def create_request(db, resp: FormResponse, title: str, message: str, items: list
                    actor_name: str, task: ApplicationTask | None = None, set_query: bool = True) -> ApplicationRequest:
     if task is not None and task.state == "open":   # zusammengestellte Nachforderung: jetzt auf die Antwort warten
         task.state = "waiting"
-    req = ApplicationRequest(title=title[:200] or "Nachforderung", message=message[:10000],
-                             schema_json=json.dumps(clean_request_items(items), ensure_ascii=False),
+    cleaned_items = clean_request_items(items)
+    current = current_answers(resp)
+    prefill = {i["id"]: current[i["prefill_from"]] for i in cleaned_items if i.get("prefill_from") in current and i["type"] not in ("declaration", "signature", "file", "calculation")}
+    req = ApplicationRequest(prefill_json=json.dumps(prefill, ensure_ascii=False), title=title[:200] or "Nachforderung", message=message[:10000],
+                             schema_json=json.dumps(cleaned_items, ensure_ascii=False),
                              reopen_json=json.dumps(reopen[:40]), due_at=due_at, created_by=actor_name,
                              task_id=task.id if task else None)
     resp.requests.append(req)

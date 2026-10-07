@@ -298,9 +298,9 @@ async def document_toggle(request: Request, form_id: int, resp_id: int, doc_id: 
 
 # --- Statusseite: Nachforderung beantworten, Dokumente ----------------------------------------
 
-def _tracked(db: Session, token: str) -> FormResponse:
+def _tracked(db: Session, token: str, request: Request) -> FormResponse:
     from .routes_applications import _tracked as tracked
-    return tracked(db, token)
+    return tracked(db, token, request)
 
 
 def _request_page(request: Request, db: Session, resp: FormResponse, req: ApplicationRequest, values=None, errors=None):
@@ -308,7 +308,7 @@ def _request_page(request: Request, db: Session, resp: FormResponse, req: Applic
     items = req.items + wf.reopen_items(resp, req)
     current = wf.current_answers(resp)
     if values is None:   # Korrekturfelder mit den bisherigen Angaben vorbelegen
-        values = {}
+        values = json.loads(req.prefill_json or "{}")
         for q in wf.reopen_items(resp, req):
             v = current.get(q["id"])
             if q["type"] != "file" and v is not None:
@@ -332,7 +332,7 @@ def _open_request(resp: FormResponse, req_id: int) -> ApplicationRequest:
 
 @app.get("/a/{token}/request/{req_id:int}")
 def applicant_request(request: Request, token: str, req_id: int, db: Session = Depends(get_db)):
-    resp = _tracked(db, token)
+    resp = _tracked(db, token, request)
     req = _open_request(resp, req_id)
     if req.state != "open":
         flash(request, "Diese Nachforderung ist bereits erledigt." if req.state == "answered" else "Diese Nachforderung wurde zurückgenommen.")
@@ -343,7 +343,7 @@ def applicant_request(request: Request, token: str, req_id: int, db: Session = D
 @app.post("/a/{token}/request/{req_id:int}", dependencies=[Depends(check_csrf)])
 async def applicant_request_submit(request: Request, token: str, req_id: int, db: Session = Depends(get_db)):
     rate_limit(request, "app-request", limit=20)
-    resp = _tracked(db, token)
+    resp = _tracked(db, token, request)
     req = _open_request(resp, req_id)
     if req.state != "open" or resp.closed_at:
         flash(request, "Diese Nachforderung ist nicht mehr offen.", "error")
@@ -366,7 +366,7 @@ async def applicant_request_submit(request: Request, token: str, req_id: int, db
 @app.get("/a/{token}/confirm/{code}")
 def applicant_confirm(request: Request, token: str, code: str, db: Session = Depends(get_db)):
     rate_limit(request, "app-confirm", limit=30)
-    resp = _tracked(db, token)
+    resp = _tracked(db, token, request)
     result = wf.confirm(db, resp, code)
     if result == "ok":
         db.commit()
@@ -382,7 +382,7 @@ def applicant_confirm(request: Request, token: str, code: str, db: Session = Dep
 @app.post("/a/{token}/confirm-resend", dependencies=[Depends(check_csrf)])
 def applicant_confirm_resend(request: Request, token: str, db: Session = Depends(get_db)):
     rate_limit(request, "app-confirm-resend", limit=3, window=3600)
-    resp = _tracked(db, token)
+    resp = _tracked(db, token, request)
     task = wf.open_confirm(resp)
     if task and wf.send_confirm(db, resp, task):
         db.commit()
@@ -392,8 +392,8 @@ def applicant_confirm_resend(request: Request, token: str, db: Session = Depends
 
 
 @app.get("/a/{token}/documents/{doc_id:int}")
-def applicant_document(token: str, doc_id: int, db: Session = Depends(get_db)):
-    resp = _tracked(db, token)
+def applicant_document(request: Request, token: str, doc_id: int, db: Session = Depends(get_db)):
+    resp = _tracked(db, token, request)
     doc = _document(resp, doc_id)
     if not doc.public:
         raise HTTPException(404, "Dokument nicht gefunden.")

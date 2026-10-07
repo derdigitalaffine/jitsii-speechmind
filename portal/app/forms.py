@@ -22,7 +22,7 @@ from pathlib import Path
 import regex
 from sqlalchemy import select
 
-from . import csvsafe, links, mailtpl, notify
+from . import form_fields, csvsafe, links, mailtpl, notify
 from .config import settings
 from .db import Form, FormInvite, FormResponse, FormShare, Group, GroupMember, User, get_settings, to_local, utcnow
 from .planning import EMAIL_RE
@@ -50,6 +50,7 @@ TYPES = {
     "divider": ("Trennlinie", "fa-minus", False),
     "pagebreak": ("Neue Seite", "fa-file-circle-plus", False),
 }
+TYPES.update(form_fields.TYPES)
 SUBTYPES = {"text": "Text", "email": "E-Mail-Adresse", "phone": "Telefonnummer", "number": "Zahl",
             "regex": "Eigenes Muster (regulärer Ausdruck)"}
 CHOICE_TYPES = {"radio", "checkbox", "dropdown"}
@@ -105,6 +106,8 @@ def clean_schema(raw) -> list[dict]:
         seen.add(qid)
         item = {"id": qid, "type": kind, "title": _str(src.get("title"), 500),
                 "description": _str(src.get("description"), 5000)}
+        if kind not in ('declaration', 'signature', 'file', 'calculation') and ID_RE.fullmatch(str(src.get('prefill_from') or '')):
+            item['prefill_from'] = str(src['prefill_from'])
         if src.get("width") in WIDTHS and src.get("width") != "full" and kind not in ("pagebreak", "divider", "heading"):
             item["width"] = src["width"]
         for key in ("show_if", "required_if"):
@@ -113,7 +116,9 @@ def clean_schema(raw) -> list[dict]:
                 item[key] = cond
         if TYPES[kind][2]:
             item["required"] = bool(src.get("required"))
-        if kind == "short":
+        if kind in form_fields.TYPES:
+            item.update(form_fields.clean(kind, src))
+        elif kind == "short":
             item["subtype"] = src.get("subtype") if src.get("subtype") in SUBTYPES else "text"
             item["placeholder"] = _str(src.get("placeholder"), 200)
             if item["subtype"] == "regex":
@@ -397,7 +402,11 @@ def _validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
         qid, kind, name = item["id"], item["type"], f"q_{item['id']}"
         required = item.get("required")
         value = None
-        if kind == "checkbox":
+        if kind in form_fields.TYPES:
+            value, error = form_fields.parse(item, data, name)
+            if error:
+                errors[qid] = error
+        elif kind == "checkbox":
             labels = {o["label"] for o in item.get("options", [])}
             chosen = [v for v in data.getlist(name) if v in labels]
             if item.get("other") and OTHER in data.getlist(name):
@@ -526,6 +535,7 @@ def _validate(items: list[dict], data, files) -> tuple[dict, dict, dict]:
             value = raw or None
         if value is not None and qid not in errors:
             answers[qid] = value
+    form_fields.calculate(questions(items), answers, errors)
     return answers, errors, uploads
 
 
@@ -853,6 +863,8 @@ def display(item: dict, value) -> str:
     if value is None or value == "":
         return ""
     kind = item.get("type")
+    if kind in form_fields.TYPES:
+        return form_fields.display(item, value)
     if kind == "file":
         return ", ".join(f.get("name", "") for f in value if isinstance(f, dict))
     if kind == "address":
