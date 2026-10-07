@@ -32,6 +32,7 @@ Es ist nach Aufgaben gegliedert und zeigt nur, was Sie nutzen dürfen: **Mein Ar
 12. [Formulare ausfüllen („Zum Ausfüllen“)](#12-formulare-ausfüllen-zum-ausfüllen)
 12a. [Online-Anträge erstellen und bearbeiten](#12a-online-anträge-erstellen-und-bearbeiten)
 12b. [Ablage (DMS)](#12b-ablage-dms)
+12d. [Aushänge, Umläufe und Sammelmappen](#12d-aushänge-umläufe-und-sammelmappen)
 12c. [Krank melden und Krankmeldungen bearbeiten](#12c-krank-melden-und-krankmeldungen-bearbeiten)
 12a. [Abwesenheiten und Vertretungen](#12a-abwesenheiten-und-vertretungen)
 13. [Profil und Sicherheit (Zwei-Faktor)](#13-profil-und-sicherheit-zwei-faktor)
@@ -337,6 +338,8 @@ Die Stufe lässt sich in der Liste jederzeit ändern, das ✕ entfernt die Freig
 ---
 
 ## 6d. Rechtstexte (Ortsrecht online)
+
+Das Modul unterstützt außerdem **interne Dienstanweisungen** für angemeldete Personen. Interne Texte bleiben aus der öffentlichen Suche, Einbettung und öffentlichen Downloads ausgeschlossen und lassen sich in internen Umläufen verknüpfen. Details: [Interne Rechtstexte](../portal/docs/internal-laws.md).
 
 **Lesen – für alle, ohne Anmeldung:** über den Link **Rechtstexte** oben auf jeder Portalseite (Adresse `/recht`).
 
@@ -775,6 +778,8 @@ Menü **Ablage › Recherche**. Hier finden Sie Online-Anträge und manuell abge
 
 **Suchen:** Links die Filter – **Volltext** (findet Begriffe in allen Angaben, Notizen und Dateinamen), Bereich (mit Unterbereichen), **Antragsteller:in**, **Aktenzeichen**, **Ort / PLZ / Straße**, Antragsart, Status (laufend, abgeschlossen oder ein bestimmter Status), Art (Online-Antrag oder manuell) und **Eingang von–bis**. Rechts die Treffer, sortierbar (neueste, älteste, Aktenzeichen, Antragsteller:in), als **CSV** exportierbar. Eine Suche, die Sie öfter brauchen (z. B. „Hundesteuer 2026, Otterberg“), unter **Gespeicherte Suchen** mit Namen speichern – ein Klick ruft sie wieder auf.
 
+**Ordner und Vorschau:** Die Ablage kann wie ein Dateibrowser nach Bereichen und Unterordnern geöffnet werden. Breadcrumbs führen zurück; die Suche und der CSV-Export beziehen sich auf die gewählte Ablage. PDF-Dateien lassen sich innerhalb der bisherigen Leserechte voransehen; andere Formate werden geöffnet oder heruntergeladen. Details: [DMS-Dateibrowser](../portal/docs/dms-browser.md).
+
 **Ein Vorgang** zeigt Aktenzeichen, Antragsteller:in, Anschrift, Status, Bereich und Löschfrist, alle Dateien (Antrags-PDF mit Anlagen und nachgereichten Angaben, je Nachreichung ein eigenes PDF, Uploads, Bescheide, beim Abschluss der **Abschlussstand**) und den Verlauf. Bei Online-Anträgen führt ein Link zum Vorgang im Antragseingang (wenn Sie dort berechtigt sind).
 
 **Personen:** Jeder Eintrag gehört zu einer Bürgerin bzw. einem Bürger (automatisch über die E-Mail-Adresse, sonst über Name und PLZ). Im Eintrag führt der Name zur **Personenseite** mit allen Vorgängen dieser Person; „Alle Vorgänge dieser Person“ filtert die Recherche. Unter **Ablage › Personen** suchen Sie nach Name, E-Mail, Telefon oder Anschrift. Mit Schreibrecht ordnen Sie einen Eintrag einer anderen Person zu oder legen eine neue an; doppelte Personen führt die Aktenplan-Verwaltung zusammen.
@@ -818,11 +823,23 @@ Unter **Abwesenheiten** (Menü „Mein Arbeitsplatz“) tragen Sie Urlaub oder a
 
 Werden Sie selbst als Vertretung eingetragen, bekommen Sie eine Mail. Möchten Sie jeder Vertretung vorher zustimmen, schalten Sie das im **Profil** unter „Vertretungen“ ein – Anfragen erscheinen dann unter Abwesenheiten und auf der Übersicht zum **Zustimmen** oder **Ablehnen**. Bei Krankheit tragen Gruppenleitungen bzw. die Personalstelle die Abwesenheit für Sie ein. Sind Sie früher zurück, beendet „Zurück“ die Abwesenheit.
 
+## 12d. Aushänge, Umläufe und Sammelmappen
+
+Menü **Umläufe & Aushänge**: **Für mich** zeigt Ihre Inhalte, **Offene Aufgaben** die ausstehenden Bestätigungen, **Schwarzes Brett** aktuelle Beiträge mit Textauszug und Dokumentenlink. Eine Mappe bietet in der Leseansicht ein Inhaltsverzeichnis; das Öffnen allein bestätigt nichts. Nehmen Sie selbst ausdrücklich Kenntnis oder geben Sie frei, sofern der Ablauf das verlangt. Eine Vertretung darf berechtigt bearbeiten, bestätigt aber niemals für Sie.
+
+Ersteller stellen wiederverwendbare Dokumentvorlagen separat unter **Sammelmappen** zusammen. Dateien, Markdowntexte, Rechtstexte, Formulare und DMS-Dokumente werden gesucht, ausgewählt und mit Pfeilen geordnet. Im Umlauf/Aushang wählen Sie die gespeicherte Mappe und können direkt in ihren Editor wechseln. Erst beim Speichern werden unabhängige Kopien übernommen; die Vorlage kann danach geändert werden, ohne bestehende Umläufe zu verändern. Interne Portalobjekte behalten ihre Leserechte.
+
+Der Umlaufeditor gliedert sich in Inhalt, Empfänger und Ablauf. Personen und Gruppen sind suchbar und die Auswahl bleibt sichtbar. Der Markdowneditor bietet Formatierungswerkzeuge, Linkeingabe, Tastenkürzel sowie Textvorschau und Ansicht nebeneinander. Details: [Aushänge, Umläufe und Sammelmappen](UMLAEUFE-UND-SAMMELMAPPEN.md).
+
 ## 13. Profil und Sicherheit (Zwei-Faktor)
 
 ### Profil
 
 Oben rechts auf Ihren Namen › **Profil**: Anzeigenamen ändern (so erscheinen Sie in Konferenzen) und Passwort ändern (aktuelles Passwort und neues mit mindestens 10 Zeichen).
+
+Unter **Freiwillige Angaben** können Sie Person, Kontakt, Privat-/Dienstanschrift, Beschäftigung, Bankverbindung sowie Sprache und Zeitzone ergänzen. Alle Felder sind optional und werden verschlüsselt gespeichert. **Freiwillige Angaben speichern** ist getrennt vom Speichern der Kontodaten. **Eigene Angaben als JSON herunterladen** und **Alle freiwilligen Angaben löschen** stehen direkt dort bereit.
+
+Mit **Meine freiwilligen Angaben für meine Formulare vorbelegen** erlauben Sie die Vorbelegung dafür vorgesehener Formularfelder. Die Vorbelegung nutzt ausschließlich Ihr angemeldetes Profil und bleibt bearbeitbar; bestehende Antworten werden nicht überschrieben. Löschen entfernt keine schon abgesendeten Formularantworten. Beschäftigungsangaben vergeben keine Rechte. SSO ist noch nicht implementiert. Umfang und Vorbereitung: [Benutzerprofile](BENUTZERPROFILE.md).
 
 ### Zwei-Faktor-Anmeldung
 

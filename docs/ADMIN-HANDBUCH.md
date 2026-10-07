@@ -7,6 +7,7 @@ Für alle, die das Portal der Verbandsgemeinde Otterbach-Otterberg betreuen: Vid
 1. [Die Oberfläche im Überblick](#die-oberfläche-im-überblick)
 2. [Benutzer, Rechte und Gruppen](#benutzer-rechte-und-gruppen)
 2a. [Körperschaften und Einrichtungen](#körperschaften-und-einrichtungen)
+2b. [Freiwillige Benutzerprofile](#freiwillige-benutzerprofile)
 3. [Anmeldung und Zwei-Faktor](#anmeldung-und-zwei-faktor)
 4. [Module ein- und ausschalten](#module-ein--und-ausschalten)
 5. [Aufnahmen und Transkription](#aufnahmen-und-transkription) (mit Chatprotokoll und Umfragen)
@@ -14,6 +15,8 @@ Für alle, die das Portal der Verbandsgemeinde Otterbach-Otterberg betreuen: Vid
 7. [Kurzlinks und QR-Codes](#kurzlinks-und-qr-codes)
 8. [Formulare](#formulare)
 8e. [Online-Anträge](#online-anträge) (mit [Prozesse und Workflow](#prozesse-und-workflow))
+8k. [Reisekostensätze](#reisekostensätze)
+8l. [Aushänge, Umläufe und Sammelmappen](#aushänge-umläufe-und-sammelmappen)
 8g. [Ablage (DMS)](#ablage-dms)
 8f. [Kartenlayer und Kartenbrowser](#kartenlayer-und-kartenbrowser) (mit [Adresssuche (Nominatim)](#adresssuche-nominatim))
 8a. [Terminumfragen](#terminumfragen) und [Abstimmungen](#abstimmungen-und-wahlen)
@@ -177,6 +180,12 @@ Menü **Mein Arbeitsplatz › Abwesenheiten**. Jede:r plant eigene Abwesenheiten
 Benutzer:innen klicken auf der Anmeldeseite „Passwort vergessen?“. Der Link ist 2 Stunden gültig. Das Portal antwortet immer gleich, auch wenn die Adresse unbekannt ist (sonst ließe sich ausprobieren, wer ein Konto hat). Ist Zwei-Faktor aktiv, wird nach dem neuen Passwort trotzdem der zweite Faktor abgefragt.
 
 **Das Standard-Admin-Konto** wird beim allerersten Start angelegt. Legen Sie danach ein persönliches Admin-Konto für jede zuständige Person an und sperren Sie das Standardkonto oder behalten Sie es mit sicherem Passwort und Zwei-Faktor.
+
+## Freiwillige Benutzerprofile
+
+Unter **Profil** pflegen Personen freiwillige Angaben getrennt von Kontodaten und Rechten. Eine gemeinsame Allowlist versorgt Profilformular, Formular-/Datenblockbaukasten und Vorbelegung. Neue freiwillige Daten werden verschlüsselt gespeichert; Vorbelegung benötigt die Zustimmung der angemeldeten Person. Es gibt keinen neuen öffentlichen Profilzugriff. Die zusätzliche Kontakt-E-Mail ändert die Anmeldung nicht.
+
+Die Bestandsmigration ergänzt `users.profile_data_enc`. Datenbank und `PORTAL_SECRET_KEY` gemeinsam sichern. Beschäftigungsangaben sind Selbstauskünfte ohne Rechtewirkung. Der Umfang orientiert sich an möglichen OIDC-/SCIM-Zuordnungen; **Keycloak-/Nextcloud-SSO und Provisionierung sind noch nicht implementiert**. Vollständiger Umfang, Datenschutz und Zuordnungen: [BENUTZERPROFILE.md](BENUTZERPROFILE.md).
 
 ## Körperschaften und Einrichtungen
 
@@ -459,7 +468,21 @@ Menü **Formulare › Prozesse** (Recht „Prozesse“). Ein Prozess beschreibt,
 - Wird ein Vorgang über den Status abgeschlossen oder zurückgezogen, enden offene Schritte und Nachforderungen.
 - Fristen, Erinnerungen und Eskalationen prüft der Hintergrunddienst alle 5 Minuten.
 
+## Reisekostensätze
+
+Admins pflegen Sätze unter `/settings/expense-rules` über eine gegliederte Übersicht und vorausgefüllte Bearbeitung. Prozentanteile werden als Prozent, Beträge mit sichtbaren Einheiten erfasst. Änderungen speichern eine neue geprüfte Fassung; Überschneidungen benötigen ausdrückliche Ersetzung und Begründung. Bestehende Abrechnungen behalten die damaligen Satz-Snapshots. Vorschlagswerte werden niemals allein durch Öffnen des Editors aktiviert. Einrichtung und Fachprüfung: [DIENSTREISEN.md](DIENSTREISEN.md).
+
+## Aushänge, Umläufe und Sammelmappen
+
+Das Modul wird zentral eingeschaltet; Erstellen, Veröffentlichen und Verwalten sind getrennte Rechte. Wiederverwendbare Sammelmappen werden separat unter `/sammelmappen` erstellt und anschließend im Aushang/Umlauf gewählt. Private Vorlagen bleiben geschützt; gemeinsame Vorlagen sind für berechtigte Ersteller lesbar. Die bestehende Portalvertretung wird berücksichtigt.
+
+Dateien und Markdowntexte werden bei der Übernahme unabhängig kopiert. Änderungen an Vorlagen ändern keine veröffentlichten Fassungen oder Nachweise. DMS-, Rechtstext- und Formularverweise behalten ihre Quellrechte; Gastlinks und öffentliche Aushänge umgehen sie nicht. Das Schwarze Brett zeigt Beiträge, der Editor Suchlisten statt Mehrfach-Dropdowns. Fristen, Erinnerungen, Gastlinkdauer und Eskalation gehören zum Umlauf, nicht zur wiederverwendbaren Mappe.
+
+Die neue Tabelle `circulation_bundles` wird bei der Initialisierung angelegt. Vorlagendateien liegen unter `data/portal/circulation-bundles/<id>/` und müssen mit dem übrigen Portal-Datenverzeichnis gesichert werden. Der zentrale Mailversand ist Voraussetzung für Gast-Einladungen. Anleitung: [UMLAEUFE-UND-SAMMELMAPPEN.md](UMLAEUFE-UND-SAMMELMAPPEN.md), technische Details: [Moduldokumentation](../portal/docs/circulations.md).
+
 ## Ablage (DMS)
+
+Die Ablage bietet eine Ordneransicht mit Breadcrumbs und Suche im ausgewählten Bereich. PDF- und Bildvorschau verwenden die bisherigen Dateileserechte. Details: [DMS-Dateibrowser](../portal/docs/dms-browser.md).
 
 Modul **Ablage (DMS)** (Verwaltung › Module). Menü **Ablage › Recherche** und – mit dem Recht „Aktenplan verwalten“ – **Aktenplan** und **Löschfristen**.
 
@@ -685,6 +708,8 @@ Modul **Ressourcenbuchung**, Menü **Ressourcen** (Recht „Ressourcen“ zum An
 **Datenschutz:** PayPal erfährt Betrag, Zweck und Zahlungsnummer; PayPal gehört als Empfänger in die Datenschutzerklärung. Mail-Vorlagen in der Gruppe „Zahlungen“.
 
 ## Rechtstexte (Ortsrecht online)
+
+Veröffentlichte Texte können ausdrücklich **intern** sein, etwa Dienstanweisungen. Dann erfordern auch Suche, Einzelvorschriften, Geschichte, Exporte und Downloads die Anmeldung; öffentliches Einbetten ist ausgeschlossen. Die Kennzeichnung gilt ebenfalls in Umläufen. Einrichtung: [Interne Rechtstexte](../portal/docs/internal-laws.md).
 
 Menü **Rechtstexte › Rechtstexte pflegen** (Recht „Rechtstexte“). Die öffentliche Ansicht liegt unter **`/recht`** (z. B. `https://portal.example.de/recht`) und ist ohne Anmeldung erreichbar; im Kopf der Portalseiten erscheint dafür der Link „Rechtstexte“. Verlinken Sie diese Adresse auf Ihrer Homepage.
 
