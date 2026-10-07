@@ -519,7 +519,7 @@ def _fill_page(request: Request, form: Form, *, preview: bool = False, action: s
             if item.get("shuffle") and item.get("options"):
                 item["options"] = fm.shuffled(item["options"])
     geo_bundle = None
-    if any(i.get("type") == "geo" for i in items):
+    if any(i.get("type") in ("geo", "route") for i in items):
         from .routes_maps import map_bundle   # Grundkarten für GPS-Fragen (Kartenlayer „für Formulare“)
         with SessionLocal() as db:
             geo_bundle = map_bundle(db, request, None, purpose="forms")

@@ -23,6 +23,7 @@
 {% else %}<tr><td colspan="9" class="text-secondary small">Keine Einträge.</td></tr>{% endfor %}
 {% endmacro %}
 {% block content %}
+<p><a class="btn btn-outline-primary" href="/settings/locations">Zentrale Orte, Favoriten und Routingdienste</a></p>
 {% call m.page_head('Kartenlayer', 'Systemweite Grundkarten und Fachdaten für den Kartenbrowser und für GPS-Fragen in Formularen. Je Layer wählen Sie, ob er über das Portal geladen wird (Zwischenspeicher, keine IP-Adressen an Dritte) oder direkt beim Anbieter.') %}
 <a class="btn btn-outline-secondary" href="/admin/maps/export.json"><i class="fa-solid fa-file-export me-1"></i>Export</a>
 <button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#import-box"><i class="fa-solid fa-file-import me-1"></i>Import</button>

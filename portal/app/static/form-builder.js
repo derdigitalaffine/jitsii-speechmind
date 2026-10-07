@@ -70,6 +70,10 @@
         h += field('Mindestens Positionen', input('min_rows', it.min_rows || 0, 'type="number" min="0" max="100"'));
         h += field('Höchstens Positionen', input('max_rows', it.max_rows || 30, 'type="number" min="1" max="100"'));
         break;
+      case 'route':
+        h += field('Höchstens Fahrtabschnitte', input('max_legs', it.max_legs || 10, 'type="number" min="1" max="30"'));
+        ['allow_roundtrip','allow_deviation'].forEach(function (key) {h += '<div class="col-12"><label><input type="checkbox" data-flag="'+key+'"'+(it[key] !== false ? ' checked' : '')+'> '+(key === 'allow_roundtrip' ? 'Rückfahrt anbieten' : 'Begründete Kilometerabweichungen ermöglichen')+'</label></div>';});
+        break;
       case 'period':
         h += '<div class="col-12 form-check"><input class="form-check-input" type="checkbox" data-flag="with_time"' + (it.with_time !== false ? ' checked' : '') + '><label class="form-check-label">Mit Uhrzeit</label></div>';
         break;

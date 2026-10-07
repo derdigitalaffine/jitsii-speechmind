@@ -100,6 +100,7 @@ class User(Base):
 
 # Bereiche, die einzeln pro Benutzer freigeschaltet werden
 PERMISSIONS = {
+    "locations_manage": ("Zentrale Orte pflegen", "fa-location-dot", "Dienststätten und Einrichtungen als Start-/Zielpunkte pflegen und importieren"),
     "internal_forms": ("Interne Formulare ausfüllen", "fa-user-lock", "Beschäftigte dürfen geschützte interne Formulare und Anträge einreichen"),
     "video": ("Videokonferenzen", "fa-video", "Meetings anlegen, planen, moderieren und aufnehmen"),
     "shortlinks": ("Kurzlinks", "fa-link", "Kurzlinks anlegen und auswerten"),
@@ -743,6 +744,27 @@ class ApplicationDocument(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     response: Mapped[FormResponse] = relationship(back_populates="documents")
+
+
+class PortalLocation(Base):
+    __tablename__ = "portal_locations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    category: Mapped[str] = mapped_column(String(100), default="")
+    street: Mapped[str] = mapped_column(String(255), default="")
+    zip: Mapped[str] = mapped_column(String(10), default="")
+    city: Mapped[str] = mapped_column(String(200), default="")
+    lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lon: Mapped[float | None] = mapped_column(Float, nullable=True)
+    public: Mapped[bool] = mapped_column(Boolean, default=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class LocationFavorite(Base):
+    __tablename__ = "location_favorites"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    location_id: Mapped[int] = mapped_column(ForeignKey("portal_locations.id", ondelete="CASCADE"), primary_key=True)
 
 
 class GeoCache(Base):
@@ -2340,6 +2362,10 @@ DEFAULT_SETTINGS = {
     "map_cache_mb": "500",           # Größe des Kachel-Zwischenspeichers
     "maps_embed": "1",
     "maps_embed_origins": "",
+    "location_manager_groups": "",
+    "routing_car_url": "https://routing.openstreetmap.de/routed-car",
+    "routing_bike_url": "https://routing.openstreetmap.de/routed-bike",
+    "routing_foot_url": "https://routing.openstreetmap.de/routed-foot",
     "geocoder_url": "https://nominatim.openstreetmap.org",   # Adress-/Ortssuche (eigener Nominatim-Server möglich)
     "geocoder_countries": "de",
     "geocoder_contact": "",
