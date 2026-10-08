@@ -6,25 +6,45 @@
   const el = (tag, cls, text) => { const node = document.createElement(tag); if (cls) node.className = cls; if (text !== undefined) node.textContent = text; return node; };
   const form = $('#cl-editor');
   const data = $('#cl-editor-data') ? JSON.parse($('#cl-editor-data').textContent) : {};
-  let dirty = false;
-  const changed = () => { dirty = true; };
+  let dirty = false, submitting = false;
+  const changed = event => {
+    // Searching and editor view controls do not change the saved draft.
+    if (event && (!event.target.name || event.target.type === 'search')) return;
+    dirty = true;
+  };
+  function saveError(message) {
+    let error=$('#cl-save-error');
+    if(!error){error=el('div','alert alert-danger');error.id='cl-save-error';error.tabIndex=-1;error.setAttribute('role','alert');form.prepend(error);}
+    error.textContent=message;error.hidden=false;error.focus();
+    return error;
+  }
   if (form) {
     form.addEventListener('input', changed); form.addEventListener('change', changed);
-    window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
+    window.addEventListener('beforeunload', event => { if (dirty && !submitting) { event.preventDefault(); event.returnValue = ''; } });
     form.addEventListener('submit', async event => {
       event.preventDefault(); if (!form.checkValidity()) {form.reportValidity();return;}
       const buttons=$$('button[type="submit"],button:not([type])',form);buttons.forEach(button=>button.disabled=true);
-      let error=$('#cl-save-error'); if(!error){error=el('div','alert alert-danger');error.id='cl-save-error';error.tabIndex=-1;error.setAttribute('role','alert');form.prepend(error);}error.hidden=true;
+      const error=$('#cl-save-error');if(error)error.hidden=true;
       try {
         const response=await fetch(form.action,{method:'POST',body:new FormData(form)});
-        if(response.ok && response.redirected){dirty=false;window.location.assign(response.url);return;}
+        if(response.ok && response.redirected){
+          const expected=new URL(form.action).pathname.replace(/\/save$/, '/edit');
+          if(new URL(response.url).pathname!==expected)throw new Error('Die Anmeldung oder Weiterleitung hat sich geändert. Ihre Eingaben bleiben erhalten; bitte die Anmeldung prüfen.');
+          dirty=false;submitting=true;window.location.assign(response.url);return;
+        }
         let message='Speichern fehlgeschlagen. Ihre Eingaben bleiben erhalten.';
         try{const json=await response.json();if(typeof json.detail==='string')message=json.detail;}catch(_){}
         throw new Error(message);
-      } catch(problem){error.textContent=problem.message || 'Verbindung fehlgeschlagen. Bitte erneut speichern.';error.hidden=false;error.focus();dirty=true;}
+      } catch(problem){submitting=false;saveError(problem.message || 'Verbindung fehlgeschlagen. Bitte erneut speichern.');dirty=true;}
       finally{buttons.forEach(button=>button.disabled=false);}
     });
   }
+  // Publishing and copying use the saved draft; never submit them with unsaved edits.
+  $$('[data-cl-saved-action]').forEach(actionForm => actionForm.addEventListener('submit', event => {
+    if(event.defaultPrevented || !actionForm.checkValidity()) return;
+    if(dirty){event.preventDefault();saveError('Bitte zuerst den Entwurf speichern. Danach können Sie ihn veröffentlichen oder als Sammelmappe sichern.');return;}
+    submitting=true;
+  }));
   // Native checkbox/radio lists remain usable without JavaScript. Search never hides selections from submission.
   $$('.cl-picker').forEach(picker => {
     let limit = 40, kind = '';
@@ -77,7 +97,7 @@
       $(`[data-selected-count="${name}"]`).textContent = selected[name].length;
     }
     boxes.forEach(box => box.addEventListener('change', () => {
-      selected[name] = selected[name].filter(v => v !== box.value); if (box.checked) selected[name].push(box.value); render(); summary();
+      selected[name] = selected[name].filter(v => v !== box.value); if (box.checked) selected[name].push(box.value); changed(); render(); summary();
     })); render();
   });
   const documents = $('#cl-documents'), status = $('#cl-editor-status');
