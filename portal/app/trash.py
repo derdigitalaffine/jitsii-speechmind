@@ -18,7 +18,7 @@ from sqlalchemy import and_, delete, func, insert, or_, select, update
 
 from .config import settings
 from .db import (
-    Base, DeletionLog, DmsRecord, FormResponse, Payment, Poll, Resource, ResourceBooking, SessionLocal, ShortLink,
+    Base, Circulation, DeletionLog, DmsRecord, FormResponse, Payment, Poll, Resource, ResourceBooking, SessionLocal, ShortLink,
     TrashItem, Vote, to_local, utcnow,
 )
 
@@ -42,6 +42,9 @@ def _response_label(r: FormResponse) -> str:
 
 
 KINDS = {
+    "circulation_draft": {"model":Circulation,"label":"Umlaufentwürfe","icon":"fa-bullhorn","search":("draft_json",),"date":"created_at",
+        "show":lambda o:json.loads(o.draft_json or '{}').get('title') or 'Neuer Umlaufentwurf',
+        "files":lambda o:[settings.data_dir / 'circulations' / str(o.id)]},
     "booking": {"model": ResourceBooking, "label": "Buchungen (Ressourcen)", "icon": "fa-calendar-check",
                 "search": ("ref", "name", "email", "title"), "date": "ends_at", "status": "status",
                 "statuses": {"cancelled": "storniert", "rejected": "abgelehnt", "expired": "verfallen",
@@ -79,6 +82,7 @@ def search(db, kind: str, q: str = "", limit: int = 50) -> list:
     k = KINDS[kind]
     model = k["model"]
     stmt = select(model)
+    if kind == "circulation_draft": stmt = stmt.where(Circulation.current_version == 0)
     if kind == "application":
         stmt = stmt.where(FormResponse.id.is_not(None))
     q = (q or "").strip()
@@ -100,6 +104,7 @@ def bulk_query(kind: str, before: date | None, status: str = ""):
         conds.append(_col(model, k["date"]) < datetime.combine(before, datetime.min.time()))
     if status and k.get("status"):
         conds.append(_col(model, k["status"]) == status)
+    if conds and kind == "circulation_draft": conds.append(Circulation.current_version == 0)
     return model, (and_(*conds) if conds else None)
 
 
@@ -208,6 +213,7 @@ def log(db, actor: str, action: str, kind: str = "", count: int = 1, detail: str
 def delete_obj(db, kind: str, obj, actor: str, batch: str = "") -> TrashItem:
     """In den Papierkorb: sichern, Dateien verschieben, löschen."""
     k = KINDS[kind]
+    if kind == "circulation_draft" and obj.current_version: raise ValueError("Veröffentlichte Umläufe können nicht als Entwurf gelöscht werden.")
     model = k["model"]
     label = k["show"](obj)[:300]
     files = k["files"](obj)
@@ -226,7 +232,7 @@ def delete_obj(db, kind: str, obj, actor: str, batch: str = "") -> TrashItem:
 
 def delete_one(db, kind: str, obj_id: int, actor: str) -> TrashItem | None:
     obj = db.get(KINDS[kind]["model"], obj_id)
-    if obj is None:
+    if obj is None or (kind == "circulation_draft" and obj.current_version != 0):
         return None
     item = delete_obj(db, kind, obj, actor)
     log(db, actor, "delete", kind, 1, item.label)

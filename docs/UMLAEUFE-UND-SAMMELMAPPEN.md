@@ -58,3 +58,9 @@ Technische Details zu Nachweisen, Erinnerungen, Gastlinks und Datenschutz: [Modu
 Die Leseansicht besitzt Aktionsbanner, persönlichen Dokumentfortschritt, Inhaltsindex und Vorschauen. Dashboard und Mail nennen erforderliche Handlung und Frist. Mails versenden keine internen Volltexte; die optionale Kurzbeschreibung wird bewusst durch den Herausgeber eingetragen. Gastlinks enthalten Ablaufhinweis und Weitergabeverbot.
 
 Der erweiterte Modus ergänzt verbindliche Dokumentreihenfolge bei Einzelbestätigungen (`require_item_sequence`), aggregierten Fortschritt ohne fremde Einzelangaben (`share_progress`) und ausdrückliche Vertretungsfreigabe (`allow_proxy_approval`). Reihenfolge und Vertretung werden serverseitig geprüft. Persönliche Kenntnisnahme ist auch bei Vertretung nicht delegierbar; Freigaben protokollieren den tatsächlichen Akteur.
+
+## Entwürfe löschen und Änderungen verwerfen
+
+In **Entwürfe** können berechtigte Bearbeitende einzelne oder mehrere Entwürfe auswählen und löschen. „Alle angezeigten Entwürfe“ bezieht sich auf die aktuell gefilterte Liste. Noch nie veröffentlichte Umläufe werden samt Dokumenten in den bestehenden Papierkorb verschoben und können dort 30 Tage lang wiederhergestellt werden. Der Umlauf-Papierkorb zeigt nur Entwürfe, die Sie bearbeiten dürfen.
+
+Im Editor kann ein einzelner unveröffentlichter Entwurf ebenfalls gelöscht werden. Bei bereits veröffentlichten Umläufen steht stattdessen **Entwurfsänderungen verwerfen** zur Verfügung: Der Bearbeitungsstand wird auf die veröffentlichte Fassung zurückgesetzt. Veröffentlichte Dokumente und Rückmeldungen bleiben erhalten. Bei zwischenzeitlichen Änderungen durch andere Bearbeitende muss die Seite zuerst neu geladen werden.

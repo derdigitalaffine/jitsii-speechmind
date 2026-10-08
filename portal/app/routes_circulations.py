@@ -98,7 +98,7 @@ def circulation_list(request: Request, db: Session = Depends(get_db)):
         if q and q not in (c['title'] + ' ' + c['body'] + ' ' + c['category']).lower(): continue
         if category and c['category'] != category: continue
         rec = cl.own_recipient(db, ver, user) if ver else None
-        cards.append(dict(row=row, c=c, ver=ver, rec=rec, status=(cl.DECISIONS[rec.decision] if rec.decision else cl.action_label(c) if cl.ready(db, ver, rec) else 'Sie sind später an der Reihe') if rec and c['mode'] != 'info' else ('Entwurf' if not ver else 'Keine Rückmeldung erforderlich'),
+        cards.append(dict(row=row, can_delete=cl.may_edit(db,user,row), c=c, ver=ver, rec=rec, status=(cl.DECISIONS[rec.decision] if rec.decision else cl.action_label(c) if cl.ready(db, ver, rec) else 'Sie sind später an der Reihe') if rec and c['mode'] != 'info' else ('Entwurf' if not ver else 'Keine Rückmeldung erforderlich'),
                           report=reports.snapshot(db, row, ver) if manager and tab in {'manage','drafts'} else None,
                           author=db.get(User,ver.published_by).name if ver and db.get(User,ver.published_by) else '', excerpt=plain_excerpt(c['body']), overdue=bool(ver and rec and not rec.decision and c['due_on'] and cl.at(c['due_on']) < utcnow())))
     cards.sort(key=lambda x: not x['c']['pinned'])
@@ -139,7 +139,7 @@ def editor_context(db, user, row):
         accessible = all(cl.item_access(db,user,i) for i in body['items'])
         bundle_data[str(bundle.id)] = {'title':body['title'], 'accessible':accessible, 'items':body['items'] if accessible else []}
     existing_refs = {f"{i['kind']}:{i.get('id')}" for i in c['items'] if i['kind'] in {'law','form','dms'}}
-    return dict(row=row, c=c, categories=cl.CATEGORIES, people=people, groups=groups, distributors=distributors,
+    return dict(row=row, c=c, can_edit_draft=cl.may_edit(db,user,row), categories=cl.CATEGORIES, people=people, groups=groups, distributors=distributors,
                 objects=objects, existing_refs=existing_refs, bundles=bundles, bundle_content=cl.content, bundle_data=bundle_data, bundle_editable={b.id:bundle_may_edit(db,user,b) for b in bundles},
                 editor_data={'items':c['items'], 'users':c['audience']['users'], 'groups':c['audience']['groups'],
                              'bundles':bundle_data, 'group_members':{str(g.id):[u.id for u in g.members if u.active] for g in groups}, 'user_count':len(people)},
@@ -691,3 +691,64 @@ def circulation_report(request: Request, cid: int, v: int = 0, user: User = Depe
         and (not kind or (kind == 'guest') == (p['rec'].user_id is None))]
     versions = list(db.scalars(select(CirculationVersion).where(CirculationVersion.circulation_id == cid).order_by(CirculationVersion.number.desc())))
     return protect(render(request, 'circulation_report.html', user, report=report, people=people, versions=versions, q=q, state=state, kind=kind, decisions=cl.DECISIONS))
+
+
+# Draft deletion uses the portal's existing 30-day trash and restore mechanism.
+def draft_trash_access(db,user,item):
+    if not item or item.kind != 'circulation_draft' or item.expires_at <= utcnow():return False
+    data=json.loads(item.data_json)
+    original=next((r['data'] for r in data['rows'] if r['table']=='circulations'),None)
+    return bool(original and cl.may_edit(db,user,Circulation(owner_id=original.get('owner_id'),current_version=0)))
+
+
+@app.post('/umlaeufe/entwuerfe/delete',dependencies=[Depends(check_csrf)])
+async def circulation_drafts_delete(request:Request,user:User=Depends(current_user),db:Session=Depends(get_db)):
+    from . import trash
+    module();data=await request.form()
+    ids=list(dict.fromkeys(int(v) for v in data.getlist('ids') if str(v).isdigit() and len(str(v))<10))
+    if not ids or len(ids)>500:raise HTTPException(422,'Bitte 1 bis 500 Entwürfe auswählen.')
+    rows=[]
+    for cid in ids:
+        row=row_of(db,cid)
+        if not cl.may_edit(db,user,row):raise HTTPException(404)
+        if row.current_version or db.scalar(select(CirculationVersion.id).where(CirculationVersion.circulation_id==cid)):raise HTTPException(409,'Veröffentlichte Umläufe bleiben erhalten. Nur Entwürfe können gelöscht werden.')
+        rows.append(row)
+    batch=secrets.token_hex(8)
+    for row in rows:trash.delete_obj(db,'circulation_draft',row,user.email,batch)
+    trash.log(db,user.email,'bulk','circulation_draft',len(rows),'Ausgewählte Umlaufentwürfe');db.commit()
+    flash(request,f'{len(rows)} Entwurf/Entwürfe für 30 Tage in den Papierkorb verschoben.')
+    return redirect('/umlaeufe?tab=drafts')
+
+
+@app.get('/umlaeufe/entwuerfe/papierkorb')
+def circulation_draft_trash(request:Request,user:User=Depends(current_user),db:Session=Depends(get_db)):
+    from .db import TrashItem
+    module()
+    items=[i for i in db.scalars(select(TrashItem).where(TrashItem.kind=='circulation_draft').order_by(TrashItem.deleted_at.desc())) if draft_trash_access(db,user,i)]
+    return protect(render(request,'circulation_trash.html',user,items=items))
+
+
+@app.post('/umlaeufe/entwuerfe/papierkorb/{tid:int}/restore',dependencies=[Depends(check_csrf)])
+def circulation_draft_restore(request:Request,tid:int,user:User=Depends(current_user),db:Session=Depends(get_db)):
+    from .db import TrashItem
+    from . import trash
+    module();item=db.get(TrashItem,tid)
+    if not draft_trash_access(db,user,item):raise HTTPException(404)
+    error=trash.restore(db,item,user.email)
+    if error:raise HTTPException(409,error)
+    db.commit();flash(request,'Entwurf mit seinen Dokumenten wiederhergestellt.')
+    return redirect('/umlaeufe?tab=drafts')
+
+
+@app.post('/umlaeufe/{cid:int}/discard',dependencies=[Depends(check_csrf)])
+async def circulation_discard(request:Request,cid:int,user:User=Depends(current_user),db:Session=Depends(get_db)):
+    row=row_of(db,cid)
+    if not cl.may_edit(db,user,row):raise HTTPException(404)
+    data=await request.form()
+    if str(data.get('revision')) != row.updated_at.isoformat():raise HTTPException(409,'Der Entwurf wurde inzwischen geändert. Bitte neu laden.')
+    ver=cl.version(db,row)
+    if not ver:raise HTTPException(409,'Noch nicht veröffentlicht. Diesen Entwurf können Sie in den Papierkorb verschieben.')
+    row.draft_json=cl.dumps(cl.content(ver));row.updated_at=utcnow()
+    cl.event(db,row,'discard_draft','Entwurf auf veröffentlichte Fassung zurückgesetzt.',user,ver)
+    db.commit();flash(request,'Entwurfsänderungen verworfen. Veröffentlichte Fassungen und Rückmeldungen bleiben erhalten.')
+    return redirect(f'/umlaeufe/{cid}/edit')
