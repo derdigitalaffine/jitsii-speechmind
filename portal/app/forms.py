@@ -175,6 +175,7 @@ def clean_schema(raw) -> list[dict]:
             item["location_required"] = bool(src.get("location_required")) and item["capture_location"]
             item["allow_gps"] = src.get("allow_gps") is not False
             item["show_inputs"] = src.get("show_inputs") is not False
+            item["allow_parcels"] = bool(src.get("allow_parcels")) and "polygon" in item["geometries"]
             item["allow_gps"] = src.get("allow_gps") is not False
             item["show_inputs"] = src.get("show_inputs") is not False
         elif kind == "block":
@@ -600,7 +601,7 @@ def parse_shape(raw: str, kind: str) -> dict | None:
     area = 0.0
     if kind == "polygon":
         length += _haversine(pts[-1], pts[0])
-        area = _ring_area(pts)
+        area = max(0.0, _ring_area(pts) - sum(_ring_area(r[:-1]) for r in geom["coordinates"][1:]))
     lons, lats = [p[0] for p in pts], [p[1] for p in pts]
     return {"type": kind, "coordinates": geom["coordinates"], "length": round(length, 1), "area": round(area, 1),
             "center": [round((min(lons) + max(lons)) / 2, 6), round((min(lats) + max(lats)) / 2, 6)]}
@@ -714,6 +715,14 @@ def parse_geo(item: dict, raw: str, pos_raw=None, accuracy=None, source=None) ->
                 features.append(point)
             else:
                 features.append(parse_shape(json.dumps(geom), kind))
+            props = f.get('properties') if isinstance(f.get('properties'),dict) else {}
+            if item.get('allow_parcels') and isinstance(props.get('parcel'),dict):
+                from .parcels import clean_selection
+                selected = clean_selection([{**props['parcel'], 'geometry':geom}])
+                if selected:
+                    meta = selected[0]; meta.pop('geometry',None)
+                    features[-1]['parcel'] = meta
+
     limit = item.get("max_features", 1)
     if len(features) > limit:
         error = f"Bitte höchstens {limit} Objekt(e) einzeichnen."
@@ -743,7 +752,7 @@ def geo_parts(value) -> tuple[list[dict], dict | None]:
             return ([{"type": "point", **point}], None) if point else ([], None)
     if isinstance(value, dict) and (value.get("type") in ("FeatureCollection", "Point", "LineString", "Polygon")
                                   or any("geometry" in f for f in value.get("features", []) if isinstance(f, dict))):
-        normalized, error = parse_geo({"geometries": ["point", "line", "polygon"], "max_features": 50}, json.dumps(value))
+        normalized, error = parse_geo({"geometries": ["point", "line", "polygon"], "max_features": 50, "allow_parcels": True}, json.dumps(value))
         if not error and normalized:
             normalized["position"] = value.get("position")
             value = normalized
@@ -767,7 +776,7 @@ def geo_input(value) -> str:
     for f in feats:
         geom = _geometry(f)
         if geom:
-            out.append({"type": "Feature", "geometry": geom, "properties": {k: f[k] for k in ("acc", "src") if k in f}})
+            out.append({"type": "Feature", "geometry": geom, "properties": {k: f[k] for k in ("acc", "src", "parcel") if k in f}})
     return json.dumps({"features": out}) if out else ""
 
 
@@ -827,7 +836,7 @@ def _geometry(f: dict) -> dict | None:
 def geo_features(value, label: str = "") -> list[dict]:
     """Antwort einer Kartenfrage als GeoJSON-Features (für Karten in Auswertung und Vorgang)."""
     feats, pos = geo_parts(value)
-    out = [{"type": "Feature", "geometry": g, "properties": {"label": label, "acc": f.get("acc"), "src": f.get("src")}}
+    out = [{"type": "Feature", "geometry": g, "properties": {"label": label, "acc": f.get("acc"), "src": f.get("src"), "parcel": f.get("parcel")}}
            for f in feats if (g := _geometry(f))]
     if pos:
         out.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": [pos["lon"], pos["lat"]]},
@@ -987,7 +996,7 @@ def _json_value(item: dict, value):
         feats, pos = geo_parts(value)   # GeoJSON-Geometrien, dazu Länge/Fläche in Metern
         out = {"objekte": [{"geometrie": _geometry(f), "laenge_m": f.get("length"), "flaeche_m2": f.get("area"),
                             "genauigkeit_m": f.get("acc"), "quelle": f.get("src"),
-                            "breitengrad": f.get("lat"), "laengengrad": f.get("lon")} for f in feats]}
+                            "breitengrad": f.get("lat"), "laengengrad": f.get("lon"), "flurstueck": f.get("parcel")} for f in feats]}
         if pos:
             out["standort"] = pos
         return out

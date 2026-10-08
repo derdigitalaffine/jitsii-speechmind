@@ -105,7 +105,7 @@
   {% elif item.type == 'geo' %}
     {% set kinds = item.geometries or [item.geometry or 'point'] %}{% set maxf = item.max_features or 1 %}
     {% set single_point = kinds == ['point'] and maxf == 1 %}
-    <div class="js-geo" data-kinds="{{ kinds | join(',') }}" data-max="{{ maxf }}" data-gps="{{ '1' if item.allow_gps else '' }}">
+    <div class="js-geo" data-parcels="{{'1' if item.get('allow_parcels') else ''}}" data-kinds="{{ kinds | join(',') }}" data-max="{{ maxf }}" data-gps="{{ '1' if item.allow_gps else '' }}">
       <input type="hidden" name="{{ name }}" class="js-geo-value" value="{{ val | geoinput if val else '' }}" {% if item.required %}data-required="1"{% endif %}>
       {% if item.capture_location %}<input type="hidden" name="{{ name }}__pos" class="js-geo-pos" value="{{ geo_position(val, values.get(qid ~ '__pos', '')) }}" {% if item.location_required %}data-required="1"{% endif %}>{% endif %}
       <div class="map-mini js-geo-map mb-2" role="application" aria-label="Karte: {{ kinds | map('replace', 'point', 'Punkt') | map('replace', 'polygon', 'Fläche') | map('replace', 'line', 'Linie') | join(', ') }} einzeichnen"></div>

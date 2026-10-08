@@ -15,7 +15,7 @@
       </div>
       <button class="btn btn-sm btn-link text-secondary ms-auto" type="button" id="panel-close" aria-label="Seitenleiste schließen"><i class="fa-solid fa-angles-left"></i></button>
     </div>
-    <div class="map-panel-body">
+    <div class="map-panel-body"><label class="form-check form-switch small mb-3"><input type="checkbox" id="map-advanced" class="form-check-input">Erweiterter Modus</label><div id="parcel-browser" class="mb-3"></div><div id="map-service-status" role="status" class="small text-danger mb-2"></div>
       <form class="input-group input-group-sm mb-1" id="coord-search" role="search">
         <input class="form-control" id="coord-input" type="search" placeholder="Ort, Adresse oder Koordinate" aria-label="Ort, Adresse oder Koordinate suchen" title="z. B. „Rathaus Otterberg“, „Hauptstraße 1, Otterbach“, „49.49, 7.77“ oder „UTM 32 412345 5483210“">
         <button class="btn btn-outline-secondary" type="submit" aria-label="Suchen"><i class="fa-solid fa-magnifying-glass"></i></button>
@@ -32,7 +32,7 @@
       <div id="overlay-list"></div>
       <p class="small text-secondary mt-2 mb-0" id="overlay-empty" hidden>Keine Ebenen verfügbar.</p>
 
-      <div class="d-flex align-items-center map-section-title mt-3"><span>Zeichnen &amp; messen</span></div>
+      <div class="map-advanced-only"><div class="d-flex align-items-center map-section-title mt-3"><span>Zeichnen &amp; messen</span></div>
       <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="Zeichenwerkzeuge">
         <button class="btn btn-outline-primary" type="button" data-draw="point" title="Punkt setzen"><i class="fa-solid fa-location-dot me-1"></i>Punkt</button>
         <button class="btn btn-outline-primary" type="button" data-draw="line" title="Linie zeichnen und Länge messen"><i class="fa-solid fa-route me-1"></i>Linie</button>
@@ -45,7 +45,7 @@
       </div>
       <label class="btn btn-sm btn-link px-0 small"><i class="fa-solid fa-file-import me-1"></i>GeoJSON laden<input type="file" id="draw-import" accept=".geojson,.json,application/geo+json,application/json" hidden></label>
       {% if can_edit %}<div class="form-text mt-0">Zeichnungen werden mit der Karte gespeichert (<i class="fa-solid fa-floppy-disk"></i>).</div>{% else %}<div class="form-text mt-0">Zum Speichern als GeoJSON herunterladen.</div>{% endif %}
-    </div>
+    </div></div>
     <div class="map-panel-foot">
       <div class="btn-group btn-group-sm flex-wrap w-100" role="group" aria-label="Werkzeuge">
         <button class="btn btn-outline-secondary" type="button" id="btn-export" title="Kartenbild speichern (PNG)"><i class="fa-solid fa-image"></i></button>
@@ -67,7 +67,7 @@
 <div class="modal fade" id="add-layer" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
   <div class="modal-header"><h2 class="modal-title h5">Layer hinzufügen</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
   <div class="modal-body">
-    <div class="row g-2 mb-2">
+    <div class="mb-3"><label class="form-label" for="map-catalog">Amtliche Quellen Rheinland-Pfalz</label><div class="input-group"><select id="map-catalog" class="form-select"><option value="dtk5">DTK5 RP – farbig</option><option value="dtk5-gray">DTK5 RP – grau</option><option value="lika">Liegenschaftskarte – tagesaktuell</option><option value="parcels">ALKIS-Flurstücke</option><option value="boundaries">Verwaltungs- und Gemarkungsgrenzen</option><option value="plans-otterbach">Bebauungspläne Otterbach</option><option value="plans-otterberg">Bebauungspläne Otterberg</option></select><button type="button" class="btn btn-primary" id="map-catalog-load">Quelle auswählen</button></div></div><details><summary>Eigene Dienstadresse · erweiterter Modus</summary><div class="row g-2 mb-2 mt-2">
       <div class="col-md-3"><label class="form-label small" for="al-kind">Art</label>
         <select class="form-select form-select-sm" id="al-kind"><option value="wms">WMS / WMS-T</option><option value="wfs">WFS</option><option value="xyz">WMTS / Kacheln</option></select></div>
       <div class="col-md-9"><label class="form-label small" for="al-url">Adresse des Dienstes</label>
@@ -75,7 +75,7 @@
           <button class="btn btn-primary" type="button" id="al-query"><i class="fa-solid fa-magnifying-glass me-1"></i>Dienst abfragen</button></div>
         <div class="form-text">Kacheln direkt: Vorlage mit {z}/{x}/{y} eintragen und ohne Abfrage hinzufügen.</div></div>
     </div>
-    <div id="al-result" class="small"></div>
+    </details><div id="al-result" class="small mt-3"></div>
   </div>
   <div class="modal-footer">
     <span class="small text-secondary me-auto" id="al-status"></span>
@@ -115,5 +115,5 @@
 <script type="module" src="/static/map-core.js"></script>
 <script type="module" src="/static/map-draw.js"></script>
 <script src="/static/geo-search.js"></script>
-<script type="module" src="/static/map-browser.js"></script>
+<script src="/static/map-parcels.js"></script><script type="module" src="/static/map-browser.js"></script>
 {% endblock %}

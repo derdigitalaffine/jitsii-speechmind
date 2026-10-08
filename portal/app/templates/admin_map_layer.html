@@ -10,7 +10,7 @@
 <a class="btn btn-outline-secondary" href="/admin/maps"><i class="fa-solid fa-arrow-left me-1"></i>Alle Layer</a>
 {% endcall %}
 <form method="post" action="/admin/maps/save" id="layer-form">
-  <input type="hidden" name="csrf" value="{{ csrf }}">{% if layer %}<input type="hidden" name="id" value="{{ layer.id }}">{% endif %}
+  <input type="hidden" id="f-service" name="service_json" value="{{val('service_json','{}')}}"><input type="hidden" name="csrf" value="{{ csrf }}">{% if layer %}<input type="hidden" name="id" value="{{ layer.id }}">{% endif %}
   <div class="row g-4">
     <div class="col-12 col-xxl-7">
       <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-plug me-2"></i>Dienst</div><div class="card-body"><div class="row g-3">
@@ -21,11 +21,11 @@
             <button class="btn btn-outline-primary" type="button" id="f-query"><i class="fa-solid fa-magnifying-glass me-1"></i>Dienst abfragen</button></div>
           <div class="form-text" id="f-url-hint">WMS/WFS: Basisadresse des Dienstes. Kacheln/WMTS: Vorlage mit {z}, {x}, {y}. Vektorkarte: Adresse der style.json.</div></div>
         <div class="col-12" id="f-caps"></div>
-        <div class="col-md-8 kind-wms kind-wfs"><label class="form-label" for="f-layers">Layer (WMS, mehrere mit Komma) bzw. Objektart (WFS)</label><input class="form-control" id="f-layers" name="layers" value="{{ val('layers') }}"></div>
+        <div class="col-md-8 kind-wms kind-wfs kind-wmts"><label class="form-label" for="f-layers">Layer (WMS, mehrere mit Komma) bzw. Objektart (WFS)</label><input class="form-control" id="f-layers" name="layers" value="{{ val('layers') }}"></div>
         <div class="col-md-4 kind-wms kind-wfs"><label class="form-label" for="f-version">Version</label>
           <select class="form-select" id="f-version" name="version">{% for ver in ['', '1.3.0', '1.1.1', '2.0.0', '1.1.0'] %}<option value="{{ ver }}" {% if val('version') == ver %}selected{% endif %}>{{ ver or 'Standard' }}</option>{% endfor %}</select></div>
-        <div class="col-md-4 kind-wms"><label class="form-label" for="f-styles">Stile (WMS)</label><input class="form-control" id="f-styles" name="styles" value="{{ val('styles') }}" placeholder="leer = Standard"></div>
-        <div class="col-md-4 kind-wms"><label class="form-label" for="f-format">Bildformat</label>
+        <div class="col-md-4 kind-wms kind-wmts"><label class="form-label" for="f-styles">Stile (WMS)</label><input class="form-control" id="f-styles" name="styles" value="{{ val('styles') }}" placeholder="leer = Standard"></div>
+        <div class="col-md-4 kind-wms kind-wmts"><label class="form-label" for="f-format">Bildformat</label>
           <select class="form-select" id="f-format" name="image_format">{% for f in formats %}<option {% if val('image_format', 'image/png') == f %}selected{% endif %}>{{ f }}</option>{% endfor %}</select></div>
         <div class="col-md-4 kind-wms kind-xyz"><label class="form-label" for="f-tile">Kachelgröße (px)</label><input class="form-control" id="f-tile" name="tile_size" type="number" min="128" max="1024" value="{{ val('tile_size', 256) }}"></div>
         <div class="col-12 kind-wms d-flex flex-wrap gap-4">
@@ -110,10 +110,13 @@
         capsBox.querySelectorAll('[data-i]').forEach(function (b) {
           b.addEventListener('click', function () {
             var l = d.layers[parseInt(b.dataset.i, 10)];
-            if (d.type === 'xyz') { kind.value = 'xyz'; document.getElementById('f-url').value = l.template; }
+            if (l.supported === false) { capsBox.insertAdjacentHTML('beforeend','<p class="text-danger small">Dieser Layer hat kein unterstütztes Web-Mercator-Kachelraster. Bitte einen WMS-Layer mit EPSG:3857 verwenden.</p>'); return; }
+            document.getElementById('f-service').value = JSON.stringify(l.service || {});
+            if (d.type === 'wmts') { kind.value = 'wmts'; document.getElementById('f-url').value = l.template; document.getElementById('f-layers').value = l.name; document.getElementById('f-styles').value=l.styles || 'default'; document.getElementById('f-format').value=l.format || 'image/png'; document.getElementById('f-tile').value=(l.service||{}).tile_size || 256; }
+            else if (d.type === 'xyz') { kind.value = 'xyz'; document.getElementById('f-url').value = l.template; }
             else {
               kind.value = d.type;
-              document.getElementById('f-url').value = document.getElementById('f-url').value.split('?')[0];
+              document.getElementById('f-url').value = d.url || document.getElementById('f-url').value;
               document.getElementById('f-layers').value = l.name;
               if (d.version) { document.getElementById('f-version').value = d.version; }
               document.getElementById('f-times').value = (l.times || []).join(',');

@@ -17,7 +17,7 @@
     for (var i = 1; i < c.length; i++) { out.length += MapKit.haversine(c[i - 1], c[i]); }
     if (g.type === 'Polygon' && c.length > 2) {
       out.length += MapKit.haversine(c[c.length - 1], c[0]);
-      out.area = MapKit.ringArea(c);
+      out.area = Math.max(0, MapKit.ringArea(c) - g.coordinates.slice(1).reduce(function(sum,ring){return sum + MapKit.ringArea(ring.slice(0,-1));},0));
     }
     return out;
   }
@@ -148,7 +148,7 @@
       }
     });
     function startDrag(ev) {
-      if (mode || !selected || !map.getLayer(L.vx)) { return; }
+      if (mode || !selected || !map.getLayer(L.vx) || (byId(selected).properties || {}).parcel) { return; }
       var hit = map.queryRenderedFeatures(ev.point, { layers: [L.vx] });
       if (!hit.length) { return; }
       ev.preventDefault();

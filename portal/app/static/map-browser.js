@@ -171,6 +171,13 @@
     return [lon * 180 / Math.PI, lat * 180 / Math.PI];
   }
 
+  var parcelKit=MapParcels.create(map,document.getElementById('parcel-browser'),{initial:bundle.state.parcels||[],isDrawing:function(){return draw&&draw.mode();},show:function(){shell.classList.remove('panel-hidden');}});
+  var advanced=document.getElementById('map-advanced');
+  try{advanced.checked=localStorage.getItem('map-advanced')==='1';}catch(e){}
+  function advancedMode(){shell.classList.toggle('is-advanced',advanced.checked);try{localStorage.setItem('map-advanced',advanced.checked?'1':'0');}catch(e){}}
+  advanced.addEventListener('change',advancedMode);advancedMode();
+  map.on('map-service-error',function(e){document.getElementById('map-service-status').textContent=e.message;});
+  map.on('error',function(e){if(e.sourceId)document.getElementById('map-service-status').textContent='Ein Kartendienst konnte nicht geladen werden. Quelle und Layerauswahl im erweiterten Modus prüfen.';});
   /* --- Klick: Sachinformation (WMS) und Objekte (WFS/GeoJSON) ----------------------- */
   map.on('click', function (ev) {
     if (draw.mode()) { return; }
@@ -331,31 +338,39 @@
     var body = new FormData();
     body.append('csrf', csrf);
     Object.keys(fields).forEach(function (k) { body.append(k, fields[k]); });
-    return fetch(url, { method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' }).then(function (r) { return r.json(); });
+    return fetch(url, { method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch', 'Accept':'application/json' }, credentials: 'same-origin' }).then(function (r) { return r.json(); });
   }
   var result = document.getElementById('al-result'), status = document.getElementById('al-status'), caps = null;
+  ['al-url','al-kind'].forEach(function(id){document.getElementById(id).addEventListener('input',function(){caps=null;result.replaceChildren();});});
+  document.getElementById('map-catalog-load').addEventListener('click',function(){
+    var key=document.getElementById('map-catalog').value;status.textContent='Amtliche Quelle wird geprüft …';
+    post('/maps/catalog/'+key,{}).then(function(d){if(!d.ok){status.textContent=d.error;return;}document.getElementById('al-url').value=d.url;document.getElementById('al-kind').value=d.type==='wmts'?'xyz':d.type;showCaps(d,d.url);}).catch(function(){status.textContent='Quelle derzeit nicht erreichbar. Bitte später erneut versuchen.';});
+  });
   document.getElementById('al-query').addEventListener('click', function () {
     var url = document.getElementById('al-url').value.trim(), kind = document.getElementById('al-kind').value;
     status.textContent = 'Frage Dienst ab …';
     result.innerHTML = '';
     post('/maps/capabilities', { url: url, kind: kind }).then(function (d) {
+      showCaps(d,url);
+    }).catch(function () { status.textContent = 'Abfrage fehlgeschlagen.'; });
+  });
+  function showCaps(d,url) {
       if (!d.ok) { status.textContent = ''; result.innerHTML = '<div class="alert alert-danger py-2">' + esc(d.error) + '</div>'; return; }
       caps = d;
-      caps.url = url.split('?')[0];
+      caps.url = d.url || url;
       status.textContent = (d.title || 'Dienst') + ' · ' + d.layers.length + ' Layer';
       result.innerHTML = d.layers.length ? '<input class="form-control form-control-sm mb-2" id="al-filter" placeholder="Layer filtern …">' +
         '<div class="list-group" style="max-height:22rem;overflow:auto">' + d.layers.map(function (l, i) {
           return '<label class="list-group-item d-flex gap-2" style="padding-left:' + (0.75 + (l.depth || 0) * 0.8) + 'rem" data-name="' + esc((l.title + ' ' + l.name).toLowerCase()) + '">' +
-            '<input class="form-check-input flex-none" type="checkbox" value="' + i + '"' + (d.type === 'xyz' && !l.mercator ? ' disabled' : '') + '>' +
+            '<input class="form-check-input flex-none" type="checkbox" value="' + i + '"' + (l.supported === false ? ' disabled' : '') + '>' +
             '<span><span class="fw-semibold">' + esc(l.title) + '</span> <code class="small">' + esc(l.name) + '</code>' +
             (l.times && l.times.length ? ' <span class="badge text-bg-info">Zeit: ' + l.times.length + ' Werte</span>' : '') +
-            (d.type === 'xyz' && !l.mercator ? ' <span class="badge text-bg-secondary">nicht in Web-Mercator</span>' : '') +
+            (l.supported === false ? ' <span class="badge text-bg-secondary">nicht in Web-Mercator</span>' : '') +
             (l.abstract ? '<div class="small text-secondary">' + esc(l.abstract) + '</div>' : '') + '</span></label>';
         }).join('') + '</div>' : '<div class="text-secondary">Der Dienst enthält keine abrufbaren Layer.</div>';
       var f = document.getElementById('al-filter');
       if (f) { f.addEventListener('input', function () { var q = f.value.toLowerCase(); result.querySelectorAll('[data-name]').forEach(function (r) { r.classList.toggle('d-none', r.dataset.name.indexOf(q) < 0); }); }); }
-    }).catch(function () { status.textContent = 'Abfrage fehlgeschlagen.'; });
-  });
+  }
   document.getElementById('al-add').addEventListener('click', function () {
     var defs = [];
     var kind = document.getElementById('al-kind').value, url = document.getElementById('al-url').value.trim();
@@ -363,8 +378,9 @@
     if (caps && chosen.length) {
       chosen.forEach(function (c) {
         var l = caps.layers[parseInt(c.value, 10)];
-        if (caps.type === 'xyz') { defs.push({ kind: 'xyz', url: l.template, name: l.title }); }
-        else { defs.push({ kind: caps.type, url: caps.url, layers: l.name, name: l.title, version: caps.version, times: l.times || [], time: l.time || '' }); }
+        if (caps.type === 'wmts') { defs.push({kind:'wmts',url:l.template,layers:l.name,name:l.title,styles:l.styles,format:l.format,service:l.service,attribution:l.attribution||caps.attribution||''}); }
+        else if (caps.type === 'xyz') { defs.push({ kind: 'xyz', url: l.template, name: l.title }); }
+        else { defs.push({ kind: caps.type, url: caps.url, layers: l.name, name: l.title, version: caps.version, times: l.times || [], time: l.time || '', service:l.service || {},attribution:l.attribution||caps.attribution||'' }); }
       });
     } else if (kind === 'xyz' && url.indexOf('{z}') >= 0) {
       defs.push({ kind: 'xyz', url: url, name: 'Kacheln: ' + url.split('/')[2] });
@@ -384,7 +400,7 @@
     var out = document.getElementById('sm-result');
     if (!title) { out.innerHTML = '<div class="text-danger small">Bitte einen Titel angeben.</div>'; return; }
     post('/maps/save', { id: asNew ? '' : (meta.mapId || ''), title: title, description: document.getElementById('sm-desc').value,
-      public: document.getElementById('sm-public').checked ? '1' : '0', state: JSON.stringify(Object.assign(kit.state(), { drawings: draw.features() })) }).then(function (d) {
+      public: document.getElementById('sm-public').checked ? '1' : '0', state: JSON.stringify(Object.assign(kit.state(), { drawings: draw.features(), parcels:parcelKit.features() })) }).then(function (d) {
       if (!d.ok) { out.innerHTML = '<div class="text-danger small">' + esc(d.error) + '</div>'; return; }
       meta.mapId = d.id;
       var pub = d.public ? location.origin + d.public : '';
