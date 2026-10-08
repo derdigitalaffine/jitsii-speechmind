@@ -4,14 +4,14 @@
 {% macro label(v) -%}{% if v %}Fassung {% if v.valid_from %}{{ fmt_date(v.valid_from) }} – {% else %}bis {% endif %}{{ fmt_date(v.valid_until) or (v.saved_at | local('%d.%m.%Y')) }}{% if not v.public %} (interne Sicherung){% endif %}{% else %}aktuelle Fassung{% endif %}{%- endmacro %}
 {% block content %}
 <nav aria-label="Pfad" class="small mb-2"><a href="{{ R }}">Rechtstexte</a> › <a href="{{ R }}/{{ law.slug }}">{{ law.short_title or law.title }}</a> › Änderungen</nav>
-<h1 class="h3 mb-1"><i class="fa-solid fa-code-compare me-2 text-primary"></i>Was hat sich geändert?</h1>
+{% if not versions %}<div class="alert alert-info">Noch keine frühere ausdrücklich angelegte Fassung vorhanden.</div>{% endif %}<h1 class="h3 mb-1"><i class="fa-solid fa-code-compare me-2 text-primary"></i>Was hat sich geändert?</h1>
 <p class="text-secondary">{{ law.title }}</p>
 <form method="get" class="card card-body mb-3 lex-noprint"><div class="row g-2 align-items-end">
   <div class="col-md-5"><label class="form-label small" for="cmp-a">Bisher</label><select class="form-select" id="cmp-a" name="a">
     {% for v in versions %}<option value="{{ v.id }}" {% if a == v.id | string %}selected{% endif %}>{{ label(v) }}</option>{% endfor %}<option value="aktuell" {% if a == 'aktuell' %}selected{% endif %}>aktuelle Fassung</option></select></div>
   <div class="col-md-5"><label class="form-label small" for="cmp-b">Neu</label><select class="form-select" id="cmp-b" name="b">
     <option value="aktuell" {% if b == 'aktuell' %}selected{% endif %}>aktuelle Fassung</option>{% for v in versions %}<option value="{{ v.id }}" {% if b == v.id | string %}selected{% endif %}>{{ label(v) }}</option>{% endfor %}</select></div>
-  <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Vergleichen</button></div>
+  <div class="col-12"><label class="form-label small" for="compare-search">Volltext in beiden Fassungen durchsuchen</label><input class="form-control" type="search" name="q" id="compare-search" value="{{request.query_params.get('q','')}}" placeholder="Suchbegriff in altem oder neuem Stand"><span class="small text-secondary" id="compare-search-status" role="status"></span></div><div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Vergleichen</button></div>
 </div></form>
 <div class="d-flex flex-wrap gap-2 align-items-center mb-3 small">
   <span><strong>{{ changed | length }}</strong> Abschnitt(e) geändert, neu oder entfallen</span>
@@ -19,19 +19,17 @@
   <div class="form-check form-switch ms-auto lex-noprint"><input class="form-check-input" type="checkbox" role="switch" id="show-same"><label class="form-check-label" for="show-same">auch Unverändertes zeigen</label></div>
 </div>
 <div class="lex lex-diff" style="max-width: 56rem">
+<p class="small text-secondary">Verglichen werden ausdrücklich angelegte Fassungen. Interne Sicherungsstände bleiben in der Bearbeitung zur Wiederherstellung verfügbar.</p>
   {% for r in rows %}{% set s = r.view.section %}
   <section class="lex-diff-item lex-diff-{{ r.status }} {{ 'd-none js-same' if r.status == 'same' }}">
     <div class="d-flex gap-2 align-items-baseline"><h2 class="h6 mb-1 flex-grow-1">{{ s.number }} {{ s.title or ('Eingangsformel' if s.kind == 'intro' else '') }}</h2>
       <span class="badge {{ {'changed': 'text-bg-warning', 'added': 'text-bg-success', 'removed': 'text-bg-danger', 'same': 'text-bg-light border'}[r.status] }}">{{ {'changed': 'geändert', 'added': 'neu', 'removed': 'entfallen', 'same': 'unverändert'}[r.status] }}</span></div>
-    {% if r.status == 'same' %}<div class="small text-secondary">{{ s.plain[:300] }}{{ '…' if s.plain | length > 300 }}</div>
-    {% elif r.status == 'added' %}<p><ins>{{ r.diff }}</ins></p>
-    {% elif r.status == 'removed' %}<p><del>{{ r.diff }}</del></p>
-    {% else %}<p>{{ r.diff }}</p>{% endif %}
+    {% if r.status == 'same' %}<div class="law-compare-text">{{r.new_text}}</div>{% else %}<div class="law-compare-columns"><div><h3 class="h6 text-secondary">Bisheriger Stand</h3><div class="law-compare-text">{{r.old_text or 'In dieser Fassung nicht enthalten.'}}</div></div><div><h3 class="h6 text-secondary">Neuer Stand</h3><div class="law-compare-text">{{r.new_text or 'In dieser Fassung nicht enthalten.'}}</div></div></div>{% if r.status=='changed' %}<details class="small mt-2"><summary>Änderungen im Wortlaut hervorheben</summary><p class="mt-2">{{r.diff}}</p></details>{% endif %}{% endif %}
   </section>
   {% else %}<p class="text-secondary">Keine Abschnitte.</p>{% endfor %}
   {% if not changed %}<div class="alert alert-light border">Zwischen den beiden Fassungen gibt es keine inhaltlichen Unterschiede.</div>{% endif %}
 </div>
 {% endblock %}
 {% block scripts %}<script>
-(function () { var t = document.getElementById('show-same'); if (t) t.addEventListener('change', function () { document.querySelectorAll('.js-same').forEach(function (x) { x.classList.toggle('d-none', !t.checked); }); }); })();
+(function(){var toggle=document.getElementById('show-same'),search=document.getElementById('compare-search'),status=document.getElementById('compare-search-status'),rows=Array.from(document.querySelectorAll('.lex-diff-item'));function filter(){var q=search.value.trim().toLocaleLowerCase('de'),count=0;rows.forEach(function(row){var show=q?row.textContent.toLocaleLowerCase('de').includes(q):!row.classList.contains('js-same')||toggle.checked;row.classList.toggle('d-none',!show);if(show)count++;});status.textContent=q?count+' passende Abschnitte in beiden Fassungen (einschließlich unveränderter).':'';}toggle.addEventListener('change',filter);search.addEventListener('input',filter);filter();})();
 </script>{% endblock %}

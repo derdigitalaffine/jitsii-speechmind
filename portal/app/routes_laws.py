@@ -215,7 +215,7 @@ def _compare(request: Request, db: Session, embed: bool, slug: str, a: str, b: s
     rate_limit(request, "law-compare", limit=60, window=600)
     user, ctx = _ctx(db, request, embed)
     law = _visible_law(db, slug, user)
-    versions = lx.public_versions(law, include_internal=user is not None) if not ctx["editor"] else list(law.versions)
+    versions = lx.public_versions(law, include_internal=user is not None)
 
     def pick(key: str):
         if key in ("", "aktuell"):
@@ -229,6 +229,12 @@ def _compare(request: Request, db: Session, embed: bool, slug: str, a: str, b: s
     old_v, old_md = pick(a)
     new_v, new_md = pick(b)
     rows = lx.compare(old_md, new_md, law.outline)
+    old_flat=lx.tree_of(old_md,law.outline)[1];new_flat=lx.tree_of(new_md,law.outline)[1]
+    old_by={v.section.anchor:v for v in old_flat};new_by={v.section.anchor:v for v in new_flat}
+    for row in rows:
+        anchor=row['view'].section.anchor
+        row['old_text']=lx._body_text(old_by[anchor]) if anchor in old_by else ''
+        row['new_text']=lx._body_text(new_by[anchor]) if anchor in new_by else ''
     changed = [r for r in rows if r["status"] != "same"]
     return _cookieless(request, render(request, "recht_compare.html", user, law=law, rows=rows, changed=changed,
                   old_v=old_v, new_v=new_v, a=a, b=b or "aktuell", versions=versions, **ctx))
@@ -316,12 +322,27 @@ def laws_list(request: Request, level: int | None = None, user: User = Depends(l
                   roots=lx.level_tree(db), **_common(db, user))
 
 
+def law_return(value):
+    from urllib.parse import urlsplit
+    value=str(value or '')
+    try:
+        parsed=urlsplit(value)
+    except ValueError:
+        return "/laws"
+    return value if not parsed.scheme and not parsed.netloc and parsed.path=='/laws' and not any(c in value for c in '\r\n') else '/laws'
+
+
+def law_saved_url(law,data,planned=False):
+    if data.get('save_action')=='close':return law_return(data.get('return_to'))
+    return f'/laws/{law.id}/'+('plan' if planned else 'edit')+'?'+urlencode({'saved':'1','return_to':law_return(data.get('return_to'))})
+
+
 def _form_page(request: Request, db: Session, user: User, law: LawText | None, values: dict | None = None):
     try:
         selected = catalog.form_topics(values) if values and "topics_present" in values else catalog.topics(law) if law else []
     except ValueError:
         selected = [name for key,name in catalog.TOPICS.items() if values.get("topic_"+key)=="1"]
-    return render(request, "law_edit.html", user, law=law, v=values or {}, topic_options=catalog.TOPICS,
+    return render(request, "law_edit.html", user, law=law, v=values or {}, return_to=law_return((values or {}).get("return_to",request.query_params.get("return_to"))), topic_options=catalog.TOPICS,
                   selected_topics=selected, other_topics=values.get("other_topics", "") if values and "topics_present" in values else ", ".join(t for t in selected if t not in catalog.TOPICS.values()), level_options=lx.level_options(db),
                   outline_modes=lx.OUTLINE_MODES, **_common(db, user))
 
@@ -437,7 +458,7 @@ async def law_create(request: Request, file: UploadFile | None = File(None), use
           + ("" if law.published else " Der Text ist noch nicht veröffentlicht."))
     for note in notes:
         flash(request, note, "ok" if note.startswith("Aus dem Kopf") else "error")
-    return redirect(f"/laws/{law.id}/edit")
+    return redirect(law_saved_url(law,data))
 
 
 def _law(db: Session, law_id: int) -> LawText:
@@ -475,7 +496,7 @@ async def law_update(request: Request, law_id: int, file: UploadFile | None = Fi
     flash(request, f"Gespeichert: {parsed.norms} Einzelvorschriften, {parsed.groups} Gliederungsebenen.")
     for note in notes:
         flash(request, note, "ok" if note.startswith("Aus dem Kopf") else "error")
-    return redirect(f"/laws/{law.id}/edit")
+    return redirect(law_saved_url(law,data))
 
 
 def _level_names(db: Session) -> list[str]:
@@ -637,7 +658,7 @@ async def laws_upload(request: Request, files: list[UploadFile] = File(...), lev
 @app.get("/laws/{law_id}/plan")
 def law_plan(request: Request, law_id: int, user: User = Depends(law_user), db: Session = Depends(get_db)):
     law = _law(db, law_id)
-    return render(request, "law_plan.html", user, law=law, body=law.planned_md or law.body_md, **_common(db, user))
+    return render(request, "law_plan.html", user, law=law, body=law.planned_md or law.body_md, return_to=law_return(request.query_params.get("return_to")), **_common(db, user))
 
 
 @app.post("/laws/{law_id}/plan", dependencies=[Depends(check_csrf)])
@@ -658,12 +679,12 @@ async def law_plan_save(request: Request, law_id: int, file: UploadFile | None =
         error = "Das Datum muss in der Zukunft liegen – für sofort geltende Änderungen den Text direkt bearbeiten."
     if error:
         flash(request, error, "error")
-        return render(request, "law_plan.html", user, law=law, body=md, v=dict(data), **_common(db, user))
+        return render(request, "law_plan.html", user, law=law, body=md, v=dict(data), return_to=law_return(data.get("return_to")), **_common(db, user))
     law.planned_md, law.planned_valid_from = md, day
     law.planned_note = " ".join(str(data.get("version_note", "")).split())[:255]
     db.commit()
     flash(request, f"Neue Fassung vorbereitet – sie gilt automatisch ab {_fmt_date(day)}; die bisherige bleibt als frühere Fassung abrufbar.")
-    return redirect(f"/laws/{law.id}/edit")
+    return redirect(law_saved_url(law,data,planned=True))
 
 
 @app.post("/laws/{law_id}/attachments", dependencies=[Depends(check_csrf)])
