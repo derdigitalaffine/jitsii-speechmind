@@ -87,6 +87,7 @@
 </div></div>
 
 {% if user.is_admin %}
+<a class="btn btn-outline-primary mb-3" href="/admin/oidc"><i class="fa-solid fa-key me-2" aria-hidden="true"></i>Nextcloud / OIDC-Anmeldung einrichten</a>
 <div class="card mb-4" id="sicherheit"><div class="card-header"><i class="fa-solid fa-shield-halved me-2"></i>Anmeldung &amp; Zwei-Faktor</div><div class="card-body">
   <form method="post" action="/admin/security" class="row g-3 align-items-end">
     <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -120,6 +121,7 @@
       <form method="post" action="/admin/users/{{ u.id }}" class="d-inline-flex gap-1">
         <input type="hidden" name="csrf" value="{{ csrf }}">
         <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#edit-{{ u.id }}" title="Bearbeiten" aria-label="Bearbeiten"><i class="fa-solid fa-pen"></i></button>
+        {% if user.is_admin %}<a class="btn btn-sm btn-outline-secondary" href="/profile/identity?user_id={{ u.id }}" title="OIDC-Kontoverknüpfung" aria-label="OIDC-Kontoverknüpfung für {{u.name}}"><i class="fa-solid fa-link" aria-hidden="true"></i></a>{% endif %}
         {% if u.id != user.id %}
         <button class="btn btn-sm btn-outline-secondary" name="action" value="invite" data-bs-toggle="tooltip" title="{{ 'Einladung erneut senden' if not u.password_set else 'Passwort-Link senden' }}" aria-label="Link senden"><i class="fa-solid fa-paper-plane"></i></button>
         {% if user.is_admin %}<button class="btn btn-sm btn-outline-secondary" name="action" value="toggle_admin" data-bs-toggle="tooltip" title="{{ 'Admin-Recht entziehen' if u.is_admin else 'Zum Admin machen' }}" aria-label="Rolle ändern"><i class="fa-solid fa-user-shield"></i></button>{% endif %}

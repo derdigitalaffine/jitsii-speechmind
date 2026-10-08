@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
 {% block title %}Sicherheit{% endblock %}
-{% macro pw(id) %}<input class="form-control form-control-sm" id="{{ id }}" name="password" type="password" autocomplete="current-password" placeholder="Ihr Passwort zur Bestätigung" required>{% endmacro %}
-{% block content %}
+{% macro pw(id) %}{% if not user.password_set %}<input type="hidden" name="password" value=""><span class="small text-secondary">Bestätigung durch Ihre OIDC-Anmeldung (höchstens 10 Minuten alt).</span>{% else %}<input class="form-control form-control-sm" id="{{ id }}" name="password" type="password" autocomplete="current-password" placeholder="Ihr Passwort zur Bestätigung" required>{% endif %}{% endmacro %}
+{% block content %}<a class="btn btn-outline-primary mb-3" href="/profile/identity"><i class="fa-solid fa-link me-2" aria-hidden="true"></i>Nextcloud / OIDC-Kontoverknüpfung</a>
 {% call m.page_head('Sicherheit', 'Zwei-Faktor-Anmeldung: Zusätzlich zum Passwort wird bei jeder Anmeldung ein Einmalcode abgefragt – aus einer App auf Ihrem Telefon oder per E-Mail.') %}
   <a class="btn btn-outline-secondary" href="/profile"><i class="fa-regular fa-user me-1"></i>Profil</a>
 {% endcall %}
@@ -112,7 +112,7 @@
       </div>
       {% endfor %}
     </div>
-    <div class="card-footer small text-secondary">Eine Anmeldung endet nach 12 Stunden ohne Aktivität oder mit „Abmelden“. Wenn Sie Ihr Passwort ändern, werden alle anderen Geräte abgemeldet.</div>
+    <div class="card-footer small text-secondary">Lokale Anmeldungen enden nach 12 Stunden ohne Aktivität; für OIDC gilt die eingestellte maximale Sitzungsdauer oder mit „Abmelden“. Wenn Sie Ihr Passwort ändern, werden alle anderen Geräte abgemeldet.</div>
   </div></div>
 </div>
 {% endblock %}

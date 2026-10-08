@@ -699,7 +699,9 @@ def healthz():
 
 @app.get("/login")
 def login_form(request: Request, next: str = "/", db: Session = Depends(get_db)):
-    return render(request, "login.html", next=safe_next(next), anonymous=anonymous_allowed(db))
+    from . import oidc
+    cfg=oidc.config(db)
+    return render(request, "login.html", next=safe_next(next), anonymous=anonymous_allowed(db),oidc_ready=oidc.usable(cfg),oidc_label=cfg["label"])
 
 
 @app.post("/login", dependencies=[Depends(check_csrf)])
@@ -716,7 +718,7 @@ def login(request: Request, email: str = Form(...), password: str = Form(...),
     return start_session(request, db, user, safe_next(next))
 
 
-def start_session(request: Request, db: Session, user: User, target: str) -> RedirectResponse:
+def start_session(request: Request, db: Session, user: User, target: str, oidc_flow=None) -> RedirectResponse:
     """Nach geprüftem Passwort: anmelden oder zuerst den zweiten Faktor verlangen."""
     cfg = get_settings(db)
     request.session.clear()
@@ -725,13 +727,14 @@ def start_session(request: Request, db: Session, user: User, target: str) -> Red
     found = twofa.methods(user, cfg)
     if found:
         request.session.update({"mfa_uid": user.id, "mfa_next": target, "mfa_at": time.time(), "mfa_tries": 0})
+        if oidc_flow is not None:request.session["oidc_flow"] = oidc_flow.id
         if found == ["email"]:
             twofa.send_email_code(db, user)
             db.commit()
             worker.wake()
             request.session["mfa_sent"] = True
         return redirect("/login/2fa")
-    sessions.establish(request, db, user)
+    sessions.establish(request, db, user,oidc_flow=oidc_flow)
     if twofa.needs_setup(user, cfg):
         request.session["mfa_setup"] = True
     return redirect(target)
@@ -809,9 +812,12 @@ def login_2fa(request: Request, code: str = Form(""), method: str = Form("totp")
         flash(request, "Der Code stimmt nicht oder ist abgelaufen.", "error")
         return redirect(f"/login/2fa?m={method}")
     target = request.session.get("mfa_next") or "/"
+    from .db import OidcFlow
+    flow=db.get(OidcFlow,request.session["oidc_flow"]) if request.session.get("oidc_flow") else None
+    if request.session.get("oidc_flow") and not flow:raise HTTPException(403,"OIDC-Anmeldung abgelaufen.")
     db.commit()
     request.session.clear()
-    sessions.establish(request, db, user, method="2fa")
+    sessions.establish(request, db, user, method="2fa",oidc_flow=flow)
     if method == "recovery":
         flash(request, f"Wiederherstellungscode verbraucht – noch {twofa.recovery_left(user)} übrig. "
                        "Richten Sie unter Profil › Sicherheit neue Codes oder ein neues Gerät ein.", "error")
@@ -1696,10 +1702,10 @@ def profile_save(request: Request, name: str = Form(...), current_password: str 
         if len(new_password) < 10:
             flash(request, "Das neue Passwort braucht mindestens 10 Zeichen.", "error")
             return redirect("/profile")
-        if not verify_password(user.password_hash, current_password):
-            flash(request, "Das aktuelle Passwort stimmt nicht.", "error")
+        if not _confirm_password(request,user,current_password):
             return redirect("/profile")
         user.password_hash = hash_password(new_password)
+        user.password_set = True
         user.must_change_password = False
         if sessions.end_all(db, user.id, keep_hash=sessions.current_hash(request)):
             flash(request, "Ihre Anmeldungen auf anderen Geräten wurden beendet.")
@@ -1762,9 +1768,10 @@ def profile_security(request: Request, user: User = Depends(current_user), db: S
 
 
 def _confirm_password(request: Request, user: User, password: str) -> bool:
+    if not user.password_set and str(request.session.get("auth_method","")).startswith("oidc") and time.time()-float(request.session.get("auth_at",0))<600:return True
     if verify_password(user.password_hash, password):
         return True
-    flash(request, "Das Passwort stimmt nicht.", "error")
+    flash(request, "Bitte erneut über OIDC anmelden, um diese Änderung zu bestätigen." if not user.password_set else "Das Passwort stimmt nicht.", "error")
     return False
 
 
@@ -1940,6 +1947,10 @@ def _can_manage(actor: User, target: User) -> bool:
 def _set_groups(db: Session, target: User, group_ids: list[str]) -> None:
     ids = {int(g) for g in group_ids if str(g).isdigit()}
     target.groups = list(db.scalars(select(Group).where(Group.id.in_(ids)))) if ids else []
+    db.flush()
+    from .db import GroupMember
+    from sqlalchemy import update
+    db.execute(update(GroupMember).where(GroupMember.user_id==target.id,GroupMember.group_id.in_(ids)).values(manual=True))
 
 
 @app.get("/admin/users")
@@ -2138,6 +2149,11 @@ async def admin_groups_create(request: Request, name: str = Form(...), descripti
     ids = {int(u) for u in form.getlist("members") if str(u).isdigit()}
     group.members = list(db.scalars(select(User).where(User.id.in_(ids)))) if ids else []
     db.add(group)
+    db.flush()
+    from .db import GroupMember
+    from sqlalchemy import update
+    db.execute(update(GroupMember).where(GroupMember.group_id==group.id,GroupMember.user_id.in_(ids)).values(manual=True))
+    db.add(group)
     db.commit()
     flash(request, f"Gruppe „{group.name}“ angelegt.")
     return redirect("/admin/users#gruppen")
@@ -2163,6 +2179,11 @@ async def admin_groups_update(request: Request, gid: int, action: str = Form("sa
     group.lead_id = int(form["lead_id"]) if str(form.get("lead_id", "")).isdigit() and db.get(User, int(form["lead_id"])) else None
     ids = {int(u) for u in form.getlist("members") if str(u).isdigit()}
     group.members = list(db.scalars(select(User).where(User.id.in_(ids)))) if ids else []
+    db.add(group)
+    db.flush()
+    from .db import GroupMember
+    from sqlalchemy import update
+    db.execute(update(GroupMember).where(GroupMember.group_id==group.id,GroupMember.user_id.in_(ids)).values(manual=True))
     db.commit()
     flash(request, f"Gruppe „{group.name}“ gespeichert." + (" Der Name ist schon vergeben." if clash else ""))
     return redirect("/admin/users#gruppen")
@@ -2723,3 +2744,5 @@ from . import routes_seminars  # noqa: E402,F401
 from . import routes_seminar_learning  # noqa: E402,F401
 
 from . import routes_seminar_series  # noqa: E402,F401
+
+from . import routes_oidc  # noqa: E402,F401

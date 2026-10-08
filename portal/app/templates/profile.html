@@ -53,7 +53,7 @@
     </div>
     <div class="mb-3">
       <label class="form-label" for="cur">Aktuelles Passwort</label>
-      <input class="form-control" id="cur" name="current_password" type="password" autocomplete="current-password">
+      {% if user.password_set %}<input class="form-control" id="cur" name="current_password" type="password" autocomplete="current-password">{% else %}<input id="cur" name="current_password" type="hidden" value=""><p class="form-text">Für Ihren ersten lokalen Zugang bestätigt eine frische OIDC-Anmeldung diese Änderung. Falls die Anmeldung länger als zehn Minuten zurückliegt, melden Sie sich bitte erneut über OIDC an.</p>{% endif %}
     </div>
     <div>
       <label class="form-label" for="new">Neues Passwort</label>

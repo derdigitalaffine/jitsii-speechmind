@@ -29,15 +29,22 @@ def client_ip(request) -> str:
     return request.client.host if request.client else "?"
 
 
-def establish(request, db, user: User, method: str = "password") -> None:
+def establish(request, db, user: User, method: str = "password", oidc_flow=None) -> None:
     """Nach erfolgreicher Anmeldung: Kennung erzeugen, im Cookie ablegen, Datensatz anlegen."""
     sid = secrets.token_urlsafe(24)
-    db.add(UserSession(sid_hash=_hash(sid), user_id=user.id, ip=client_ip(request)[:64],
+    row=UserSession(sid_hash=_hash(sid), user_id=user.id, ip=client_ip(request)[:64],
                        user_agent=request.headers.get("user-agent", "")[:400], method=method,
-                       last_path=request.url.path[:255]))
+                       last_path=request.url.path[:255])
+    if oidc_flow is not None:
+        from . import oidc
+        oidc.bind_session(db,row,oidc_flow,user)
+    db.add(row)
     db.commit()
     request.session["uid"] = user.id
     request.session["sid"] = sid
+    import time
+    request.session["auth_at"] = time.time()
+    request.session["auth_method"] = row.method
 
 
 def validate(request, db, user: User) -> bool:
@@ -51,6 +58,11 @@ def validate(request, db, user: User) -> bool:
     if row is None or row.user_id != user.id:
         return False
     now = utcnow()
+    from . import oidc
+    cfg=oidc.config(db) if row.oidc_identity_id else None
+    if not oidc.session_valid(db,row,cfg):
+        db.delete(row);db.commit();return False
+    if cfg:request.session["oidc_central"] = bool(cfg["central_logout"] and cfg.get("metadata",{}).get("end_session_endpoint"))
     if (now - row.last_seen_at).total_seconds() > MAX_AGE:
         db.delete(row)
         db.commit()
@@ -80,6 +92,8 @@ def purge(db) -> int:
     """Abgelaufene Sitzungen löschen."""
     cutoff = utcnow() - timedelta(seconds=MAX_AGE)
     result = db.execute(delete(UserSession).where(UserSession.last_seen_at < cutoff))
+    from . import oidc
+    oidc.purge(db)
     db.commit()
     return result.rowcount or 0
 
