@@ -175,9 +175,21 @@ def text_to_html(text: str, frame: dict | None = None) -> str:
     """HTML-Fassung des Mailtexts: Absätze, anklickbare Links; mit frame im Rahmen der Organisation
     (Kopfzeile mit Logo und Name in der Hauptfarbe, Fußzeile mit Impressum/Datenschutz). Tabellenlayout mit
     Inline-Stilen, weil viele Mailprogramme kein CSS kennen."""
-    escaped = html.escape(text)
-    linked = _URL.sub(lambda m: f'<a href="{m.group(1)}" style="color:{(frame or {}).get("color", "#0b57d0")}">{m.group(1)}</a>', escaped)
-    paragraphs = "".join(f'<p style="margin:0 0 14px">{p.replace(chr(10), "<br>")}</p>' for p in linked.split("\n\n") if p.strip())
+    color = (frame or {}).get("color", "#0b57d0")
+    def links(raw):
+        return _URL.sub(lambda m: f'<a href="{m.group(1)}" style="color:{color}">{m.group(1)}</a>', html.escape(raw)).replace(chr(10), '<br>')
+    paragraphs = []
+    labels = ('Umlauf öffnen und entscheiden', 'Umlauf öffnen und Kenntnisnahme bestätigen', 'Information öffnen')
+    for part in text.split('\n\n'):
+        if not part.strip(): continue
+        lines = part.splitlines()
+        label = lines[0].removesuffix(':')
+        if len(lines) >= 2 and label in labels and re.fullmatch(r'https?://[^\s<>"\']+/umlaeufe/[^\s<>"\']+', lines[1]):
+            button = f'<a href="{html.escape(lines[1], quote=True)}" style="display:inline-block;padding:12px 18px;border-radius:6px;background:{color};color:#ffffff;font-weight:600;text-decoration:none">{html.escape(label)}</a>'
+            content = button + ('<br>' + links('\n'.join(lines[2:])) if len(lines)>2 else '')
+        else: content = links(part)
+        paragraphs.append(f'<p style="margin:0 0 14px">{content}</p>')
+    paragraphs = ''.join(paragraphs)
     font = "font-family:Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.5;color:#1f2328"
     if not frame:
         return f'<!doctype html><html><body style="{font}">{paragraphs}</body></html>'

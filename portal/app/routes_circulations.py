@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from . import circulations as cl, csvsafe, dms
+from . import circulations as cl, csvsafe, dms, circulation_reports as reports
 from .db import (Circulation, CirculationBundle, CirculationDistributor, CirculationEvent, CirculationReceipt,
                  CirculationRecipient, CirculationVersion, DmsFile, Form, Group, LawText, User, to_local, utcnow)
 from .main import app, check_csrf, current_user, enabled_modules, flash, get_db, redirect, render, session_user
@@ -98,7 +98,8 @@ def circulation_list(request: Request, db: Session = Depends(get_db)):
         if q and q not in (c['title'] + ' ' + c['body'] + ' ' + c['category']).lower(): continue
         if category and c['category'] != category: continue
         rec = cl.own_recipient(db, ver, user) if ver else None
-        cards.append(dict(row=row, c=c, ver=ver, rec=rec, status=cl.DECISIONS.get(rec.decision, 'Offen') if rec else ('Entwurf' if not ver else 'Information'),
+        cards.append(dict(row=row, c=c, ver=ver, rec=rec, status=(cl.DECISIONS[rec.decision] if rec.decision else cl.action_label(c) if cl.ready(db, ver, rec) else 'Sie sind später an der Reihe') if rec and c['mode'] != 'info' else ('Entwurf' if not ver else 'Keine Rückmeldung erforderlich'),
+                          report=reports.snapshot(db, row, ver) if manager and tab in {'manage','drafts'} else None,
                           author=db.get(User,ver.published_by).name if ver and db.get(User,ver.published_by) else '', excerpt=plain_excerpt(c['body']), overdue=bool(ver and rec and not rec.decision and c['due_on'] and cl.at(c['due_on']) < utcnow())))
     cards.sort(key=lambda x: not x['c']['pinned'])
     return protect(render(request, 'circulations.html', user, cards=cards, tab=tab, q=q, category=category,
@@ -306,12 +307,17 @@ def view(request, db, row, ver, user=None, guest=None, token=None):
     if not cl.readable(db, row, ver, user, guest): raise HTTPException(404)
     if not ver: return redirect(f'/umlaeufe/{row.id}/edit')
     c = cl.content(ver)
-    rec = guest or cl.own_recipient(db, ver, user)
+    choices = cl.acting_recipients(db, ver, user)
+    rid = request.query_params.get('recipient', '')
+    rec = guest or next((r for r in choices if str(r.id) == rid), cl.own_recipient(db, ver, user) or (choices[0] if choices else None))
     manager = cl.may_edit(db, user, row) or bool(user and cl.may_publish(db, user, row))
     base = f'/umlaeufe/g/{token}' if token else f'/umlaeufe/{row.id}'
     items = [{**i, 'accessible': cl.item_access(db, user, i)} for i in c['items']]
     return protect(render(request, 'circulation_detail.html', user, row=row, ver=ver, c=c, items=items,
-        recipient=rec, manager=manager, base=base, guest=guest, markdown=cl.markdown,
+        recipient=rec, recipient_choices=choices, proxy=bool(rec and user and rec.user_id and rec.user_id != user.id), manager=manager, base=base, guest=guest, markdown=cl.markdown,
+        personal_progress=len(set(cl.requirement_keys(c)) & {r.item_key for r in cl.receipts(db, rec)}),
+        required_count=len(cl.requirement_keys(c)), next_key=next((k for k in cl.requirement_keys(c) if k not in {r.item_key for r in cl.receipts(db, rec)}), None),
+        shared_report=reports.snapshot(db, row, ver) if manager or (rec and c.get('share_progress')) else None,
         can_act=bool(rec and cl.ready(db, ver, rec) and not row.archived and not cl.expired(ver)
                      and row.current_version == ver.number and cl.active(row, ver) and c['mode'] != 'info'),
         acknowledged={r.item_key for r in cl.receipts(db, rec)},
@@ -342,7 +348,7 @@ def act(db, row, ver, rec, user, data):
     if item and not cl.item_access(db, user, item): raise HTTPException(403, 'Keine Leserechte für dieses Dokument.')
     if key == 'all' and any(not cl.item_access(db, user, i) for i in cl.content(ver)['items']):
         raise HTTPException(403, 'Für mindestens ein Dokument fehlen Leserechte. Bitte den Herausgeber kontaktieren.')
-    if data.get('confirm') != '1': raise HTTPException(422, 'Bitte die Kenntnisnahme ausdrücklich bestätigen.')
+    if data.get('decision') != 'rejected' and data.get('confirm') != '1': raise HTTPException(422, 'Bitte die Kenntnisnahme ausdrücklich bestätigen.')
     cl.acknowledge(db, row, ver, rec, user, key, str(data.get('decision', 'ack')), str(data.get('reason', '')))
     try: db.commit()
     except IntegrityError:
@@ -363,8 +369,9 @@ async def circulation_ack(request: Request, cid: int, user: User = Depends(curre
     if not number.isdigit(): raise HTTPException(422, 'Ungültige Fassung.')
     ver = cl.version(db, row, int(number))
     if not ver: raise HTTPException(404)
-    act(db, row, ver, cl.own_recipient(db, ver, user), user, data)
-    return redirect(f'/umlaeufe/{cid}')
+    rec = next((r for r in cl.acting_recipients(db, ver, user) if str(r.id) == str(data.get('recipient', ''))), cl.own_recipient(db, ver, user))
+    act(db, row, ver, rec, user, data)
+    return redirect(f'/umlaeufe/{cid}?recipient={rec.id}')
 
 
 def file_send(db, row, ver, key, user=None):
@@ -559,8 +566,9 @@ def bundle_list(request:Request,user:User=Depends(current_user),db:Session=Depen
     if not bundle_creator(user) and not available_bundles(db,user):raise HTTPException(403)
     q=request.query_params.get('q','').strip()[:200]
     bundles=[b for b in available_bundles(db,user) if q.casefold() in (cl.content(b)['title']+' '+cl.content(b)['body']).casefold()]
+    all_reports = reports.overview(db,user,'allowed')
     return protect(render(request,'circulation_bundles.html',user,bundles=bundles,content=cl.content,q=q,
-                   editable={b.id:bundle_may_edit(db,user,b) for b in bundles},can_create=bundle_creator(user),return_to=return_path(request.query_params.get('return_to'))))
+                   usage={b.id:[r for r in all_reports if str(b.id) in r['bundle_ids']] for b in bundles}, editable={b.id:bundle_may_edit(db,user,b) for b in bundles},can_create=bundle_creator(user),return_to=return_path(request.query_params.get('return_to'))))
 
 
 @app.post('/sammelmappen/new',dependencies=[Depends(check_csrf)])
@@ -640,3 +648,46 @@ def circulation_to_bundle(request:Request,cid:int,user:User=Depends(current_user
         for path in staged:path.unlink(missing_ok=True)
         raise
     return redirect(f'/sammelmappen/{row.id}/edit?return_to=/umlaeufe/{cid}/edit')
+
+
+@app.get('/umlaeufe/auswertung')
+def circulation_reports(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    module()
+    scope = 'allowed' if request.query_params.get('scope') == 'allowed' else 'mine'
+    all_reports = reports.overview(db, user, scope)
+    rows = reports.filtered(all_reports, request.query_params)
+    return protect(render(request, 'circulation_reports.html', user, reports=rows, totals=reports.totals(rows), scope=scope,
+        phases=sorted({r['phase'] for r in all_reports}), params=request.query_params))
+
+
+@app.get('/umlaeufe/auswertung/export/{fmt}')
+def circulation_reports_export(request: Request, fmt: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    module()
+    scope = 'allowed' if request.query_params.get('scope') == 'allowed' else 'mine'
+    rows = reports.filtered(reports.overview(db, user, scope), request.query_params)
+    data = [reports.export_data(r) for r in rows]
+    if fmt == 'json': body, mime = cl.dumps(data), 'application/json'
+    elif fmt == 'csv':
+        buf = io.StringIO(); w = csvsafe.writer(buf, delimiter=';')
+        w.writerow(['Umlauf', 'ID', 'Fassung', 'Phase', 'Modus', 'Frist UTC', 'Empfänger', 'Erledigt', 'Offen', 'Überfällig', 'Abgelehnt', 'Kenntnisnahmen', 'Freigaben', 'Ausgenommen', 'Extern dokumentiert', 'Übernommen', 'Offene Rückfragen'])
+        for r in data: w.writerow([r['title'], r['id'], r['version'], r['phase'], r['mode'], r['due_on'], r['total'], r['completed'], r['pending'], r['overdue'], *[r['counts'].get(k,0) for k in ['rejected','ack','approved','exempt','offline','carried']], r['questions']])
+        body, mime = '\ufeff' + buf.getvalue(), 'text/csv; charset=utf-8'
+    else: raise HTTPException(404)
+    return protect(Response(body, media_type=mime, headers={'Content-Disposition':f'attachment; filename="umlauf-auswertung.{fmt}"'}))
+
+
+@app.get('/umlaeufe/{cid:int}/auswertung')
+def circulation_report(request: Request, cid: int, v: int = 0, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    module(); row = row_of(db, cid)
+    if not reports.may_report(db, user, row): raise HTTPException(404)
+    ver = cl.version(db, row, v)
+    if v and not ver: raise HTTPException(404)
+    report = reports.snapshot(db, row, ver)
+    q = request.query_params.get('q','').casefold()[:200]
+    state = request.query_params.get('status','')
+    kind = request.query_params.get('kind','')
+    people = [p for p in report['people'] if (not q or q in (p['rec'].name+' '+p['rec'].email).casefold())
+        and (not state or (state == 'pending' and not p['rec'].decision and p['required']) or (state == 'overdue' and p['overdue']) or (state == 'questions' and p['question']) or p['rec'].decision == state)
+        and (not kind or (kind == 'guest') == (p['rec'].user_id is None))]
+    versions = list(db.scalars(select(CirculationVersion).where(CirculationVersion.circulation_id == cid).order_by(CirculationVersion.number.desc())))
+    return protect(render(request, 'circulation_report.html', user, report=report, people=people, versions=versions, q=q, state=state, kind=kind, decisions=cl.DECISIONS))

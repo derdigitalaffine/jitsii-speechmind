@@ -44,7 +44,7 @@ def default():
     return dict(title='', body='', category='Allgemeines', kind='notice', mode='info', per_item=False,
                 sequential=False, audience={'users': [], 'groups': [], 'all': False, 'guests': []},
                 dynamic=False, public=False, pinned=False, items=[], publish_on='', due_on='', expires_on='',
-                reminder_days=3, guest_days=30, escalate_id=None, review_requested=False)
+                reminder_days=3, guest_days=30, escalate_id=None, review_requested=False, require_item_sequence=False, allow_proxy_approval=False, share_progress=False, email_summary='')
 
 
 def may_edit(db, user, row):
@@ -114,7 +114,7 @@ def readable(db, row, ver, user=None, guest=None):
     c = content(ver)
     if guest:
         return guest.version_id == ver.id
-    return bool(c['public'] or (user and own_recipient(db, ver, user)))
+    return bool(c['public'] or (user and acting_recipients(db, ver, user)))
 
 
 def ready(db, ver, recipient):
@@ -137,9 +137,21 @@ def requirement_keys(c):
     return ['body', *[i['key'] for i in c['items']]] if c['per_item'] else ['all']
 
 
+def action_label(c):
+    return 'Freigabe erforderlich' if c['mode'] == 'approval' else 'Kenntnisnahme erforderlich' if c['mode'] == 'ack' else 'Keine Rückmeldung erforderlich'
+
+
+def acting_recipients(db, ver, user):
+    if not user: return []
+    c = content(ver)
+    allowed = [user.id]
+    if c['mode'] == 'approval' and c.get('allow_proxy_approval'):
+        allowed += absence.represented(db, user)
+    return [r for r in recipients(db, ver) if r.user_id in allowed]
+
+
 def acknowledge(db, row, ver, rec, user, key, decision, reason=''):
-    # No acting_ids here: a proxy may manage but can never impersonate a recipient.
-    if not rec or (rec.user_id is not None and (not user or rec.user_id != user.id)):
+    if not rec or (rec.user_id is not None and rec.id not in {r.id for r in acting_recipients(db, ver, user)}):
         raise HTTPException(403, 'Nur die adressierte Person darf selbst bestätigen.')
     if row.current_version != ver.number or not active(row, ver) or row.archived or expired(ver):
         raise HTTPException(409, 'Diese Fassung ist nicht mehr zur Bestätigung geöffnet.')
@@ -152,14 +164,19 @@ def acknowledge(db, row, ver, rec, user, key, decision, reason=''):
     elif decision != ('approved' if c['mode'] == 'approval' else 'ack') or key not in requirement_keys(c):
         raise HTTPException(422, 'Ungültige Bestätigung.')
     if decision != 'rejected':
+        if c.get('require_item_sequence') and c['per_item']:
+            confirmed = {r.item_key for r in receipts(db, rec)}
+            next_key = next((k for k in requirement_keys(c) if k not in confirmed), None)
+            if key != next_key: raise HTTPException(409, 'Bitte die Dokumente in der vorgegebenen Reihenfolge bearbeiten.')
         if any(r.item_key == key for r in receipts(db, rec)):
             raise HTTPException(409, 'Dieses Dokument wurde bereits bestätigt.')
-        db.add(CirculationReceipt(recipient_id=rec.id, item_key=key, recorded_by=user.id if user else None))
+        db.add(CirculationReceipt(recipient_id=rec.id, item_key=key, recorded_by=user.id if user else None, method='proxy' if user and user.id != rec.user_id else 'self'))
         db.flush()
         if set(requirement_keys(c)) <= {r.item_key for r in receipts(db, rec)}:
             rec.decision, rec.decided_at = decision, utcnow()
     else:
         rec.decision, rec.decided_at, rec.reason = decision, utcnow(), reason.strip()[:4000]
+    if user and user.id != rec.user_id: rec.recorded_by = user.id
     event(db, row, decision, key if decision != 'rejected' else reason, user, ver, rec)
     db.flush()
     dispatch(db, row, ver)
@@ -322,15 +339,34 @@ def dispatch(db, row, ver, reminders=False):
         if not initial and not reminder:
             continue
         url = guest_url(db, row, ver, r) if r.user_id is None else settings.portal_base_url.rstrip('/') + f'/umlaeufe/{row.id}'
-        subject = ('Erinnerung: ' if reminder else '') + c['title']
-        body = f'Guten Tag {r.name},\n\n{c["title"]}\nFassung {ver.number}\n\nBitte öffnen Sie die Informationen im Portal:\n{url}\n'
-        if c['due_on']:
-            from .db import to_local
-            body += '\nFrist: ' + to_local(at(c['due_on'])).strftime('%d.%m.%Y %H:%M')
+        from .db import to_local
+        subject = ('Erinnerung – ' if reminder else '') + action_label(c) + ': ' + c['title']
+        due = to_local(at(c['due_on'])).strftime('%d.%m.%Y %H:%M') if c['due_on'] else 'Ohne feste Frist'
+        owner = db.get(User, ver.published_by)
+        body = f'Guten Tag {r.name},\n\n{action_label(c)}\n{c["title"]} · Fassung {ver.number}\nHerausgeber: {owner.name if owner else "Portal"}\nFrist: {due}\n'
+        if ver.number > 1 and c['mode'] != 'info': body += 'Geänderte Fassung – erneute Rückmeldung erforderlich.\n'
+        if c.get('email_summary'): body += '\n' + c['email_summary'] + '\n'
+        body += f'\nDie Mappe enthält {len(c["items"])} Dokumente.\n'
+        if c['mode'] != 'info' and c['per_item']:
+            confirmed = {x.item_key for x in receipts(db, r)}
+            labels = {'body':'Einleitung', **{i['key']:i['title'] for i in c['items']}}
+            body += 'Noch offen: ' + ', '.join(labels[k] for k in requirement_keys(c) if k not in confirmed) + '\n'
+        if c['mode'] == 'approval': body += 'Bitte freigeben oder mit Begründung ablehnen.\n'
+        elif c['mode'] == 'ack': body += 'Bitte den Inhalt ausdrücklich persönlich zur Kenntnis nehmen.\n'
+        button = 'Umlauf öffnen und entscheiden' if c['mode'] == 'approval' else 'Umlauf öffnen und Kenntnisnahme bestätigen' if c['mode'] == 'ack' else 'Information öffnen'
+        body += '\n' + button + ':\n' + url + '\nDas Öffnen allein bestätigt nichts.\n'
+        if r.user_id is None: body += '\nPersönlicher Gastlink: bitte nicht weitergeben. Gültig bis ' + to_local(r.token_expires_at).strftime('%d.%m.%Y %H:%M') + '.\n'
         if notify.enqueue(db, r.email, subject, body, 'circulation_personal', cfg):
             if initial: r.notified_at = utcnow()
             else: r.reminded_at = utcnow()
             sent += 1
+            if r.user_id and c['mode']=='approval' and c.get('allow_proxy_approval'):
+                active_proxy=absence.current(db,r.user_id)
+                substitute=active_proxy.substitute if active_proxy else None
+                if substitute and substitute.active and r.user_id in absence.represented(db,substitute):
+                    proxy_url=settings.portal_base_url.rstrip('/')+f'/umlaeufe/{row.id}?recipient={r.id}'
+                    proxy_body=(f'Guten Tag {substitute.name},\n\nFreigabe in Vertretung für {r.name} erforderlich.\n{c["title"]} · Fassung {ver.number}\nFrist: {due}\n\nDie Freigabe in Vertretung ist für diesen Umlauf ausdrücklich erlaubt. Ihre Handlung wird unter Ihrem Namen protokolliert.\n\nUmlauf öffnen und entscheiden:\n'+proxy_url+'\nDas Öffnen allein bestätigt nichts.')
+                    notify.enqueue(db,substitute.email,'Vertretung – '+subject,proxy_body,'circulation_proxy',cfg)
     return sent
 
 
@@ -364,9 +400,11 @@ def overview(db, user):
     items = []
     for row in db.scalars(select(Circulation).where(Circulation.current_version > 0, Circulation.archived.is_(False))):
         ver = version(db, row)
-        rec = own_recipient(db, ver, user)
-        if rec and not rec.decision and active(row, ver) and not expired(ver) and content(ver)['mode'] != 'info':
-            items.append(dict(row=row, title=content(ver)['title'], due=at(content(ver)['due_on']), ready=ready(db, ver, rec)))
+        for rec in acting_recipients(db, ver, user):
+            if rec and not rec.decision and active(row, ver) and not expired(ver) and content(ver)['mode'] != 'info':
+                c = content(ver)
+                done = len({r.item_key for r in receipts(db, rec)} & set(requirement_keys(c)))
+                items.append(dict(row=row, title=c['title'], due=at(c['due_on']), ready=ready(db, ver, rec), action=action_label(c), done=done, required=len(requirement_keys(c)), proxy=rec.user_id != user.id, recipient_id=rec.id))
     items.sort(key=lambda x: (x['due'] or datetime.max, x['row'].id))
     return dict(items=items[:6], count=len(items), overdue=sum(bool(i['due'] and i['due'] < utcnow()) for i in items))
 
@@ -383,11 +421,11 @@ def form_data(data, previous):
     def ids(key):
         return list(dict.fromkeys(int(x) for x in data.getlist(key) if str(x).isdigit()))
     c = default()
-    for k, n in [('title', 255), ('body', 100000), ('category', 80)]: c[k] = str(data.get(k, '')).strip()[:n]
+    for k, n in [('title', 255), ('body', 100000), ('category', 80), ('email_summary', 1000)]: c[k] = str(data.get(k, '')).strip()[:n]
     c['kind'] = 'circulation' if data.get('kind') == 'circulation' else 'notice'
     c['mode'] = str(data.get('mode', 'info'))
     if c['mode'] not in {'info', 'ack', 'approval'}: raise HTTPException(422, 'Ungültiger Modus.')
-    for k in ['per_item', 'sequential', 'dynamic', 'public', 'pinned', 'review_requested']: c[k] = data.get(k) == '1'
+    for k in ['per_item', 'sequential', 'dynamic', 'public', 'pinned', 'review_requested', 'require_item_sequence', 'allow_proxy_approval', 'share_progress']: c[k] = data.get(k) == '1'
     for k in ['publish_on', 'due_on', 'expires_on']: c[k] = parse_date(str(data.get(k, '')))
     for k, lo, hi, val in [('reminder_days', 0, 90, 3), ('guest_days', 1, 365, 30)]:
         try: c[k] = max(lo, min(hi, int(data.get(k, val))))
