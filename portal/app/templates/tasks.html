@@ -1,105 +1,23 @@
-{% extends "base.html" %}
-{% import "_macros.html" as m with context %}
+{% extends 'base.html' %}
+{% import '_macros.html' as m with context %}
+{% from '_work_list.html' import work_list %}
 {% block title %}Meine Aufgaben{% endblock %}
-{% macro task_row(t, pool) %}
-{% set r = t.response %}{% set late = t.due_at and t.due_at < now %}
-<li class="list-group-item d-flex flex-wrap align-items-center gap-3 {{ 'bg-danger-subtle' if late }}">
-  <span class="pe-icon text-{{ {'task': 'primary', 'approval': 'info', 'request': 'warning', 'auto': 'success'}.get(t.kind, 'secondary') }}" title="{{ types[t.kind][0] }}"><i class="fa-solid {{ types[t.kind][1] }}"></i></span>
-  <div class="flex-grow-1" style="min-width: 14rem">
-    <a class="fw-semibold" href="/forms/{{ r.form_id }}/applications/{{ r.id }}#schritt">{{ t.name }}</a>
-    <div class="small text-secondary"><span class="font-monospace">{{ r.ref_no }}</span> · {{ r.form.title }}{% if r.name %} · {{ r.name }}{% endif %}</div>
-  </div>
-  <div class="small text-nowrap {{ 'text-danger fw-semibold' if late else 'text-secondary' }}">{% if t.due_at %}<i class="fa-regular fa-calendar me-1"></i>{{ 'überfällig seit ' if late else 'bis ' }}{{ t.due_at | local('%d.%m.%Y') }}{% else %}ohne Frist{% endif %}</div>
-  {% if pool %}<div class="small text-secondary text-nowrap"><i class="fa-solid fa-users me-1"></i>{{ t.group.name if t.group else '' }}</div>{% endif %}
-  <div class="d-flex gap-1">
-    {% if pool %}
-    <form method="post" action="/forms/{{ r.form_id }}/applications/{{ r.id }}/task/{{ t.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="claim"><input type="hidden" name="back" value="tasks">
-      <button class="btn btn-sm btn-outline-primary" type="submit"><i class="fa-solid fa-hand me-1"></i>Übernehmen</button></form>
-    {% endif %}
-    <a class="btn btn-sm btn-primary" href="/forms/{{ r.form_id }}/applications/{{ r.id }}#schritt">Bearbeiten<i class="fa-solid fa-arrow-right ms-1"></i></a>
-  </div>
-</li>
-{% endmacro %}
 {% block content %}
-{% call m.page_head('Meine Aufgaben', 'Ihre offenen Kenntnisnahmen, Freigaben, Arbeitsschritte und Buchungsaufgaben – nach Frist sortiert.') %}
-{% if apps_on %}<a class="btn btn-outline-secondary" href="/forms/applications"><i class="fa-solid fa-file-signature me-1"></i>Antragseingang</a>{% endif %}
-{% if circulations_on %}<a class="btn btn-outline-secondary" href="/umlaeufe?tab=open"><i class="fa-solid fa-envelope-open-text me-1"></i>Umläufe</a>{% endif %}
-{% if bookings %}<a class="btn btn-outline-secondary" href="/resources/bookings"><i class="fa-solid fa-calendar-check me-1"></i>Buchungen</a>{% endif %}
+{% call m.page_head('Meine Aufgaben', 'Was Sie jetzt bearbeiten können – gemeinsam nach Frist sortiert. Gruppenaufgaben und wartende Vorgänge stehen getrennt.') %}
+<div class="dropdown"><button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"><i class="fa-solid fa-ellipsis me-1" aria-hidden="true"></i>Weitere Bereiche</button><ul class="dropdown-menu dropdown-menu-end">
+{% if apps_on %}<li><a class="dropdown-item" href="/forms/applications"><i class="fa-solid fa-file-signature fa-fw me-2"></i>Antragseingang</a></li>{% endif %}
+{% if circulations_on %}<li><a class="dropdown-item" href="/umlaeufe?tab=open"><i class="fa-solid fa-envelope-open-text fa-fw me-2"></i>Umläufe</a></li>{% endif %}
+{% if resources_on %}<li><a class="dropdown-item" href="/resources/bookings"><i class="fa-solid fa-building fa-fw me-2"></i>Buchungen</a></li>{% endif %}
+</ul></div>
 {% endcall %}
-
-<div class="row g-3 mb-4">
-  {% if apps_on %}
-  <div class="col-6 col-xl-3">{{ m.stat('fa-user-check', mine | length, 'mir zugewiesen') }}</div>
-  <div class="col-6 col-xl-3">{{ m.stat('fa-users', pool | length, 'für meine Gruppen') }}</div>
-  {% endif %}
-  <div class="col-6 col-xl-3">{{ m.stat('fa-triangle-exclamation', (tasks | selectattr('due_at') | selectattr('due_at', 'lt', now) | list | length) + (bookings | selectattr('late') | list | length) + (circulation_tasks | selectattr('due') | selectattr('due', 'lt', now) | list | length), 'überfällig') }}</div>
-  {% if bookings or not apps_on %}<div class="col-6 col-xl-3">{{ m.stat('fa-building', bookings | length, 'zu Buchungen') }}</div>
-  {% else %}<div class="col-6 col-xl-3">{{ m.stat('fa-hourglass-half', waiting | length, 'warten auf Antragsteller:innen') }}</div>{% endif %}
-  {% if circulations_on %}<div class="col-6 col-xl-3">{{ m.stat('fa-envelope-open-text', circulation_tasks | length, 'zu Umläufen') }}</div>{% endif %}
-</div>
-
-{% if circulations_on %}
-<section class="card mb-4" id="umlaeufe" aria-labelledby="umlauf-heading"><div class="card-header" id="umlauf-heading"><i class="fa-solid fa-envelope-open-text me-2"></i>Umläufe – Kenntnisnahmen und Freigaben</div>
-{% if circulation_tasks %}<ul class="list-group list-group-flush">{% for t in circulation_tasks %}{% set late = t.due and t.due < now %}
-<li class="list-group-item d-flex flex-wrap align-items-center gap-3 {{ 'bg-danger-subtle' if late }}">
-  <span class="pe-icon text-{{ 'primary' if t.ready else 'secondary' }}"><i class="fa-solid {{ 'fa-user-check' if t.ready else 'fa-hourglass-half' }}"></i></span>
-  <div class="flex-grow-1" style="min-width: min(100%, 14rem)"><a class="fw-semibold" href="/umlaeufe/{{ t.row.id }}?recipient={{ t.recipient_id }}">{{ t.title }}</a>
-    <div class="small {{ 'text-primary fw-semibold' if t.ready else 'text-secondary' }}">{{ t.action if t.ready else 'Umlauf nach Ablehnung gestoppt' if t.stopped else 'Sie sind später an der Reihe – wartet auf vorherige Station' }}</div>
-    <div class="small text-secondary">{{ t.done }} / {{ t.required }} Nachweise{% if t.proxy %} · als Vertretung für {{ t.recipient_name }}{% else %} · persönlich bestätigen{% endif %}</div>
-  </div>
-  <div class="small {{ 'text-danger fw-semibold' if late else 'text-secondary' }}">{% if t.due %}{{ 'überfällig seit ' if late else 'bis ' }}{{ t.due | local('%d.%m.%Y') }}{% else %}ohne Frist{% endif %}</div>
-  <a class="btn btn-sm {{ 'btn-primary' if t.ready else 'btn-outline-secondary' }}" href="/umlaeufe/{{ t.row.id }}?recipient={{ t.recipient_id }}">{{ 'Bearbeiten' if t.ready else 'Ansehen' }}<i class="fa-solid fa-arrow-right ms-1"></i></a>
-</li>{% endfor %}</ul>{% else %}<div class="card-body text-secondary">Keine offenen Kenntnisnahmen oder Freigaben.</div>{% endif %}
-</section>
-{% endif %}
-
-{% if bookings %}
-<div class="card mb-4" id="buchungen"><div class="card-header"><i class="fa-solid fa-building me-2"></i>Ressourcenbuchung</div>
-  <ul class="list-group list-group-flush">{% for t in bookings %}{% set b = t.booking %}
-  <li class="list-group-item d-flex flex-wrap align-items-center gap-3 {{ 'bg-danger-subtle' if t.late }}">
-    <span class="pe-icon text-{{ t.color }}" title="{{ t.label }}"><i class="fa-solid {{ t.icon }}"></i></span>
-    <div class="flex-grow-1" style="min-width: 14rem">
-      <a class="fw-semibold" href="{{ t.href }}">{{ t.label }}: {{ b.resource.name }}</a>
-      <div class="small text-secondary"><span class="font-monospace">{{ b.ref }}</span> · {{ when(b) }} · {{ b.name }}{% if t.note %} · {{ t.note }}{% endif %}</div>
-    </div>
-    <div class="small text-nowrap {{ 'text-danger fw-semibold' if t.late else 'text-secondary' }}">{% if t.due %}<i class="fa-regular fa-calendar me-1"></i>{{ 'überfällig seit ' if t.late else 'bis ' }}{{ t.due | local('%d.%m.%Y') }}{% else %}ohne Frist{% endif %}</div>
-    <a class="btn btn-sm btn-primary" href="{{ t.href }}">Öffnen<i class="fa-solid fa-arrow-right ms-1"></i></a>
-  </li>{% endfor %}</ul>
-</div>
-{% endif %}
-
-{% if apps_on %}
-
-<div class="card mb-4"><div class="card-header"><i class="fa-solid fa-user-check me-2"></i>Mir zugewiesen</div>
-  {% if mine %}<ul class="list-group list-group-flush">{% for t in mine %}{{ task_row(t, false) }}{% endfor %}</ul>
-  {% else %}<div class="card-body text-center text-secondary py-4"><i class="fa-regular fa-face-smile fa-2x mb-2"></i><p class="mb-0">Keine offenen Aufgaben – gut gemacht.</p></div>{% endif %}
-</div>
-
-{% if deputy %}
-<div class="card mb-4 border-primary-subtle"><div class="card-header"><i class="fa-solid fa-people-arrows me-2"></i>Als Vertretung <span class="small text-secondary fw-normal">– Aufgaben von Personen, die Sie gerade vertreten</span></div>
-  <ul class="list-group list-group-flush">{% for t in deputy %}<li class="list-group-item small text-secondary pb-0 border-bottom-0"><i class="fa-solid fa-user me-1"></i>für {{ t.assignee.name if t.assignee else '' }}</li>{{ task_row(t, false) }}{% endfor %}</ul>
-</div>
-{% endif %}
-
-{% if pool %}
-<div class="card mb-4"><div class="card-header"><i class="fa-solid fa-users me-2"></i>Für meine Gruppen <span class="small text-secondary fw-normal">– übernehmen Sie eine Aufgabe, damit niemand doppelt arbeitet</span></div>
-  <ul class="list-group list-group-flush">{% for t in pool %}{{ task_row(t, true) }}{% endfor %}</ul>
-</div>
-{% endif %}
-
-{% endif %}
-
-{% if waiting %}
-<div class="card"><div class="card-header"><i class="fa-solid fa-hourglass-half me-2"></i>Warten auf Antragsteller:innen</div>
-  <ul class="list-group list-group-flush">
-    {% for q in waiting %}{% set r = q.response %}{% set late = q.due_at and q.due_at < now %}
-    <li class="list-group-item d-flex flex-wrap align-items-center gap-3">
-      <div class="flex-grow-1"><a href="/forms/{{ r.form_id }}/applications/{{ r.id }}#nachforderungen">{{ q.title }}</a>
-        <div class="small text-secondary"><span class="font-monospace">{{ r.ref_no }}</span> · {{ r.form.title }}{% if r.name %} · {{ r.name }}{% endif %} · angefordert {{ q.created_at | local('%d.%m.%Y') }}</div></div>
-      <div class="small {{ 'text-danger fw-semibold' if late else 'text-secondary' }}">{% if q.due_at %}{{ 'Frist abgelaufen ' if late else 'bis ' }}{{ q.due_at | local('%d.%m.%Y') }}{% endif %}{% if q.reminded_at %} · erinnert{% endif %}</div>
-    </li>
-    {% endfor %}
-  </ul>
-</div>
-{% endif %}
+<div class="d-flex flex-wrap gap-4 mb-3 small"><span><strong>{{work.count}}</strong> jetzt bearbeitbar</span><span class="{{'text-danger' if work.overdue}}"><strong>{{work.overdue}}</strong> überfällig</span><span><strong>{{work.group_count}}</strong> für meine Gruppen</span><span><strong>{{work.waiting_count}}</strong> warten auf andere</span></div>
+<form method="get" class="row g-2 mb-4 align-items-end" aria-label="Aufgaben filtern">
+<div class="col-12 col-sm-5"><label class="form-label small" for="task-scope">Zuständigkeit</label><select class="form-select form-select-sm" id="task-scope" name="scope">{% for key,label in work.scopes.items() %}<option value="{{key}}" {{'selected' if key==work.scope}}>{{label}}</option>{% endfor %}</select></div>
+<div class="col-12 col-sm-5"><label class="form-label small" for="task-source">Bereich</label><select class="form-select form-select-sm" id="task-source" name="source">{% for key,label in work.sources.items() %}<option value="{{key}}" {{'selected' if key==work.source}}>{{label}}</option>{% endfor %}</select></div>
+<div class="col-12 col-sm-2"><button class="btn btn-sm btn-outline-primary w-100"><i class="fa-solid fa-filter me-1"></i>Filtern</button></div>
+</form>
+<section class="card mb-3" aria-labelledby="ready-title"><div class="card-header"><h2 class="h6 mb-0" id="ready-title"><i class="fa-solid fa-list-check me-2"></i>Jetzt bearbeiten</h2></div>
+{% if work.ready %}{{work_list(work.ready, work.now, csrf)}}{% else %}<div class="card-body text-secondary">{{'Keine Aufgaben für diesen Filter.' if work.scope!='all' or work.source!='all' else 'Keine Aufgaben, die Sie jetzt bearbeiten müssen.'}}</div>{% endif %}</section>
+{% if work.pool %}<section class="card mb-3" aria-labelledby="pool-title"><div class="card-header"><h2 class="h6 mb-0" id="pool-title"><i class="fa-solid fa-users me-2"></i>Für meine Gruppen · {{work.pool|length}}</h2></div><div class="card-body small text-secondary py-2">Übernehmen Sie eine Aufgabe, damit niemand doppelt arbeitet.</div>{{work_list(work.pool, work.now, csrf)}}</section>{% endif %}
+{% if work.waiting %}<details class="card mb-3" id="waiting"><summary class="card-header"><i class="fa-solid fa-hourglass-half me-2"></i>Wartet auf andere · {{work.waiting|length}}</summary><div class="card-body small text-secondary py-2">Spätere Stationen, gestoppte Umläufe und offene Rückfragen zählen nicht zu Ihrem aktuellen Handlungsbedarf.</div>{{work_list(work.waiting, work.now, csrf, true)}}</details>{% endif %}
 {% endblock %}

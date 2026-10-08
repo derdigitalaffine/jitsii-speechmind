@@ -41,23 +41,20 @@ def prefs(user: User) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def _tasks(db, user):
-    from . import workflow, circulations
+def _tasks(db, user, work=None):
+    from . import task_overview
     from .main import enabled_modules
-    mods = enabled_modules()
-    tasks = workflow.my_tasks(db, user) if "applications" in mods else []
-    now = utcnow()
-    waiting = workflow.waiting_requests(db, user) if "applications" in mods else []
-    items = [dict(title=t.name, href=f"/forms/{t.response.form_id}/applications/{t.response.id}#schritt",
-                  sub=t.response.ref_no, due=t.due_at) for t in tasks]
-    if "circulations" in mods:
-        items += [dict(title=t['title'], href=f"/umlaeufe/{t['row'].id}?recipient={t['recipient_id']}",
-                       sub=(t['action'] if t['ready'] else 'Umlauf gestoppt' if t['stopped'] else 'Später an der Reihe') +
-                           (f" · Vertretung für {t['recipient_name']}" if t['proxy'] else ''), due=t['due'])
-                  for t in circulations.pending_tasks(db, user)]
-    items.sort(key=lambda t: (t['due'] or datetime.max, t['href']))
-    return {"items": items[:6], "count": len(items), "overdue": sum(bool(t['due'] and t['due'] < now) for t in items),
-            "waiting": len(waiting), "now": now}
+    work = work if work is not None else task_overview.collect(db, user, enabled_modules())
+    return {"items": [dict(title=t['title'], href=t['href'], sub=t['detail'], due=t['due']) for t in work['ready'][:6]],
+            "count": work['count'], "overdue": work['overdue'], "waiting": work['waiting_count'], "now": work['now'], "work": work}
+
+
+def _circulations(db, user):
+    from . import circulations
+    items = circulations.pending_tasks(db, user)
+    ready = [item for item in items if item['ready']]
+    return dict(items=items[:6], count=len(ready), waiting=len(items)-len(ready),
+                overdue=sum(bool(item['due'] and item['due'] < utcnow()) for item in ready))
 
 
 def _applications(db, user):
@@ -215,7 +212,7 @@ def tiles(db, user: User, modules: set, ctx=None, cache: dict | None = None) -> 
         available.append("seminars")
     if "circulations" in modules:
         available.append("circulations")
-    if "circulations" in modules or ("applications" in modules and _case_worker(db, user)):
+    if modules & {"circulations", "resources"} or ("applications" in modules and _case_worker(db, user)):
         available.append("tasks")
     if "applications" in modules and _case_worker(db, user):
         available.append("applications")
@@ -251,7 +248,7 @@ def tiles(db, user: User, modules: set, ctx=None, cache: dict | None = None) -> 
     order = [k for k in p.get("order", []) if k in available] + [k for k in available if k not in p.get("order", [])]
     hidden = set(p.get("hidden", []))
     from . import circulations, seminars
-    loaders = {"seminars": seminars.overview, "circulations": circulations.overview,"tasks": _tasks, "applications": _applications, "meetings": _meetings, "polls": _polls,
+    loaders = {"seminars": seminars.overview, "circulations": _circulations,"tasks": _tasks, "applications": _applications, "meetings": _meetings, "polls": _polls,
                "bookings": _bookings, "inbox": _inbox, "responses": _responses, "dms": _dms,
                "resources": _resources, "krank": _krank, "votes": _votes, "laws": _laws, "shortlinks": _shortlinks,
                "favorites": lambda d, u: _favorites(d, u, ctx), "absence": _absence}
@@ -271,6 +268,8 @@ def overview(db, user: User, modules: set) -> tuple[dict, dict]:
     """Oberer Bereich der Übersicht: was heute ansteht (Termine, Buchungen, Übergaben) und was erledigt werden muss
     (überfällige Aufgaben, neue Anträge, Anfragen, Abstimmungen …). Gibt (Daten, Zwischenspeicher für tiles()) zurück."""
     cache: dict = {}
+    from . import task_overview
+    work = task_overview.collect(db, user, modules)
     actions: list[dict] = []
     agenda: list[dict] = []
 
@@ -280,10 +279,8 @@ def overview(db, user: User, modules: set) -> tuple[dict, dict]:
 
     now = utcnow()
     today = to_local(now).date()
-    if "circulations" in modules or ("applications" in modules and _case_worker(db, user)):
-        t = cache["tasks"] = _tasks(db, user)
-        act(t["overdue"], "Aufgaben überfällig", "/tasks", "fa-triangle-exclamation", "danger")
-        act(t["count"] - t["overdue"], "offene Aufgaben", "/tasks", "fa-list-check")
+    if modules & {"circulations", "resources"} or ("applications" in modules and _case_worker(db, user)):
+        t = cache["tasks"] = _tasks(db, user, work)
     if "applications" in modules and _case_worker(db, user):
         a = cache["applications"] = _applications(db, user)
         act(a["overdue"], "Anträge mit Frist über", "/forms/applications?status=overdue", "fa-hourglass-end", "danger")
@@ -338,4 +335,4 @@ def overview(db, user: User, modules: set) -> tuple[dict, dict]:
     order = {"danger": 0, "warning": 1, "primary": 2, "secondary": 3}
     actions.sort(key=lambda x: order.get(x["level"], 9))
     agenda.sort(key=lambda x: x["at"])
-    return {"actions": actions, "agenda": agenda, "now": now, "today": today.isoformat()}, cache
+    return {"actions": actions, "work": work, "agenda": agenda, "now": now, "today": today.isoformat()}, cache

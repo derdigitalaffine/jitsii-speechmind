@@ -49,19 +49,12 @@ def tasks_page(request: Request, user: User = Depends(current_user), db: Session
     mods = enabled_modules()
     if not mods & {"applications", "resources", "circulations"}:
         raise HTTPException(404, "Kein Aufgabenmodul ist eingeschaltet.")
-    tasks = wf.my_tasks(db, user) if "applications" in mods else []
-    now = utcnow()
-    from . import resources as rs
-    bookings = rs.booking_tasks(db, user) if "resources" in mods else []
-    from . import circulations as cl
-    circulation_tasks = cl.pending_tasks(db, user) if "circulations" in mods else []
-    return render(request, "tasks.html", user, tasks=tasks, now=now,
-                  waiting=wf.waiting_requests(db, user) if "applications" in mods else [],
-                  types=wf.STEP_TYPES, statuses=apps.STATUSES, apps_on="applications" in mods,
-                  mine=[t for t in tasks if t.assignee_id == user.id],
-                  deputy=[t for t in tasks if t.assignee_id and t.assignee_id != user.id],
-                  pool=[t for t in tasks if not t.assignee_id], bookings=bookings,
-                  when=rs.when_text, circulation_tasks=circulation_tasks, circulations_on="circulations" in mods)
+    from . import task_overview
+    view = task_overview.collect(db, user, mods, now=utcnow())
+    view = task_overview.filtered(view, request.query_params.get('scope', 'all'), request.query_params.get('source', 'all'))
+    return render(request, "tasks.html", user, work=view, apps_on="applications" in mods,
+                  circulations_on="circulations" in mods, resources_on="resources" in mods)
+
 
 
 # --- Arbeitsschritte im Vorgang -----------------------------------------------------------

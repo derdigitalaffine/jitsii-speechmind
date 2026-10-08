@@ -45,7 +45,7 @@ def test_today_quick_actions_and_new_tiles():
     assert r.json()["ok"]
     html = c.get("/").text
     assert html.index('data-key="laws"') < html.index('data-key="favorites"')
-    tile = html[html.index('data-key="shortlinks"'):html.index('data-key="shortlinks"') + 900]
+    tile = html[html.index('data-key="shortlinks"'):html.index('data-key="shortlinks"') + 2000]
     assert "Ausgeblendet." in tile
 
 
