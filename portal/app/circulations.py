@@ -396,7 +396,8 @@ def tick():
     return sent
 
 
-def overview(db, user):
+def pending_tasks(db, user):
+    """All open acknowledgements/approvals, including later sequential stations."""
     items = []
     for row in db.scalars(select(Circulation).where(Circulation.current_version > 0, Circulation.archived.is_(False))):
         ver = version(db, row)
@@ -404,8 +405,13 @@ def overview(db, user):
             if rec and not rec.decision and active(row, ver) and not expired(ver) and content(ver)['mode'] != 'info':
                 c = content(ver)
                 done = len({r.item_key for r in receipts(db, rec)} & set(requirement_keys(c)))
-                items.append(dict(row=row, title=c['title'], due=at(c['due_on']), ready=ready(db, ver, rec), action=action_label(c), done=done, required=len(requirement_keys(c)), proxy=rec.user_id != user.id, recipient_id=rec.id))
+                items.append(dict(row=row, title=c['title'], due=at(c['due_on']), ready=ready(db, ver, rec), action=action_label(c), done=done, required=len(requirement_keys(c)), proxy=rec.user_id != user.id, recipient_id=rec.id, recipient_name=rec.name, stopped=any(p.decision == 'rejected' for p in recipients(db, ver))))
     items.sort(key=lambda x: (x['due'] or datetime.max, x['row'].id))
+    return items
+
+
+def overview(db, user):
+    items = pending_tasks(db, user)
     return dict(items=items[:6], count=len(items), overdue=sum(bool(i['due'] and i['due'] < utcnow()) for i in items))
 
 

@@ -21,8 +21,9 @@
 </li>
 {% endmacro %}
 {% block content %}
-{% call m.page_head('Meine Aufgaben', 'Arbeitsschritte aus Online-Anträgen und offene Arbeit an Buchungen Ihrer Ressourcen – nach Frist sortiert.') %}
+{% call m.page_head('Meine Aufgaben', 'Ihre offenen Kenntnisnahmen, Freigaben, Arbeitsschritte und Buchungsaufgaben – nach Frist sortiert.') %}
 {% if apps_on %}<a class="btn btn-outline-secondary" href="/forms/applications"><i class="fa-solid fa-file-signature me-1"></i>Antragseingang</a>{% endif %}
+{% if circulations_on %}<a class="btn btn-outline-secondary" href="/umlaeufe?tab=open"><i class="fa-solid fa-envelope-open-text me-1"></i>Umläufe</a>{% endif %}
 {% if bookings %}<a class="btn btn-outline-secondary" href="/resources/bookings"><i class="fa-solid fa-calendar-check me-1"></i>Buchungen</a>{% endif %}
 {% endcall %}
 
@@ -31,10 +32,26 @@
   <div class="col-6 col-xl-3">{{ m.stat('fa-user-check', mine | length, 'mir zugewiesen') }}</div>
   <div class="col-6 col-xl-3">{{ m.stat('fa-users', pool | length, 'für meine Gruppen') }}</div>
   {% endif %}
-  <div class="col-6 col-xl-3">{{ m.stat('fa-triangle-exclamation', (tasks | selectattr('due_at') | selectattr('due_at', 'lt', now) | list | length) + (bookings | selectattr('late') | list | length), 'überfällig') }}</div>
+  <div class="col-6 col-xl-3">{{ m.stat('fa-triangle-exclamation', (tasks | selectattr('due_at') | selectattr('due_at', 'lt', now) | list | length) + (bookings | selectattr('late') | list | length) + (circulation_tasks | selectattr('due') | selectattr('due', 'lt', now) | list | length), 'überfällig') }}</div>
   {% if bookings or not apps_on %}<div class="col-6 col-xl-3">{{ m.stat('fa-building', bookings | length, 'zu Buchungen') }}</div>
   {% else %}<div class="col-6 col-xl-3">{{ m.stat('fa-hourglass-half', waiting | length, 'warten auf Antragsteller:innen') }}</div>{% endif %}
+  {% if circulations_on %}<div class="col-6 col-xl-3">{{ m.stat('fa-envelope-open-text', circulation_tasks | length, 'zu Umläufen') }}</div>{% endif %}
 </div>
+
+{% if circulations_on %}
+<section class="card mb-4" id="umlaeufe" aria-labelledby="umlauf-heading"><div class="card-header" id="umlauf-heading"><i class="fa-solid fa-envelope-open-text me-2"></i>Umläufe – Kenntnisnahmen und Freigaben</div>
+{% if circulation_tasks %}<ul class="list-group list-group-flush">{% for t in circulation_tasks %}{% set late = t.due and t.due < now %}
+<li class="list-group-item d-flex flex-wrap align-items-center gap-3 {{ 'bg-danger-subtle' if late }}">
+  <span class="pe-icon text-{{ 'primary' if t.ready else 'secondary' }}"><i class="fa-solid {{ 'fa-user-check' if t.ready else 'fa-hourglass-half' }}"></i></span>
+  <div class="flex-grow-1" style="min-width: min(100%, 14rem)"><a class="fw-semibold" href="/umlaeufe/{{ t.row.id }}?recipient={{ t.recipient_id }}">{{ t.title }}</a>
+    <div class="small {{ 'text-primary fw-semibold' if t.ready else 'text-secondary' }}">{{ t.action if t.ready else 'Umlauf nach Ablehnung gestoppt' if t.stopped else 'Sie sind später an der Reihe – wartet auf vorherige Station' }}</div>
+    <div class="small text-secondary">{{ t.done }} / {{ t.required }} Nachweise{% if t.proxy %} · als Vertretung für {{ t.recipient_name }}{% else %} · persönlich bestätigen{% endif %}</div>
+  </div>
+  <div class="small {{ 'text-danger fw-semibold' if late else 'text-secondary' }}">{% if t.due %}{{ 'überfällig seit ' if late else 'bis ' }}{{ t.due | local('%d.%m.%Y') }}{% else %}ohne Frist{% endif %}</div>
+  <a class="btn btn-sm {{ 'btn-primary' if t.ready else 'btn-outline-secondary' }}" href="/umlaeufe/{{ t.row.id }}?recipient={{ t.recipient_id }}">{{ 'Bearbeiten' if t.ready else 'Ansehen' }}<i class="fa-solid fa-arrow-right ms-1"></i></a>
+</li>{% endfor %}</ul>{% else %}<div class="card-body text-secondary">Keine offenen Kenntnisnahmen oder Freigaben.</div>{% endif %}
+</section>
+{% endif %}
 
 {% if bookings %}
 <div class="card mb-4" id="buchungen"><div class="card-header"><i class="fa-solid fa-building me-2"></i>Ressourcenbuchung</div>
