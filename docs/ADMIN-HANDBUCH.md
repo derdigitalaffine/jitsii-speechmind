@@ -1142,3 +1142,8 @@ WMS/WFS-Importe verwenden die in GetCapabilities angegebene Operationsadresse un
 Öffentliche Flurstücksauskunft verwendet ausschließlich den öffentlichen ALKIS-WFS des Geoportals. Suche erfolgt als WFS-POST, Kartenklicks mit räumlicher Begrenzung. Eigentümerattribute werden verworfen. Interne Layer werden auch bei gesetztem Formular-Flag nicht anonym ausgeliefert. Eigene Nutzerdienste bleiben auf öffentliche HTTP(S)-Adressen beschränkt und nutzen den bestehenden Schutz vor internen Netzwerkzugriffen.
 
 Quellen, Lizenzhinweise, Umfang und technische Grenzen: [GIS-Karten](GIS-KARTEN.md).
+
+
+## Seminare und Lehrgänge
+
+Das Modul unter **Administration → Module** einschalten und die Rechte **Seminare** beziehungsweise **Seminare verwalten** gezielt vergeben. SMTP, Portaladresse und Worker werden gemeinsam mit den anderen Modulen verwendet. Dozentenrechte und die Sichtbarkeit von Kontaktdaten sind pro Veranstaltung einstellbar. [Einrichtung, Rechte, Grenzen und Betrieb](SEMINARE-UND-LEHRGAENGE.md).

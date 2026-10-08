@@ -64,3 +64,8 @@ Der erweiterte Modus ergänzt verbindliche Dokumentreihenfolge bei Einzelbestät
 In **Entwürfe** können berechtigte Bearbeitende einzelne oder mehrere Entwürfe auswählen und löschen. „Alle angezeigten Entwürfe“ bezieht sich auf die aktuell gefilterte Liste. Noch nie veröffentlichte Umläufe werden samt Dokumenten in den bestehenden Papierkorb verschoben und können dort 30 Tage lang wiederhergestellt werden. Der Umlauf-Papierkorb zeigt nur Entwürfe, die Sie bearbeiten dürfen.
 
 Im Editor kann ein einzelner unveröffentlichter Entwurf ebenfalls gelöscht werden. Bei bereits veröffentlichten Umläufen steht stattdessen **Entwurfsänderungen verwerfen** zur Verfügung: Der Bearbeitungsstand wird auf die veröffentlichte Fassung zurückgesetzt. Veröffentlichte Dokumente und Rückmeldungen bleiben erhalten. Bei zwischenzeitlichen Änderungen durch andere Bearbeitende muss die Seite zuerst neu geladen werden.
+
+
+## Umlaufaufgaben im Arbeitsplatz
+
+**Meine Aufgaben** führt sämtliche offenen eigenen Kenntnisnahmen und Freigaben neben Antrags- und Buchungsaufgaben auf. Die Liste zeigt die erforderliche Aktion, Frist, Fortschritt pro Dokument und einen direkten Link zur richtigen Empfängerstation. Wartende Stationen und nach einer Ablehnung gestoppte Umläufe sind erkennbar. Zulässige Freigaben in Vertretung nennen die vertretene Person. Informationen ohne Rückmeldepflicht sowie erledigte, abgelaufene oder archivierte Fassungen erscheinen nicht als offene Aufgaben. Der Aufgabenindikator im Menü und die Aufgaben-Kachel auf der Startseite berücksichtigen ebenfalls Umläufe; der Menüindikator wird bis zu 30 Sekunden zwischengespeichert.

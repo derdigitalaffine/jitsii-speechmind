@@ -472,3 +472,8 @@ Verwendete Komponenten stehen unter eigenen freien Lizenzen (u. a. Jitsi Meet Ap
 - Öffentliche ALKIS-Flurstückssuche und Kartenklick-Auskunft ohne Eigentümerdaten, Mehrfachauswahl und Formularübernahme. Amtlicher RLP-Katalog für DTK5, LiKa, Verwaltungsgrenzen und kommunale Bebauungspläne. WMS-Operationsadressen, echte WMTS-Matrixkennungen, Zeitdimensionen und GML/GeoJSON-Verarbeitung berücksichtigen die Dienstmetadaten.
 
 Einrichtung und Grenzen: [GIS/Karten](docs/GIS-KARTEN.md), [Umläufe und Sammelmappen](docs/UMLAEUFE-UND-SAMMELMAPPEN.md), [Benutzerhandbuch](docs/BENUTZERHANDBUCH.md).
+
+
+## Seminare und Lehrgänge
+
+Das abschaltbare Modul integriert Reihenplanung, interne und externe Anmeldung, Wartelisten, Formulare, zeitgesteuerte Unterlagen, Anwesenheit und PDF-Teilnahmebescheinigungen. Bestehende Portalrechte und Benachrichtigungen bleiben maßgeblich. [Einrichtung und Bedienung](docs/SEMINARE-UND-LEHRGAENGE.md).
