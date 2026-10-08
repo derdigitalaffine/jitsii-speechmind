@@ -61,7 +61,8 @@ def may_plan(db,user,row):
 
 
 def may_teach(db,user,row):
-    return bool(may_plan(db,user,row) or (user and user.id in json.loads(row.lecturers_json)))
+    from . import seminar_series as series
+    return bool(user and (series.whole_staff(db,user,row) or series.staff_terms(db,user,row)))
 
 
 def role(db,user,row):
@@ -70,7 +71,7 @@ def role(db,user,row):
 
 def sessions(db,row,active=True):
     q=select(SeminarSession).where(SeminarSession.seminar_id==row.id)
-    if active:q=q.where(SeminarSession.cancelled.is_(False))
+    if active:q=q.where(SeminarSession.cancelled.is_(False),SeminarSession.published.is_(True))
     return list(db.scalars(q.order_by(SeminarSession.starts_at,SeminarSession.id)))
 
 
@@ -155,6 +156,9 @@ def calendar_text(db,row,rec):
 
 
 def mail(db,row,rec,subject,message,key=None,calendar_file=False):
+    from . import seminar_series as series
+    kind='materials' if key and key.startswith('material:') else 'reminders' if key and key.startswith('reminder:') else 'certificates' if 'bescheinigung' in subject.lower() else 'changes' if 'geändert' in subject.lower() or 'abgesagt' in subject.lower() else 'registration'
+    if not series.enabled(row,kind):return False
     if key and db.scalar(select(SeminarDelivery.id).where(SeminarDelivery.enrollment_id==rec.id,SeminarDelivery.key==key)):return False
     dates='\n'.join(to_local(t.starts_at).strftime('%d.%m.%Y %H:%M')+' – '+to_local(t.ends_at).strftime('%H:%M')+' · '+t.location+(' · abgesagt' if t.cancelled else '') for t in sessions(db,row,False) if not rec.scope_id or t.id==rec.scope_id)
     rendered_subject,text=mailtpl.render(db,'seminar',{'name':rec.name,'titel':row.title,'aktion':subject,'nachricht':message,'status':STATUSES[rec.status],'termine':dates,'link':personal_link(db,rec)})
@@ -165,16 +169,24 @@ def mail(db,row,rec,subject,message,key=None,calendar_file=False):
 
 
 def registration_open(db,row,rec):
+    from . import seminar_series as series
     now=utcnow();terms=enrollment_sessions(db,row,rec)
-    return bool(row.status=='published' and terms and all(s.starts_at>now for s in terms) and (not row.registration_until or row.registration_until>now))
+    if row.status!='published' or not terms:return False
+    for term in terms:
+        deadline=series.setting(row,term,'registration_until')
+        if isinstance(deadline,str):deadline=datetime.fromisoformat(deadline) if deadline else None
+        if term.starts_at<=now or (deadline and deadline<=now):return False
+    return True
 
 
 def seats_available(db,row,rec):
-    if not row.capacity:return True
+    from . import seminar_series as series
     for term in enrollment_sessions(db,row,rec):
+        capacity=series.setting(row,term,'capacity')
+        if not capacity:continue
         n=len(list(db.scalars(select(SeminarEnrollment.id).where(SeminarEnrollment.seminar_id==row.id,
             SeminarEnrollment.scope_id.in_([0,term.id]),SeminarEnrollment.status.in_(BOOKED),SeminarEnrollment.id!=rec.id))))
-        if n>=row.capacity:return False
+        if n>=capacity:return False
     return True
 
 
@@ -192,13 +204,19 @@ def request_place(db,row,rec):
     if duplicate(db,row,rec):raise HTTPException(409,'Sie sind für diesen Termin bereits angemeldet oder auf der Warteliste.')
     rec.requested_at=utcnow()
     from .seminar_learning import required_forms
+    if row.form_once and row.form_id and not rec.response_id:
+        from . import seminar_series as series
+        previous=next((r for r in series.history(db,row,rec.email) if r.response_id),None)
+        if previous:rec.response_id=previous.response_id
     if (row.form_id and not rec.response_id) or required_forms(db,row,rec):rec.status='form';return
-    if row.manual_admission:rec.status='pending'
+    from . import seminar_series as series
+    if any(series.setting(row,t,'manual_admission') for t in enrollment_sessions(db,row,rec)):rec.status='pending'
     elif seats_available(db,row,rec):rec.status='confirmed'
     elif row.waitlist:rec.status='waitlist'
     else:raise HTTPException(409,'Alle Plätze sind belegt.')
     mail(db,row,rec,'Anmeldung eingegangen',STATUSES[rec.status],calendar_file=rec.status=='confirmed')
     event(db,row,'registration',detail=f'Teilnahme {rec.id}: {rec.status}')
+    series.registration_staff(db,row,rec)
 
 
 def promote(db,row):
@@ -210,9 +228,10 @@ def promote(db,row):
 
 
 def cancel(db,row,rec,staff=False,reason=''):
+    from . import seminar_series as series
     if not staff and rec.status in BOOKED:
         terms=enrollment_sessions(db,row,rec)
-        if not terms or utcnow()>=min(s.starts_at for s in terms)-timedelta(hours=row.cancel_hours):raise HTTPException(409,'Die Abmeldefrist ist abgelaufen. Bitte wenden Sie sich an die Planung.')
+        if not terms or any(utcnow()>=s.starts_at-timedelta(hours=series.setting(row,s,'cancel_hours')) for s in terms):raise HTTPException(409,'Die Abmeldefrist ist abgelaufen. Bitte wenden Sie sich an die Planung.')
     rec.status='cancelled';rec.reason=reason[:500];rec.offer_until=None
     event(db,row,'cancellation',detail=f'Teilnahme {rec.id}: {reason[:500]}')
     mail(db,row,rec,'Abmeldung bestätigt','Ihre Anmeldung wurde abgemeldet.');db.flush();promote(db,row)
@@ -242,6 +261,8 @@ def tick():
                             # A late registration receives the nearest reminder, rather than both at once.
                             if any(0<d<days and term.starts_at<=utcnow()+timedelta(days=d) for d in [int(x) for x in row.reminder_days.split(',') if x]):continue
                             if mail(db,row,rec,'Erinnerung',to_local(term.starts_at).strftime('Ihr Termin beginnt am %d.%m.%Y um %H:%M.'),f'reminder:{term.id}:{term.revision}:{days}',True):count+=1
+            from . import seminar_series
+            seminar_series.tick(db,row)
         db.commit()
     return count
 

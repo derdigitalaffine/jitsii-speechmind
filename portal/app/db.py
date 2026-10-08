@@ -135,6 +135,13 @@ PERMISSIONS = {
 
 class Seminar(Base):
     __tablename__ = "seminars"
+    subscriptions: Mapped[bool] = mapped_column(Boolean, default=True)
+    digest_mode: Mapped[str] = mapped_column(String(16), default='daily')
+    notifications_json: Mapped[str] = mapped_column(Text, default='{}')
+    certificate_scope: Mapped[str] = mapped_column(String(16), default='enrollment')
+    certificate_auto: Mapped[bool] = mapped_column(Boolean, default=False)
+    certificate_options_json: Mapped[str] = mapped_column(Text, default='{}')
+    form_once: Mapped[bool] = mapped_column(Boolean, default=False)
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     title: Mapped[str] = mapped_column(String(255), default="Neues Seminar")
@@ -168,6 +175,15 @@ class Seminar(Base):
 
 class SeminarSession(Base):
     __tablename__ = "seminar_sessions"
+    published: Mapped[bool] = mapped_column(Boolean, default=True)
+    lecturers_json: Mapped[str] = mapped_column(Text, default='')
+    guests_json: Mapped[str] = mapped_column(Text, default='[]')
+    lead_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    lecturer_description: Mapped[str] = mapped_column(Text, default='')
+    show_contact: Mapped[bool] = mapped_column(Boolean, default=False)
+    participants_visible: Mapped[bool] = mapped_column(Boolean, default=False)
+    overrides_json: Mapped[str] = mapped_column(Text, default='{}')
+    published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     id: Mapped[int] = mapped_column(primary_key=True)
     seminar_id: Mapped[int] = mapped_column(ForeignKey("seminars.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(255), default="")
@@ -218,6 +234,7 @@ class SeminarAttendance(Base):
 
 class SeminarMaterial(Base):
     __tablename__ = "seminar_materials"
+    scope_id: Mapped[int] = mapped_column(Integer, default=0)
     id: Mapped[int] = mapped_column(primary_key=True)
     seminar_id: Mapped[int] = mapped_column(ForeignKey("seminars.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(255))
@@ -230,6 +247,8 @@ class SeminarMaterial(Base):
 
 class SeminarActivity(Base):
     __tablename__ = "seminar_activities"
+    scope_id: Mapped[int] = mapped_column(Integer, default=0)
+    once_per_series: Mapped[bool] = mapped_column(Boolean, default=False)
     id: Mapped[int] = mapped_column(primary_key=True)
     seminar_id: Mapped[int] = mapped_column(ForeignKey("seminars.id", ondelete="CASCADE"), index=True)
     kind: Mapped[str] = mapped_column(String(16))
@@ -243,6 +262,7 @@ class SeminarActivity(Base):
 
 class SeminarCertificate(Base):
     __tablename__ = "seminar_certificates"
+    scope_id: Mapped[int] = mapped_column(Integer, default=0)
     id: Mapped[int] = mapped_column(primary_key=True)
     enrollment_id: Mapped[int] = mapped_column(ForeignKey("seminar_enrollments.id", ondelete="CASCADE"), index=True)
     snapshot_json: Mapped[str] = mapped_column(Text)
@@ -268,6 +288,39 @@ class SeminarDelivery(Base):
     enrollment_id: Mapped[int] = mapped_column(ForeignKey("seminar_enrollments.id", ondelete="CASCADE"), index=True)
     key: Mapped[str] = mapped_column(String(120))
     queued_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SeminarSubscription(Base):
+    __tablename__ = "seminar_subscriptions"
+    __table_args__ = (UniqueConstraint("seminar_id", "email"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    seminar_id: Mapped[int] = mapped_column(ForeignKey("seminars.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    name: Mapped[str] = mapped_column(String(255))
+    email: Mapped[str] = mapped_column(String(255))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    token_enc: Mapped[str] = mapped_column(Text)
+    active: Mapped[bool] = mapped_column(Boolean, default=False)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SeminarNotice(Base):
+    __tablename__ = "seminar_notices"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    seminar_id: Mapped[int] = mapped_column(ForeignKey("seminars.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(40))
+    message: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SeminarNoticeDelivery(Base):
+    __tablename__ = "seminar_notice_deliveries"
+    __table_args__ = (UniqueConstraint("subscription_id", "notice_id"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subscription_id: Mapped[int] = mapped_column(ForeignKey("seminar_subscriptions.id", ondelete="CASCADE"))
+    notice_id: Mapped[int] = mapped_column(ForeignKey("seminar_notices.id", ondelete="CASCADE"))
+
 
 class Circulation(Base):
     """Editable draft; published versions and their acknowledgements remain separate."""
@@ -2731,6 +2784,12 @@ DEFAULT_SETTINGS = {
 
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)
 _NEW_COLUMNS = {
+    'seminars': {'subscriptions': 'BOOLEAN NOT NULL DEFAULT 1', 'digest_mode': "VARCHAR(16) NOT NULL DEFAULT 'daily'", 'notifications_json': "TEXT NOT NULL DEFAULT '{}'", 'certificate_scope': "VARCHAR(16) NOT NULL DEFAULT 'enrollment'", 'certificate_auto': 'BOOLEAN NOT NULL DEFAULT 0', 'certificate_options_json': "TEXT NOT NULL DEFAULT '{}'", 'form_once': 'BOOLEAN NOT NULL DEFAULT 0'},
+    'seminar_sessions': {'published': 'BOOLEAN NOT NULL DEFAULT 1', 'lecturers_json': "TEXT NOT NULL DEFAULT ''", 'guests_json': "TEXT NOT NULL DEFAULT '[]'", 'lead_id': 'INTEGER', 'lecturer_description': "TEXT NOT NULL DEFAULT ''", 'show_contact': 'BOOLEAN NOT NULL DEFAULT 0', 'participants_visible': 'BOOLEAN NOT NULL DEFAULT 0', 'overrides_json': "TEXT NOT NULL DEFAULT '{}'", 'published_at': 'DATETIME'},
+    'seminar_materials': {'scope_id': 'INTEGER NOT NULL DEFAULT 0'},
+    'seminar_activities': {'scope_id': 'INTEGER NOT NULL DEFAULT 0', 'once_per_series': 'BOOLEAN NOT NULL DEFAULT 0'},
+    'seminar_certificates': {'scope_id': 'INTEGER NOT NULL DEFAULT 0'},
+
     "user_maps": {"share_json": "TEXT NOT NULL DEFAULT '{}'"},
     "map_layers": {"service_json": "TEXT NOT NULL DEFAULT '{}'"},
     "application_requests": {"prefill_json": "TEXT NOT NULL DEFAULT '{}'"},
