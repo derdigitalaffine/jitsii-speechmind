@@ -101,6 +101,8 @@ class User(Base):
 
 # Bereiche, die einzeln pro Benutzer freigeschaltet werden
 PERMISSIONS = {
+    "seminars": ("Seminare planen", "fa-chalkboard-user", "Seminare und Lehrgänge mit Terminen, Einladungen und Unterlagen planen"),
+    "seminars_manage": ("Seminare verwalten", "fa-user-gear", "Alle Seminare und Teilnahmen verwalten"),
     "circulations_create": ("Umläufe erstellen", "fa-folder-open", "Aushänge und Sammelmappen als Entwurf erstellen"),
     "circulations_publish": ("Umläufe veröffentlichen", "fa-bullhorn", "Eigene Umläufe veröffentlichen und redaktionell freigegebene Entwürfe übernehmen"),
     "circulations_manage": ("Umläufe verwalten", "fa-list-check", "Fremde Umläufe, Nachweise, Ausnahmen und Verteiler verwalten"),
@@ -129,6 +131,143 @@ PERMISSIONS = {
 }
 
 
+
+
+class Seminar(Base):
+    __tablename__ = "seminars"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    title: Mapped[str] = mapped_column(String(255), default="Neues Seminar")
+    description: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(20), default="draft")
+    channels: Mapped[str] = mapped_column(String(40), default="internal")
+    booking_mode: Mapped[str] = mapped_column(String(20), default="individual")
+    capacity: Mapped[int] = mapped_column(Integer, default=0)
+    manual_admission: Mapped[bool] = mapped_column(Boolean, default=False)
+    waitlist: Mapped[bool] = mapped_column(Boolean, default=True)
+    offer_hours: Mapped[int] = mapped_column(Integer, default=48)
+    cancel_hours: Mapped[int] = mapped_column(Integer, default=24)
+    reminder_days: Mapped[str] = mapped_column(String(80), default="7,1")
+    registration_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    advanced: Mapped[bool] = mapped_column(Boolean, default=False)
+    contact_visible: Mapped[bool] = mapped_column(Boolean, default=False)
+    lecturers_json: Mapped[str] = mapped_column(Text, default="[]")
+    poll_id: Mapped[int | None] = mapped_column(ForeignKey("polls.id", ondelete="SET NULL"), nullable=True)
+    form_id: Mapped[int | None] = mapped_column(ForeignKey("forms.id", ondelete="SET NULL"), nullable=True)
+    materials_days: Mapped[int] = mapped_column(Integer, default=0)
+    guest_days: Mapped[int] = mapped_column(Integer, default=0)
+    contact_email: Mapped[str] = mapped_column(String(255), default="")
+    certificates: Mapped[bool] = mapped_column(Boolean, default=False)
+    certificate_percent: Mapped[int] = mapped_column(Integer, default=80)
+    issuer: Mapped[str] = mapped_column(String(255), default="")
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    seat_lock: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SeminarSession(Base):
+    __tablename__ = "seminar_sessions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    seminar_id: Mapped[int] = mapped_column(ForeignKey("seminars.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(255), default="")
+    starts_at: Mapped[datetime] = mapped_column(DateTime)
+    ends_at: Mapped[datetime] = mapped_column(DateTime)
+    location: Mapped[str] = mapped_column(String(500), default="")
+    online_url: Mapped[str] = mapped_column(String(1000), default="")
+    resource_id: Mapped[int | None] = mapped_column(ForeignKey("resources.id", ondelete="SET NULL"), nullable=True)
+    cancelled: Mapped[bool] = mapped_column(Boolean, default=False)
+    reason: Mapped[str] = mapped_column(String(500), default="")
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class SeminarEnrollment(Base):
+    __tablename__ = "seminar_enrollments"
+    __table_args__ = (UniqueConstraint("seminar_id", "scope_id", "email"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    seminar_id: Mapped[int] = mapped_column(ForeignKey("seminars.id", ondelete="CASCADE"), index=True)
+    scope_id: Mapped[int] = mapped_column(Integer, default=0)  # 0: komplette Reihe
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    email: Mapped[str] = mapped_column(String(255), index=True)
+    organization: Mapped[str] = mapped_column(String(255), default="")
+    status: Mapped[str] = mapped_column(String(24), default="invited")
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    requested_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    token_enc: Mapped[str] = mapped_column(Text)
+    checkin_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    token_expires_at: Mapped[datetime] = mapped_column(DateTime)
+    offer_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    response_id: Mapped[int | None] = mapped_column(ForeignKey("form_responses.id", ondelete="SET NULL"), nullable=True)
+    activities_json: Mapped[str] = mapped_column(Text, default="{}")
+    reason: Mapped[str] = mapped_column(String(500), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SeminarAttendance(Base):
+    __tablename__ = "seminar_attendance"
+    __table_args__ = (UniqueConstraint("enrollment_id", "session_id"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    enrollment_id: Mapped[int] = mapped_column(ForeignKey("seminar_enrollments.id", ondelete="CASCADE"), index=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("seminar_sessions.id", ondelete="CASCADE"), index=True)
+    recorded_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    present: Mapped[bool] = mapped_column(Boolean, default=True)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SeminarMaterial(Base):
+    __tablename__ = "seminar_materials"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    seminar_id: Mapped[int] = mapped_column(ForeignKey("seminars.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    item_json: Mapped[str] = mapped_column(Text)
+    release_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    manual_release: Mapped[bool] = mapped_column(Boolean, default=False)
+    published: Mapped[bool] = mapped_column(Boolean, default=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class SeminarActivity(Base):
+    __tablename__ = "seminar_activities"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    seminar_id: Mapped[int] = mapped_column(ForeignKey("seminars.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    object_id: Mapped[int] = mapped_column(Integer)
+    phase: Mapped[str] = mapped_column(String(16), default="before")
+    required: Mapped[bool] = mapped_column(Boolean, default=False)
+    opens_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    closes_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    title: Mapped[str] = mapped_column(String(255))
+
+
+class SeminarCertificate(Base):
+    __tablename__ = "seminar_certificates"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    enrollment_id: Mapped[int] = mapped_column(ForeignKey("seminar_enrollments.id", ondelete="CASCADE"), index=True)
+    snapshot_json: Mapped[str] = mapped_column(Text)
+    issued_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    issued_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class SeminarEvent(Base):
+    __tablename__ = "seminar_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    seminar_id: Mapped[int] = mapped_column(ForeignKey("seminars.id", ondelete="CASCADE"), index=True)
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    kind: Mapped[str] = mapped_column(String(80))
+    detail: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SeminarDelivery(Base):
+    __tablename__ = "seminar_deliveries"
+    __table_args__ = (UniqueConstraint("enrollment_id", "key"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    enrollment_id: Mapped[int] = mapped_column(ForeignKey("seminar_enrollments.id", ondelete="CASCADE"), index=True)
+    key: Mapped[str] = mapped_column(String(120))
+    queued_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 class Circulation(Base):
     """Editable draft; published versions and their acknowledgements remain separate."""
@@ -2524,6 +2663,7 @@ DEFAULT_SETTINGS = {
     "module_applications": "1",
     "module_dms": "1",
     "module_circulations": "1",
+    "module_seminars": "1",
     "module_resources": "1",
     "holiday_state": "RP",            # Bundesland für Feiertagspreise
     "resources_embed": "1",

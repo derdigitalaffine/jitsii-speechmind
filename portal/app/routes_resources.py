@@ -1056,7 +1056,17 @@ def booking_file(bid: int, name: str, user: User = Depends(current_user), db: Se
 def internal_book(request: Request, rid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     res, _ = _res(db, rid, user, 3)
     from .routes_resources_public import booking_ctx
-    return render(request, "resource_book.html", user, **booking_ctx(db, res), staff=True)
+    context=booking_ctx(db,res)
+    seminar_session=request.query_params.get('seminar_session','')
+    if seminar_session.isdigit():
+        from .db import SeminarSession,Seminar
+        from . import seminars
+        term=db.get(SeminarSession,int(seminar_session))
+        row=db.get(Seminar,term.seminar_id) if term else None
+        if term and term.resource_id==rid and not term.cancelled and seminars.may_plan(db,user,row):
+            start,end=to_local(term.starts_at),to_local(term.ends_at)
+            context['draft']={'mode':'hour' if 'hour' in context['res_modes'] else context['res_modes'][0], 'date':start.strftime('%Y-%m-%d'),'date_from':start.strftime('%Y-%m-%d'),'date_to':end.strftime('%Y-%m-%d'),'time_from':start.strftime('%H:%M'),'time_to':end.strftime('%H:%M'),'title':row.title,'name':user.name,'email':user.email,'persons':row.capacity}
+    return render(request, "resource_book.html", user, **context, staff=True)
 
 
 @app.post("/resources/{rid:int}/book", dependencies=[Depends(check_csrf)])

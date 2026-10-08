@@ -169,6 +169,7 @@ ITEMS: list[Item] = [
     Item("trash", "admin", "/admin/loeschen", "fa-trash-can", "Löschen & Papierkorb", lambda c: c.admin,
          _pre("/admin/loeschen")),
 ]
+ITEMS.append(Item("seminars", "schedule", "/seminare", "fa-chalkboard-user", "Seminare & Lehrgänge", lambda c: "seminars" in c.modules, _pre("/seminare")))
 ITEMS.append(Item("circulation_reports", "work", "/umlaeufe/auswertung", "fa-chart-column", "Meine Umläufe & Rückmeldungen", lambda c: "circulations" in c.modules, _pre("/umlaeufe/auswertung")))
 BY_ID = {it.id: it for it in ITEMS}
 CONTEXTS = [("resources", "res_planner", "res_bookings"), ("meetings", "meeting_plan"), ("dms", "dms_persons", "dms_areas"), ("recht", "laws"), ("map", "maps"), ("krank_me", "krank_mine")]

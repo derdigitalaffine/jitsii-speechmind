@@ -203,7 +203,7 @@
     async function refreshPreview(){
       const id=++requestId;controller?.abort();controller=new AbortController();preview.setAttribute('aria-busy','true');
       try{const body=new FormData();body.set('body',textarea.value);body.set('csrf',$('meta[name="csrf"]').content);
-        const response=await fetch('/umlaeufe/preview',{method:'POST',body,signal:controller.signal});if(!response.ok)throw new Error();const html=await response.text();if(id===requestId)preview.innerHTML=html || '<p class="text-secondary">Ihre Textvorschau erscheint hier.</p>';
+        const response=await fetch(editor.dataset.previewUrl || '/umlaeufe/preview',{method:'POST',body,signal:controller.signal});if(!response.ok)throw new Error();const html=await response.text();if(id===requestId)preview.innerHTML=html || '<p class="text-secondary">Ihre Textvorschau erscheint hier.</p>';
       }catch(error){if(error.name!=='AbortError' && id===requestId)preview.textContent='Vorschau konnte nicht geladen werden. Schreiben und Speichern sind weiterhin möglich.';}
       finally{if(id===requestId)preview.setAttribute('aria-busy','false');}
     }

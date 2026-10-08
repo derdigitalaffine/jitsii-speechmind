@@ -61,6 +61,9 @@ def search_all(db: Session, query: str) -> list[dict]:
                                                      BookingPage.invite_only.is_(False))).all()
         add("termine", [{"title": p.title, "text": p.location, "url": f"/b/{p.public_token}"}
                         for p in pages if match(p.title, p.description, p.location)])
+    if "seminare" in shown:
+        from .db import Seminar
+        add("seminare",[{"title":s.title,"text":s.description[:180],"url":f"/seminare/{s.id}"} for s in db.scalars(select(Seminar).where(Seminar.status=="published")) if "public" in s.channels.split(',') and match(s.title,s.description)])
     if "recht" in shown:
         from . import laws as lx
         laws, sections = lx.search(db, query, published_only=True, limit=MAX_HITS + 1)

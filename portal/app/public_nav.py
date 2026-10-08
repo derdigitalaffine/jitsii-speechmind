@@ -15,6 +15,7 @@ from .db import BookingPage, SessionLocal, get_settings
 
 # Schlüssel: (Bezeichnung, Symbol, Modul, Pfad, Beschreibung für die Startseite)
 ITEMS = {
+    "seminare": ("Seminare & Lehrgänge", "fa-chalkboard-user", "seminars", "/seminare", "Veranstaltungen finden und anmelden"),
     "aushang": ("Aushänge", "fa-bullhorn", "circulations", "/umlaeufe", "Öffentliche Informationen und Bekanntmachungen lesen"),
     "antraege": ("Anträge", "fa-file-signature", "applications", "/antraege",
                  "Online-Anträge stellen und den Bearbeitungsstand verfolgen"),
@@ -68,6 +69,9 @@ def available(db, cfg: dict[str, str], modules: set[str]) -> dict[str, bool]:
     out = {}
     for key, (_label, _icon, module, _path, _text) in ITEMS.items():
         ok = module in modules
+        if ok and key == "seminare":
+            from .db import Seminar
+            ok = any("public" in r.channels.split(",") for r in db.scalars(select(Seminar).where(Seminar.status=="published")))
         if ok and key == "termine":
             ok = listed_bookings(db) > 0
         if ok and key == "aushang":

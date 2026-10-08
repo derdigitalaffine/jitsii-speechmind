@@ -563,7 +563,7 @@ def _values_for_redisplay(items: list[dict], data) -> dict:
     return values
 
 
-async def _submit(request: Request, db: Session, form: Form, invite: FormInvite | None, action: str):
+async def _submit(request: Request, db: Session, form: Form, invite: FormInvite | None, action: str, on_complete=None):
     from .form_access import submitting_user
     submitting_user(request, db, form)
     rate_limit(request, "form-submit", limit=30)
@@ -613,8 +613,11 @@ async def _submit(request: Request, db: Session, form: Form, invite: FormInvite 
     payment = fees.on_submit(db, form, resp)
     if payment is not None and payment.status == "open":
         payments.request_payment(db, payment)
+    completion = on_complete(resp) if on_complete else None
     db.commit()
     worker.wake()
+    if completion is not None:
+        return completion
     return _message(request, form, "thanks", payment=payment, money=payments.money)
 
 

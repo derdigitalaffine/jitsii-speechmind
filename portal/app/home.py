@@ -13,6 +13,7 @@ from .db import (
 )
 
 TILES = {
+    "seminars": ("Meine Seminare", "fa-chalkboard-user"),
     "circulations": ("Umläufe & Kenntnisnahmen", "fa-bullhorn"),
     "tasks": ("Meine Aufgaben", "fa-list-check"),
     "applications": ("Antragseingang", "fa-file-signature"),
@@ -200,6 +201,8 @@ def tiles(db, user: User, modules: set, ctx=None, cache: dict | None = None) -> 
     cache = cache if cache is not None else {}
     from . import dms
     available = []
+    if "seminars" in modules:
+        available.append("seminars")
     if "circulations" in modules:
         available.append("circulations")
     if "applications" in modules and _case_worker(db, user):
@@ -235,8 +238,8 @@ def tiles(db, user: User, modules: set, ctx=None, cache: dict | None = None) -> 
     p = prefs(user)
     order = [k for k in p.get("order", []) if k in available] + [k for k in available if k not in p.get("order", [])]
     hidden = set(p.get("hidden", []))
-    from . import circulations
-    loaders = {"circulations": circulations.overview,"tasks": _tasks, "applications": _applications, "meetings": _meetings, "polls": _polls,
+    from . import circulations, seminars
+    loaders = {"seminars": seminars.overview, "circulations": circulations.overview,"tasks": _tasks, "applications": _applications, "meetings": _meetings, "polls": _polls,
                "bookings": _bookings, "inbox": _inbox, "responses": _responses, "dms": _dms,
                "resources": _resources, "krank": _krank, "votes": _votes, "laws": _laws, "shortlinks": _shortlinks,
                "favorites": lambda d, u: _favorites(d, u, ctx), "absence": _absence}
@@ -273,6 +276,14 @@ def overview(db, user: User, modules: set) -> tuple[dict, dict]:
         act(a["overdue"], "Anträge mit Frist über", "/forms/applications?status=overdue", "fa-hourglass-end", "danger")
         act(a["new"], "neue Anträge", "/forms/applications?status=received", "fa-file-signature")
         act(a["query"], "Rückfragen offen", "/forms/applications?status=query", "fa-comments", "secondary")
+    if "seminars" in modules:
+        from . import seminars
+        se=cache["seminars"]=seminars.overview(db,user)
+        act(sum(1 for item in se['items'] if item['rec'].status in {'invited','form','offered'}),"Seminaranmeldungen bearbeiten","/seminare?tab=mine","fa-chalkboard-user","warning")
+        for item in se['items']:
+            if item['rec'].status=='confirmed':
+                for term in seminars.enrollment_sessions(db,item['row'],item['rec']):
+                    if to_local(term.starts_at).date()==today:agenda.append({'at':term.starts_at,'label':item['row'].title,'sub':term.location,'url':seminars.personal_path(item['rec']),'icon':'fa-chalkboard-user'})
     if "polls" in modules:
         pl = cache["polls"] = _polls(db, user)
         if pl["todo"]:
