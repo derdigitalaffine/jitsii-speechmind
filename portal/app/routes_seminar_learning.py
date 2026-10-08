@@ -10,7 +10,7 @@ from fastapi import Depends,HTTPException,Request
 from fastapi.responses import FileResponse,Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from . import seminar_learning as learning, seminars as sm, circulations as cl, csvsafe, forms as fm, shares, live, votes
+from . import seminar_series as series, seminar_learning as learning, seminars as sm, circulations as cl, csvsafe, forms as fm, shares, live, votes
 from .db import (Seminar,SeminarSession,SeminarEnrollment,SeminarAttendance,SeminarMaterial,SeminarActivity,SeminarCertificate,
                  CirculationBundle,Form,FormInvite,FormResponse,Vote,VoteVoter,LivePoll,User,utcnow,to_local,get_settings)
 from .main import app,check_csrf,current_user,get_db,redirect,render,flash,enabled_modules
@@ -61,6 +61,9 @@ async def seminar_required_submit(request:Request,token:str,db:Session=Depends(g
 @app.get('/seminare/{sid:int}/materials')
 def seminar_materials(request:Request,sid:int,user:User=Depends(current_user),db:Session=Depends(get_db)):
     row=staff_of(db,user,sid)
+    tid=sm.integer(request.query_params.get('tid',0));terms=series.staff_terms(db,user,row)
+    if not series.whole_staff(db,user,row) and not tid:tid=terms[0].id
+    if not series.scope_access(db,user,row,tid):raise HTTPException(404)
     bundles=[b for b in db.scalars(select(CirculationBundle).order_by(CirculationBundle.updated_at.desc())) if learning.bundle_available(db,user,b)]
     objects=[]
     if 'forms' in enabled_modules():
@@ -69,16 +72,18 @@ def seminar_materials(request:Request,sid:int,user:User=Depends(current_user),db
         objects.extend(dict(kind='vote',id=v.id,title=v.title,detail='Abstimmung') for v in db.scalars(select(Vote)) if shares.access_level(db,'vote',v,user)>=3)
         objects.extend(dict(kind='live',id=p.id,title=p.title,detail='Live-Umfrage') for p in db.scalars(select(LivePoll).where(LivePoll.owner_id==user.id)))
     return protect(render(request,'seminar_materials.html',user,row=row,role=sm.role(db,user,row),bundles=bundles,content=cl.content,
-        materials=list(db.scalars(select(SeminarMaterial).where(SeminarMaterial.seminar_id==sid).order_by(SeminarMaterial.position,SeminarMaterial.id))),
-        activities=list(db.scalars(select(SeminarActivity).where(SeminarActivity.seminar_id==sid))),objects=objects,phases=learning.PHASES,local_input=sm.local_input,selected_bundle=request.query_params.get('bundle','')))
+        tid=tid,terms=terms,whole_staff=series.whole_staff(db,user,row),materials=list(db.scalars(select(SeminarMaterial).where(SeminarMaterial.seminar_id==sid,SeminarMaterial.scope_id==tid).order_by(SeminarMaterial.position,SeminarMaterial.id))),
+        activities=list(db.scalars(select(SeminarActivity).where(SeminarActivity.seminar_id==sid,SeminarActivity.scope_id==tid))),objects=objects,phases=learning.PHASES,local_input=sm.local_input,selected_bundle=request.query_params.get('bundle','')))
 
 
 @app.post('/seminare/{sid:int}/materials',dependencies=[Depends(check_csrf)])
 async def seminar_material_add(request:Request,sid:int,user:User=Depends(current_user),db:Session=Depends(get_db)):
     row=staff_of(db,user,sid);data=await request.form();sm.lock(db,row)
+    scope=sm.integer(data.get('scope_id',0))
+    if not series.scope_access(db,user,row,scope):raise HTTPException(404)
     release=sm.parse_time(data.get('release_at'),True);action=data.get('action')
     if action=='bundle':
-        bundle=db.get(CirculationBundle,sm.integer(data.get('bundle_id'),1));learning.import_bundle(db,user,row,bundle,release)
+        bundle=db.get(CirculationBundle,sm.integer(data.get('bundle_id'),1));learning.import_bundle(db,user,row,bundle,release,scope)
     elif action in {'markdown','upload'}:
         title=str(data.get('title','')).strip()[:255]
         if not title:raise HTTPException(422,'Dokumenttitel erforderlich.')
@@ -96,15 +101,15 @@ async def seminar_material_add(request:Request,sid:int,user:User=Depends(current
             if len(body)>20*1024*1024:raise HTTPException(413,'Dateien maximal 20 MB.')
             filename=secrets.token_hex(16)+suffix;learning.files_dir(row).joinpath(filename).write_bytes(body)
             item=dict(kind='file',title=title,file=filename,mime=mimetypes.guess_type(filename)[0] or 'application/octet-stream',sha256=hashlib.sha256(body).hexdigest())
-        db.add(SeminarMaterial(seminar_id=sid,title=title,item_json=json.dumps(item,ensure_ascii=False),release_at=release))
+        db.add(SeminarMaterial(seminar_id=sid,scope_id=scope,title=title,item_json=json.dumps(item,ensure_ascii=False),release_at=release))
     else:raise HTTPException(422)
-    sm.event(db,row,'material_added',user);db.commit();return redirect(f'/seminare/{sid}/materials')
+    sm.event(db,row,'material_added',user);db.commit();return redirect(f'/seminare/{sid}/materials?tid={scope}')
 
 
 @app.post('/seminare/{sid:int}/materials/{mid:int}',dependencies=[Depends(check_csrf)])
 async def seminar_material_update(request:Request,sid:int,mid:int,user:User=Depends(current_user),db:Session=Depends(get_db)):
     row=staff_of(db,user,sid);data=await request.form();sm.lock(db,row);m=db.get(SeminarMaterial,mid)
-    if not m or m.seminar_id!=sid:raise HTTPException(404)
+    if not m or m.seminar_id!=sid or not series.scope_access(db,user,row,m.scope_id):raise HTTPException(404)
     action=data.get('action')
     if action=='remove':db.delete(m)
     elif action=='release':m.published=True;m.manual_release=True
@@ -113,7 +118,7 @@ async def seminar_material_update(request:Request,sid:int,mid:int,user:User=Depe
         if mode not in {'immediate','scheduled','manual'}:raise HTTPException(422)
         m.position=sm.integer(data.get('position',0),0,1000);m.manual_release=mode=='manual';m.published=mode!='manual';m.release_at=sm.parse_time(data.get('release_at'),True) if mode=='scheduled' else None
         if mode=='scheduled' and not m.release_at:raise HTTPException(422,'Veröffentlichungszeit erforderlich.')
-    sm.event(db,row,'material_'+str(action),user,str(mid));db.commit();return redirect(f'/seminare/{sid}/materials')
+    sm.event(db,row,'material_'+str(action),user,str(mid));db.commit();return redirect(f'/seminare/{sid}/materials?tid={m.scope_id}')
 
 
 def material_response(db,row,m,user,back):
@@ -147,7 +152,7 @@ def seminar_material_view(request:Request,token:str,mid:int,download:str='',db:S
 @app.get('/seminare/{sid:int}/materials/{mid:int}/preview')
 def seminar_material_preview(request:Request,sid:int,mid:int,download:str='',user:User=Depends(current_user),db:Session=Depends(get_db)):
     row=staff_of(db,user,sid);m=db.get(SeminarMaterial,mid)
-    if not m or m.seminar_id!=sid:raise HTTPException(404)
+    if not m or m.seminar_id!=sid or not series.scope_access(db,user,row,m.scope_id):raise HTTPException(404)
     if download:return material_file(row,m)
     return material_response(db,row,m,user,{'request':request,'url':f'/seminare/{sid}/materials','file_url':f'/seminare/{sid}/materials/{mid}/preview?download=1'})
 
@@ -155,6 +160,8 @@ def seminar_material_preview(request:Request,sid:int,mid:int,download:str='',use
 @app.post('/seminare/{sid:int}/activities',dependencies=[Depends(check_csrf)])
 async def seminar_activity_add(request:Request,sid:int,user:User=Depends(current_user),db:Session=Depends(get_db)):
     row=staff_of(db,user,sid);data=await request.form();sm.lock(db,row);key=str(data.get('object','')).split(':')
+    scope=sm.integer(data.get('scope_id',0))
+    if not series.scope_access(db,user,row,scope):raise HTTPException(404)
     if len(key)!=2:raise HTTPException(422)
     kind=key[0];ident=sm.integer(key[1],1);phase=data.get('phase','before')
     if phase not in learning.PHASES:raise HTTPException(422)
@@ -163,17 +170,17 @@ async def seminar_activity_add(request:Request,sid:int,user:User=Depends(current
     if kind=='form' and (not obj.active or obj.kind!='survey' or obj.fee_json not in ('','{}')):raise HTTPException(422)
     required=data.get('required')=='1'
     if required and (kind!='form' or phase!='before'):raise HTTPException(422,'Verpflichtend vor Anmeldung ist für Vorabformulare möglich.')
-    if required and db.scalar(select(SeminarEnrollment.id).where(SeminarEnrollment.seminar_id==sid,SeminarEnrollment.status.in_(['confirmed','offered','pending','waitlist']))):raise HTTPException(409,'Pflichtabfragen vor Beginn der Anmeldungen festlegen.')
+    if required and db.scalar(select(SeminarEnrollment.id).where(SeminarEnrollment.seminar_id==sid,SeminarEnrollment.scope_id.in_([0,scope]) if scope else True,SeminarEnrollment.status.in_(['confirmed','offered','pending','waitlist']))):raise HTTPException(409,'Pflichtabfragen vor Beginn der Anmeldungen festlegen.')
     start=sm.parse_time(data.get('opens_at'),True);end=sm.parse_time(data.get('closes_at'),True)
     if start and end and end<=start:raise HTTPException(422,'Ende muss nach Beginn liegen.')
-    db.add(SeminarActivity(seminar_id=sid,kind=kind,object_id=ident,title=obj.title,phase=phase,required=required,opens_at=start,closes_at=end));sm.event(db,row,'activity_added',user,kind);db.commit();return redirect(f'/seminare/{sid}/materials')
+    db.add(SeminarActivity(seminar_id=sid,scope_id=scope,once_per_series=data.get('once_per_series')=='1' and not scope,kind=kind,object_id=ident,title=obj.title,phase=phase,required=required,opens_at=start,closes_at=end));sm.event(db,row,'activity_added',user,kind);db.commit();return redirect(f'/seminare/{sid}/materials?tid={scope}')
 
 
 @app.post('/seminare/{sid:int}/activities/{aid:int}/remove',dependencies=[Depends(check_csrf)])
 def seminar_activity_remove(sid:int,aid:int,user:User=Depends(current_user),db:Session=Depends(get_db)):
     row=staff_of(db,user,sid);a=db.get(SeminarActivity,aid)
-    if not a or a.seminar_id!=sid:raise HTTPException(404)
-    db.delete(a);sm.event(db,row,'activity_removed',user,str(aid));db.commit();return redirect(f'/seminare/{sid}/materials')
+    if not a or a.seminar_id!=sid or not series.scope_access(db,user,row,a.scope_id):raise HTTPException(404)
+    db.delete(a);sm.event(db,row,'activity_removed',user,str(aid));db.commit();return redirect(f'/seminare/{sid}/materials?tid={a.scope_id}')
 
 
 def activity_of(db,row,rec,aid):
@@ -238,44 +245,50 @@ def seminar_checkin(request:Request,ticket:str,user:User=Depends(current_user),d
     if not rec:raise HTTPException(404)
     row=db.get(Seminar,rec.seminar_id)
     row=staff_of(db,user,row.id)
-    return protect(render(request,'seminar_checkin.html',user,row=row,rec=rec,terms=sm.enrollment_sessions(db,row,rec)))
+    return protect(render(request,'seminar_checkin.html',user,row=row,rec=rec,terms=[t for t in sm.enrollment_sessions(db,row,rec) if series.may_term(db,user,row,t)]))
 
 
 @app.post('/seminare/{sid:int}/certificates/{eid:int}',dependencies=[Depends(check_csrf)])
 async def seminar_certificate_issue(request:Request,sid:int,eid:int,user:User=Depends(current_user),db:Session=Depends(get_db)):
     row=staff_of(db,user,sid);data=await request.form();sm.lock(db,row);rec=db.get(SeminarEnrollment,eid)
     if not rec or rec.seminar_id!=sid:raise HTTPException(404)
+    scope=sm.integer(data.get('scope_id',0))
+    if not series.scope_access(db,user,row,scope):raise HTTPException(404)
     if data.get('action')=='revoke':
-        c=db.scalar(select(SeminarCertificate).where(SeminarCertificate.enrollment_id==eid))
+        c=db.scalar(select(SeminarCertificate).where(SeminarCertificate.enrollment_id==eid,SeminarCertificate.scope_id==scope,SeminarCertificate.revoked_at.is_(None)))
         if not c:raise HTTPException(404)
         c.revoked_at=utcnow();sm.event(db,row,'certificate_revoked',user,str(eid))
-    else:learning.issue_certificate(db,row,rec,user)
+    else:learning.issue_certificate(db,row,rec,user,scope)
     db.commit();return redirect(f'/seminare/{sid}/participants')
 
 
 @app.get('/seminare/p/{token}/certificate.pdf')
 def seminar_certificate_download(request:Request,token:str,db:Session=Depends(get_db)):
-    row,rec,user=personal_of(request,db,token);c=db.scalar(select(SeminarCertificate).where(SeminarCertificate.enrollment_id==rec.id,SeminarCertificate.revoked_at.is_(None)))
+    row,rec,user=personal_of(request,db,token);cid=sm.integer(request.query_params.get('cid',0));ids=[r.id for r in series.history(db,row,rec.email)]
+    c=db.scalar(select(SeminarCertificate).where(SeminarCertificate.enrollment_id.in_(ids),SeminarCertificate.revoked_at.is_(None),SeminarCertificate.id==cid if cid else True))
     if not c:raise HTTPException(404)
     return protect(Response(learning.certificate_pdf(c),media_type='application/pdf',headers={'Content-Disposition':'attachment; filename="teilnahmebescheinigung.pdf"'}))
 
 
 @app.get('/seminare/{sid:int}/participants.csv')
-def seminar_participants_csv(sid:int,user:User=Depends(current_user),db:Session=Depends(get_db)):
+def seminar_participants_csv(sid:int,tid:int=0,user:User=Depends(current_user),db:Session=Depends(get_db)):
     row=staff_of(db,user,sid);context=learning.staff_context(db,row);contacts=sm.may_plan(db,user,row) or row.contact_visible
+    terms=series.staff_terms(db,user,row)
+    if tid and tid not in [t.id for t in terms]:raise HTTPException(404)
+    allowed={t.id for t in terms if not tid or t.id==tid}
     output=io.StringIO();writer=csvsafe.writer(output,delimiter=';');writer.writerow(['Seminar','Name','Organisation','E-Mail' if contacts else '','Termin-ID','Status','Anwesenheit','Bescheinigung'])
     for rec in db.scalars(select(SeminarEnrollment).where(SeminarEnrollment.seminar_id==sid)):
-        for term in sm.enrollment_sessions(db,row,rec):writer.writerow([row.title,rec.name,rec.organization,rec.email if contacts else '',term.id,sm.STATUSES[rec.status],bool(context['attendance'].get((rec.id,term.id))),bool(context['certificates'].get(rec.id))])
+        for term in [t for t in sm.enrollment_sessions(db,row,rec) if t.id in allowed]:writer.writerow([row.title,rec.name,rec.organization,rec.email if contacts else '',term.id,sm.STATUSES[rec.status],bool(context['attendance'].get((rec.id,term.id))),bool(context['certificates'].get(rec.id))])
     return protect(Response('\ufeff'+output.getvalue(),media_type='text/csv',headers={'Content-Disposition':'attachment; filename="seminarteilnahmen.csv"'}))
 
 
 @app.get('/seminare/{sid:int}/participants.pdf')
 def seminar_participants_pdf(sid:int,tid:int=0,user:User=Depends(current_user),db:Session=Depends(get_db)):
-    row=staff_of(db,user,sid);terms=sm.sessions(db,row)
+    row=staff_of(db,user,sid);terms=series.staff_terms(db,user,row)
     if tid and tid not in [t.id for t in terms]:raise HTTPException(404)
     rows=[['Name','Organisation','Unterschrift']]
     for rec in db.scalars(select(SeminarEnrollment).where(SeminarEnrollment.seminar_id==sid,SeminarEnrollment.status=='confirmed').order_by(SeminarEnrollment.name)):
-        if not tid or not rec.scope_id or rec.scope_id==tid:rows.append([rec.name,rec.organization,''])
+        if (not rec.scope_id or rec.scope_id in [t.id for t in terms]) and (not tid or not rec.scope_id or rec.scope_id==tid):rows.append([rec.name,rec.organization,''])
     paragraphs=[to_local(t.starts_at).strftime('%d.%m.%Y %H:%M')+' · '+t.location for t in terms if not tid or t.id==tid]
     return protect(Response(learning.pdf_document(row.title+' · Teilnehmerliste',paragraphs,rows),media_type='application/pdf',headers={'Content-Disposition':'inline; filename="teilnehmerliste.pdf"'}))
 

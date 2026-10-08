@@ -1,0 +1,1 @@
+{% extends 'base.html' %}{% block title %}Teilnehmer · {{term.title or row.title}}{% endblock %}{% block content %}<a href="{{back}}">Meine Teilnahme</a><h1 class="mt-3">Teilnehmer · {{term.title or row.title}}</h1><p>{{term.starts_at|local}}</p><ul class="list-group">{% for name in names %}<li class="list-group-item">{{name}}</li>{% endfor %}</ul>{% endblock %}

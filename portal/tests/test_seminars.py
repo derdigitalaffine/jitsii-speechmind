@@ -133,6 +133,10 @@ def test_session_post_recurrence_then_cancelled_calendar(db,people):
     row,t=make(db,people);c=login(people[0].email,'passwort-test-123');p=c.get(f'/seminare/{row.id}/edit');token=csrf_of(p.text)
     data={'csrf':token,'starts_at':'2027-04-01T10:00','ends_at':'2027-04-01T12:00','repeat':'fortnightly','count':'3','location':'Externer Ort','online_url':'https://meet.example.org/seminar'}
     assert c.post(f'/seminare/{row.id}/sessions',data=data).status_code==303
+    db.expire_all();drafts=[t for t in sm.sessions(db,row,False) if not t.published]
+    assert len(drafts)==3
+    r=c.post(f'/seminare/{row.id}/publish-terms',data={'csrf':csrf_of(c.get(f'/seminare/{row.id}/edit').text),'terms':[t.id for t in drafts]})
+    assert r.status_code==303
     db.expire_all();assert len(sm.sessions(db,row))==4
     e=rec(db,row,t,people[1]);sm.request_place(db,row,e);db.commit()
     assert c.post(f'/seminare/{row.id}/sessions/{t.id}',data={'csrf':token,'revision':t.revision,'action':'cancel','reason':'Dozent verhindert'}).status_code==303

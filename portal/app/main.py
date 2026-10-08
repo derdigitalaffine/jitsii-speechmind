@@ -2721,3 +2721,5 @@ async def nav_expand(request: Request, user: User = Depends(current_user), db: S
 from . import routes_seminars  # noqa: E402,F401
 
 from . import routes_seminar_learning  # noqa: E402,F401
+
+from . import routes_seminar_series  # noqa: E402,F401
