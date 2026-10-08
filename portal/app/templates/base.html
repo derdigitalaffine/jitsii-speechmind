@@ -100,7 +100,7 @@
 <div class="container-fluid app-body">
   <div class="row">
     {% if user %}
-    {% set nav_closed = (request.cookies.get('jsm_nav_closed') or '').split(',') %}
+    {% set nav_closed = nav_menu.closed %}
     {% set nav_rail = request.cookies.get('jsm_nav_rail') == '1' %}
     <aside class="col-lg-2 p-0 app-aside {{ 'is-rail' if nav_rail }}" aria-label="Hauptmenü">
       <div class="offcanvas-lg offcanvas-start app-sidebar" tabindex="-1" id="sidebar" aria-labelledby="sidebar-title">
@@ -113,7 +113,7 @@
             <input type="search" id="nav-search" placeholder="Suchen …" aria-label="Menü durchsuchen (Taste / oder Strg+K)" autocomplete="off" spellcheck="false"><kbd class="d-none d-lg-inline">/</kbd></div>
           <button type="button" class="btn btn-sm app-nav-rail-toggle d-none d-lg-inline-flex" id="nav-rail" aria-pressed="{{ 'true' if nav_rail else 'false' }}" title="{{ 'Menü ausklappen' if nav_rail else 'Menü einklappen' }}" aria-label="{{ 'Menü ausklappen' if nav_rail else 'Menü auf Symbole verkleinern' }}"><i class="fa-solid {{ 'fa-angles-right' if nav_rail else 'fa-angles-left' }}"></i></button>
         </div>
-        <div class="offcanvas-body d-block app-nav-scroll" id="nav-scroll">
+        <div class="nav-expand-tools px-3 py-2 d-flex gap-2"><button type="button" class="btn btn-sm btn-link p-0" data-nav-expand="1">Alle ausklappen</button><button type="button" class="btn btn-sm btn-link p-0" data-nav-expand="0">Alle einklappen</button></div><div class="offcanvas-body d-block app-nav-scroll" id="nav-scroll">
           <ul class="nav flex-column app-nav" id="app-nav" data-csrf="{{ csrf }}">
             {{ m.nav_item('/', 'fa-house', 'Übersicht', path == '/') }}
             <li class="nav-group nav-favs is-open" data-group="fav" {% if not nav_menu.favorites %}hidden{% endif %}>
@@ -121,7 +121,7 @@
               <ul class="nav flex-column" id="nav-favs">{% for it in nav_menu.favorites %}{{ m.nav_entry(it, 'fav') }}{% endfor %}</ul>
             </li>
             {% for g in nav_menu.groups %}
-            {% call m.nav_group(g.key, g.label, nav_closed) %}{% for it in g['items'] %}{{ m.nav_entry(it) }}{% endfor %}{% endcall %}
+            {% call m.nav_group(g.key, g.label, nav_closed) %}{% if g.sections %}{% for section in g.sections if section['items'] %}<li class="nav-admin-section"><details {% if section['items']|selectattr('active')|list %}open{% endif %}><summary>{{section.label}}</summary><ul class="nav flex-column">{% for it in section['items'] %}{{m.nav_entry(it)}}{% endfor %}</ul></details></li>{% endfor %}{% else %}{% for it in g['items'] %}<li class="nav-context-wrapper {{'nav-context-only' if it.context_only}}"><ul class="nav flex-column">{{ m.nav_entry(it) }}</ul></li>{% endfor %}{% endif %}{% endcall %}
             {% endfor %}
             <li class="nav-item app-nav-custom"><a class="nav-link small text-secondary" href="/profile/menu" data-label="Menü anpassen"><i class="fa-solid fa-sliders" aria-hidden="true"></i><span class="nav-label">Menü anpassen{% if nav_menu.hidden %} <span class="text-secondary">({{ nav_menu.hidden }} ausgeblendet)</span>{% endif %}</span></a></li>
           </ul>
@@ -137,7 +137,7 @@
     <main id="inhalt" tabindex="-1" class="{{ ('col-lg-10 app-main' ~ (' is-rail' if nav_rail else '')) if user else 'col-12' }} {% block main_class %}px-3 px-lg-4 py-4{% endblock %}">
       {{ m.flashes(messages) }}
       {% if update_hint and request.url.path == '/' %}<div class="alert alert-info d-flex gap-2 align-items-center small"><i class="fa-solid fa-circle-arrow-up"></i><div class="flex-grow-1">Eine neue Portal-Version ist verfügbar: <strong>{{ update_hint }}</strong>. <a href="/about#version">Details und Anleitung</a></div></div>{% endif %}
-      {% block content %}{% endblock %}
+      {% if user and nav_menu.context %}<nav class="module-context mb-4" aria-label="Modulnavigation">{% for it in nav_menu.context %}<a class="btn btn-sm {{'btn-primary' if it.active else 'btn-outline-secondary'}}" href="{{it.url}}" {% if it.active %}aria-current="page"{% endif %}>{{it.label}}</a>{% endfor %}</nav>{% endif %}{% block content %}{% endblock %}
     </main>
   </div>
 </div>

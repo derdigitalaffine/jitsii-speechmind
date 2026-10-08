@@ -1,8 +1,7 @@
 """Hauptmenü im angemeldeten Portal: Einträge, Gruppen und persönliche Anpassung (Favoriten, ausgeblendete Gruppen).
 
-Gruppen: Mein Arbeitsplatz · Bürgerservice · Kommunikation · Wissen & Ablage · Verwaltung. Es erscheint nur, was die
-Person nutzen darf. Jede:r kann Einträge als Favorit anheften (erscheinen ganz oben) und Gruppen ausblenden; die
-Gruppe der gerade geöffneten Seite bleibt immer sichtbar. Gespeichert in users.nav_json.
+Sechs Aufgabenbereiche mit Kontextnavigation und persönlichen Favoriten.
+Expansion und ausgeblendete Bereiche werden im Benutzerkonto gespeichert.
 """
 
 import json
@@ -11,10 +10,11 @@ from typing import Callable
 
 GROUPS = {
     "work": "Mein Arbeitsplatz",
-    "service": "Bürgerservice",
+    "service": "Formulare & Vorgänge",
+    "schedule": "Termine & Räume",
     "comm": "Kommunikation",
-    "know": "Wissen & Ablage",
-    "admin": "Verwaltung",
+    "know": "Wissen & Dokumente",
+    "admin": "Administration",
 }
 MAX_FAVORITES = 12
 
@@ -103,13 +103,13 @@ ITEMS: list[Item] = [
     Item("forms", "service", "/forms", "fa-clipboard-list", "Formulare", lambda c: "forms" in c.modules, _forms_active),
     Item("blocks", "service", "/forms/blocks", "fa-cubes", "Datenblöcke",
          lambda c: "forms" in c.modules and c.can("formblocks"), _pre("/forms/blocks")),
-    Item("resources", "service", "/resources", "fa-building", "Ressourcen & Belegung", lambda c: c.res_nav,
+    Item("resources", "schedule", "/resources", "fa-building", "Ressourcen & Belegung", lambda c: c.res_nav,
          lambda p: p == "/resources" or (p.startswith("/resources/") and not p.startswith(("/resources/bookings", "/resources/planner")))),
-    Item("res_planner", "service", "/resources/planner", "fa-table-cells", "Belegungsplaner", lambda c: c.res_nav,
+    Item("res_planner", "schedule", "/resources/planner", "fa-table-cells", "Belegungsplaner", lambda c: c.res_nav,
          _pre("/resources/planner")),
-    Item("res_bookings", "service", "/resources/bookings", "fa-calendar-check", "Raumbuchungen", lambda c: c.res_nav,
+    Item("res_bookings", "schedule", "/resources/bookings", "fa-calendar-check", "Raumbuchungen", lambda c: c.res_nav,
          _pre("/resources/bookings")),
-    Item("bookings", "service", "/bookings", "fa-calendar-plus", "Terminbuchung",
+    Item("bookings", "schedule", "/bookings", "fa-calendar-plus", "Terminbuchung",
          lambda c: "bookings" in c.modules and (c.can("bookings") or "bookings" in c.shared), _pre("/bookings")),
     Item("krank_staff", "service", "/krankmelder", "fa-user-nurse", "Krankmeldungen",
          lambda c: bool(c.krank_nav.get("staff")), _pre("/krankmelder"), _krank_badge),
@@ -138,7 +138,7 @@ ITEMS: list[Item] = [
     Item("laws", "know", "/laws", "fa-pen-to-square", "Rechtstexte pflegen",
          lambda c: "laws" in c.modules and c.can("laws"), _pre("/laws")),
     Item("map", "know", "/karte", "fa-map-location-dot", "Kartenbrowser", lambda c: "maps" in c.modules, _pre("/karte")),
-    Item("maps", "know", "/maps", "fa-folder-open", "Meine Karten", lambda c: "maps" in c.modules and c.can("maps"),
+    Item("maps", "know", "/maps", "fa-folder-open", "Meine Karten", lambda c: "maps" in c.modules,
          _pre("/maps")),
     # Verwaltung
     Item("users", "admin", "/admin/users", "fa-users", "Benutzer & Gruppen", lambda c: c.can("users"), _is("/admin/users")),
@@ -169,7 +169,16 @@ ITEMS: list[Item] = [
     Item("trash", "admin", "/admin/loeschen", "fa-trash-can", "Löschen & Papierkorb", lambda c: c.admin,
          _pre("/admin/loeschen")),
 ]
+ITEMS.append(Item("circulation_reports", "work", "/umlaeufe/auswertung", "fa-chart-column", "Meine Umläufe & Rückmeldungen", lambda c: "circulations" in c.modules, _pre("/umlaeufe/auswertung")))
 BY_ID = {it.id: it for it in ITEMS}
+CONTEXTS = [("resources", "res_planner", "res_bookings"), ("meetings", "meeting_plan"), ("dms", "dms_persons", "dms_areas"), ("recht", "laws"), ("map", "maps"), ("krank_me", "krank_mine")]
+CONTEXT_ONLY = {i for group in CONTEXTS for i in group[1:]}
+ADMIN_SECTIONS = {
+    "Menschen & Organisation": ["users", "orgs", "recordings"],
+    "Finanzen": ["payments", "expense_rules", "pay_settings"],
+    "Integrationen & Versand": ["map_layers", "notifications", "mail_templates", "speechmind"],
+    "Portal & System": ["modules", "design", "public_nav", "sessions", "https", "domains", "trash"],
+}
 
 
 def prefs(user) -> dict:
@@ -180,21 +189,26 @@ def prefs(user) -> dict:
         data = {}
     if not isinstance(data, dict):
         data = {}
+    for key in ('fav','hidden','closed'):
+        if key in data and not isinstance(data[key],list): data.pop(key)
+        elif key in data: data[key]=[v for v in data[key] if isinstance(v,str)]
     fav = [i for i in data.get("fav", []) if i in BY_ID][:MAX_FAVORITES]
     hidden = [g for g in data.get("hidden", []) if g in GROUPS]
-    return {"fav": list(dict.fromkeys(fav)), "hidden": hidden}
+    return {"fav": list(dict.fromkeys(fav)), "hidden": hidden, "closed": [g for g in data.get("closed", [g for g in GROUPS if g != "work"]) if g in GROUPS]}
 
 
-def dump(fav: list[str], hidden: list[str]) -> str:
+def dump(fav: list[str], hidden: list[str], closed=None) -> str:
     fav = list(dict.fromkeys(i for i in fav if i in BY_ID))[:MAX_FAVORITES]
-    return json.dumps({"fav": fav, "hidden": [g for g in dict.fromkeys(hidden) if g in GROUPS]})
+    data = {"fav": fav, "hidden": [g for g in dict.fromkeys(hidden) if g in GROUPS]}
+    if closed is not None: data["closed"] = list(dict.fromkeys(g for g in closed if g in GROUPS))
+    return json.dumps(data)
 
 
 def _entry(it: Item, c: Ctx, fav: set) -> dict:
     badge, title = it.badge(c) if it.badge else (0, "")
     label = "Geteilte Formulare" if it.id == "forms" and not c.can("forms") else it.label
     return {"id": it.id, "url": it.url, "icon": it.icon, "label": label, "active": it.active(c.path),
-            "badge": badge, "badge_title": title, "fav": it.id in fav}
+            "context_only": it.id in CONTEXT_ONLY, "badge": badge, "badge_title": title, "fav": it.id in fav}
 
 
 def visible(c: Ctx) -> list[Item]:
@@ -221,9 +235,14 @@ def build(c: Ctx) -> dict:
         if key in p["hidden"] and not any(r["active"] for r in rows):
             hidden += 1
             continue
-        groups.append({"key": key, "label": label, "items": rows})
+        groups.append({"key": key, "label": label, "items": rows, "sections": [{"label": title, "items": [r for r in rows if r["id"] in ids]} for title, ids in ADMIN_SECTIONS.items()] if key == "admin" else []})
     favorites = [entries[i] for i in p["fav"] if i in entries]
-    return {"groups": groups, "favorites": favorites, "hidden": hidden}
+    context = []
+    for family in CONTEXTS:
+        if any(entries[i]["active"] for i in family if i in entries):
+            context = [entries[i] for i in family if i in entries]
+            break
+    return {"groups": groups, "favorites": favorites, "hidden": hidden, "closed": p["closed"], "context": context}
 
 
 def options(c: Ctx) -> list[dict]:

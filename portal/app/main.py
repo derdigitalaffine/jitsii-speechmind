@@ -1080,7 +1080,7 @@ async def nav_pin(request: Request, user: User = Depends(current_user), db: Sess
         if len(fav) >= nav.MAX_FAVORITES:
             return JSONResponse({"ok": False, "fav": fav, "error": f"Höchstens {nav.MAX_FAVORITES} Favoriten."}, status_code=400)
         fav.append(item)
-    target.nav_json = nav.dump(fav, p["hidden"])
+    target.nav_json = nav.dump(fav, p["hidden"], p["closed"])
     db.commit()
     return JSONResponse({"ok": True, "fav": nav.prefs(target)["fav"]})
 
@@ -1108,7 +1108,7 @@ async def profile_menu_save(request: Request, user: User = Depends(current_user)
         shown = set(data.getlist("show"))
         hidden = [g for g in nav.GROUPS if g not in shown]
     target = db.get(User, user.id)
-    target.nav_json = nav.dump(fav, hidden)
+    target.nav_json = nav.dump(fav, hidden, None if data.get("reset") == "1" else nav.prefs(target)["closed"])
     db.commit()
     flash(request, "Menü zurückgesetzt." if data.get("reset") == "1" else "Menü gespeichert.")
     return redirect("/profile/menu")
@@ -2699,3 +2699,14 @@ from . import routes_orgs  # noqa: E402,F401
 from . import routes_locations  # noqa: E402,F401
 
 from . import routes_expenses  # noqa: E402,F401
+
+
+@app.post("/nav/expand", dependencies=[Depends(check_csrf)])
+async def nav_expand(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    from . import nav
+    data = await request.form()
+    target = db.get(User, user.id)
+    p = nav.prefs(target)
+    target.nav_json = nav.dump(p["fav"], p["hidden"], data.getlist("closed"))
+    db.commit()
+    return JSONResponse({"ok": True})
