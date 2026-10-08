@@ -92,7 +92,7 @@ Jede Person bekommt einzeln die Bereiche freigeschaltet, die sie braucht:
 | **Prozesse** | Bearbeitungsprozesse für Online-Anträge im Prozesseditor anlegen, ändern, veröffentlichen, exportieren und Vorlagen für Nachforderungen pflegen. Arbeitsschritte erledigen kann jede:r, dem ein Schritt zugewiesen ist – dafür braucht es kein Recht |
 | **Aktenplan verwalten** | Ablagebereiche (DMS) anlegen, Lese-/Schreibrechte und Löschfristen festlegen, abgelaufene Vorgänge löschen. Wer was in der Ablage **sieht**, steuern die Rechte am Bereich, nicht dieses Recht |
 | **Kartenlayer & Geocoding** | Verwaltung › Kartenlayer: Layer, Startausschnitt, Zwischenspeicher, Einbetten und die Adresssuche (Nominatim) einrichten – ohne Admin zu sein |
-| **Karten** | Im Kartenbrowser eigene WMS/WFS/WMTS-Dienste hinzufügen, Karten speichern und per Link oder iframe teilen. Ansehen kann den Kartenbrowser jede:r, auch ohne Anmeldung |
+| **Karten** | Eigene öffentliche Dienste, gespeicherte Karten und Freigaben sind nun für alle angemeldeten Portalnutzer verfügbar. Die Layerverwaltung bleibt dem Recht „Kartenlayer & Geocoding“ vorbehalten. |
 | **Rechtstexte** | Gesetze, Satzungen und Verordnungen einstellen, ändern, veröffentlichen und den Rechtsbaum (Ebenen) pflegen. Lesen kann jede:r ohne Anmeldung unter `/recht` |
 | **Krankmeldungen** | Krankmeldungen der Arbeitgeber bearbeiten, für die die Person oder ihre Gruppe zuständig ist (siehe [Krankmelder](#blueotter-krankmelder)) |
 | **Krankmelder verwalten** | Alle Krankmeldungen; Arbeitgeber, Zuständige, Zugang, Texte, Löschfrist, Import, Zugriffsprotokoll |
@@ -1131,3 +1131,14 @@ Platz sparen: Aufnahmen nach Gebrauch in der Oberfläche löschen oder unter **S
 | Logo-Upload: „Das Bild lässt sich nicht lesen“ | Datei ist beschädigt oder hat eine falsche Endung. In einem Grafikprogramm als PNG neu speichern |
 | Umfragen fehlen in der Aufnahme | Nur in Portal-Räumen und während einer Aufnahme. Nach dem Update `docker compose restart prosody` ausgeführt? |
 | Anderes | `docker compose logs --tail 100 portal` und die Meldung an die Betreuung weitergeben |
+
+
+### GIS: Quellenkatalog, Dienste und bestehende Startkarte
+
+Die Administration kann amtliche RLP-Ebenen über den Quellenkatalog übernehmen. Neue Ebenen werden als zunächst unsichtbare zusätzliche Ebenen angehängt. Bestehende Konfigurationen, Reihenfolge und Startgrundkarte werden nicht ersetzt. Startmittelpunkt und Zoom bleiben einstellbar.
+
+WMS/WFS-Importe verwenden die in GetCapabilities angegebene Operationsadresse und behalten notwendige Anbieterparameter. Bei älteren gespeicherten GetCapabilities-Adressen wird die Operationsadresse zwischengespeichert aufgelöst. Echte WMTS-Dienste speichern Matrixset, tatsächliche Matrixkennungen und Kachelgröße. Unterstützt sind globale Web-Mercator-Kachelraster; UTM- oder abweichende lokale Raster werden ausdrücklich als nicht unterstützt angezeigt. WFS-Ausgaben werden als GeoJSON/GML normalisiert; unbekannte CRS werden nicht stillschweigend falsch positioniert.
+
+Öffentliche Flurstücksauskunft verwendet ausschließlich den öffentlichen ALKIS-WFS des Geoportals. Suche erfolgt als WFS-POST, Kartenklicks mit räumlicher Begrenzung. Eigentümerattribute werden verworfen. Interne Layer werden auch bei gesetztem Formular-Flag nicht anonym ausgeliefert. Eigene Nutzerdienste bleiben auf öffentliche HTTP(S)-Adressen beschränkt und nutzen den bestehenden Schutz vor internen Netzwerkzugriffen.
+
+Quellen, Lizenzhinweise, Umfang und technische Grenzen: [GIS-Karten](GIS-KARTEN.md).
