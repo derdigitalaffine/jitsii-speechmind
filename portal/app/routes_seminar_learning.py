@@ -10,7 +10,7 @@ from fastapi import Depends,HTTPException,Request
 from fastapi.responses import FileResponse,Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from . import seminar_series as series, seminar_learning as learning, seminars as sm, circulations as cl, csvsafe, forms as fm, shares, live, votes
+from . import seminar_hybrid as hybrid, seminar_series as series, seminar_learning as learning, seminars as sm, circulations as cl, csvsafe, forms as fm, shares, live, votes
 from .db import (Seminar,SeminarSession,SeminarEnrollment,SeminarAttendance,SeminarMaterial,SeminarActivity,SeminarCertificate,
                  CirculationBundle,Form,FormInvite,FormResponse,Vote,VoteVoter,LivePoll,User,utcnow,to_local,get_settings)
 from .main import app,check_csrf,current_user,get_db,redirect,render,flash,enabled_modules
@@ -276,9 +276,9 @@ def seminar_participants_csv(sid:int,tid:int=0,user:User=Depends(current_user),d
     terms=series.staff_terms(db,user,row)
     if tid and tid not in [t.id for t in terms]:raise HTTPException(404)
     allowed={t.id for t in terms if not tid or t.id==tid}
-    output=io.StringIO();writer=csvsafe.writer(output,delimiter=';');writer.writerow(['Seminar','Name','Organisation','E-Mail' if contacts else '','Termin-ID','Status','Anwesenheit','Bescheinigung'])
+    output=io.StringIO();writer=csvsafe.writer(output,delimiter=';');writer.writerow(['Seminar','Name','Organisation','E-Mail' if contacts else '','Termin-ID','Thema','Ort','Teilnahmeart','Status','Anwesenheit','Bescheinigung'])
     for rec in db.scalars(select(SeminarEnrollment).where(SeminarEnrollment.seminar_id==sid)):
-        for term in [t for t in sm.enrollment_sessions(db,row,rec) if t.id in allowed]:writer.writerow([row.title,rec.name,rec.organization,rec.email if contacts else '',term.id,sm.STATUSES[rec.status],bool(context['attendance'].get((rec.id,term.id))),bool(context['certificates'].get(rec.id))])
+        for term in [t for t in sm.enrollment_sessions(db,row,rec) if t.id in allowed]:writer.writerow([row.title,rec.name,rec.organization,rec.email if contacts else '',term.id,term.title,term.location,hybrid.LABELS[hybrid.mode(rec,term)],sm.STATUSES[rec.status],bool(context['attendance'].get((rec.id,term.id))),bool(context['certificates'].get(rec.id))])
     return protect(Response('\ufeff'+output.getvalue(),media_type='text/csv',headers={'Content-Disposition':'attachment; filename="seminarteilnahmen.csv"'}))
 
 
@@ -286,9 +286,9 @@ def seminar_participants_csv(sid:int,tid:int=0,user:User=Depends(current_user),d
 def seminar_participants_pdf(sid:int,tid:int=0,user:User=Depends(current_user),db:Session=Depends(get_db)):
     row=staff_of(db,user,sid);terms=series.staff_terms(db,user,row)
     if tid and tid not in [t.id for t in terms]:raise HTTPException(404)
-    rows=[['Name','Organisation','Unterschrift']]
+    rows=[['Name','Organisation','Teilnahmeart','Unterschrift']]
     for rec in db.scalars(select(SeminarEnrollment).where(SeminarEnrollment.seminar_id==sid,SeminarEnrollment.status=='confirmed').order_by(SeminarEnrollment.name)):
-        if (not rec.scope_id or rec.scope_id in [t.id for t in terms]) and (not tid or not rec.scope_id or rec.scope_id==tid):rows.append([rec.name,rec.organization,''])
+        if (not rec.scope_id or rec.scope_id in [t.id for t in terms]) and (not tid or not rec.scope_id or rec.scope_id==tid):rows.append([rec.name,rec.organization,hybrid.LABELS[hybrid.mode(rec,series.term_of(db,row,tid))] if tid else 'Siehe Einzeltermine',''])
     paragraphs=[to_local(t.starts_at).strftime('%d.%m.%Y %H:%M')+' · '+t.location for t in terms if not tid or t.id==tid]
     return protect(Response(learning.pdf_document(row.title+' · Teilnehmerliste',paragraphs,rows),media_type='application/pdf',headers={'Content-Disposition':'inline; filename="teilnehmerliste.pdf"'}))
 

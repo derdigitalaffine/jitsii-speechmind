@@ -87,7 +87,7 @@ def files_dir(row):
 
 def bundle_available(db,user,b):
     if get_settings(db).get('module_circulations','1')!='1':return False
-    return bool(b and (user.is_admin or b.shared or b.owner_id in sm.absence.acting_ids(db,user)) and all(cl.item_access(db,user,i) for i in cl.content(b)['items']))
+    return bool(b and not b.archived and (user.is_admin or b.shared or b.owner_id in sm.absence.acting_ids(db,user)) and all(cl.item_access(db,user,i) for i in cl.content(b)['items']))
 
 
 def import_bundle(db,user,row,bundle,release_at=None,scope=0):
@@ -105,12 +105,27 @@ def import_bundle(db,user,row,bundle,release_at=None,scope=0):
     sm.event(db,row,'bundle_imported',user,str(bundle.id))
 
 
+def certificate_covers_term(cert,enrollment,term):
+    """Certificate scope is immutable; unrelated individual bookings remain editable."""
+    if cert.scope_id:return cert.scope_id==term.id
+    snapshot=json.loads(cert.snapshot_json or '{}')
+    if 'term_ids' in snapshot:return term.id in snapshot['term_ids']
+    # Older certificates have no scope marker. The associated booking identifies
+    # enrollment certificates; attended date snapshots identify series certificates.
+    if enrollment.scope_id in {0,term.id}:return True
+    return any(date.get('start')==term.starts_at.isoformat() and date.get('end')==term.ends_at.isoformat()
+               for date in snapshot.get('dates',[]))
+
+
 def mark_attendance(db,row,rec,term,user,present):
     if not series.may_term(db,user,row,term):raise HTTPException(404)
     if rec.status!='confirmed' or term not in sm.enrollment_sessions(db,row,rec):raise HTTPException(409,'Nur bestätigte Teilnahme am passenden aktiven Termin erfassen.')
     if utcnow()<term.starts_at-timedelta(minutes=30):raise HTTPException(409,'Anwesenheit frühestens 30 Minuten vor Beginn erfassen.')
-    related_ids=[r.id for r in series.history(db,row,rec.email)]
-    if not present and db.scalar(select(SeminarCertificate.id).where(SeminarCertificate.enrollment_id.in_(related_ids),SeminarCertificate.scope_id.in_([0,term.id]),SeminarCertificate.revoked_at.is_(None))):raise HTTPException(409,'Zuerst die ausgestellte Bescheinigung widerrufen.')
+    related={r.id:r for r in series.history(db,row,rec.email)}
+    if not present:
+        certificates=db.scalars(select(SeminarCertificate).where(SeminarCertificate.enrollment_id.in_(related),SeminarCertificate.scope_id.in_([0,term.id]),SeminarCertificate.revoked_at.is_(None)))
+        if any(certificate_covers_term(c,related[c.enrollment_id],term) for c in certificates):
+            raise HTTPException(409,'Zuerst die ausgestellte Bescheinigung widerrufen.')
     a=db.scalar(select(SeminarAttendance).where(SeminarAttendance.enrollment_id==rec.id,SeminarAttendance.session_id==term.id))
     if not a:a=SeminarAttendance(enrollment_id=rec.id,session_id=term.id,recorded_by=user.id);db.add(a)
     a.present=present;a.recorded_by=user.id;a.recorded_at=utcnow();sm.event(db,row,'attendance',user,f'{rec.id}/{term.id}: {present}')
@@ -140,7 +155,7 @@ def issue_certificate(db,row,rec,user,scope=0):
     if cert:return cert
     from . import branding
     options=json.loads(row.certificate_options_json)
-    snap=dict(name=rec.name,organization=rec.organization,title=row.title+((' · '+terms[0].title) if scope and terms[0].title else ''),issuer=row.issuer or branding.load()['name'],minutes=round(attended/60),
+    snap=dict(scope_kind='term' if scope else 'series' if row.certificate_scope in {'series','both'} else 'enrollment',term_ids=[t.id for t in terms],name=rec.name,organization=rec.organization,title=row.title+((' · '+terms[0].title) if scope and terms[0].title else ''),issuer=row.issuer or branding.load()['name'],minutes=round(attended/60),
         dates=[{'start':t.starts_at.isoformat(),'end':t.ends_at.isoformat(),'title':t.title} for t in terms if t.id in present],
         teachers=sorted({p['name'] for t in terms for p in series.teachers(db,row,t)}) if options.get('teachers') else [],
         logo=options.get('logo',''),signature=options.get('signature',''))

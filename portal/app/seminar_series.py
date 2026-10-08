@@ -56,7 +56,7 @@ def teachers(db,row,term):
     for uid in lecturer_ids(row,term):
         user=db.get(User,uid)
         if user and user.active:result.append({'name':user.name,'email':user.email if term.show_contact else '', 'lead':uid==term.lead_id})
-    result += [{'name':g['name'],'email':g.get('email','') if term.show_contact else '', 'lead':False} for g in json.loads(term.guests_json)]
+    result += [{'name':g['name'],'email':g.get('email','') if term.show_contact else '', 'lead':bool(g.get('lead'))} for g in json.loads(term.guests_json)]
     return result
 
 
@@ -100,8 +100,11 @@ def book(db,row,identity,data):
     records=[]
     for scope in scopes:
         rec=db.scalar(select(SeminarEnrollment).where(SeminarEnrollment.seminar_id==row.id,SeminarEnrollment.email==identity.email,SeminarEnrollment.scope_id==scope))
+        if json.loads(row.fixed_groups_json or '[]') and not rec:raise HTTPException(403,'Diese Reihe ist für einen festen Teilnehmerkreis. Bitte eine persönliche Einladung verwenden.')
         if not rec:rec=sm.new_enrollment(db,row,scope,identity.name,identity.email,user, str(data.get('organization','')))
         if not rec.verified_at:rec.verified_at=utcnow()
+        from . import seminar_hybrid
+        if rec.status not in sm.BOOKED:seminar_hybrid.set_modes(db,row,rec,data)
         sm.request_place(db,row,rec);records.append(rec)
     return records
 
@@ -111,7 +114,7 @@ def announce(db,row,kind,message):
         db.add(SeminarNotice(seminar_id=row.id,kind=kind,message=message[:10000]))
 
 
-def staff_message(db,row,action,message,terms=None,only_owner=False):
+def staff_message(db,row,action,message,terms=None,only_owner=False,include_external=False):
     if not enabled(row,'staff'):return
     ids={row.owner_id}
     if not only_owner:
@@ -121,6 +124,20 @@ def staff_message(db,row,action,message,terms=None,only_owner=False):
         user=db.get(User,uid)
         if user and user.active:
             notify.enqueue(db,user.email,row.title+' · '+action,message+'\n'+sm.links.module_url(db,'seminars',f'/seminare/{row.id}/participants'), 'seminar',per_hour=20)
+
+
+    if include_external and not only_owner:
+        external={}
+        for term in terms or sm.sessions(db,row):
+            for guest in json.loads(term.guests_json or row.guests_json or '[]'):
+                email=guest.get('email','').strip().lower()
+                if email:external.setdefault(email,[]).append(term)
+        for email,assigned in external.items():
+            dates='\n'.join(to_local(t.starts_at).strftime('%d.%m.%Y %H:%M')+' · '+(t.title or row.title)+' · '+t.location for t in assigned)
+            from . import seminar_hybrid
+            # Each explicitly invited guest gets only their own term's conference access.
+            private='\n'.join('Persönlicher Dozentenzugang: '+seminar_hybrid.invite_teacher(db,row,t,email) for t in assigned if t.delivery_mode!='onsite')
+            notify.enqueue(db,email,row.title+' · '+action,message+'\n'+dates+('\n'+private if private else '')+'\nBitte geben Sie persönliche Links nicht weiter.', 'seminar',per_hour=20)
 
 
 def registration_staff(db,row,rec):
