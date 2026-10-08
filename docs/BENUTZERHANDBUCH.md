@@ -926,3 +926,10 @@ Unter **Mein Arbeitsplatz → Meine Umläufe & Rückmeldungen** (`/umlaeufe/ausw
 Empfänger erkennen in Dashboard, E-Mail und Leseansicht, ob eine **persönliche Kenntnisnahme** oder **Freigabe/Ablehnung** erforderlich ist. Öffnen und Scrollen bestätigen nichts. Der Dokumentindex führt zu PDF-, Markdown- und Rechtstextvorschauen; die eigene Fortschrittsanzeige und der Fortsetzen-Link führen zum nächsten offenen Nachweis. Auf kleinen Displays ist ein kurzer Sprung zur Rückmeldung verfügbar.
 
 Im erweiterten Modus kann der Herausgeber bei Einzelbestätigungen eine verbindliche Dokumentreihenfolge einstellen. Optional können Empfänger den gemeinsamen Fortschritt als Gesamtzahlen sehen; fremde Namen, Entscheidungen und Gründe werden nicht offengelegt. Freigaben dürfen auf ausdrückliche Einstellung durch eine aktive Portalvertretung erfolgen und protokollieren die tatsächlich handelnde Person. Kenntnisnahmen bleiben immer persönlich. Persönliche Gastlinks sind befristet und dürfen nicht weitergegeben werden.
+
+
+## Seminare und Lehrgänge
+
+Unter **Termine & Räume → Seminare & Lehrgänge** Veranstaltungen finden und den persönlichen Anmeldestand aufrufen. Einladungen, Pflichtformulare und Platzangebote erfordern eine ausdrückliche Aktion. Dort stehen auch freigegebene Unterlagen, Kalenderdateien und ausgestellte Bescheinigungen bereit. Die Planung nutzt vorhandene Formulare, Umfragen, Räume und Sammelmappen. [Schrittweise Anleitung](SEMINARE-UND-LEHRGAENGE.md).
+
+Unter **Mein Arbeitsplatz → Meine Aufgaben** erscheinen außerdem offene Kenntnisnahmen und Freigaben aus Umläufen, mit Frist und Dokumentfortschritt. Spätere Stationen sind als wartend gekennzeichnet. Berechtigte Freigaben in Vertretung nennen die vertretene Person; persönliche Kenntnisnahmen bleiben bei den jeweiligen Empfängern. Erledigte, abgelaufene und archivierte Umläufe werden dort nicht als offene Aufgaben aufgeführt.
