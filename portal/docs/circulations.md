@@ -58,3 +58,12 @@ Vorlagen stehen in `circulation_bundles`, Dateien unter `data/portal/circulation
 Dokumentfolgen enthalten ausschließlich serverseitig bekannte Referenzen; fehlende, doppelte oder fremde Referenzen werden abgewiesen. Uploads und Kopien werden bei einem fehlgeschlagenen Speichern zurückgerollt. Der Versionsstand verhindert konkurrierendes Überschreiben. Aus einem veröffentlichten Umlauf wird niemals automatisch auf eine spätere Vorlagenänderung umgeschaltet.
 
 Der Schutz vor ungespeicherten Änderungen berücksichtigt nur Entwurfsdaten, keine Suchfelder oder Editoransichten. Eine erfolgreiche Speicherung navigiert ohne Verlassen-Warnung weiter. Veröffentlichung und Sicherung als Vorlage benötigen zuerst einen gespeicherten Entwurf; offene Änderungen werden vor dem Absenden mit einem Hinweis auf das Speichern angehalten. Fehlgeschlagene Speicherungen oder Weiterleitungen zur Anmeldung behalten den Schutz und die Eingaben.
+
+
+## Rückmeldungsberichte und Empfängerführung
+
+`/umlaeufe/auswertung` enthält eigene Umläufe und optional alle zur Bearbeitung zugänglichen Umläufe. Die Fassungsauswertung trennt Dokumentnachweise, Entscheidungen, offene Rückfragen und Versandaufträge. Zugriff auf eine Sammelmappe oder die Rolle als Empfänger erteilt keine Berichtsrechte. Exporte enthalten keine Gasttoken. In der Sammelmappenübersicht wird nur die Verwendung in berechtigt auswertbaren Umläufen gezeigt.
+
+Die Leseansicht besitzt Aktionsbanner, persönlichen Dokumentfortschritt, Inhaltsindex und Vorschauen. Dashboard und Mail nennen erforderliche Handlung und Frist. Mails versenden keine internen Volltexte; die optionale Kurzbeschreibung wird bewusst durch den Herausgeber eingetragen. Gastlinks enthalten Ablaufhinweis und Weitergabeverbot.
+
+Der erweiterte Modus ergänzt verbindliche Dokumentreihenfolge bei Einzelbestätigungen (`require_item_sequence`), aggregierten Fortschritt ohne fremde Einzelangaben (`share_progress`) und ausdrückliche Vertretungsfreigabe (`allow_proxy_approval`). Reihenfolge und Vertretung werden serverseitig geprüft. Persönliche Kenntnisnahme ist auch bei Vertretung nicht delegierbar; Freigaben protokollieren den tatsächlichen Akteur.

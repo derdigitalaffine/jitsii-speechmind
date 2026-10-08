@@ -49,3 +49,12 @@ Die Werkzeugleiste fügt Fett/Kursiv, Überschriften, Listen, Zitate, Links, Cod
 Die Vorschau nutzt denselben serverseitigen Markdownrenderer wie die Veröffentlichung. HTML wird als Text behandelt und unsichere Linkprotokolle werden nicht zu aktiven Links. Ohne JavaScript funktionieren native Auswahl, Reihenfolge bestehender Dokumente und Speichern; Suche, direkte Textdokument-Vorschau und komfortable Sortierung benötigen JavaScript.
 
 Technische Details zu Nachweisen, Erinnerungen, Gastlinks und Datenschutz: [Moduldokumentation](../portal/docs/circulations.md).
+
+
+## Rückmeldungsberichte und Empfängerführung
+
+`/umlaeufe/auswertung` enthält eigene Umläufe und optional alle zur Bearbeitung zugänglichen Umläufe. Die Fassungsauswertung trennt Dokumentnachweise, Entscheidungen, offene Rückfragen und Versandaufträge. Zugriff auf eine Sammelmappe oder die Rolle als Empfänger erteilt keine Berichtsrechte. Exporte enthalten keine Gasttoken. In der Sammelmappenübersicht wird nur die Verwendung in berechtigt auswertbaren Umläufen gezeigt.
+
+Die Leseansicht besitzt Aktionsbanner, persönlichen Dokumentfortschritt, Inhaltsindex und Vorschauen. Dashboard und Mail nennen erforderliche Handlung und Frist. Mails versenden keine internen Volltexte; die optionale Kurzbeschreibung wird bewusst durch den Herausgeber eingetragen. Gastlinks enthalten Ablaufhinweis und Weitergabeverbot.
+
+Der erweiterte Modus ergänzt verbindliche Dokumentreihenfolge bei Einzelbestätigungen (`require_item_sequence`), aggregierten Fortschritt ohne fremde Einzelangaben (`share_progress`) und ausdrückliche Vertretungsfreigabe (`allow_proxy_approval`). Reihenfolge und Vertretung werden serverseitig geprüft. Persönliche Kenntnisnahme ist auch bei Vertretung nicht delegierbar; Freigaben protokollieren den tatsächlichen Akteur.

@@ -155,7 +155,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 ### Kartenbrowser und Kartenlayer (abschaltbares Modul)
 
 - **Kartenbrowser** mit MapLibre GL unter `/karte` für alle, auch ohne Anmeldung (einbettbar): Grundkarten (basemap.de farbig/grau/Vektor, OpenStreetMap), Fachdaten als **WMS, WMS-T (Zeitregler), WFS, WMTS/XYZ** und GeoJSON, Transparenz, Reihenfolge per Ziehen, Legende, Sachinformation per Klick, **Zeichnen und Messen** von Punkten, Linien und Flächen (benennen, einfärben, Eckpunkte verschieben, GeoJSON laden und herunterladen), Koordinaten in WGS84 und UTM 32, **Orts- und Adresssuche** (Nominatim, über den Server) und Koordinatensuche, Kartenbild als PNG, Link auf den Ausschnitt.
-- Angemeldete mit Recht „Karten“ fügen **eigene Dienste** komfortabel hinzu („Dienst abfragen“ liest die Layer aus GetCapabilities), **speichern Karten** samt Zeichnungen und **teilen** sie per Link oder iframe.
+- Alle angemeldeten Portalnutzer fügen **eigene Dienste** komfortabel hinzu („Dienst abfragen“ liest die Layer aus GetCapabilities), **speichern Karten** samt Zeichnungen und **teilen** sie intern für Benutzer/Gruppen oder öffentlich per Link beziehungsweise iframe.
 - **Systemweite Layerverwaltung** für Admins: Layer anlegen (mit Dienstabfrage), Grundkarte oder Überlagerung, Gruppen, Reihenfolge per Ziehen, öffentlich/intern, Startsichtbarkeit, Verwendung in Formularen, WMS-T-Zeitwerte, Legende, Erreichbarkeit prüfen, Duplizieren, Export/Import als JSON, Übernahme von Benutzer-Layern, Startausschnitt, Zwischenspeicher.
 - Je Layer wählbar: **über das Portal laden** (Proxy mit Kachel-Zwischenspeicher, keine IP-Adressen an Dritte, keine CORS-Probleme) oder direkt beim Anbieter. Eigene Layer von Benutzer:innen laufen immer über den Proxy – mit Schutz vor Zugriffen ins interne Netz.
 
@@ -463,3 +463,12 @@ prosody/                 Prosody-Module: Zugang zu Portal-Räumen, Moderation, C
 Freie Software unter der **MIT-Lizenz**, siehe [LICENSE](LICENSE): verwenden, kopieren, verändern und weitergeben – auch in Ihrer Verwaltung –, solange der Urheberrechts- und Lizenzhinweis erhalten bleibt. Ohne Gewährleistung.
 
 Verwendete Komponenten stehen unter eigenen freien Lizenzen (u. a. Jitsi Meet Apache-2.0, Prosody MIT, Caddy Apache-2.0, Bootstrap MIT, Font Awesome Free CC BY 4.0/OFL/MIT, Chart.js MIT, FullCalendar MIT); die vollständige Liste zeigt das Portal unter **Über dieses Portal**. SpeechMind ist ein kommerzieller Dienst der SpeechMind GmbH; dieses Projekt ist kein offizielles SpeechMind-Produkt.
+
+
+### Aktuelle Erweiterungen: Navigation, Umlaufauswertung und GIS
+
+- Sechs einklappbare Aufgabenbereiche, Kontextnavigation und persönliche Expansion im Benutzerkonto.
+- Eigene Umlaufauswertungen mit Dokumentfortschritt, Empfängerstatus, Fassungen und CSV/JSON; klarer Handlungsbedarf in Dashboard, Leseansicht und E-Mail. Erweiterte Einstellungen für Dokumentreihenfolge und ausdrückliche Freigaben durch aktive Vertretung.
+- Öffentliche ALKIS-Flurstückssuche und Kartenklick-Auskunft ohne Eigentümerdaten, Mehrfachauswahl und Formularübernahme. Amtlicher RLP-Katalog für DTK5, LiKa, Verwaltungsgrenzen und kommunale Bebauungspläne. WMS-Operationsadressen, echte WMTS-Matrixkennungen, Zeitdimensionen und GML/GeoJSON-Verarbeitung berücksichtigen die Dienstmetadaten.
+
+Einrichtung und Grenzen: [GIS/Karten](docs/GIS-KARTEN.md), [Umläufe und Sammelmappen](docs/UMLAEUFE-UND-SAMMELMAPPEN.md), [Benutzerhandbuch](docs/BENUTZERHANDBUCH.md).
