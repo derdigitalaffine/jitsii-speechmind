@@ -506,13 +506,14 @@ _badge_cache: dict = {}
 
 
 def _task_badge(user: User | None) -> int:
-    """Anzahl offener Arbeitsschritte (Anträge) und Buchungsaufgaben für die Navigation (30 s zwischengespeichert)."""
+    """Anzahl offener Antrags-, Buchungs- und Umlaufaufgaben für die Navigation (30 s zwischengespeichert)."""
     if user is None:
         return 0
     mods = enabled_modules()
-    if "applications" not in mods and "resources" not in mods:
+    if not mods & {"applications", "resources", "circulations"}:
         return 0
-    hit = _badge_cache.get(user.id)
+    cache_key = (user.id, frozenset(mods))
+    hit = _badge_cache.get(cache_key)
     if hit and time.monotonic() - hit[0] < 30:
         return hit[1]
     n = 0
@@ -523,9 +524,12 @@ def _task_badge(user: User | None) -> int:
         if "resources" in mods:
             from . import resources as rs
             n += rs.booking_task_count(db, user)
+        if "circulations" in mods:
+            from . import circulations
+            n += len(circulations.pending_tasks(db, user))
     if len(_badge_cache) > 2000:
         _badge_cache.clear()
-    _badge_cache[user.id] = (time.monotonic(), n)
+    _badge_cache[cache_key] = (time.monotonic(), n)
     return n
 
 

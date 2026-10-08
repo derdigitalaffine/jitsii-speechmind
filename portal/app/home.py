@@ -2,7 +2,7 @@
 und eingeschalteten Modulen. Reihenfolge und Sichtbarkeit lassen sich je Person anpassen."""
 
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import func, or_, select
 
@@ -42,11 +42,21 @@ def prefs(user: User) -> dict:
 
 
 def _tasks(db, user):
-    from . import workflow
-    tasks = workflow.my_tasks(db, user)
+    from . import workflow, circulations
+    from .main import enabled_modules
+    mods = enabled_modules()
+    tasks = workflow.my_tasks(db, user) if "applications" in mods else []
     now = utcnow()
-    waiting = workflow.waiting_requests(db, user)
-    return {"items": tasks[:6], "count": len(tasks), "overdue": sum(1 for t in tasks if t.due_at and t.due_at < now),
+    waiting = workflow.waiting_requests(db, user) if "applications" in mods else []
+    items = [dict(title=t.name, href=f"/forms/{t.response.form_id}/applications/{t.response.id}#schritt",
+                  sub=t.response.ref_no, due=t.due_at) for t in tasks]
+    if "circulations" in mods:
+        items += [dict(title=t['title'], href=f"/umlaeufe/{t['row'].id}?recipient={t['recipient_id']}",
+                       sub=(t['action'] if t['ready'] else 'Umlauf gestoppt' if t['stopped'] else 'Später an der Reihe') +
+                           (f" · Vertretung für {t['recipient_name']}" if t['proxy'] else ''), due=t['due'])
+                  for t in circulations.pending_tasks(db, user)]
+    items.sort(key=lambda t: (t['due'] or datetime.max, t['href']))
+    return {"items": items[:6], "count": len(items), "overdue": sum(bool(t['due'] and t['due'] < now) for t in items),
             "waiting": len(waiting), "now": now}
 
 
@@ -205,8 +215,10 @@ def tiles(db, user: User, modules: set, ctx=None, cache: dict | None = None) -> 
         available.append("seminars")
     if "circulations" in modules:
         available.append("circulations")
+    if "circulations" in modules or ("applications" in modules and _case_worker(db, user)):
+        available.append("tasks")
     if "applications" in modules and _case_worker(db, user):
-        available += ["tasks", "applications"]
+        available.append("applications")
     if user.can("video"):
         available.append("meetings")
     if "polls" in modules and (user.can("polls") or _polls(db, user)["todo"]):
@@ -268,11 +280,12 @@ def overview(db, user: User, modules: set) -> tuple[dict, dict]:
 
     now = utcnow()
     today = to_local(now).date()
-    if "applications" in modules and _case_worker(db, user):
+    if "circulations" in modules or ("applications" in modules and _case_worker(db, user)):
         t = cache["tasks"] = _tasks(db, user)
-        a = cache["applications"] = _applications(db, user)
         act(t["overdue"], "Aufgaben überfällig", "/tasks", "fa-triangle-exclamation", "danger")
         act(t["count"] - t["overdue"], "offene Aufgaben", "/tasks", "fa-list-check")
+    if "applications" in modules and _case_worker(db, user):
+        a = cache["applications"] = _applications(db, user)
         act(a["overdue"], "Anträge mit Frist über", "/forms/applications?status=overdue", "fa-hourglass-end", "danger")
         act(a["new"], "neue Anträge", "/forms/applications?status=received", "fa-file-signature")
         act(a["query"], "Rückfragen offen", "/forms/applications?status=query", "fa-comments", "secondary")

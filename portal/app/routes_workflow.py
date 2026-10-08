@@ -45,21 +45,23 @@ def _groups(db):
 
 @app.get("/tasks")
 def tasks_page(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """Meine Aufgaben: Arbeitsschritte aus Online-Anträgen und Aufgaben aus der Ressourcenbuchung."""
+    """Meine Aufgaben: Anträge, Ressourcenbuchungen und persönliche Umlauf-Rückmeldungen."""
     mods = enabled_modules()
-    if "applications" not in mods and "resources" not in mods:
-        raise HTTPException(404, "Aufgaben gibt es nur mit Online-Anträgen oder der Ressourcenbuchung.")
+    if not mods & {"applications", "resources", "circulations"}:
+        raise HTTPException(404, "Kein Aufgabenmodul ist eingeschaltet.")
     tasks = wf.my_tasks(db, user) if "applications" in mods else []
     now = utcnow()
     from . import resources as rs
     bookings = rs.booking_tasks(db, user) if "resources" in mods else []
+    from . import circulations as cl
+    circulation_tasks = cl.pending_tasks(db, user) if "circulations" in mods else []
     return render(request, "tasks.html", user, tasks=tasks, now=now,
                   waiting=wf.waiting_requests(db, user) if "applications" in mods else [],
                   types=wf.STEP_TYPES, statuses=apps.STATUSES, apps_on="applications" in mods,
                   mine=[t for t in tasks if t.assignee_id == user.id],
                   deputy=[t for t in tasks if t.assignee_id and t.assignee_id != user.id],
                   pool=[t for t in tasks if not t.assignee_id], bookings=bookings,
-                  when=rs.when_text)
+                  when=rs.when_text, circulation_tasks=circulation_tasks, circulations_on="circulations" in mods)
 
 
 # --- Arbeitsschritte im Vorgang -----------------------------------------------------------
