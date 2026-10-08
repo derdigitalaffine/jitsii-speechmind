@@ -928,6 +928,11 @@ def jitsi_auth(request: Request, room: str = "", db: Session = Depends(get_db)):
         return redirect("/")
     meeting = db.scalar(select(Meeting).where(Meeting.room == room))
     member = session_user(request, db)
+    from . import seminar_hybrid
+    if meeting is not None and seminar_hybrid.is_seminar_room(db, meeting):
+        if not seminar_hybrid.authorized_room(db, member, meeting):
+            raise HTTPException(403, "Bitte über Ihre bestätigte Seminarteilnahme beitreten.")
+        return redirect(join_url(member, room, recording=False, moderator=hosts(member, meeting)))
     if meeting is not None and (member is None or not member.can("video")):
         # Geschützter Portal-Raum ohne Anmeldung: erklären, wie man hineinkommt, statt nur Login
         return render(request, "guest.html", None, mode="protected", meeting=meeting,
@@ -976,6 +981,9 @@ def join_personal(request: Request, token: str, db: Session = Depends(get_db)):
     if inv is None:
         return render(request, "guest.html", session_user(request, db), mode="invalid")
     meeting = inv.meeting
+    from . import seminar_hybrid
+    if seminar_hybrid.is_seminar_room(db, meeting):
+        raise HTTPException(403, "Bitte den persönlichen Seminarzugang verwenden.")
     if meeting.cancelled_at:
         return render(request, "guest.html", session_user(request, db), mode="cancelled", meeting=meeting)
     user = session_user(request, db)
@@ -1031,6 +1039,9 @@ def join_guest_form(request: Request, token: str, db: Session = Depends(get_db))
     user = session_user(request, db)
     if meeting is None:
         return render(request, "guest.html", user, mode="invalid")
+    from . import seminar_hybrid
+    if seminar_hybrid.is_seminar_room(db, meeting):
+        raise HTTPException(403, "Bitte den persönlichen Seminarzugang verwenden.")
     if user is not None and user.can("video"):
         return redirect(join_url(user, meeting.room, moderator=hosts(user, meeting)))
     return render(request, "guest.html", None, mode="form", meeting=meeting, token=token)
@@ -1042,6 +1053,9 @@ def join_guest(request: Request, token: str, name: str = Form(""), db: Session =
     meeting = db.scalar(select(Meeting).where(Meeting.guest_token == token)) if len(token) > 10 else None
     if meeting is None:
         return redirect(f"/g/{token}")
+    from . import seminar_hybrid
+    if seminar_hybrid.is_seminar_room(db, meeting):
+        raise HTTPException(403, "Bitte den persönlichen Seminarzugang verwenden.")
     name = " ".join(name.split())[:60]
     if not name:
         flash(request, "Bitte geben Sie Ihren Namen an.", "error")
@@ -1277,7 +1291,10 @@ def meeting_guest_link_reset(request: Request, meeting_id: int, user: User = Dep
 @app.get("/meetings/{meeting_id}/join")
 def meeting_join(meeting_id: int, user: User = Depends(video_user), db: Session = Depends(get_db)):
     meeting = own_meeting(db, meeting_id, user)
-    return redirect(join_url(user, meeting.room))
+    from . import seminar_hybrid
+    if not seminar_hybrid.authorized_room(db, user, meeting):
+        raise HTTPException(403, "Bitte den persönlichen Seminarzugang verwenden.")
+    return redirect(join_url(user, meeting.room, recording=not seminar_hybrid.is_seminar_room(db, meeting)))
 
 
 @app.post("/meetings/{meeting_id}/schedule", dependencies=[Depends(check_csrf)])
@@ -2746,3 +2763,5 @@ from . import routes_seminar_learning  # noqa: E402,F401
 from . import routes_seminar_series  # noqa: E402,F401
 
 from . import routes_oidc  # noqa: E402,F401
+
+from . import routes_seminar_planning, routes_seminar_hybrid  # noqa: E402,F401

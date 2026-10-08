@@ -133,8 +133,24 @@ PERMISSIONS = {
 
 
 
+class SeminarExternalLecturer(Base):
+    __tablename__ = "seminar_external_lecturers"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(255))
+    organization: Mapped[str] = mapped_column(String(255), default="")
+    email: Mapped[str] = mapped_column(String(255), default="")
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class Seminar(Base):
     __tablename__ = "seminars"
+    planning_json: Mapped[str] = mapped_column(Text, default='{}')
+    guests_json: Mapped[str] = mapped_column(Text, default='[]')
+    lead_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fixed_groups_json: Mapped[str] = mapped_column(Text, default='[]')
+    fixed_confirmation: Mapped[bool] = mapped_column(Boolean, default=True)
+    video_room: Mapped[str] = mapped_column(String(128), default='')
     subscriptions: Mapped[bool] = mapped_column(Boolean, default=True)
     digest_mode: Mapped[str] = mapped_column(String(16), default='daily')
     notifications_json: Mapped[str] = mapped_column(Text, default='{}')
@@ -175,6 +191,10 @@ class Seminar(Base):
 
 class SeminarSession(Base):
     __tablename__ = "seminar_sessions"
+    delivery_mode: Mapped[str] = mapped_column(String(16), default='onsite')
+    online_capacity: Mapped[int] = mapped_column(Integer, default=0)
+    video_kind: Mapped[str] = mapped_column(String(16), default='manual')
+    meeting_id: Mapped[int | None] = mapped_column(ForeignKey("meetings.id", ondelete="SET NULL"), nullable=True)
     published: Mapped[bool] = mapped_column(Boolean, default=True)
     lecturers_json: Mapped[str] = mapped_column(Text, default='')
     guests_json: Mapped[str] = mapped_column(Text, default='[]')
@@ -197,8 +217,22 @@ class SeminarSession(Base):
     revision: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class SeminarLecturerAccess(Base):
+    """Explicit guest-teacher invitation, scoped to conference access for one term."""
+    __tablename__ = "seminar_lecturer_access"
+    __table_args__ = (UniqueConstraint("term_id", "email"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    term_id: Mapped[int] = mapped_column(ForeignKey("seminar_sessions.id", ondelete="CASCADE"), index=True)
+    email: Mapped[str] = mapped_column(String(255))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    token_enc: Mapped[str] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class SeminarEnrollment(Base):
     __tablename__ = "seminar_enrollments"
+    modes_json: Mapped[str] = mapped_column(Text, default='{}')
     __table_args__ = (UniqueConstraint("seminar_id", "scope_id", "email"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     seminar_id: Mapped[int] = mapped_column(ForeignKey("seminars.id", ondelete="CASCADE"), index=True)
@@ -337,6 +371,7 @@ class Circulation(Base):
 class CirculationBundle(Base):
     """Reusable document collection; imports are independent copies, not live publications."""
     __tablename__ = "circulation_bundles"
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     draft_json: Mapped[str] = mapped_column(Text, default="{}")
@@ -2832,11 +2867,13 @@ DEFAULT_SETTINGS = {
 
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)
 _NEW_COLUMNS = {
+    "circulation_bundles": {"archived": "BOOLEAN NOT NULL DEFAULT 0"},
     "group_members": {"manual": "BOOLEAN NOT NULL DEFAULT 1"},
     "user_sessions": {"oidc_identity_id": "INTEGER REFERENCES oidc_identities(id) ON DELETE CASCADE", "oidc_sid": "VARCHAR(255) NOT NULL DEFAULT ''", "oidc_token_enc": "TEXT NOT NULL DEFAULT ''", "expires_at": "DATETIME"},
 
-    'seminars': {'subscriptions': 'BOOLEAN NOT NULL DEFAULT 1', 'digest_mode': "VARCHAR(16) NOT NULL DEFAULT 'daily'", 'notifications_json': "TEXT NOT NULL DEFAULT '{}'", 'certificate_scope': "VARCHAR(16) NOT NULL DEFAULT 'enrollment'", 'certificate_auto': 'BOOLEAN NOT NULL DEFAULT 0', 'certificate_options_json': "TEXT NOT NULL DEFAULT '{}'", 'form_once': 'BOOLEAN NOT NULL DEFAULT 0'},
-    'seminar_sessions': {'published': 'BOOLEAN NOT NULL DEFAULT 1', 'lecturers_json': "TEXT NOT NULL DEFAULT ''", 'guests_json': "TEXT NOT NULL DEFAULT '[]'", 'lead_id': 'INTEGER', 'lecturer_description': "TEXT NOT NULL DEFAULT ''", 'show_contact': 'BOOLEAN NOT NULL DEFAULT 0', 'participants_visible': 'BOOLEAN NOT NULL DEFAULT 0', 'overrides_json': "TEXT NOT NULL DEFAULT '{}'", 'published_at': 'DATETIME'},
+    'seminar_enrollments': {'modes_json': "TEXT NOT NULL DEFAULT '{}'"},
+    'seminars': {'planning_json': "TEXT NOT NULL DEFAULT '{}'", 'guests_json': "TEXT NOT NULL DEFAULT '[]'", 'lead_id': 'INTEGER', 'fixed_groups_json': "TEXT NOT NULL DEFAULT '[]'", 'fixed_confirmation': 'BOOLEAN NOT NULL DEFAULT 1', 'video_room': "VARCHAR(128) NOT NULL DEFAULT ''", 'subscriptions': 'BOOLEAN NOT NULL DEFAULT 1', 'digest_mode': "VARCHAR(16) NOT NULL DEFAULT 'daily'", 'notifications_json': "TEXT NOT NULL DEFAULT '{}'", 'certificate_scope': "VARCHAR(16) NOT NULL DEFAULT 'enrollment'", 'certificate_auto': 'BOOLEAN NOT NULL DEFAULT 0', 'certificate_options_json': "TEXT NOT NULL DEFAULT '{}'", 'form_once': 'BOOLEAN NOT NULL DEFAULT 0'},
+    'seminar_sessions': {'delivery_mode': "VARCHAR(16) NOT NULL DEFAULT 'onsite'", 'online_capacity': 'INTEGER NOT NULL DEFAULT 0', 'video_kind': "VARCHAR(16) NOT NULL DEFAULT 'manual'", 'meeting_id': 'INTEGER', 'published': 'BOOLEAN NOT NULL DEFAULT 1', 'lecturers_json': "TEXT NOT NULL DEFAULT ''", 'guests_json': "TEXT NOT NULL DEFAULT '[]'", 'lead_id': 'INTEGER', 'lecturer_description': "TEXT NOT NULL DEFAULT ''", 'show_contact': 'BOOLEAN NOT NULL DEFAULT 0', 'participants_visible': 'BOOLEAN NOT NULL DEFAULT 0', 'overrides_json': "TEXT NOT NULL DEFAULT '{}'", 'published_at': 'DATETIME'},
     'seminar_materials': {'scope_id': 'INTEGER NOT NULL DEFAULT 0'},
     'seminar_activities': {'scope_id': 'INTEGER NOT NULL DEFAULT 0', 'once_per_series': 'BOOLEAN NOT NULL DEFAULT 0'},
     'seminar_certificates': {'scope_id': 'INTEGER NOT NULL DEFAULT 0'},
@@ -2938,6 +2975,8 @@ def _migrate() -> None:
             for name, ddl in columns.items():
                 if name not in existing:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+            if table == "seminar_sessions" and "delivery_mode" not in existing:
+                conn.execute(text("UPDATE seminar_sessions SET delivery_mode = 'hybrid' WHERE online_url <> ''"))
             if table == "forms" and "confirm_pdf" not in existing:
                 conn.execute(text("UPDATE forms SET confirm_pdf = CASE WHEN kind = 'application' THEN app_pdf ELSE 0 END"))
         for name, table, column in (("ix_recordings_status", "recordings", "status"),

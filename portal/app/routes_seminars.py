@@ -63,6 +63,7 @@ def seminar_list(request:Request,db:Session=Depends(get_db)):
     from . import seminar_series
     from .db import SeminarSubscription
     period=request.query_params.get('period','upcoming')
+    from . import seminar_hybrid
     cards=[]
     for row in db.scalars(select(Seminar).order_by(Seminar.updated_at.desc())):
         staff=sm.role(db,user,row)
@@ -77,7 +78,7 @@ def seminar_list(request:Request,db:Session=Depends(get_db)):
         if q and q not in (row.title+' '+row.description).lower():continue
         cards.append(dict(row=row,terms=sm.sessions(db,row),role=staff,mine=mine,subscription=sub))
     return protect(render(request,'seminars.html',user,cards=cards,tab=tab,q=q,statuses=sm.STATUSES,
-        subscription_path=seminar_series.subscription_path,period=period,personal_path=sm.personal_path,can_create=bool(user and user.can('seminars'))))
+        subscription_path=seminar_series.subscription_path,period=period,personal_path=sm.personal_path,participation_mode=seminar_hybrid.mode,can_create=bool(user and user.can('seminars'))))
 
 
 @app.post('/seminare/new',dependencies=[Depends(check_csrf)])
@@ -222,7 +223,7 @@ def seminar_detail(request:Request,sid:int,db:Session=Depends(get_db)):
     from . import seminar_series
     teachers={t.id:seminar_series.teachers(db,row,t) for t in sm.sessions(db,row)}
     places={t.id:seminar_series.places(db,row,t) for t in sm.sessions(db,row)}
-    return protect(render(request,'seminar.html',user,row=row,terms=sm.sessions(db,row),role=sm.role(db,user,row),teachers=teachers,places=places,organization=profile.get('organization','') if profile.get('prefill_enabled') else '',open_registration=bool(row.status=='published' and sm.sessions(db,row) and (not row.registration_until or row.registration_until>utcnow()) and (all(t.starts_at>utcnow() for t in sm.sessions(db,row)) if row.booking_mode=='series' else any(t.starts_at>utcnow() for t in sm.sessions(db,row)))),now=utcnow()))
+    return protect(render(request,'seminar.html',user,row=row,terms=sm.sessions(db,row),role=sm.role(db,user,row),teachers=teachers,places=places,organization=profile.get('organization','') if profile.get('prefill_enabled') else '',open_registration=bool(not json.loads(row.fixed_groups_json or '[]') and row.status=='published' and sm.sessions(db,row) and (not row.registration_until or row.registration_until>utcnow()) and (all(t.starts_at>utcnow() for t in sm.sessions(db,row)) if row.booking_mode=='series' else any(t.starts_at>utcnow() for t in sm.sessions(db,row)))),now=utcnow()))
 
 
 @app.post('/seminare/{sid:int}/register',dependencies=[Depends(check_csrf)])
@@ -238,9 +239,12 @@ async def seminar_register(request:Request,sid:int,db:Session=Depends(get_db)):
     recs=[]
     for scope in ids:
         rec=db.scalar(select(SeminarEnrollment).where(SeminarEnrollment.seminar_id==sid,SeminarEnrollment.scope_id==scope,SeminarEnrollment.email==email))
+        if json.loads(row.fixed_groups_json or '[]') and not rec:raise HTTPException(403,'Diese Reihe ist für einen festen Teilnehmerkreis. Bitte eine persönliche Einladung verwenden.')
         if rec and user and rec.user_id not in (None,user.id):raise HTTPException(409)
         if not rec:rec=sm.new_enrollment(db,row,scope,name,email,user,str(data.get('organization','')))
         if not sm.registration_open(db,row,rec):raise HTTPException(409,'Anmeldung geschlossen.')
+        from . import seminar_hybrid
+        if rec.status not in sm.BOOKED:seminar_hybrid.set_modes(db,row,rec,data)
         if user:
             rec.user_id=user.id;rec.verified_at=utcnow();sm.request_place(db,row,rec)
         else:
@@ -262,6 +266,8 @@ def seminar_personal(request:Request,token:str,db:Session=Depends(get_db)):
     extras={}
     from . import seminar_learning
     extras=seminar_learning.participant_context(db,row,rec,user)
+    from . import seminar_hybrid
+    extras.update(seminar_hybrid.context(db,row,rec))
     from . import seminar_series
     events=list(db.scalars(select(SeminarEvent).where(SeminarEvent.seminar_id==row.id).order_by(SeminarEvent.created_at.desc())))
     own_events=[e for e in events if e.detail.startswith(f'Teilnahme {rec.id}:') or e.detail==str(rec.id) or e.detail.startswith(f'{rec.id}:')]
@@ -273,6 +279,8 @@ async def seminar_personal_action(request:Request,token:str,db:Session=Depends(g
     row,rec,user=personal_of(request,db,token);data=await request.form();sm.lock(db,row);action=data.get('action')
     if action=='register':
         if rec.status=='unverified' or (rec.status=='invited' and not rec.verified_at):rec.verified_at=utcnow()
+        from . import seminar_hybrid
+        seminar_hybrid.set_modes(db,row,rec,data)
         sm.request_place(db,row,rec)
     elif action=='accept':sm.accept_offer(db,row,rec)
     elif action=='cancel':sm.cancel(db,row,rec,reason=str(data.get('reason','')))
@@ -292,13 +300,13 @@ def seminar_participants(request:Request,sid:int,user:User=Depends(current_user)
     row=staff_of(db,user,sid)
     records=list(db.scalars(select(SeminarEnrollment).where(SeminarEnrollment.seminar_id==sid).order_by(SeminarEnrollment.created_at)))
     planner=sm.may_plan(db,user,row)
-    from . import seminar_series, seminar_learning
+    from . import seminar_series, seminar_learning, seminar_hybrid
     terms=seminar_series.staff_terms(db,user,row);tid=sm.integer(request.query_params.get('tid',0))
     if tid and tid not in [t.id for t in terms]:raise HTTPException(404)
     if tid:terms=[t for t in terms if t.id==tid]
     records=[r for r in records if not r.scope_id or r.scope_id in [t.id for t in terms]]
     return protect(render(request,'seminar_participants.html',user,row=row,records=records,statuses=sm.STATUSES,planner=planner,
-        terms=terms,tid=tid,whole_staff=seminar_series.whole_staff(db,user,row),people=list(db.scalars(select(User).where(User.active.is_(True)).order_by(User.name))) if planner else [],
+        terms=terms,tid=tid,participation_mode=seminar_hybrid.mode,whole_staff=seminar_series.whole_staff(db,user,row),people=list(db.scalars(select(User).where(User.active.is_(True)).order_by(User.name))) if planner else [],
         groups=list(db.scalars(select(Group).order_by(Group.name))) if planner else [],**seminar_learning.staff_context(db,row)))
 
 

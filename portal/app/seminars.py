@@ -145,11 +145,12 @@ def by_token(db,token):
 
 
 def calendar_text(db,row,rec):
+    from . import seminar_hybrid as hybrid
     blocks=[]
     for term in [t for t in sessions(db,row,False) if not rec.scope_id or t.id==rec.scope_id]:
         text=ics.build(method='PUBLISH',uid=f'seminar-{row.id}-{term.id}@portal',sequence=term.revision,
             start=term.starts_at,minutes=int((term.ends_at-term.starts_at).total_seconds()/60),title=row.title+(f' – {term.title}' if term.title else ''),
-            description='Persönliche Anmeldung und Unterlagen: '+personal_link(db,rec),location=term.location,
+            description='Teilnahme: '+hybrid.LABELS[hybrid.mode(rec,term)]+'\nPersönliche Anmeldung, Konferenzzugang und Unterlagen: '+personal_link(db,rec),location='Online' if hybrid.mode(rec,term)=='online' else term.location,
             url=personal_link(db,rec),organizer=None,attendees=[],cancelled=row.status=='cancelled' or term.cancelled)
         blocks.append(text.split('BEGIN:VEVENT\r\n',1)[1].split('END:VEVENT\r\n',1)[0])
     return 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:'+ics.PRODID+'\r\nMETHOD:PUBLISH\r\n'+''.join('BEGIN:VEVENT\r\n'+b+'END:VEVENT\r\n' for b in blocks)+'END:VCALENDAR\r\n'
@@ -160,7 +161,8 @@ def mail(db,row,rec,subject,message,key=None,calendar_file=False):
     kind='materials' if key and key.startswith('material:') else 'reminders' if key and key.startswith('reminder:') else 'certificates' if 'bescheinigung' in subject.lower() else 'changes' if 'geändert' in subject.lower() or 'abgesagt' in subject.lower() else 'registration'
     if not series.enabled(row,kind):return False
     if key and db.scalar(select(SeminarDelivery.id).where(SeminarDelivery.enrollment_id==rec.id,SeminarDelivery.key==key)):return False
-    dates='\n'.join(to_local(t.starts_at).strftime('%d.%m.%Y %H:%M')+' – '+to_local(t.ends_at).strftime('%H:%M')+' · '+t.location+(' · abgesagt' if t.cancelled else '') for t in sessions(db,row,False) if not rec.scope_id or t.id==rec.scope_id)
+    from . import seminar_hybrid as hybrid
+    dates='\n'.join(to_local(t.starts_at).strftime('%d.%m.%Y %H:%M')+' – '+to_local(t.ends_at).strftime('%H:%M')+' · '+(t.title or row.title)+' · '+hybrid.LABELS[hybrid.mode(rec,t)]+(' · '+t.location if hybrid.mode(rec,t)=='onsite' else '')+(' · abgesagt' if t.cancelled else '') for t in sessions(db,row,False) if not rec.scope_id or t.id==rec.scope_id)
     rendered_subject,text=mailtpl.render(db,'seminar',{'name':rec.name,'titel':row.title,'aktion':subject,'nachricht':message,'status':STATUSES[rec.status],'termine':dates,'link':personal_link(db,rec)})
     attachments=[{'filename':'seminar.ics','content':calendar_text(db,row,rec),'mime':'text/calendar'}] if calendar_file else None
     queued=notify.enqueue(db,rec.email,rendered_subject,text,'seminar',attachments=attachments,per_hour=20)
@@ -180,14 +182,8 @@ def registration_open(db,row,rec):
 
 
 def seats_available(db,row,rec):
-    from . import seminar_series as series
-    for term in enrollment_sessions(db,row,rec):
-        capacity=series.setting(row,term,'capacity')
-        if not capacity:continue
-        n=len(list(db.scalars(select(SeminarEnrollment.id).where(SeminarEnrollment.seminar_id==row.id,
-            SeminarEnrollment.scope_id.in_([0,term.id]),SeminarEnrollment.status.in_(BOOKED),SeminarEnrollment.id!=rec.id))))
-        if n>=capacity:return False
-    return True
+    from . import seminar_hybrid
+    return seminar_hybrid.seats_available(db,row,rec)
 
 
 def duplicate(db,row,rec):
