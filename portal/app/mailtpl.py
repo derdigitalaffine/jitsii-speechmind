@@ -117,6 +117,12 @@ _ABS_VARS = {"name": "Name der empfangenden Person", "abwesend": "Name der abwes
              "link": "Link zu „Abwesenheiten“ im Portal"}
 
 TEMPLATES: dict[str, dict] = {
+    "seminar": {
+        "group": "Seminare", "label": "Seminar: Einladung und Status",
+        "vars": {"name":"Teilnehmername", "titel":"Seminar", "aktion":"Aktion / Anlass", "nachricht":"Handlungsaufforderung", "status":"Anmeldestand", "termine":"Termine und Orte", "link":"Persönlicher Link"},
+        "subject": "{aktion} – {titel}",
+        "body": "Hallo {name},\n\n{titel}\n{nachricht}\n\nStatus: {status}\n\n{termine}\n\nAnmeldung, Abmeldung und Unterlagen: {link}\n\nDieser Link ist persönlich. Bitte nicht weitergeben.\n\n{fusszeile}",
+    },
     "account_invite": {
         "group": "Konten", "label": "Einladung zum Konto",
         "vars": {"name": "Name der Person", "email": "E-Mail-Adresse (Benutzername)",

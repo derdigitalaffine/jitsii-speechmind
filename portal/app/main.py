@@ -132,7 +132,7 @@ templates.env.filters["geocenter"] = lambda v: _forms_mod().geo_center(v)
 templates.env.filters["geoinput"] = lambda v: _forms_mod().geo_input(v)
 templates.env.globals["geo_position"] = lambda v, raw="": _forms_mod().geo_position(v, raw)
 templates.env.globals["perm_modules"] = {"processes": "applications", "app_create": "applications", "formblocks": "forms",
-                                         "dms_admin": "dms", "votes": "polls", "resources": "resources",
+                                         "dms_admin": "dms", "seminars_manage": "seminars", "votes": "polls", "resources": "resources",
                                          "krank": "krank", "krank_admin": "krank"}
 templates.env.globals.update(planning_when=planning.when, cancel_recipients=planning.cancel_recipients, local_input=planning.local_input,
                              is_upcoming=planning.is_upcoming, rsvp_labels=planning.RSVP_LABELS,
@@ -173,6 +173,7 @@ templates.env.filters["local"] = lambda dt, fmt="%d.%m.%Y, %H:%M": to_local(dt).
 
 # Modul: (Einstellung, Rechte-Schlüssel, Pfad-Präfixe)
 MODULES = {
+    "seminars": ("Seminare & Lehrgänge", "module_seminars", ("/seminare",)),
     "shortlinks": ("Kurzlinks & QR-Codes", "module_shortlinks", ("/shortlinks", "/s/", "/s")),
     "forms": ("Formulare", "module_forms", ("/forms", "/f/")),
     "polls": ("Umfragen & Abstimmungen", "module_polls", ("/polls", "/t/", "/votes", "/v/", "/l/")),
@@ -2169,8 +2170,8 @@ async def admin_groups_update(request: Request, gid: int, action: str = Form("sa
 def admin_modules(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
     from .db import (BookingPage, DmsRecord, Form as FormModel, FormResponse, KrankReport, LawText, Poll,
                      Resource as ResourceModel, ShortLink, UserMap)
-    from .db import Circulation
-    stats = {"circulations": db.scalar(select(func.count(Circulation.id))), "bookings": db.scalar(select(func.count(BookingPage.id))),
+    from .db import Circulation, Seminar
+    stats = {"seminars": db.scalar(select(func.count(Seminar.id))),"circulations": db.scalar(select(func.count(Circulation.id))), "bookings": db.scalar(select(func.count(BookingPage.id))),
              "dms": db.scalar(select(func.count(DmsRecord.id))),
              "maps": db.scalar(select(func.count(UserMap.id))),
              "applications": db.scalar(select(func.count(FormResponse.id)).where(FormResponse.ref_no.is_not(None))),
@@ -2712,3 +2713,7 @@ async def nav_expand(request: Request, user: User = Depends(current_user), db: S
     target.nav_json = nav.dump(p["fav"], p["hidden"], data.getlist("closed"))
     db.commit()
     return JSONResponse({"ok": True})
+
+from . import routes_seminars  # noqa: E402,F401
+
+from . import routes_seminar_learning  # noqa: E402,F401

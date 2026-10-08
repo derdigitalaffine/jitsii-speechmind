@@ -515,7 +515,7 @@ def plain_excerpt(body):
 
 
 def bundle_creator(user):
-    return any(user.can(p) for p in ('circulations_create','circulations_publish','circulations_manage'))
+    return any(user.can(p) for p in ('circulations_create','circulations_publish','circulations_manage','seminars','seminars_manage'))
 
 
 def bundle_may_edit(db,user,bundle):
@@ -545,7 +545,7 @@ def available_bundles(db,user):
 
 def return_path(value):
     value=str(value or '')
-    return value if re.fullmatch(r'/umlaeufe/[0-9]+/edit',value) else ''
+    return value if re.fullmatch(r'/(?:umlaeufe/[0-9]+/edit|seminare/[0-9]+/materials)',value) else ''
 
 
 def copy_document(source,target,original,staged):
