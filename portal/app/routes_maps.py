@@ -13,13 +13,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from . import maps as mp
-from .db import MapLayer, SessionLocal, User, UserMap, get_settings, set_setting
+from .db import MapLayer, SessionLocal, User, UserMap, Group, get_settings, set_setting
 from .main import (
     app, check_csrf, enabled_modules, flash, get_db, rate_limit, redirect, render, require,
-    session_user,
+    session_user, current_user,
 )
 
-map_user = require("maps")
+map_user = current_user
 maps_admin_user = require("maps_admin")
 EMBED = "/karte-embed"
 
@@ -30,7 +30,7 @@ def visible_layers(db: Session, user: User | None, purpose: str = "browser") -> 
     q = select(MapLayer).where(MapLayer.enabled.is_(True)).order_by(MapLayer.role, MapLayer.position, MapLayer.name)
     if purpose == "forms":
         q = q.where(MapLayer.in_forms.is_(True), MapLayer.role == "base")
-    elif user is None:
+    if user is None:
         q = q.where(MapLayer.public.is_(True))
     return list(db.scalars(q))
 
@@ -69,7 +69,7 @@ def _browser(request: Request, db: Session, embed: bool, saved: UserMap | None =
         raise HTTPException(404, "Das Einbinden des Kartenbrowsers ist auf diesem Server abgeschaltet.")
     state = mp.view_state(saved.state_json) if saved else {}
     bundle = map_bundle(db, request, user, state)
-    can_edit = bool(user and user.can("maps")) and not embed
+    can_edit = bool(user) and not embed
     ctx = {"bundle": bundle, "saved": saved, "can_edit": can_edit, "embed": embed,
            "layout": "base_embed.html" if embed else "base.html", "R": EMBED if embed else "/karte",
            "embed_label": "Karte", "embed_icon": "fa-map-location-dot",
@@ -116,6 +116,8 @@ async def _proxy(request: Request, spec: dict, scope: str, action: str, query: d
     blockieren langsame Dienste beim Herauszoomen das ganze Portal (siehe maps.queued_fetch)."""
     rate_limit(request, "map-proxy", limit=4000, window=300)
     url = mp.upstream_url(spec, action, query)
+    if action == "tile" and spec["kind"] == "wmts" and url is None:
+        return Response(mp.TRANSPARENT_PNG, media_type="image/png", headers={"Cache-Control":"no-store"})
     if url is None:
         raise HTTPException(400, "Ungültige Kartenanfrage.")
     if action == "wfs" and mp.bbox_span(query.get("bbox", "")) > mp.MAX_WFS_SPAN:
@@ -145,6 +147,9 @@ async def _proxy(request: Request, spec: dict, scope: str, action: str, query: d
                 status = 502
             if status >= 500 or status == 429:
                 mp.mark_failed(key)
+        error = mp.exception_text(body)
+        if error:
+            raise HTTPException(502, "Kartendienst: " + error)
         if status >= 400 or (image_wanted and not ctype.startswith("image/")):
             # Kaputte oder fehlende Kachel: unsichtbar statt Fehlerbild; Dienstfehler (XML) nicht weiterreichen
             if image_wanted:
@@ -156,9 +161,19 @@ async def _proxy(request: Request, spec: dict, scope: str, action: str, query: d
     if action == "info":
         text = body.decode("utf-8", "replace")[:200_000]
         # Wird im Browser nur in einem abgeschotteten iframe (sandbox) angezeigt
-        return JSONResponse({"html": text if "html" in ctype or "<" in text else f"<pre>{text}</pre>"})
+        if 'json' in ctype:
+            try:
+                data=json.loads(text)
+                features=data.get('features',[]) if isinstance(data,dict) else []
+                rows=[f.get('properties',{}) for f in features if isinstance(f,dict)]
+                content=''.join('<table>'+''.join('<tr><th>'+mp.html.escape(str(k))+'</th><td>'+mp.html.escape(str(v))+'</td></tr>' for k,v in props.items())+'</table>' for props in rows if isinstance(props,dict))
+                text=content or '<pre>'+mp.html.escape(json.dumps(data,ensure_ascii=False,indent=2))+'</pre>'
+            except ValueError: text='<pre>'+mp.html.escape(text)+'</pre>'
+        elif 'html' not in ctype: text='<pre>'+mp.html.escape(text)+'</pre>'
+        return JSONResponse({"html": text})
     if action in ("wfs", "geojson"):
-        data = await run_in_threadpool(_geojson, body, bool(spec.get("swap_xy")))
+        try: data = await run_in_threadpool(mp.normalize_features, body, bool(spec.get("swap_xy")))
+        except (ValueError, mp.ET.ParseError): raise HTTPException(502, "Der Dienst lieferte keine unterstützten Geodaten.") from None
         if data is None:
             raise HTTPException(502, "Der Dienst lieferte kein GeoJSON.")
         return JSONResponse(data, headers={"Cache-Control": "private, max-age=60"})
@@ -210,26 +225,29 @@ def _system_layer(request: Request, layer_id: int) -> dict:
     """Layer prüfen und die für den Abruf nötigen Angaben lesen; die Datenbankverbindung ist danach wieder frei."""
     with SessionLocal() as db:
         layer = db.get(MapLayer, layer_id)
-        if layer is None or not layer.proxy:
+        if layer is None or (not layer.proxy and layer.kind != "wmts"):
             raise HTTPException(404)
-        if not layer.enabled or (not layer.public and not layer.in_forms):
+        if not layer.enabled or not layer.public:
             member = session_user(request, db)
             # ausgeschaltete Layer nur für Admins (Vorschau), nicht öffentliche nur für Angemeldete
             if member is None or (not layer.enabled and not member.is_admin):
                 raise HTTPException(404)
-        return {"spec": mp.layer_spec(layer), "scope": f"l{layer.id}", "cache_hours": layer.cache_hours,
+        result = {"spec": mp.layer_spec(layer), "scope": f"l{layer.id}", "cache_hours": layer.cache_hours,
                 "min_zoom": layer.min_zoom or 0, "max_zoom": layer.max_zoom or 22, "feature_info": layer.feature_info}
+    try: result['spec'] = mp.resolve_capability_spec(result['spec'])
+    except (ValueError, httpx.HTTPError, mp.ET.ParseError) as exc: raise HTTPException(502, str(exc)[:500]) from None
+    return result
 
 
 @app.get("/map/l/{layer_id:int}/{z:int}/{x:int}/{y:int}")
-async def map_tile(request: Request, layer_id: int, z: int, x: int, y: int):
+async def map_tile(request: Request, layer_id: int, z: int, x: int, y: int, time: str = ""):
     layer = await run_in_threadpool(_system_layer, request, layer_id)
     if not (0 <= z <= 24 and 0 <= x < (1 << z) and 0 <= y < (1 << z)):
         raise HTTPException(400)
     if z < layer["min_zoom"] or z > layer["max_zoom"]:
         # außerhalb der eingestellten Zoomstufen gar nicht erst beim Anbieter fragen
         return Response(mp.TRANSPARENT_PNG, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
-    return await _proxy(request, layer["spec"], layer["scope"], "tile", {"z": z, "x": x, "y": y},
+    return await _proxy(request, layer["spec"], layer["scope"], "tile", {"z": z, "x": x, "y": y, "time": time},
                   layer["cache_hours"], guard=False)
 
 
@@ -246,11 +264,11 @@ async def map_service(request: Request, layer_id: int, action: str, bbox: str = 
 
 
 @app.get("/map/c/{token}/{z:int}/{x:int}/{y:int}")
-async def map_custom_tile(request: Request, token: str, z: int, x: int, y: int):
+async def map_custom_tile(request: Request, token: str, z: int, x: int, y: int, time: str = ""):
     defn = mp.unsign(token)
     if defn is None or not (0 <= z <= 24 and 0 <= x < (1 << z) and 0 <= y < (1 << z)):
         raise HTTPException(404)
-    return await _proxy(request, mp.custom_spec(defn), "c", "tile", {"z": z, "x": x, "y": y}, 24, guard=True)
+    return await _proxy(request, mp.custom_spec(defn), "c", "tile", {"z": z, "x": x, "y": y, "time": time}, 24, guard=True)
 
 
 @app.get("/map/c/{token}/{action}")
@@ -273,7 +291,7 @@ async def _capabilities(request: Request, guard: bool):
     if not re.match(r"^https?://", url):
         return JSONResponse({"ok": False, "error": "Bitte eine Adresse beginnend mit https:// angeben."})
     try:
-        result = mp.query_service(url, kind, guard=guard)
+        result = await run_in_threadpool(mp.query_service, url, kind, guard)
     except mp.BlockedAddress as exc:
         return JSONResponse({"ok": False, "error": str(exc)})
     except (httpx.HTTPError, ValueError) as exc:
@@ -340,20 +358,36 @@ def _clean_state(raw) -> dict:
         if defn:
             custom.append({"def": defn, "opacity": max(0.0, min(1.0, float(item.get("opacity", 1) or 0)))})
     out["custom"] = custom
+    from . import parcels
+    out["parcels"] = parcels.clean_selection(raw.get("parcels"))
     out["drawings"] = mp.clean_drawings(raw.get("drawings"))
     return out
 
 
+def map_sharing(saved):
+    try:
+        value=json.loads(saved.share_json or '{}')
+        return {k:[i for i in value.get(k,[]) if isinstance(i,int)] for k in ('users','groups')}
+    except (ValueError,AttributeError,TypeError): return {'users':[],'groups':[]}
+
+
+def can_open_map(saved,user):
+    shared=map_sharing(saved)
+    return saved.owner_id==user.id or user.is_admin or user.id in shared['users'] or any(g.id in shared['groups'] for g in user.groups)
+
+
 @app.get("/maps")
 def maps_list(request: Request, user: User = Depends(map_user), db: Session = Depends(get_db)):
-    items = list(db.scalars(select(UserMap).where(UserMap.owner_id == user.id).order_by(UserMap.updated_at.desc())))
-    return render(request, "maps.html", user, items=items, state=mp.view_state)
+    items = [item for item in db.scalars(select(UserMap).order_by(UserMap.updated_at.desc())) if item.owner_id == user.id or (not user.is_admin and can_open_map(item,user)) or (user.is_admin and (user.id in map_sharing(item)['users'] or any(g.id in map_sharing(item)['groups'] for g in user.groups)))]
+    return render(request, "maps.html", user, items=items, state=mp.view_state, sharing=map_sharing,
+        users=list(db.scalars(select(User).where(User.active.is_(True)).order_by(User.name))),
+        groups=list(db.scalars(select(Group).order_by(Group.name))))
 
 
 @app.get("/maps/{map_id:int}")
 def maps_open(request: Request, map_id: int, user: User = Depends(map_user), db: Session = Depends(get_db)):
     saved = db.get(UserMap, map_id)
-    if saved is None or (saved.owner_id != user.id and not user.is_admin):
+    if saved is None or not can_open_map(saved,user):
         raise HTTPException(404, "Karte nicht gefunden.")
     return _browser(request, db, False, saved)
 
@@ -411,17 +445,33 @@ def maps_delete(request: Request, map_id: int, user: User = Depends(map_user), d
     return redirect("/maps")
 
 
+@app.post('/maps/{map_id:int}/share', dependencies=[Depends(check_csrf)])
+async def maps_share(request: Request, map_id: int, user: User = Depends(map_user), db: Session = Depends(get_db)):
+    saved=db.get(UserMap,map_id)
+    if saved is None or saved.owner_id != user.id: raise HTTPException(404)
+    data=await request.form()
+    shared={}
+    for key,model in (('users',User),('groups',Group)):
+        ids={int(v) for v in data.getlist(key) if str(v).isdigit()}
+        shared[key]=list(db.scalars(select(model.id).where(model.id.in_(ids))))[:500]
+    saved.share_json=json.dumps(shared);db.commit()
+    flash(request,'Freigabe für Benutzer und Gruppen gespeichert. Diese dürfen die Karte ansehen und als eigene Kopie speichern.')
+    return redirect('/maps')
+
+
 # --- Admin: Kartenlayer -------------------------------------------------------------------
 
 LAYER_FIELDS_TEXT = {"name": 200, "category": 100, "description": 5000, "url": 2000, "layers": 1000, "styles": 255,
                      "version": 10, "attribution": 1000, "legend_url": 2000, "time_values": 50000,
-                     "time_default": 60, "extra_hosts": 1000}
+                     "time_default": 60, "extra_hosts": 1000, "service_json": 10000}
 LAYER_FLAGS = ("transparent", "feature_info", "swap_xy", "proxy", "enabled", "public", "in_forms", "default_visible")
 
 
 def _apply_layer(layer: MapLayer, data) -> str | None:
     for key, limit in LAYER_FIELDS_TEXT.items():
         setattr(layer, key, str(data.get(key, "") or "").strip()[:limit])
+    try: layer.service_json = json.dumps(mp.clean_service(json.loads(layer.service_json or "{}")))
+    except ValueError: return "Ungültige Dienstoptionen. Bitte den Dienst erneut abfragen."
     layer.kind = data.get("kind") if data.get("kind") in mp.KINDS else "xyz"
     layer.role = data.get("role") if data.get("role") in mp.ROLES else "overlay"
     layer.image_format = data.get("image_format") if data.get("image_format") in mp.FORMATS else "image/png"
@@ -447,6 +497,7 @@ def _apply_layer(layer: MapLayer, data) -> str | None:
         return "Bitte die Adresse des Dienstes (http/https) angeben."
     if layer.kind == "xyz" and not all(k in layer.url for k in ("{z}", "{x}", "{y}")):
         return "Eine Kachelvorlage braucht {z}, {x} und {y} (WMTS: TileMatrix → {z}, TileRow → {y}, TileCol → {x})."
+    if layer.kind == "wmts" and not mp.clean_custom({**mp.layer_spec(layer), "service":mp.service_options(layer)}): return "Bitte einen unterstützten WMTS-Layer über die Dienstabfrage auswählen."
     if layer.kind in ("wms", "wfs") and not layer.layers:
         return "Bitte den Layer- bzw. Objektartnamen angeben (oder über „Dienst abfragen“ auswählen)."
     return None
@@ -473,7 +524,8 @@ def admin_maps(request: Request, user: User = Depends(maps_admin_user), db: Sess
     layers = list(db.scalars(select(MapLayer).order_by(MapLayer.role, MapLayer.position, MapLayer.name)))
     count, size = mp.cache_stats()
     known = {(lyr.kind, lyr.url, lyr.layers) for lyr in layers}
-    return render(request, "admin_maps.html", user, layers=layers, kinds=mp.KINDS, roles=mp.ROLES,
+    from . import parcels
+    return render(request, "admin_maps.html", user, catalog=parcels.CATALOG, layers=layers, kinds=mp.KINDS, roles=mp.ROLES,
                   cfg=get_settings(db), cache_count=count, cache_size=size,
                   user_layers=[u for u in _user_layers(db) if (u["def"]["kind"], u["def"]["url"], u["def"]["layers"]) not in known],
                   saved_maps=db.scalar(select(func.count(UserMap.id))), maps_module="maps" in enabled_modules(),
@@ -641,7 +693,7 @@ def admin_map_test(request: Request, layer_id: int, user: User = Depends(maps_ad
     if layer.kind == "style":
         url = layer.url
     else:
-        action = {"xyz": "tile", "wms": "wms", "wfs": "wfs", "geojson": "geojson"}[layer.kind]
+        action = {"wmts": "tile", "xyz": "tile", "wms": "wms", "wfs": "wfs", "geojson": "geojson"}[layer.kind]
         url = mp.upstream_url(mp.layer_spec(layer), action, {"z": z, "x": tx, "y": ty, "bbox": bbox,
                                                                "time": layer.time_default})
     started = _time.monotonic()
@@ -650,7 +702,7 @@ def admin_map_test(request: Request, layer_id: int, user: User = Depends(maps_ad
     except (httpx.HTTPError, mp.BlockedAddress) as exc:
         return JSONResponse({"ok": False, "message": f"Nicht erreichbar: {exc}", "url": url})
     ms = int((_time.monotonic() - started) * 1000)
-    good = status < 400 and (ctype.startswith("image/") if layer.kind in ("xyz", "wms") else True)
+    good = status < 400 and (ctype.startswith("image/") if layer.kind in ("xyz", "wmts", "wms") else True)
     hint = ""
     if not good and b"ServiceException" in body[:2000]:
         hint = body[:400].decode("utf-8", "replace")
@@ -734,3 +786,51 @@ def admin_map_adopt(request: Request, map_id: int = Form(...), index: int = Form
     db.commit()
     flash(request, "Layer übernommen. Bitte prüfen, beschreiben und dann einschalten.")
     return redirect(f"/admin/maps/{layer.id}")
+
+
+@app.get('/map/parcels')
+async def parcel_information(request: Request, lon: float | None = None, lat: float | None = None):
+    from . import parcels
+    if 'maps' not in enabled_modules(): raise HTTPException(404)
+    rate_limit(request, 'parcel-information', limit=60, window=60)
+    if (lon is None) != (lat is None): raise HTTPException(422, 'Länge und Breite gemeinsam angeben.')
+    try:
+        if lon is None: parcels.filter_xml(request.query_params)
+        elif not (5.5 <= lon <= 9 and 48.5 <= lat <= 51.5): raise ValueError('Die Auskunft ist für Rheinland-Pfalz verfügbar.')
+    except ValueError as exc: raise HTTPException(422, str(exc)) from None
+    try: data = await run_in_threadpool(parcels.fetch, request.query_params, (lon,lat) if lon is not None else None)
+    except (ValueError, httpx.HTTPError, mp.ET.ParseError) as exc: raise HTTPException(502, str(exc)[:1000]) from None
+    return JSONResponse(data, headers={'Cache-Control':'public, max-age=60'})
+
+
+@app.post('/maps/catalog/{key}', dependencies=[Depends(check_csrf)])
+def map_catalog(request: Request, key: str, user: User = Depends(map_user)):
+    from . import parcels
+    if 'maps' not in enabled_modules() or key not in parcels.CATALOG: raise HTTPException(404)
+    spec=parcels.CATALOG[key]
+    try:
+        result=mp.query_service(spec['url'],spec.get('kind','wms'),True)
+        layers=[l for l in result['layers'] if (not spec['layer'] or l['name']==spec['layer']) and l.get('supported',True)]
+        if not layers: raise ValueError('Keine unterstützte Ebene gefunden. Bitte die Dienstadresse im erweiterten Modus prüfen.')
+        return JSONResponse({'ok':True,'catalog':key, **result, 'layers':layers,'attribution':spec.get('attribution',parcels.ATTRIBUTION)})
+    except (ValueError,httpx.HTTPError,mp.ET.ParseError) as exc:return JSONResponse({'ok':False,'error':str(exc)[:1000]},status_code=502)
+
+
+@app.post('/admin/maps/catalog/{key}', dependencies=[Depends(check_csrf)])
+def admin_map_catalog(request: Request, key: str, user: User = Depends(maps_admin_user), db: Session = Depends(get_db)):
+    from . import parcels
+    spec=parcels.CATALOG.get(key)
+    if not spec:raise HTTPException(404)
+    try:result=mp.query_service(spec['url'],spec.get('kind','wms'),True)
+    except (ValueError,httpx.HTTPError,mp.ET.ParseError) as exc:
+        flash(request,'Quelle derzeit nicht verfügbar: '+str(exc)[:300],'error');return redirect('/admin/maps')
+    choices=[l for l in result['layers'] if (not spec['layer'] or l['name']==spec['layer']) and l.get('supported',True)]
+    if not choices:flash(request,'Keine unterstützte Ebene gefunden.','error');return redirect('/admin/maps')
+    chosen=choices[0]
+    existing=db.scalar(select(MapLayer).where(MapLayer.url==result['url'],MapLayer.layers==chosen['name']))
+    if existing:return redirect(f'/admin/maps/{existing.id}')
+    row=MapLayer(name=spec['name'],kind=result['type'],url=result['url'],layers=chosen['name'],version=result['version'],
+        service_json=json.dumps(chosen.get('service',{})),feature_info=chosen.get('queryable',False),time_values=','.join(chosen.get('times',[])),time_default=chosen.get('time',''),
+        attribution=spec.get('attribution',parcels.ATTRIBUTION),category='Amtliche Daten Rheinland-Pfalz',role='overlay',default_visible=False,
+        position=(db.scalar(select(func.max(MapLayer.position))) or 0)+1,proxy=True,public=True)
+    db.add(row);db.commit();flash(request,'Amtliche Ebene ergänzt. Vorhandene Layer und Startgrundkarte bleiben erhalten.');return redirect(f'/admin/maps/{row.id}')

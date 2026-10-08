@@ -96,7 +96,7 @@
 
     function tileUrl(l) {
       var u = abs(l.tiles);
-      if (l.kind === 'wms' && l.time) { u += (u.indexOf('?') < 0 ? '?' : '&') + (u.indexOf('/map/') >= 0 ? 'time=' : 'TIME=') + encodeURIComponent(l.time); }
+      if ((l.kind === 'wms' || l.kind === 'wmts') && l.time) { u += (u.indexOf('?') < 0 ? '?' : '&') + (u.indexOf('/map/') >= 0 ? 'time=' : 'TIME=') + encodeURIComponent(l.time); }
       return u;
     }
     function addRaster(l, isBase) {
@@ -144,9 +144,9 @@
       // Beim Zoomen/Verschieben nur die letzte Anfrage zählt – ältere abbrechen
       if (l._abort) { l._abort.abort(); }
       l._abort = window.AbortController ? new AbortController() : null;
-      fetch(url, { credentials: 'same-origin', signal: l._abort ? l._abort.signal : undefined }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+      fetch(url, { credentials: 'same-origin', signal: l._abort ? l._abort.signal : undefined }).then(function (r) { if(!r.ok)throw new Error('Dienst nicht erreichbar');return r.json(); }).then(function (data) {
         if (data && map.getSource('src-' + l.id)) { map.getSource('src-' + l.id).setData(data); l._loaded = l._loaded || 'x'; }
-      }).catch(function () { /* abgebrochen oder Dienst nicht erreichbar */ });
+      }).catch(function(e){if(e.name!=='AbortError'){l._loaded='';map.fire('map-service-error',{message:'Geodaten konnten nicht geladen werden: '+l.name});}});
     }
     var vectorTimer = null;
     function loadVectorsSoon() {
@@ -254,15 +254,14 @@
       },
       /* Sachinformation (WMS GetFeatureInfo über den Proxy) für einen Klickpunkt */
       featureInfo: function (point) {
-        var canvas = map.getCanvas(), b = map.getBounds();
-        var sw = toMerc(b.getWest(), b.getSouth()), ne = toMerc(b.getEast(), b.getNorth());
-        var w = canvas.clientWidth, h = canvas.clientHeight;
-        var jobs = overlays.filter(function (l) { return l.visible && l.info; }).map(function (l) {
-          var q = '?bbox=' + [sw[0], sw[1], ne[0], ne[1]].join(',') + '&i=' + Math.round(point.x * 256 / w) + '&j=' + Math.round(point.y * 256 / h) + (l.time ? '&time=' + encodeURIComponent(l.time) : '');
-          // Für die Abfrage wird der sichtbare Ausschnitt auf 256 × 256 Bildpunkte abgebildet
-          return fetch(abs(l.info) + q, { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; })
-            .then(function (d) { return d && d.html && d.html.replace(/<[^>]*>/g, '').trim() ? { layer: l, html: d.html } : null; })
-            .catch(function () { return null; });
+        var lnglat = map.unproject(point), z=Math.min(22,Math.max(0,Math.floor(map.getZoom()))), n=Math.pow(2,z);
+        var tx=(lnglat.lng+180)/360*n, ty=(1-Math.log(Math.tan(lnglat.lat*Math.PI/180)+1/Math.cos(lnglat.lat*Math.PI/180))/Math.PI)/2*n;
+        var ix=Math.floor(tx), iy=Math.floor(ty), span=40075016.68557849/n, west=-20037508.342789244+ix*span, north=20037508.342789244-iy*span;
+        var jobs = overlays.concat(bases.filter(function(l){return l.id===baseId;})).filter(function(l){return (l.visible||l.id===baseId)&&l.info;}).map(function(l){
+          var q='?bbox='+[west,north-span,west+span,north].join(',')+'&i='+Math.min(255,Math.floor((tx-ix)*256))+'&j='+Math.min(255,Math.floor((ty-iy)*256))+(l.time?'&time='+encodeURIComponent(l.time):'');
+          return fetch(abs(l.info)+q,{credentials:'same-origin'}).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.detail||'Dienstabfrage fehlgeschlagen');return d;});})
+            .then(function(d){return d&&d.html&&d.html.replace(/<[^>]*>/g,'').trim()?{layer:l,html:d.html}:null;})
+            .catch(function(e){return {layer:l,html:'<p>'+esc(e.message)+'</p>',error:true};});
         });
         return Promise.all(jobs).then(function (rows) { return rows.filter(Boolean); });
       }

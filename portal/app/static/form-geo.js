@@ -63,7 +63,7 @@
 
     function sync(feats) {
       value.value = feats.length ? JSON.stringify({ features: feats.map(function (f) {
-        return { type: 'Feature', geometry: f.geometry, properties: { acc: f.properties.acc, src: f.properties.src } };
+        return { type: 'Feature', geometry: f.geometry, properties: { acc: f.properties.acc, src: f.properties.src, parcel:f.properties.parcel } };
       }) }) : '';
       if (feats.length) { var qq = box.closest('.question'); if (qq) { qq.classList.remove('has-error'); } if (lat) { lat.setCustomValidity(''); } }
       if (lat && singlePoint) {
@@ -115,7 +115,7 @@
         if (!singlePoint) { var all = draw.features(); draw.zoomTo(all[all.length - 1].id); }
       }
       if (singlePoint) { draw.start('point'); }
-      else if (kinds.length === 1 && !start.length) { draw.start(kinds[0]); }   // gleich losklicken können
+      else if (kinds.length === 1 && !start.length && box.dataset.parcels!=='1') { draw.start(kinds[0]); }   // gleich losklicken können
       sync(draw.features());
     });
 
@@ -127,6 +127,13 @@
     });
     q('.js-geo-finish').addEventListener('click', function () { draw.finish(); });
     q('.js-geo-undo').addEventListener('click', function () { draw.undo(); });
+    if(box.dataset.parcels==='1'&&window.MapParcels){
+      var holder=document.createElement('details');holder.className='card card-body mt-3';holder.innerHTML='<summary>Flurstücke suchen und in diese Antwort übernehmen</summary><div class="mt-3"></div>';box.appendChild(holder);
+      MapParcels.create(map,holder.querySelector('div'),{max:max,isDrawing:function(){return draw.mode();},validateSelection:function(selection){var parts=selection.reduce(function(n,f){return n+(f.geometry.type==='MultiPolygon'?f.geometry.coordinates.length:1);},0);var valid=selection.every(function(f){var polys=f.geometry.type==='MultiPolygon'?f.geometry.coordinates:[f.geometry.coordinates];return polys.every(function(p){return p.reduce(function(n,r){return n+r.length-1;},0)<=1000;});});return valid&&parts+draw.features().filter(function(f){return !f.properties.parcel;}).length<=max;},initial:start.filter(function(f){return f.properties&&f.properties.parcel;}).map(function(f){return Object.assign({geometry:f.geometry},f.properties.parcel);}),onChange:function(selected){
+        var parcels=[];selected.forEach(function(f){var polys=f.geometry.type==='MultiPolygon'?f.geometry.coordinates:[f.geometry.coordinates];polys.forEach(function(p,index){parcels.push({type:'Feature',id:f.id+'-'+index,geometry:{type:'Polygon',coordinates:p},properties:{src:'parcel',parcel:{id:f.id,properties:f.properties,source:f.source,retrieved_at:f.retrieved_at}}});});});
+        var manual=draw.features().filter(function(f){return !f.properties.parcel;});if(manual.length+parcels.length>max){info.textContent='Zu viele Teilflächen: maximal '+max+' Objekte. Auswahl reduzieren.';return;}draw.setFeatures(manual.concat(parcels));
+      }});
+    }
     var gpsVertex = q('.js-geo-gps-vertex');
     if (gpsVertex) {
       gpsVertex.addEventListener('click', function () {

@@ -46,3 +46,6 @@
 .js-geo-draw.active { background: var(--bs-primary); color: #fff; }
 
 .map-response { height: 75vh; min-height: 400px; border-radius: .5rem; }
+
+.map-shell:not(.is-advanced) .map-advanced-only,.map-shell:not(.is-advanced) .layer-tools,.map-shell:not(.is-advanced) .layer-head .drag{display:none}
+.parcel-search label{display:block;width:100%;min-width:0}.parcel-result,.parcel-selected{border:1px solid var(--bs-border-color);border-radius:.6rem;padding:.8rem;margin-top:.75rem;overflow-wrap:anywhere}.parcel-result dl{display:grid;grid-template-columns:minmax(5rem,1fr) minmax(0,1.5fr);gap:.25rem .5rem}.parcel-result dd{margin:0}.parcel-selection summary{cursor:pointer}.map-service-status{overflow-wrap:anywhere}

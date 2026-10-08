@@ -2038,6 +2038,7 @@ class MapLayer(Base):
     time_values: Mapped[str] = mapped_column(Text, default="")        # WMS-T: Werte (kommagetrennt)
     time_default: Mapped[str] = mapped_column(String(60), default="")
     color: Mapped[str] = mapped_column(String(9), default="#e4572e")   # WFS/GeoJSON
+    service_json: Mapped[str] = mapped_column(Text, default="{}")      # capabilities, formats and tile matrices
     swap_xy: Mapped[bool] = mapped_column(Boolean, default=False)      # WFS liefert Breite/Länge vertauscht
     extra_hosts: Mapped[str] = mapped_column(Text, default="")         # zusätzliche Hosts für die CSP (direkt)
     proxy: Mapped[bool] = mapped_column(Boolean, default=True)         # über das Portal laden
@@ -2060,6 +2061,7 @@ class UserMap(Base):
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text, default="")
     state_json: Mapped[str] = mapped_column(Text, default="{}")
+    share_json: Mapped[str] = mapped_column(Text, default="{}")
     public_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
@@ -2589,6 +2591,8 @@ DEFAULT_SETTINGS = {
 
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)
 _NEW_COLUMNS = {
+    "user_maps": {"share_json": "TEXT NOT NULL DEFAULT '{}'"},
+    "map_layers": {"service_json": "TEXT NOT NULL DEFAULT '{}'"},
     "application_requests": {"prefill_json": "TEXT NOT NULL DEFAULT '{}'"},
     "payments": {"active_refund": "VARCHAR(36) NOT NULL DEFAULT ''"},
     "groups": {"lead_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL"},

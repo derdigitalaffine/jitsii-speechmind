@@ -159,6 +159,7 @@
           }).join('') + '</div></div>';
         h += field('Wie viele Objekte höchstens?', input('max_features', it.max_features || 1, 'type="number" min="1" max="50"'), 'md-3');
         h += '<div class="col-12 d-flex flex-wrap gap-3 small">' +
+          switchHtml('allow_parcels', 'Öffentliche RLP-Flurstücke suchen und übernehmen (Fläche muss erlaubt sein)', !!it.allow_parcels) +
           switchHtml('allow_gps', 'GPS-Knöpfe beim Einzeichnen („Punkt an meinem Standort“, „Standort als Eckpunkt“)', it.allow_gps !== false) +
           (geoms.length === 1 && geoms[0] === 'point' && Number(it.max_features || 1) === 1 ? switchHtml('show_inputs', 'Felder für Breite und Länge anzeigen', it.show_inputs !== false) : '') + '</div>';
         h += '<div class="col-12"><div class="border rounded p-2 small"><div class="d-flex flex-wrap gap-3">' +

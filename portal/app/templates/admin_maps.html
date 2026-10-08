@@ -37,7 +37,7 @@
   <div class="input-group"><input class="form-control" type="file" id="imp-file" name="file" accept=".json,application/json" required><button class="btn btn-primary" type="submit">Importieren</button></div>
 </form>
 
-<div class="row g-3 mb-4">
+<details class="card card-body mb-4"><summary class="fw-semibold">Amtliche Quellen Rheinland-Pfalz ergänzen</summary><p class="small text-secondary mt-2">Neue Ebenen werden am Ende ergänzt und zunächst nicht eingeschaltet. Ihre bisherige Startgrundkarte bleibt erhalten.</p><div class="d-flex flex-wrap gap-2">{% for key,source in catalog.items() %}<form method="post" action="/admin/maps/catalog/{{key}}"><input type="hidden" name="csrf" value="{{csrf}}"><button class="btn btn-sm btn-outline-primary">{{source.name}}</button></form>{% endfor %}</div></details><div class="row g-3 mb-4">
   <div class="col-6 col-xl-3">{{ m.stat('fa-layer-group', layers | length, 'Layer gesamt') }}</div>
   <div class="col-6 col-xl-3">{{ m.stat('fa-toggle-on', layers | selectattr('enabled') | list | length, 'aktiv') }}</div>
   <div class="col-6 col-xl-3">{{ m.stat('fa-hard-drive', (cache_size // 1048576) ~ ' MB', cache_count ~ ' Kacheln im Zwischenspeicher') }}</div>

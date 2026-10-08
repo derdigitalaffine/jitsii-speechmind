@@ -2656,6 +2656,8 @@ def admin_design_reset(request: Request, user: User = Depends(admin_user), db: S
 
 @app.exception_handler(StarletteHTTPException)
 async def _http_error(request: Request, exc: StarletteHTTPException):
+    if "application/json" in request.headers.get("accept", ""):
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
     uid = request.session.get("uid")
     with SessionLocal() as db:
         user = db.get(User, uid) if uid else None

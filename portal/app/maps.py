@@ -18,6 +18,7 @@ import html
 import ipaddress
 import json
 import os
+import math
 import re
 import secrets
 import socket
@@ -35,7 +36,7 @@ from itsdangerous import BadSignature, URLSafeSerializer
 from .config import settings
 from .db import MapLayer
 
-KINDS = {"xyz": "Kacheln (XYZ / WMTS)", "wms": "WMS / WMS-T", "wfs": "WFS (Objekte)", "geojson": "GeoJSON-Datei",
+KINDS = {"wmts": "WMTS (Dienst)", "xyz": "Kacheln (XYZ / WMTS)", "wms": "WMS / WMS-T", "wfs": "WFS (Objekte)", "geojson": "GeoJSON-Datei",
          "style": "Vektorkarte (MapLibre-Stil)"}
 ROLES = {"base": "Grundkarte", "overlay": "Überlagerung"}
 FORMATS = ["image/png", "image/jpeg", "image/png8", "image/webp"]
@@ -71,8 +72,8 @@ def system_config(layer: MapLayer) -> dict:
     base = f"/map/l/{layer.id}"
     if layer.kind == "style":
         cfg["style"] = layer.url
-    elif layer.proxy:
-        cfg["tiles"] = {"xyz": base + "/{z}/{x}/{y}", "wms": base + "/wms?bbox={bbox-epsg-3857}"}.get(layer.kind)
+    elif layer.proxy or layer.kind == "wmts":
+        cfg["tiles"] = {"wmts": base + "/{z}/{x}/{y}", "xyz": base + "/{z}/{x}/{y}", "wms": base + "/wms?bbox={bbox-epsg-3857}"}.get(layer.kind)
         cfg["data"] = {"wfs": base + "/wfs", "geojson": base + "/geojson"}.get(layer.kind)
         cfg["info"] = base + "/info" if cfg["featureInfo"] else ""
         cfg["legend"] = base + "/legend" if layer.legend_url or layer.kind == "wms" else ""
@@ -82,6 +83,11 @@ def system_config(layer: MapLayer) -> dict:
         cfg["wfsDirect"] = wfs_direct(layer) if layer.kind == "wfs" else None
         cfg["legend"] = layer.legend_url or (legend_url(layer) if layer.kind == "wms" else "")
         cfg["info"] = ""
+    if layer.kind == 'wmts':
+        service = clean_service(json.loads(layer.service_json or '{}'))
+        cfg['tileSize'] = service.get('tile_size', 256)
+        zooms = [int(z) for z in service.get('matrices', {})]
+        if zooms: cfg.update(minzoom=max(layer.min_zoom,min(zooms)), maxzoom=min(layer.max_zoom,max(zooms)))
     return cfg
 
 
@@ -91,10 +97,10 @@ def custom_config(defn: dict, token: str, opacity: float = 1.0) -> dict:
     kind = defn.get("kind")
     return {"id": "c" + hashlib.sha1(token.encode()).hexdigest()[:10], "name": defn.get("name") or "Eigener Layer",
             "kind": kind, "role": "overlay", "category": "Eigene Layer", "description": defn.get("url", ""),
-            "attribution": html.escape(defn.get("attribution", "")), "opacity": opacity, "minzoom": 0, "maxzoom": 22,
-            "tileSize": 256, "visible": True, "color": defn.get("color") or "#7b2cbf",
+            "attribution": html.escape(defn.get("attribution", "")), "opacity": opacity, "minzoom": min([int(z) for z in defn.get("service", {}).get("matrices", {})] or [0]), "maxzoom": max([int(z) for z in defn.get("service", {}).get("matrices", {})] or [22]),
+            "tileSize": defn.get("service", {}).get("tile_size", 256), "visible": True, "color": defn.get("color") or "#7b2cbf",
             "featureInfo": kind == "wms", "times": defn.get("times") or [], "time": defn.get("time", ""),
-            "tiles": {"xyz": base + "/{z}/{x}/{y}", "wms": base + "/wms?bbox={bbox-epsg-3857}"}.get(kind),
+            "tiles": {"wmts": base + "/{z}/{x}/{y}", "xyz": base + "/{z}/{x}/{y}", "wms": base + "/wms?bbox={bbox-epsg-3857}"}.get(kind),
             "data": base + "/wfs" if kind == "wfs" else None, "info": base + "/info" if kind == "wms" else "",
             "legend": base + "/legend" if kind == "wms" else "", "custom": defn, "token": token}
 
@@ -105,11 +111,11 @@ def clean_custom(raw: dict) -> dict | None:
         return None
     kind = raw.get("kind")
     url = str(raw.get("url") or "").strip()[:1000]
-    if kind not in ("xyz", "wms", "wfs") or not re.match(r"^https?://[^\s/]+", url):
+    if kind not in ("xyz", "wmts", "wms", "wfs") or not re.match(r"^https?://[^\s/]+", url):
         return None
     if kind == "xyz" and not all(k in url for k in ("{z}", "{x}", "{y}")):
         return None
-    out = {"kind": kind, "url": url, "name": str(raw.get("name") or "")[:200],
+    out = {"kind": kind, "url": url, "service": clean_service(raw.get("service", {})), "name": str(raw.get("name") or "")[:200],
            "layers": str(raw.get("layers") or "")[:1000], "styles": str(raw.get("styles") or "")[:200],
            "version": raw.get("version") if raw.get("version") in ("1.1.1", "1.3.0", "1.1.0", "2.0.0") else "",
            "format": raw.get("format") if raw.get("format") in FORMATS else "image/png",
@@ -117,6 +123,7 @@ def clean_custom(raw: dict) -> dict | None:
            "times": [str(t)[:40] for t in (raw.get("times") or [])][:2000] if isinstance(raw.get("times"), list) else [],
            "time": str(raw.get("time") or "")[:40], "color": raw.get("color") if re.match(r"^#[0-9a-fA-F]{6}$", str(raw.get("color") or "")) else "#7b2cbf",
            "swap_xy": bool(raw.get("swap_xy"))}
+    if kind == "wmts" and (not out["layers"] or not out["service"].get("matrices") or not out["service"].get("matrix_set")): return None
     if kind in ("wms", "wfs") and not out["layers"]:
         return None
     return out
@@ -168,11 +175,11 @@ def wfs_direct(layer: MapLayer) -> str:
     return _wfs_url(layer.url, layer.layers, layer.version, None)
 
 
-def _wfs_url(url: str, typename: str, version: str, bbox: str | None) -> str:
+def _wfs_url(url: str, typename: str, version: str, bbox: str | None, output_format="application/json", srs="urn:ogc:def:crs:OGC:1.3:CRS84") -> str:
     version = version or "2.0.0"
     params = {"SERVICE": "WFS", "REQUEST": "GetFeature", "VERSION": version,
               ("TYPENAMES" if version.startswith("2") else "TYPENAME"): typename,
-              "OUTPUTFORMAT": "application/json", "SRSNAME": "EPSG:4326",
+              "OUTPUTFORMAT": output_format, "SRSNAME": srs,
               ("COUNT" if version.startswith("2") else "MAXFEATURES"): "5000"}
     if bbox:
         params["BBOX"] = bbox + ",EPSG:3857"
@@ -182,6 +189,15 @@ def _wfs_url(url: str, typename: str, version: str, bbox: str | None) -> str:
 def upstream_url(spec: dict, action: str, query: dict) -> str | None:
     """Ziel-URL beim Anbieter für eine Proxy-Anfrage. spec: Felder eines Layers (system oder eigen)."""
     kind, url = spec["kind"], spec["url"]
+    service = spec.get("service", {})
+    if action == "tile" and kind == "wmts":
+        matrix = service.get("matrices", {}).get(str(query["z"]))
+        if not matrix: return None
+        values = {"TileMatrixSet": service.get("matrix_set"), "TileMatrix": matrix, "TileRow": query["y"], "TileCol": query["x"], "Style": spec.get("styles") or "default", "Layer": spec["layers"], "Time": query.get("time") or service.get("time", "")}
+        if "{TileMatrix}" in url:
+            for k, v in values.items(): url = url.replace("{" + k + "}", str(v))
+            return url
+        return _with_params(url, {"SERVICE":"WMTS", "REQUEST":"GetTile", "VERSION":"1.0.0", "LAYER":spec["layers"], "STYLE":values["Style"], "FORMAT":spec.get("format", "image/png"), "TILEMATRIXSET":values["TileMatrixSet"], "TILEMATRIX":matrix, "TILEROW":query["y"], "TILECOL":query["x"], "TIME": values["Time"] or None})
     if action == "tile" and kind == "xyz":
         z, x, y = query["z"], query["x"], query["y"]
         return url.replace("{z}", str(z)).replace("{x}", str(x)).replace("{y}", str(y)).replace(
@@ -197,7 +213,7 @@ def upstream_url(spec: dict, action: str, query: dict) -> str | None:
             params["TIME"] = query["time"][:60]
         if action == "info":
             version = params["VERSION"]
-            params.update({"REQUEST": "GetFeatureInfo", "QUERY_LAYERS": spec["layers"], "INFO_FORMAT": "text/html",
+            params.update({"REQUEST": "GetFeatureInfo", "QUERY_LAYERS": service.get("query_layers") or spec["layers"], "INFO_FORMAT": service.get("info_format") or "text/html",
                            ("I" if version == "1.3.0" else "X"): str(int(query.get("i", 128))),
                            ("J" if version == "1.3.0" else "Y"): str(int(query.get("j", 128))), "FEATURE_COUNT": "10"})
         return _with_params(url, params)
@@ -208,7 +224,7 @@ def upstream_url(spec: dict, action: str, query: dict) -> str | None:
     if action == "wfs" and kind == "wfs":
         if bbox and not re.fullmatch(r"-?[\d.]+(,-?[\d.e+-]+){3}", bbox):
             return None
-        return _wfs_url(url, spec["layers"], spec.get("version", ""), bbox or None)
+        return _wfs_url(url, spec["layers"], spec.get("version", ""), bbox or None, service.get("output_format", "application/json"), service.get("srs", "urn:ogc:def:crs:OGC:1.3:CRS84"))
     if action == "geojson" and kind == "geojson":
         return url
     return None
@@ -217,13 +233,13 @@ def upstream_url(spec: dict, action: str, query: dict) -> str | None:
 def layer_spec(layer: MapLayer) -> dict:
     return {"kind": layer.kind, "url": layer.url, "layers": layer.layers, "styles": layer.styles,
             "format": layer.image_format, "version": layer.version, "transparent": layer.transparent,
-            "legend_url": layer.legend_url, "swap_xy": layer.swap_xy}
+            "legend_url": layer.legend_url, "swap_xy": layer.swap_xy, "service": service_options(layer)}
 
 
 def custom_spec(defn: dict) -> dict:
     return {"kind": defn["kind"], "url": defn["url"], "layers": defn.get("layers", ""), "styles": defn.get("styles", ""),
             "format": defn.get("format", "image/png"), "version": defn.get("version", ""), "transparent": True,
-            "legend_url": "", "swap_xy": defn.get("swap_xy", False)}
+            "legend_url": "", "swap_xy": defn.get("swap_xy", False), "service": defn.get("service", {})}
 
 
 # --- Schutz vor Zugriffen ins interne Netz (nur für eigene Layer) -------------------
@@ -268,14 +284,15 @@ def _check_peer(resp, url: str) -> None:
         raise BlockedAddress(f"„{urlparse(url).hostname}“ zeigt auf eine interne Adresse und ist hier nicht erlaubt.")
 
 
-def fetch(url: str, *, guard: bool, accept: str = "*/*", timeout: httpx.Timeout = TIMEOUT) -> tuple[int, bytes, str]:
+def fetch(url: str, *, guard: bool, accept: str = "*/*", timeout: httpx.Timeout = TIMEOUT, content: bytes | None = None) -> tuple[int, bytes, str]:
     """Holt eine Adresse (höchstens 3 Weiterleitungen, jede geprüft). Gibt (Status, Inhalt, Content-Type)."""
     headers = {"User-Agent": USER_AGENT.format(settings.portal_base_url), "Accept": accept}
+    if content is not None: headers["Content-Type"] = "text/xml; charset=utf-8"
     with httpx.Client(timeout=timeout, follow_redirects=False, headers=headers) as client:
         for _ in range(4):
             if guard:
                 check_public_url(url)
-            with client.stream("GET", url) as resp:
+            with client.stream("POST" if content is not None else "GET", url, content=content) as resp:
                 if guard:
                     _check_peer(resp, url)
                 if resp.status_code in (301, 302, 303, 307, 308) and resp.headers.get("location"):
@@ -330,7 +347,7 @@ def _fetch_if_fresh(queued_at: float, url: str, guard: bool, timeout: httpx.Time
     return fetch(url, guard=guard, timeout=timeout)
 
 
-async def queued_fetch(key: str, url: str, *, guard: bool, timeout: httpx.Timeout = TIMEOUT) -> tuple[int, bytes, str]:
+async def queued_fetch(key: str, url: str, *, guard: bool, timeout: httpx.Timeout = TIMEOUT, content: bytes | None = None) -> tuple[int, bytes, str]:
     """fetch() über den begrenzten Pool. Läuft dieselbe Adresse schon, wird auf deren Ergebnis gewartet.
     Wirft Busy bei voller Warteschlange; Fehler des Abrufs (httpx.HTTPError, BlockedAddress) gehen durch."""
     running = _inflight.get(key)
@@ -527,72 +544,105 @@ def expand_time(extent: str, limit: int = 500) -> list[str]:
     return values[:limit]
 
 
+def clean_service(raw):
+    if not isinstance(raw, dict): return {}
+    out = {k:str(raw[k])[:1000] for k in ('query_layers','matrix_set','time') if raw.get(k)}
+    for k in ('info_format','output_format','srs'):
+        if raw.get(k): out[k] = str(raw[k])[:100]
+    matrices = raw.get('matrices', {})
+    if isinstance(matrices, dict): out['matrices'] = {str(k):str(v)[:100] for k,v in matrices.items() if str(k).isdigit() and 0 <= int(k) <= 24}
+    if raw.get('tile_size') in (256,512): out['tile_size'] = raw['tile_size']
+    return out
+
+
+def service_options(layer):
+    try: return clean_service(json.loads(layer.service_json or '{}'))
+    except (TypeError, ValueError): return {}
+
+
+def exception_text(body):
+    if not body.lstrip().startswith(b'<'): return ''
+    try: root = ET.fromstring(body)
+    except ET.ParseError: return ''
+    if _local(root.tag) not in ('ServiceExceptionReport','ExceptionReport'): return ''
+    return ' '.join((e.text or '').strip() for e in root.iter() if _local(e.tag) in ('ServiceException','ExceptionText'))[:1000] or 'Unbekannter Dienstfehler'
+
+
 def parse_capabilities(xml: bytes, kind: str) -> dict:
-    """Liest Dienstname und Layer aus GetCapabilities (WMS, WFS oder WMTS)."""
+    error = exception_text(xml)
+    if error: raise ValueError(error)
     root = ET.fromstring(xml)
     tag = _local(root.tag)
-    result = {"type": "", "title": "", "version": root.get("version", ""), "layers": []}
-    if tag in ("WMS_Capabilities", "WMT_MS_Capabilities"):
-        result["type"] = "wms"
-        service = _child(root, "Service")
-        result["title"] = _text(service, "Title")
-        capability = _child(root, "Capability")
-
-        def walk(el, depth=0):
-            for lyr in _children(el, "Layer"):
-                name = _text(lyr, "Name")
+    result = {'type':'', 'title':'', 'version':root.get('version',''), 'layers':[]}
+    href = lambda e: e.get('{http://www.w3.org/1999/xlink}href','') if e is not None else ''
+    if tag in ('WMS_Capabilities','WMT_MS_Capabilities'):
+        result['type'] = 'wms'; result['title'] = _text(_child(root,'Service'),'Title')
+        cap = _child(root,'Capability'); req = _child(cap,'Request')
+        getmap = _child(req,'GetMap'); info = _child(req,'GetFeatureInfo')
+        result['url'] = next((href(e) for e in getmap.iter() if _local(e.tag)=='OnlineResource'), '') if getmap is not None else ''
+        formats = [(f.text or '').strip() for f in _children(info,'Format')] if info is not None else []
+        info_format = next((f for f in ('application/json','text/html','text/plain','application/vnd.ogc.gml') if f in formats), formats[0] if formats else 'text/plain')
+        def walk(el, depth=0, inherited=None):
+            inherited = inherited or {'crs':[], 'times':[], 'time':'', 'queryable':False}
+            for lyr in _children(el,'Layer'):
+                local = dict(inherited)
+                local['crs'] = list(dict.fromkeys(inherited['crs'] + [v for e in _children(lyr,'CRS') + _children(lyr,'SRS') for v in (e.text or '').split()]))
+                if lyr.get('queryable') is not None: local['queryable'] = lyr.get('queryable') in ('1','true')
+                dims = [d for d in _children(lyr,'Dimension') + _children(lyr,'Extent') if (d.get('name') or '').lower()=='time' and (d.text or '').strip()]
+                if dims: local['times'] = expand_time(dims[0].text or ''); local['time'] = dims[0].get('default','') or (local['times'][-1] if local['times'] else '')
+                name = _text(lyr,'Name')
                 if name:
-                    dims = [d for d in _children(lyr, "Dimension") + _children(lyr, "Extent") if (d.get("name") or "").lower() == "time"]
-                    times = expand_time((dims[0].text or "") if dims else "")
-                    default = dims[0].get("default", "") if dims else ""
-                    legend = ""
-                    for st in _children(lyr, "Style"):
-                        lg = _child(st, "LegendURL")
-                        res = _child(lg, "OnlineResource") if lg is not None else None
-                        if res is not None:
-                            legend = res.get("{http://www.w3.org/1999/xlink}href", "")
-                            break
-                    result["layers"].append({"name": name, "title": _text(lyr, "Title") or name,
-                                             "abstract": _text(lyr, "Abstract")[:500], "depth": depth,
-                                             "queryable": lyr.get("queryable") == "1", "times": times,
-                                             "time": default, "legend": legend})
-                walk(lyr, depth + 1)
-        if capability is not None:
-            walk(capability)
-    elif tag == "WFS_Capabilities":
-        result["type"] = "wfs"
-        info = _child(root, "ServiceIdentification")
-        result["title"] = _text(info, "Title") if info is not None else _text(_child(root, "Service"), "Title")
-        ftl = _child(root, "FeatureTypeList")
-        for ft in _children(ftl, "FeatureType") if ftl is not None else []:
-            result["layers"].append({"name": _text(ft, "Name"), "title": _text(ft, "Title") or _text(ft, "Name"),
-                                     "abstract": _text(ft, "Abstract")[:500], "depth": 0, "times": [], "time": ""})
-    elif tag == "Capabilities":  # WMTS
-        result["type"] = "xyz"
-        info = _child(root, "ServiceIdentification")
-        result["title"] = _text(info, "Title") if info is not None else ""
-        contents = _child(root, "Contents")
-        matrix_sets = {}
-        for tms in _children(contents, "TileMatrixSet") if contents is not None else []:
-            ident = _text(tms, "Identifier")
-            crs = _text(tms, "SupportedCRS")
-            matrix_sets[ident] = crs
-        for lyr in _children(contents, "Layer") if contents is not None else []:
-            ident = _text(lyr, "Identifier")
-            sets = [_text(link, "TileMatrixSet") for link in _children(lyr, "TileMatrixSetLink")]
-            merc = next((s for s in sets if "3857" in matrix_sets.get(s, "") or "900913" in matrix_sets.get(s, "")
-                         or "GoogleMaps" in s or "WEBMERCATOR" in s.upper()), None)
-            res = next((r for r in _children(lyr, "ResourceURL") if r.get("resourceType") == "tile"), None)
-            style = next((_text(st, "Identifier") for st in _children(lyr, "Style")), "default")
-            template = ""
-            if res is not None and merc:
-                template = (res.get("template", "").replace("{TileMatrixSet}", merc).replace("{Style}", style)
-                            .replace("{TileMatrix}", "{z}").replace("{TileRow}", "{y}").replace("{TileCol}", "{x}"))
-            result["layers"].append({"name": ident, "title": _text(lyr, "Title") or ident,
-                                     "abstract": _text(lyr, "Abstract")[:500], "depth": 0, "template": template,
-                                     "times": [], "time": "", "mercator": bool(merc)})
-    else:
-        raise ValueError("Unbekannte Antwort – ist das wirklich eine WMS-, WFS- oder WMTS-Adresse?")
+                    legend = next((href(e) for st in _children(lyr,'Style') for e in st.iter() if _local(e.tag)=='OnlineResource'), '')
+                    result['layers'].append(dict(name=name,title=_text(lyr,'Title') or name, abstract=_text(lyr,'Abstract')[:500],depth=depth,legend=legend, **local,
+                        supported=not local['crs'] or 'EPSG:3857' in local['crs'], service={'info_format':info_format,'query_layers':name} if local['queryable'] else {}))
+                walk(lyr,depth+1,local)
+        if cap is not None: walk(cap)
+    elif tag == 'WFS_Capabilities':
+        result['type'] = 'wfs'; result['title'] = _text(_child(root,'ServiceIdentification'),'Title') or _text(_child(root,'Service'),'Title')
+        for op in root.iter():
+            if _local(op.tag)=='Operation' and op.get('name')=='GetFeature':
+                result['url'] = next((href(e) for e in op.iter() if _local(e.tag)=='Get'), '')
+                all_formats = [(e.text or '').strip() for p in op.iter() if _local(p.tag)=='Parameter' and p.get('name')=='outputFormat' for e in p.iter() if _local(e.tag)=='Value']
+                break
+        else: all_formats = []
+        ftl = _child(root,'FeatureTypeList')
+        for ft in _children(ftl,'FeatureType') if ftl is not None else []:
+            formats = [(e.text or '').strip() for f in _children(ft,'OutputFormats') for e in f] or all_formats
+            output = next((f for f in formats if 'json' in f.lower()), next((f for f in formats if 'gml' in f.lower()), 'application/json'))
+            crs = [_text(ft,k) for k in ('DefaultCRS','DefaultSRS') if _text(ft,k)] + [(e.text or '').strip() for e in _children(ft,'OtherCRS')+_children(ft,'OtherSRS')]
+            srs = next((s for s in crs if '4326' in s), crs[0] if crs else 'urn:ogc:def:crs:OGC:1.3:CRS84')
+            # CRS84 explicitly requests longitude/latitude where accepted; GML conversion also handles declared EPSG axes.
+            result['layers'].append(dict(name=_text(ft,'Name'),title=_text(ft,'Title') or _text(ft,'Name'),abstract=_text(ft,'Abstract')[:500],depth=0,times=[],time='',service={'output_format':output,'srs':srs}))
+    elif tag == 'Capabilities':
+        result['type'] = 'wmts'; result['title'] = _text(_child(root,'ServiceIdentification'),'Title')
+        result['url'] = next((href(e) for op in root.iter() if _local(op.tag)=='Operation' and op.get('name')=='GetTile' for e in op.iter() if _local(e.tag)=='Get'), '')
+        contents = _child(root,'Contents'); matrix_sets = {}
+        for tms in _children(contents,'TileMatrixSet') if contents is not None else []:
+            crs = _text(tms,'SupportedCRS'); matrices = {}; tile_size = 256
+            if not any(s in crs for s in ('3857','900913')): continue
+            for tm in _children(tms,'TileMatrix'):
+                try:
+                    width,height=int(_text(tm,'MatrixWidth')),int(_text(tm,'MatrixHeight'))
+                    z=round(math.log2(width)); size=int(_text(tm,'TileWidth'))
+                    scale=float(_text(tm,'ScaleDenominator'))*.00028*size
+                    origin=[float(v) for v in _text(tm,'TopLeftCorner').split()]
+                    if width != 2**z or height != width or size not in (256,512) or int(_text(tm,'TileHeight')) != size or abs(scale*width-40075016.68557849)>500 or len(origin)!=2 or abs(origin[0]+20037508.342789244)>5 or abs(origin[1]-20037508.342789244)>5: continue
+                    matrices[str(z)] = _text(tm,'Identifier'); tile_size=size
+                except (ValueError, TypeError): continue
+            if matrices: matrix_sets[_text(tms,'Identifier')] = dict(matrices=matrices,tile_size=tile_size)
+        for lyr in _children(contents,'Layer') if contents is not None else []:
+            ident=_text(lyr,'Identifier'); links=[_text(l,'TileMatrixSet') for l in _children(lyr,'TileMatrixSetLink')]
+            selected=next((k for k in links if k in matrix_sets), '')
+            style=next((_text(st,'Identifier') for st in _children(lyr,'Style') if st.get('isDefault')=='true'), next((_text(st,'Identifier') for st in _children(lyr,'Style')), 'default'))
+            res=next((r for r in _children(lyr,'ResourceURL') if r.get('resourceType')=='tile'), None)
+            url=res.get('template','') if res is not None else result['url']
+            service=dict(matrix_sets.get(selected,{}), matrix_set=selected)
+            dimension=next((d for d in _children(lyr,'Dimension') if _text(d,'Identifier').lower()=='time'),None)
+            times=[(v.text or '').strip() for v in _children(dimension,'Value')] if dimension is not None else []
+            time_default=_text(dimension,'Default') if dimension is not None else ''
+            if time_default: service['time']=time_default
+            result['layers'].append(dict(name=ident,title=_text(lyr,'Title') or ident,abstract=_text(lyr,'Abstract')[:500],depth=0,template=url,styles=style,format=_text(lyr,'Format') or 'image/png',supported=bool(selected and url),mercator=bool(selected),service=service,times=times,time=time_default))
+    else: raise ValueError('Unbekannte Antwort – ist das eine WMS-, WFS- oder WMTS-Adresse?')
     return result
 
 
@@ -605,7 +655,34 @@ def query_service(url: str, kind: str, guard: bool) -> dict:
     status, body, _ctype = fetch(capabilities_url(url, kind), guard=guard, accept="application/xml,text/xml")
     if status >= 400:
         raise ValueError(f"Der Dienst antwortet mit Fehler {status}.")
-    return parse_capabilities(body, kind)
+    result = parse_capabilities(body, kind)
+    result["url"] = urljoin(url, result.get("url") or _with_params(url, {"REQUEST":None,"SERVICE":None,"VERSION":None}))
+    return result
+
+
+_capability_specs = {}
+_capability_lock = threading.Lock()
+
+
+def resolve_capability_spec(spec):
+    """Older saved WMS/WFS capability URLs need the advertised operation endpoint."""
+    if spec['kind'] not in ('wms','wfs'): return spec
+    url=spec['url']
+    params={k.lower():v.lower() for k,v in parse_qsl(urlparse(url).query)}
+    if params.get('request') != 'getcapabilities' and not ('mapbender/php/wms.php' in url and 'layer_id' in params): return spec
+    key=(url,spec['kind'])
+    with _capability_lock:
+        cached=_capability_specs.get(key)
+        if not cached or cached[0] < time.monotonic():
+            try: result=query_service(url,spec['kind'],False)
+            except (ValueError,httpx.HTTPError,ET.ParseError) as exc:
+                _capability_specs[key]=(time.monotonic()+60,None,str(exc));raise
+            _capability_specs[key]=(time.monotonic()+3600,result,'')
+        else:
+            result=cached[1]
+            if result is None: raise ValueError(cached[2])
+    selected=next((l for l in result['layers'] if l['name']==spec['layers']),{})
+    return {**spec,'url':result['url'],'service':{**selected.get('service',{}),**spec.get('service',{})}}
 
 
 def csp_hosts(configs: list[dict]) -> list[str]:
@@ -653,7 +730,7 @@ def _coord(p) -> list[float] | None:
 
 
 def clean_geometry(g, max_points: int = 5000) -> dict | None:
-    """Nur Point, LineString und Polygon (äußerer Ring) mit gültigen WGS84-Koordinaten."""
+    """Nur Point, LineString und Polygon einschließlich Innenringen mit gültigen WGS84-Koordinaten."""
     if not isinstance(g, dict):
         return None
     kind, coords = g.get("type"), g.get("coordinates")
@@ -663,11 +740,17 @@ def clean_geometry(g, max_points: int = 5000) -> dict | None:
     if kind == "LineString" and isinstance(coords, list):
         pts = [c for c in (_coord(p) for p in coords[:max_points]) if c]
         return {"type": "LineString", "coordinates": pts} if len(pts) >= 2 else None
-    if kind == "Polygon" and isinstance(coords, list) and coords and isinstance(coords[0], list):
-        pts = [c for c in (_coord(p) for p in coords[0][:max_points + 1]) if c]
-        if len(pts) >= 2 and pts[0] == pts[-1]:
-            pts = pts[:-1]
-        return {"type": "Polygon", "coordinates": [pts + [pts[0]]]} if len(pts) >= 3 else None
+    if kind == "Polygon" and isinstance(coords, list) and coords:
+        rings, total = [], 0
+        for ring in coords:
+            if not isinstance(ring, list): return None
+            pts = [_coord(p) for p in ring]
+            if any(p is None for p in pts): return None
+            if len(pts) > 1 and pts[0] == pts[-1]: pts.pop()
+            total += len(pts)
+            if len(pts) < 3 or total > max_points: return None
+            rings.append(pts + [pts[0]])
+        return {"type": "Polygon", "coordinates": rings}
     return None
 
 
@@ -688,3 +771,71 @@ def clean_drawings(raw) -> list[dict]:
                                    "color": color if _COLOR_RE.match(color) else "#d62828",
                                    "kind": {"Point": "point", "LineString": "line", "Polygon": "polygon"}[geom["type"]]}})
     return out
+
+
+def normalize_features(body: bytes, swap=False):
+    """Normalize GeoJSON or GML in WGS84/Web-Mercator; never silently plot an unknown CRS."""
+    if exception_text(body): raise ValueError(exception_text(body))
+    try:
+        data = json.loads(body)
+        if not isinstance(data,dict) or data.get('type') != 'FeatureCollection' or not isinstance(data.get('features'),list): raise ValueError('Keine FeatureCollection')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        root = ET.fromstring(body)
+        features=[]
+        def coords(el, inherited=''):
+            srs=el.get('srsName') or inherited
+            if srs and not any(k in srs for k in ('4326','CRS84','3857')): raise ValueError('Nicht unterstütztes Koordinatensystem: ' + srs)
+            pos = next((e for e in el.iter() if _local(e.tag) in ('posList','pos','coordinates')),None)
+            if pos is None: return []
+            srs=pos.get('srsName') or srs
+            values=[float(x) for x in re.split(r'[,\s]+',(pos.text or '').strip()) if x]
+            dim=int(pos.get('srsDimension') or el.get('srsDimension') or 2)
+            points=[values[n:n+2] for n in range(0,len(values),dim)]
+            for point in points:
+                if len(point)!=2: raise ValueError('Ungültige Koordinaten')
+                if '3857' in srs: point[:]=[point[0]/6378137*180/math.pi,(2*math.atan(math.exp(point[1]/6378137))-math.pi/2)*180/math.pi]
+                elif '4326' in srs and ('urn:' in srs or '/def/crs/' in srs): point.reverse()
+            return points
+        members=[e for e in root.iter() if _local(e.tag) in ('member','featureMember')]
+        for member in members[:5000]:
+            if not len(member):continue
+            obj=member[0]; geometry=None; props={}
+            for prop in obj:
+                ge=next((e for e in prop.iter() if _local(e.tag) in ('Point','LineString','Curve','Polygon','Surface','MultiSurface','MultiPolygon')),None)
+                if ge is None: props[_local(prop.tag)]=' '.join(t.strip() for t in prop.itertext() if t.strip())[:4000];continue
+                kind=_local(ge.tag); srs=ge.get('srsName','')
+                if kind=='Point':
+                    points=coords(ge,srs);geometry={'type':'Point','coordinates':points[0]} if points else None
+                elif kind in ('LineString','Curve'): geometry={'type':'LineString','coordinates':coords(ge,srs)}
+                else:
+                    polygons=[]
+                    for poly in ([ge] if kind in ('Polygon','Surface') else [e for e in ge.iter() if _local(e.tag) in ('Polygon','Surface')]):
+                        rings=[coords(e,srs or poly.get('srsName','')) for e in poly.iter() if _local(e.tag)=='LinearRing']
+                        if rings:polygons.append(rings)
+                    if polygons:geometry={'type':'Polygon','coordinates':polygons[0]} if len(polygons)==1 else {'type':'MultiPolygon','coordinates':polygons}
+            if geometry:features.append({'type':'Feature','id':obj.get('{http://www.opengis.net/gml/3.2}id') or obj.get('{http://www.opengis.net/gml}id'), 'geometry':geometry,'properties':props})
+        data={'type':'FeatureCollection','features':features}
+    crs=data.pop('crs',None)
+    name=str((crs.get('properties') or {}).get('name','')) if isinstance(crs,dict) else ''
+    if name and not any(k in name for k in ('4326','CRS84','3857')): raise ValueError('Nicht unterstütztes Koordinatensystem: '+name)
+    def convert(c):
+        if not isinstance(c,list): raise ValueError('Ungültige Geometrie')
+        if c and isinstance(c[0],(int,float)):
+            if len(c)<2 or not all(isinstance(v,(int,float)) and math.isfinite(v) for v in c[:2]): raise ValueError('Ungültige Koordinaten')
+            x,y=c[:2]
+            if '3857' in name:
+                if abs(x)>20037508.4 or abs(y)>20037508.4: raise ValueError('Koordinaten außerhalb Web-Mercator')
+                x,y=x/6378137*180/math.pi,(2*math.atan(math.exp(y/6378137))-math.pi/2)*180/math.pi
+            if swap: x,y=y,x
+            if not (-180<=x<=180 and -90<=y<=90): raise ValueError('Der Dienst lieferte keine WGS84-Koordinaten.')
+            return [x,y,*c[2:]]
+        return [convert(v) for v in c]
+    def geometry(g):
+        if g is None:return None
+        if not isinstance(g,dict): raise ValueError('Ungültige Geometrie')
+        if g.get('type')=='GeometryCollection': return {**g,'geometries':[geometry(v) for v in g.get('geometries',[])]}
+        return {**g,'coordinates':convert(g.get('coordinates'))}
+    for f in data['features']:
+        if not isinstance(f,dict) or f.get('type','Feature')!='Feature':raise ValueError('Ungültiges Objekt')
+        f['geometry']=geometry(f.get('geometry'))
+    return data
