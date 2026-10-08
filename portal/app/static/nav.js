@@ -31,15 +31,36 @@
   // --- Gruppen -------------------------------------------------------------------------------------------
   function closedGroups() {
     return Array.prototype.filter.call(nav.querySelectorAll('.nav-group'), function (g) {
-      return !g.classList.contains('is-open') && !g.classList.contains('has-active');
+      return !g.classList.contains('is-open') && !g.classList.contains('nav-favs');
     }).map(function (g) { return g.dataset.group; });
   }
+  var saves = Promise.resolve();
+  function saveGroups() {
+    var closed = closedGroups();
+    setCookie('jsm_nav_closed', closed.join(','));
+    saves = saves.catch(function () {}).then(function () {
+      var body = new FormData(); body.append('csrf', nav.dataset.csrf);
+      closed.forEach(function (key) { body.append('closed', key); });
+      return fetch('/nav/expand', {method:'POST', body:body, credentials:'same-origin'});
+    });
+  }
+  document.querySelectorAll('[data-nav-expand]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var open = button.dataset.navExpand === '1';
+      nav.querySelectorAll('.nav-group:not(.nav-favs)').forEach(function (group) {
+        group.classList.toggle('is-open', open);
+        group.querySelector('.nav-group-toggle').setAttribute('aria-expanded', String(open));
+      });
+      nav.querySelectorAll('.nav-admin-section details').forEach(function (d) { d.open = open; });
+      saveGroups();
+    });
+  });
   nav.querySelectorAll('.nav-group-toggle').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var g = btn.closest('.nav-group'), open = !g.classList.contains('is-open');
       g.classList.toggle('is-open', open);
       btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      setCookie('jsm_nav_closed', closedGroups().join(','));
+      saveGroups();
     });
   });
 
@@ -71,6 +92,7 @@
   function filter() {
     var q = norm(search.value.trim()), any = false;
     nav.classList.toggle('is-searching', !!q);
+    nav.querySelectorAll('.nav-admin-section details').forEach(function (d) { if (q) { if (!d.dataset.searchOpen) d.dataset.searchOpen = d.open ? '1' : '0'; d.open = true; } else if (d.dataset.searchOpen) { d.open = d.dataset.searchOpen === '1'; delete d.dataset.searchOpen; } });
     nav.querySelectorAll(':scope > .nav-item, .nav-group').forEach(function (node) {
       if (node.classList.contains('nav-group')) {
         var head = node.querySelector('.nav-group-toggle, .nav-group-title');
@@ -129,7 +151,7 @@
       var src = nav.querySelector('.nav-group:not(.nav-favs) [data-nav-id="' + id + '"]');
       if (!src) return;
       var copy = src.cloneNode(true), link = copy.querySelector('.nav-link');
-      link.classList.remove('active'); link.removeAttribute('aria-current');
+      copy.hidden = false; link.classList.remove('active'); link.removeAttribute('aria-current');
       favList.appendChild(copy);
     });
     favGroup.hidden = !favList.children.length;
