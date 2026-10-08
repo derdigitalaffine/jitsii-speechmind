@@ -411,6 +411,7 @@ class CirculationDistributor(Base):
 class GroupMember(Base):
     __tablename__ = "group_members"
 
+    manual: Mapped[bool] = mapped_column(Boolean, default=True)
     group_id: Mapped[int] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
 
@@ -453,9 +454,56 @@ class Absence(Base):
     creator: Mapped[User | None] = relationship(foreign_keys=[created_by])
 
 
+class OidcIdentity(Base):
+    __tablename__ = "oidc_identities"
+    __table_args__ = (UniqueConstraint("issuer", "subject"), UniqueConstraint("issuer", "user_id"))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    issuer: Mapped[str] = mapped_column(String(1000))
+    subject: Mapped[str] = mapped_column(String(255))
+    claims_enc: Mapped[str] = mapped_column(Text, default="")
+    last_login_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class OidcGroupGrant(Base):
+    __tablename__ = "oidc_group_grants"
+    identity_id: Mapped[int] = mapped_column(ForeignKey("oidc_identities.id", ondelete="CASCADE"), primary_key=True)
+    group_id: Mapped[int] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), primary_key=True)
+
+
+class OidcFlow(Base):
+    __tablename__ = "oidc_flows"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    state_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    browser_hash: Mapped[str] = mapped_column(String(64))
+    config_hash: Mapped[str] = mapped_column(String(64))
+    verifier_enc: Mapped[str] = mapped_column(Text)
+    nonce_hash: Mapped[str] = mapped_column(String(64))
+    target: Mapped[str] = mapped_column(String(1000), default="/")
+    link_uid: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    initiator_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    initiator_sid: Mapped[str] = mapped_column(String(64), default="")
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    payload_enc: Mapped[str] = mapped_column(Text, default="")
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    used: Mapped[bool] = mapped_column(Boolean, default=False)
+    completed: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class OidcLogoutToken(Base):
+    __tablename__ = "oidc_logout_tokens"
+    digest: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class UserSession(Base):
     """Angemeldete Sitzung. Das Cookie trägt nur die zufällige Kennung, hier liegt deren Hash."""
     __tablename__ = "user_sessions"
+
+    oidc_identity_id: Mapped[int | None] = mapped_column(ForeignKey("oidc_identities.id", ondelete="CASCADE"), nullable=True)
+    oidc_sid: Mapped[str] = mapped_column(String(255), default="")
+    oidc_token_enc: Mapped[str] = mapped_column(Text, default="")
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     sid_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
@@ -2784,6 +2832,9 @@ DEFAULT_SETTINGS = {
 
 # Spalten, die in späteren Versionen dazukamen (SQLite: ALTER TABLE ADD COLUMN)
 _NEW_COLUMNS = {
+    "group_members": {"manual": "BOOLEAN NOT NULL DEFAULT 1"},
+    "user_sessions": {"oidc_identity_id": "INTEGER REFERENCES oidc_identities(id) ON DELETE CASCADE", "oidc_sid": "VARCHAR(255) NOT NULL DEFAULT ''", "oidc_token_enc": "TEXT NOT NULL DEFAULT ''", "expires_at": "DATETIME"},
+
     'seminars': {'subscriptions': 'BOOLEAN NOT NULL DEFAULT 1', 'digest_mode': "VARCHAR(16) NOT NULL DEFAULT 'daily'", 'notifications_json': "TEXT NOT NULL DEFAULT '{}'", 'certificate_scope': "VARCHAR(16) NOT NULL DEFAULT 'enrollment'", 'certificate_auto': 'BOOLEAN NOT NULL DEFAULT 0', 'certificate_options_json': "TEXT NOT NULL DEFAULT '{}'", 'form_once': 'BOOLEAN NOT NULL DEFAULT 0'},
     'seminar_sessions': {'published': 'BOOLEAN NOT NULL DEFAULT 1', 'lecturers_json': "TEXT NOT NULL DEFAULT ''", 'guests_json': "TEXT NOT NULL DEFAULT '[]'", 'lead_id': 'INTEGER', 'lecturer_description': "TEXT NOT NULL DEFAULT ''", 'show_contact': 'BOOLEAN NOT NULL DEFAULT 0', 'participants_visible': 'BOOLEAN NOT NULL DEFAULT 0', 'overrides_json': "TEXT NOT NULL DEFAULT '{}'", 'published_at': 'DATETIME'},
     'seminar_materials': {'scope_id': 'INTEGER NOT NULL DEFAULT 0'},

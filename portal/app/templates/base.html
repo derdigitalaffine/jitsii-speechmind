@@ -66,6 +66,7 @@
           <li><a class="dropdown-item" href="/about"><i class="fa-solid fa-circle-info fa-fw me-2"></i>Über dieses Portal</a></li>
           <li><hr class="dropdown-divider"></li>
           <li>
+            {% if request.session.get('oidc_central') %}<form method="post" action="/auth/oidc/logout"><input type="hidden" name="csrf" value="{{csrf}}"><button class="dropdown-item"><i class="fa-solid fa-cloud-arrow-up fa-fw me-2" aria-hidden="true"></i>Auch bei Nextcloud abmelden</button></form>{% endif %}
             <form method="post" action="/logout">
               <input type="hidden" name="csrf" value="{{ csrf }}">
               <button class="dropdown-item" type="submit"><i class="fa-solid fa-right-from-bracket fa-fw me-2"></i>Abmelden</button>

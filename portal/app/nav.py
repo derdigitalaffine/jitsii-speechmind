@@ -169,6 +169,7 @@ ITEMS: list[Item] = [
     Item("trash", "admin", "/admin/loeschen", "fa-trash-can", "Löschen & Papierkorb", lambda c: c.admin,
          _pre("/admin/loeschen")),
 ]
+ITEMS.append(Item("oidc", "admin", "/admin/oidc", "fa-key", "Nextcloud / OIDC-Anmeldung", lambda c: c.admin, _pre("/admin/oidc")))
 ITEMS.append(Item("seminars", "schedule", "/seminare", "fa-chalkboard-user", "Seminare & Lehrgänge", lambda c: "seminars" in c.modules, _pre("/seminare")))
 ITEMS.append(Item("circulation_reports", "work", "/umlaeufe/auswertung", "fa-chart-column", "Meine Umläufe & Rückmeldungen", lambda c: "circulations" in c.modules, _pre("/umlaeufe/auswertung")))
 BY_ID = {it.id: it for it in ITEMS}
@@ -177,7 +178,7 @@ CONTEXT_ONLY = {i for group in CONTEXTS for i in group[1:]}
 ADMIN_SECTIONS = {
     "Menschen & Organisation": ["users", "orgs", "recordings"],
     "Finanzen": ["payments", "expense_rules", "pay_settings"],
-    "Integrationen & Versand": ["map_layers", "notifications", "mail_templates", "speechmind"],
+    "Integrationen & Versand": ["oidc", "map_layers", "notifications", "mail_templates", "speechmind"],
     "Portal & System": ["modules", "design", "public_nav", "sessions", "https", "domains", "trash"],
 }
 
