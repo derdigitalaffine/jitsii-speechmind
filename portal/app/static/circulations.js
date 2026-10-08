@@ -7,6 +7,7 @@
   const form = $('#cl-editor');
   const data = $('#cl-editor-data') ? JSON.parse($('#cl-editor-data').textContent) : {};
   let dirty = false, submitting = false;
+  document.querySelectorAll("[data-circulation-leave]").forEach(other=>other.addEventListener("submit",event=>queueMicrotask(()=>{if(!event.defaultPrevented)submitting=true;})));
   const changed = event => {
     // Searching and editor view controls do not change the saved draft.
     if (event && (!event.target.name || event.target.type === 'search')) return;
