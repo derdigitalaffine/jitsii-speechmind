@@ -82,9 +82,10 @@ def filters(params, focus=None):
     values = {'q': str(params.get('q') or '').strip()[:200],
               'bereich': params.get('bereich', 'alle' if focus else 'ort'), 'ebene': str(focus.id) if focus else str(params.get('ebene') or ''),
               'thema': str(params.get('thema') or '')[:60], 'art': params.get('art', ''),
+              'unter': '0' if params.get('unter')=='0' else '1', 'ansicht': 'bloecke' if params.get('ansicht')=='bloecke' else 'tabelle',
               'geltung': params.get('geltung', 'aktuell'), 'sort': params.get('sort', 'titel')}
     for key, allowed, default in [('bereich', ('ort', 'weitere', 'alle'), 'ort'),
-                                  ('geltung', ('aktuell', 'archiv', 'alle'), 'aktuell'),
+                                  ('geltung', ('aktuell', 'zukuenftig', 'archiv', 'alle'), 'aktuell'),
                                   ('sort', ('titel', 'neu'), 'titel')]:
         if values[key] not in allowed: values[key] = default
     if values['art'] not in lx.DOC_TYPES: values['art'] = ''
@@ -119,7 +120,7 @@ def visible_query(editor=False, query='', authenticated=False):
 
 def choose(rows, levels, f, *, query_ids=None, omit=''):
     selected = levels.get(int(f['ebene'])) if f['ebene'] else None
-    level_ids = set(lx.descendant_ids(selected)) if selected else None
+    level_ids = (set(lx.descendant_ids(selected)) if f['unter']=='1' else {selected.id}) if selected else None
     result = []
     for law in rows:
         if omit != 'bereich':
@@ -129,7 +130,8 @@ def choose(rows, levels, f, *, query_ids=None, omit=''):
         if omit != 'ebene' and f['ebene'] and (not level_ids or law.level_id not in level_ids): continue
         if omit != 'geltung':
             expired = lx.expired(law)
-            if f['geltung'] == 'aktuell' and expired: continue
+            if f['geltung'] == 'aktuell' and (expired or (law.valid_from and law.valid_from>lx.today_iso())): continue
+            if f['geltung'] == 'zukuenftig' and (expired or not law.valid_from or law.valid_from<=lx.today_iso()):continue
             if f['geltung'] == 'archiv' and not expired: continue
         if omit != 'art' and f['art'] and law.doc_type != f['art']: continue
         if omit != 'thema' and f['thema'] and f['thema'].casefold() not in [t.casefold() for t in topics(law)]: continue
@@ -157,10 +159,9 @@ def browse(db, params, *, editor=False, focus=None, base='/recht', authenticated
     try: page = max(1, min(pages, int(params.get('seite', '1'))))
     except (ValueError, TypeError): page = 1
     items = results[(page-1)*PAGE_SIZE:page*PAGE_SIZE]
-    path = base + (f'/ebene/{focus.id}' if focus else '')
+    path = base
     def url(**changes):
         values = dict(f); values.update(changes)
-        if focus: values.pop('ebene', None)
         return path + '?' + urlencode({k:v for k,v in values.items() if v not in ('', None)}) + '#catalog-results'
     topic_rows = choose(rows, levels, f, query_ids=query_ids, omit='thema')
     topic_counts, canonical_topics = Counter(), {}
@@ -171,16 +172,26 @@ def browse(db, params, *, editor=False, focus=None, base='/recht', authenticated
     if f['thema']:
         f['thema'] = canonical_topics.get(f['thema'].casefold(), f['thema'])
         topic_counts.setdefault(f['thema'], 0)
-    level_rows = choose(rows, levels, f, query_ids=query_ids, omit='ebene')
+    level_rows = choose(rows, levels, {**f,'bereich':'alle'}, query_ids=query_ids, omit='ebene')
+    level_counts=Counter(law.level_id for law in level_rows)
+    selected_level=levels.get(int(f['ebene'])) if f['ebene'] else None
+    selected_path={lv.id for lv in lx.level_path(selected_level)} if selected_level else set()
     available_levels = set()
     for law in level_rows:
         level = levels.get(law.level_id)
         if level:
             available_levels.update(p.id for p in lx.level_path(level))
-    options = sorted([level for level in levels.values() if (level.id in available_levels and (f['bereich']!='ort' or local(level) is not False)) or str(level.id)==f['ebene']], key=lambda level: level.name.casefold())
+    tree_levels=[lv for lv in levels.values() if lv.id in available_levels or lv.id in selected_path]
+    children={}
+    for lv in tree_levels: children.setdefault(lv.parent_id if lv.parent_id in {x.id for x in tree_levels} else None,[]).append(lv)
+    def branch(parent=None,seen=None):
+        seen=seen or set()
+        return [{'level':lv,'count':level_counts[lv.id],'active':str(lv.id)==f['ebene'],'open':lv.id in selected_path,
+                 'children':branch(lv.id,seen|{lv.id})} for lv in sorted(children.get(parent,[]),key=lambda l:(l.position,l.name.casefold())) if lv.id not in seen]
+    options=sorted(tree_levels,key=lambda lv:lv.name.casefold())
     featured = sorted(topic_counts.items(), key=lambda x:(-x[1],x[0].casefold()))[:6]
     if f['thema'] and f['thema'] not in [name for name,n in featured]:
         featured = featured[:5] + [(f['thema'],topic_counts[f['thema']])]
     return {'items':items, 'filters':f, 'total':total, 'page':page, 'pages':pages, 'url':url,
             'topics':sorted(topic_counts.items(), key=lambda x:x[0].casefold()), 'levels':options,
-            'featured_topics':featured, 'first':(page-1)*PAGE_SIZE+1 if total else 0, 'last':min(page*PAGE_SIZE,total)}
+            'tree':branch(), 'selected_level':selected_level, 'level_counts':level_counts, 'featured_topics':featured, 'first':(page-1)*PAGE_SIZE+1 if total else 0, 'last':min(page*PAGE_SIZE,total)}

@@ -95,7 +95,7 @@
   <form class="d-flex gap-1 js-jump" data-base="{{ base }}" data-full="{{ '0' if current else '1' }}" data-anchors="{{ norm_anchors }}" role="search" aria-label="Zu einer Einzelvorschrift springen">
     <div class="input-group input-group-sm" style="width: 8.5rem"><span class="input-group-text">{{ unit_prefix }}</span><input class="form-control" name="nr" inputmode="text" placeholder="{{ 'Nr.' if unit_prefix == '§' else 'z. B. 3.2' }}" aria-label="{{ 'Paragraf oder Artikel' if unit_prefix == '§' else 'Nummer der Einzelvorschrift' }}"><button class="btn btn-outline-secondary" type="submit" aria-label="Springen"><i class="fa-solid fa-arrow-right"></i></button></div>
   </form>
-  <div class="ms-auto d-flex flex-wrap gap-2">
+  <div class="ms-auto d-flex flex-wrap gap-2" id="fassungen">
     <div class="btn-group btn-group-sm" role="group" aria-label="Schriftgröße"><button class="btn btn-outline-secondary js-font" data-step="-1" type="button" aria-label="Schrift kleiner">A−</button><button class="btn btn-outline-secondary js-font" data-step="1" type="button" aria-label="Schrift größer">A+</button></div>
     {% if versions or version %}
     <div class="dropdown"><button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" type="button"><i class="fa-solid fa-clock-rotate-left me-1"></i>Fassungen</button>

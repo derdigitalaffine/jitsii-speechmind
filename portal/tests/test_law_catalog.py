@@ -42,10 +42,10 @@ def slugs(result):
 def test_catalogue_scope_combined_filters_and_search(catalogue):
     with SessionLocal() as db:
         local = cat.browse(db, {'ebene':str(catalogue['root'])})
-        assert slugs(local)=={'cat-main','cat-fees','cat-future'}
+        assert slugs(local)=={'cat-main','cat-fees'}
         assert 'Vertrauliches Thema' not in dict(local['topics'])
         filtered=cat.browse(db,{'ebene':str(catalogue['town']),'thema':'Friedhof & Bestattung','q':'Gartenarbeiten'})
-        assert slugs(filtered)=={'cat-fees','cat-future'}
+        assert slugs(filtered)=={'cat-fees'}
         assert 'cat-state' in slugs(cat.browse(db,{'bereich':'weitere','q':'Katalog-Landesgesetz'}))
         assert slugs(cat.browse(db,{'ebene':str(catalogue['town']),'geltung':'archiv'}))=={'cat-expired'}
         assert slugs(cat.browse(db,{'ebene':str(catalogue['town']),'q':'FRIEDHOFS GEBÜHREN'}))=={'cat-fees'}
@@ -60,9 +60,9 @@ def test_public_embed_and_suggestions_keep_filters(catalogue):
     page=pub.get('/recht',params=params)
     assert page.status_code==200 and 'lex-catalog-grid' in page.text and 'lex-branch' not in page.text
     assert 'Unveröffentlichter Katalog-Entwurf' not in page.text and 'Vertrauliches Thema' not in page.text
-    assert 'Alte Katalog-Satzung' not in page.text and 'Gilt ab 01.01.2099' in page.text
+    assert 'Alte Katalog-Satzung' not in page.text and 'Gilt ab 01.01.2099' not in page.text
     result=pub.get('/recht/suche.json',params={**params,'q':'Gartenarbeiten','catalog':'1'}).json()
-    assert {urlsplit(r['url']).path for r in result}=={'/recht/cat-fees','/recht/cat-future'}
+    assert {urlsplit(r['url']).path for r in result}=={'/recht/cat-fees'}
     embed=pub.get('/recht-embed',params=params)
     assert embed.status_code==200 and '/recht-embed/cat-fees' in embed.text
     focused=pub.get(f"/recht/ebene/{catalogue['state']}")

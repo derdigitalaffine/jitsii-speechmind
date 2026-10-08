@@ -1,15 +1,18 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
 {% block title %}{{ law.title if law else 'Neuer Rechtstext' }}{% endblock %}
+{% from "_law_save_actions.html" import actions %}
+{% block head %}<link rel="stylesheet" href="/static/laws.css">{% endblock %}
 {% block content %}
 {% call m.page_head(law.title if law else 'Neuer Rechtstext', 'Text einfügen oder als Datei laden (Word, PDF, Markdown, Text). Die Gliederung (Bücher, Teile, Abschnitte, §§, Artikel – bei Verträgen und Regeln auch Ziffern oder Nummern wie 3.2) wird automatisch erkannt – die Vorschau zeigt sie sofort.') %}
-<a class="btn btn-outline-secondary" href="/laws"><i class="fa-solid fa-arrow-left me-1"></i>Zur Liste</a>
+<a class="btn btn-outline-secondary" href="{{return_to}}"><i class="fa-solid fa-arrow-left me-1"></i>Zur Liste</a>
 {% if law %}<a class="btn btn-outline-secondary" href="/recht/{{ law.slug }}" target="_blank"><i class="fa-regular fa-eye me-1"></i>Ansehen</a>
 <a class="btn btn-outline-secondary" href="/laws/{{ law.id }}/plan"><i class="fa-regular fa-calendar-plus me-1"></i>{{ 'Vorbereitete Fassung' if law.planned_valid_from else 'Neue Fassung vorbereiten' }}</a>{% endif %}
 {% endcall %}
 
+{{actions("law-form","top")}}
 <form method="post" enctype="multipart/form-data" id="law-form" action="{{ '/laws/' ~ law.id ~ '/edit' if law else '/laws/new' }}">
-  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="return_to" value="{{return_to}}">
   <div class="row g-4">
     <div class="col-12 col-xxl-8">
       <div class="card mb-4"><div class="card-body">
@@ -23,7 +26,7 @@
           <div class="col-12 col-md-8"><label class="form-label" for="level_id">Ebene</label>
             <select class="form-select" id="level_id" name="level_id"><option value="">– ohne Zuordnung –</option>
               {% for lv, depth in level_options %}<option value="{{ lv.id }}" {% if v.level_id|string == lv.id|string %}selected{% endif %}>{{ '   ' * depth }}{{ lv.name }}</option>{% endfor %}</select></div>
-          <fieldset class="col-12"><legend class="form-label fs-6">Themen für die öffentliche Übersicht</legend><input type="hidden" name="topics_present" value="1"><div class="d-flex flex-wrap gap-3">{% for key,label in topic_options.items() %}<div class="form-check"><input class="form-check-input" type="checkbox" id="topic-{{key}}" name="topic_{{key}}" value="1" {% if label in selected_topics %}checked{% endif %}><label class="form-check-label" for="topic-{{key}}">{{label}}</label></div>{% endfor %}</div><label class="form-label small mt-2" for="other-topics">Weitere eigene Themen (durch Komma getrennt)</label><input class="form-control" id="other-topics" name="other_topics" value="{{other_topics}}" maxlength="1000" placeholder="z. B. Tourismus, Wirtschaftsförderung"><div class="form-text">Mehrere Themen sind möglich, höchstens zwölf mit jeweils 60 Zeichen. Für noch nicht zugeordnete Texte werden Vorschläge aus dem Titel angezeigt. Beim Speichern gilt Ihre Auswahl.</div></fieldset>
+          <fieldset class="col-12 law-topic-picker"><legend class="form-label fs-6">Themenzuordnung</legend><input type="hidden" name="topics_present" value="1"><p class="small text-secondary">Mehrere Themen auswählen. Klicken Sie auf das gesamte Themenfeld.</p><div class="law-topic-selected small mb-2" aria-live="polite" data-topic-selected></div><label class="visually-hidden" for="topic-search">Themen durchsuchen</label><input id="topic-search" class="form-control mb-3" type="search" placeholder="Themen durchsuchen …" data-topic-search><div class="law-topic-grid">{% for key,label in topic_options.items() %}<label class="law-topic-option" data-topic-label="{{label}}"><input class="form-check-input" type="checkbox" id="topic-{{key}}" name="topic_{{key}}" value="1" {% if label in selected_topics %}checked{% endif %}><span>{{label}}</span></label>{% endfor %}</div><label class="form-label small mt-3" for="other-topics">Weitere eigene Themen (durch Komma getrennt)</label><input class="form-control" id="other-topics" name="other_topics" value="{{other_topics}}" maxlength="1000" placeholder="z. B. Tourismus, Wirtschaftsförderung"><div class="form-text">Höchstens zwölf Themen mit jeweils 60 Zeichen. Vorschläge aus dem Titel können Sie vor dem Speichern anpassen.</div></fieldset>
           <div class="col-12 col-md-6"><label class="form-label" for="version_note">Stand / Fassung</label>
             <input class="form-control" id="version_note" name="version_note" value="{{ v.version_note or '' }}" maxlength="255" placeholder="z. B. Fassung vom 12.03.2024, zuletzt geändert durch Satzung vom …"></div>
           <div class="col-12 col-md-6"><label class="form-label" for="slug">Adresse</label>
@@ -75,8 +78,8 @@
       <div class="form-check mt-3"><input type="hidden" name="read_meta" value="0"><input class="form-check-input" type="checkbox" id="read_meta" name="read_meta" value="1" {% if v.read_meta != '0' %}checked{% endif %}>
         <label class="form-check-label" for="read_meta">Stammdaten aus dem Kopf des Textes übernehmen <span class="small text-secondary">(„---“-Block oder „Titel: …“-Zeilen am Anfang; der Kopf wird danach aus dem Text entfernt)</span></label></div>
       <div class="mt-3 d-flex gap-2">
-        <button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Speichern</button>
-        <a class="btn btn-outline-secondary" href="/laws">Abbrechen</a>
+        {{actions("law-form","bottom")}}
+        <a class="btn btn-outline-secondary" href="{{return_to}}">Abbrechen</a>
       </div>
     </div>
 

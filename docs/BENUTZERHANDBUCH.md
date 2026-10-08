@@ -343,7 +343,8 @@ Das Modul unterstützt außerdem **interne Dienstanweisungen** für angemeldete 
 
 **Lesen – für alle, ohne Anmeldung:** über den Link **Rechtstexte** oben auf jeder Portalseite (Adresse `/recht`).
 
-- Die Startseite zeigt den **Rechtsbaum** von der Europäischen Union bis zu den Ortsgemeinden, darunter die jeweiligen Satzungen, Verordnungen und Gesetze. Ein Klick auf eine Ebene zeigt nur deren Texte.
+- Die Startseite trennt einen kompakten **Körperschaftsbaum** von der Ergebnisliste. Zweige können einzeln oder gemeinsam ein-/ausgeklappt und nach Namen gesucht werden. Auf dem Handy öffnet die Körperschaftsauswahl als einklappbarer Bereich. Die Zahl an einer Ebene zählt nur unmittelbar dort zugeordnete Texte unter den aktuellen Filtern, keine untergeordneten Ebenen. **Unterebenen einbeziehen** ist für die Ergebnisliste standardmäßig eingeschaltet und kann abgeschaltet werden.
+- **Ansicht:** Standard ist die kompakte Tabelle mit umbrechenden Titeln, Körperschaft, Art, Gültigkeit und Aktionen. Alternativ steht eine Blockansicht zur Verfügung. Ansicht und aufgeklappte Zweige werden im Browser gemerkt.
 - **Suchen:** Suchbegriffe eingeben – gefunden werden Titel, Überschriften und Text; alle Wörter müssen vorkommen. Paragrafen lassen sich direkt suchen („§ 3 Hauptsatzung“). Die Fundstellen sind gelb markiert; ein Klick öffnet den Paragrafen mit Hervorhebung.
 - **Volltext** zeigt den ganzen Text in gewohnter Gesetzesform (zentrierte Paragrafenüberschriften, nummerierte Absätze). Links steht die **Inhaltsübersicht** als Baum (Teile und Abschnitte auf-/zuklappbar, Filterfeld); beim Scrollen ist der aktuelle Paragraf markiert.
 - **Einzelne Abschnitte** zeigt einen Paragrafen bzw. Abschnitt für sich, mit Vor/Zurück-Blättern.
@@ -352,7 +353,7 @@ Das Modul unterstützt außerdem **interne Dienstanweisungen** für angemeldete 
 - **Schriftgröße** mit A− / A+ (wird im Browser gemerkt). Auf dem Handy lässt sich die Inhaltsübersicht ein- und ausblenden.
 - **Verweise**, die die Verwaltung gesetzt hat, sind verlinkt; beim Zeigen (oder ersten Antippen) erscheint eine **Vorschau** des Paragrafen.
 - **Fassungen:** Über „Fassungen“ lassen sich frühere Fassungen öffnen, mit „Welche Fassung galt am …“ die an einem Tag gültige finden und mit **Änderungen vergleichen** zwei Fassungen gegenüberstellen – Neues grün, Entfallenes rot durchgestrichen, je Paragraf als „geändert“, „neu“ oder „entfallen“ markiert.
-- **Außer Kraft getretene Texte** stehen auf der Startseite gesammelt unter „Außer Kraft getretene Texte“, tragen einen Hinweis und erscheinen in der Suche nur mit „auch außer Kraft getretene Texte“.
+- **Gültigkeit:** Standardmäßig erscheinen aktuell geltende Texte. Über den Filter können alle, nur außer Kraft getretene oder nur zukünftig geltende Texte angezeigt werden.
 - **Suche:** Filter nach Art (Satzung, Gesetz …) und Ebene; bei Tippfehlern („Hundsteuer“) sucht das Portal automatisch nach dem ähnlichsten Wort; beim Tippen erscheinen Vorschläge (Titel und Paragrafen wie „§ 4 HStS“).
 - **Anlagen** (Pläne, Gebührentabellen als PDF) und **zugehörige Online-Anträge** (z. B. „Hund anmelden“ bei der Hundesteuersatzung) stehen unter dem Text.
 - **Drucken / PDF** liefert eine saubere Druckfassung ohne Menüs (im Druckdialog „Als PDF speichern“); der Pfeil lädt den Text als Markdown herunter.
@@ -380,7 +381,9 @@ Das Modul unterstützt außerdem **interne Dienstanweisungen** für angemeldete 
 7. **Anlagen** (PDF) laden Sie rechts auf der Bearbeitungsseite hoch.
 
 **Rechtstexte in Formularen und Anträgen:** In Beschreibungen und Hinweistexten verlinkt `[[HStS § 4]]` (Abkürzung oder Adresse des Rechtstexts, optional mit Paragraf) den Paragrafen mit Vorschau. Bei Online-Anträgen wählen Sie im Reiter **Antrag › Rechtsgrundlage** Rechtstexte und Paragrafen aus; sie erscheinen im Antragskatalog und oben im Formular – und der Rechtstext zeigt umgekehrt den Antrag.
-5. **Speichern.** Bei jeder Änderung wird die vorige Fassung aufbewahrt (rechts unter „Frühere Fassungen“ ansehen und wiederherstellen).
+**Speichern:** Oben und unten stehen **Speichern** (im Editor bleiben) und **Speichern und schließen** (zur gefilterten Pflegeliste zurückkehren). Das gilt auch für vorbereitete Fassungen. Auf dem Handy bleibt die untere Speicherleiste erreichbar. **Themen** werden als gut getrennte, vollständig anklickbare Checkboxkarten mit Suche und Übersicht der Auswahl dargestellt; freie Themen bleiben möglich.
+
+**Fassungsvergleich:** Angeboten werden nur ausdrücklich angelegte Fassungen und der aktuelle Stand. Automatische Sicherungen einzelner Speichervorgänge bleiben im Editor zur Wiederherstellung verfügbar. Standardmäßig zeigt der Vergleich nur geänderte Abschnitte; unveränderte lassen sich zuschalten. Eine Volltextsuche durchsucht beide Vergleichsstände und zeigt passende unveränderte Abschnitte ebenfalls an. Auf kleinen Bildschirmen stehen die vollständigen alten und neuen Inhalte untereinander.
 
 **In die Homepage einbinden:** **Link & Einbinden** erzeugt den öffentlichen Link und den Code für einen Rahmen (iframe) – für alle Texte, eine Ebene (z. B. nur Ihre Ortsgemeinde) oder einen einzelnen Text, mit Vorschau. Den Code fügt die Webredaktion im CMS als HTML-Baustein ein.
 

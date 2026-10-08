@@ -1,15 +1,17 @@
 {% extends layout %}
-{% block title %}{{ focus.name if focus else 'Ortsrecht & Rechtstexte' }}{% endblock %}
+{% block title %}{{catalog.selected_level.name if catalog.selected_level else 'Ortsrecht & Rechtstexte'}}{% endblock %}
 {% block head %}<link rel="stylesheet" href="/static/laws.css">{% endblock %}
 {% set f = catalog.filters %}
+{% from '_law_catalog_browser.html' import tree, listing with context %}
 {% block content %}
 {% if user and not embed %}<nav class="d-flex flex-wrap gap-2 mb-3" aria-label="Sichtbarkeit der Texte"><a class="btn btn-sm {{ 'btn-primary' if catalog.filters.sicht=='public' else 'btn-outline-secondary' }}" href="{{ catalog.url(sicht='public',seite=1) }}">Öffentliches Ortsrecht</a><a class="btn btn-sm {{ 'btn-primary' if catalog.filters.sicht=='internal' else 'btn-outline-secondary' }}" href="{{ catalog.url(sicht='internal',bereich='alle',seite=1) }}"><i class="fa-solid fa-lock me-1"></i>Interne Dienstanweisungen</a><a class="btn btn-sm {{ 'btn-primary' if catalog.filters.sicht=='all' else 'btn-outline-secondary' }}" href="{{ catalog.url(sicht='all',bereich='alle',seite=1) }}">Alle lesbaren Texte</a></nav>{% endif %}
 
+<div class="law-browser" data-law-browser data-view="{{f.ansicht}}"><aside class="law-browser-sidebar"><details class="law-org-panel" open><summary class="fw-semibold">Körperschaft auswählen{% if catalog.selected_level %}<span class="small d-block text-secondary">{{catalog.selected_level.name}}</span>{% endif %}</summary><div class="p-3"><label class="visually-hidden" for="law-org-search">Körperschaft suchen</label><input id="law-org-search" class="form-control form-control-sm mb-2" type="search" placeholder="Körperschaft suchen …"><div class="d-flex gap-2 mb-2"><button type="button" class="btn btn-sm btn-link p-0" data-org-expand="1">Alle öffnen</button><button type="button" class="btn btn-sm btn-link p-0" data-org-expand="0">Alle schließen</button></div><a class="law-org-link mb-2 {{'active' if not f.ebene}}" href="{{catalog.url(ebene='',bereich='alle',seite=1)}}">Alle Körperschaften / Ebenen</a>{{tree(catalog.tree)}}<p class="small text-secondary mt-3 mb-0">Zahlen zählen nur Texte der jeweiligen Ebene, ohne untergeordnete Ebenen. Aktive Suchfilter gelten auch für die Zahlen.</p></div></details></aside><div class="law-browser-main">
 <div class="lex-hero lex-catalog-hero mb-4">
   {% if focus %}<nav aria-label="Pfad" class="small mb-2"><a href="{{ R }}">Alle Rechtstexte</a> › {{ focus.name }}</nav>{% endif %}
-  <h1 class="h2 mb-2">{{ focus.name if focus else 'Ortsrecht & Rechtstexte' }}</h1>
+  <h1 class="h2 mb-2">{{catalog.selected_level.name if catalog.selected_level else 'Ortsrecht & Rechtstexte'}}</h1>
   <p class="text-secondary mb-3">Satzungen und Regeln für Ihre Gemeinde. Suchen Sie nach einem Titel oder einem Anliegen, zum Beispiel „Friedhofsgebühren“.</p>
-  <form method="get" action="{{ R ~ ('/ebene/' ~ focus.id if focus else '') }}#catalog-results" class="lex-catalog-form" role="search">
+  <form method="get" action="{{R}}#catalog-results" class="lex-catalog-form" role="search">
 <input type="hidden" name="sicht" value="{{ catalog.filters.sicht }}">
     <label class="form-label fw-semibold" for="catalog-q">Titel, Abkürzung oder Inhalt suchen</label>
     <div class="input-group mb-3">
@@ -18,14 +20,13 @@
     </div>
     <details class="lex-catalog-filters" data-catalog-filters open><summary>Gemeinde und weitere Filter{% if f.ebene or f.thema or f.art or f.geltung != 'aktuell' or f.bereich != 'ort' or f.sort != 'titel' %} <span class="badge text-bg-primary ms-1">Auswahl aktiv</span>{% endif %}</summary>
     <div class="row g-3 pt-2">
-      <div class="col-12 col-md-6 col-xl-4"><label class="form-label small" for="catalog-level">Gemeinde / Geltungsbereich</label>
-        {% if focus %}<div id="catalog-level" class="form-control">{{ focus.name }}</div>{% else %}<select id="catalog-level" name="ebene" class="form-select"><option value="">Alle im gewählten Bereich</option>{% for lv in catalog.levels %}<option value="{{lv.id}}" {% if f.ebene == lv.id|string %}selected{% endif %}>{{lv.name}} · {{kinds.get(lv.kind,kinds.sonstige)[0]}}</option>{% endfor %}</select>{% endif %}</div>
+      <input type="hidden" name="ebene" value="{{f.ebene}}"><input type="hidden" name="ansicht" value="{{f.ansicht}}"><div class="col-12 col-md-6 col-xl-4"><span class="form-label small d-block">Geltungsbereich</span><strong>{{catalog.selected_level.name if catalog.selected_level else 'Alle im gewählten Bereich'}}</strong><input type="hidden" name="unter" value="0"><label class="d-flex gap-2 mt-2 small"><input class="form-check-input" type="checkbox" name="unter" value="1" {{'checked' if f.unter=='1'}}>Untergeordnete einschließen</label></div>
       <div class="col-12 col-md-6 col-xl-4"><label class="form-label small" for="catalog-topic">Thema</label><select id="catalog-topic" name="thema" class="form-select"><option value="">Alle Themen</option>{% for name,n in catalog.topics %}<option value="{{name}}" {% if f.thema == name %}selected{% endif %}>{{name}} ({{n}})</option>{% endfor %}</select></div>
       <div class="col-12 col-md-6 col-xl-4"><label class="form-label small" for="catalog-scope">Rechtstexte anzeigen</label><select id="catalog-scope" name="bereich" class="form-select">{% for key,label in [('ort','Ortsrecht: Verbandsgemeinde & Ortsgemeinden'),('weitere','Weitere Rechtsgrundlagen'),('alle','Alle Rechtstexte')] %}<option value="{{key}}" {% if f.bereich == key %}selected{% endif %}>{{label}}</option>{% endfor %}</select></div>
     </div>
     <details class="lex-catalog-more mt-3" {% if f.art or f.geltung != 'aktuell' or f.sort != 'titel' %}open{% endif %}><summary>Weitere Filter: Art, Gültigkeit und Sortierung</summary><div class="row g-3 pt-2">
       <div class="col-12 col-md-4"><label class="form-label small" for="catalog-type">Dokumentart</label><select class="form-select" id="catalog-type" name="art"><option value="">Alle Arten</option>{% for key,label in doc_types.items() %}<option value="{{key}}" {% if f.art == key %}selected{% endif %}>{{label}}</option>{% endfor %}</select></div>
-      <div class="col-12 col-md-4"><label class="form-label small" for="catalog-valid">Gültigkeit</label><select class="form-select" id="catalog-valid" name="geltung">{% for key,label in [('aktuell','Aktuelle und angekündigte Texte'),('archiv','Außer Kraft getretene Texte'),('alle','Alle Gültigkeitsstände')] %}<option value="{{key}}" {% if f.geltung == key %}selected{% endif %}>{{label}}</option>{% endfor %}</select></div>
+      <div class="col-12 col-md-4"><label class="form-label small" for="catalog-valid">Gültigkeit</label><select class="form-select" id="catalog-valid" name="geltung">{% for key,label in [('aktuell','Derzeit geltende Texte'),('zukuenftig','Zukünftige Texte'),('archiv','Außer Kraft getretene Texte'),('alle','Alle Gültigkeitsstände')] %}<option value="{{key}}" {% if f.geltung == key %}selected{% endif %}>{{label}}</option>{% endfor %}</select></div>
       <div class="col-12 col-md-4"><label class="form-label small" for="catalog-sort">Sortierung</label><select class="form-select" id="catalog-sort" name="sort"><option value="titel" {% if f.sort == 'titel' %}selected{% endif %}>Titel A–Z</option><option value="neu" {% if f.sort == 'neu' %}selected{% endif %}>Zuletzt aktualisiert</option></select></div>
     </div></details>
     <div class="d-flex flex-wrap gap-2 mt-3"><button type="submit" class="btn btn-primary">Auswahl anzeigen</button><a class="btn btn-outline-secondary" href="{{ R }}">Zurücksetzen</a><a class="btn btn-link" href="{{ R }}/suche?q={{f.q|urlencode}}">Erweiterte Volltextsuche</a></div>
@@ -38,24 +39,9 @@
   <div class="d-flex flex-wrap justify-content-between gap-2 align-items-baseline mb-3"><h2 id="catalog-results" class="h5 mb-0">{{catalog.total}} Rechtstext{{'e' if catalog.total != 1}}</h2>{% if catalog.total %}<span class="small text-secondary">{{catalog.first}}–{{catalog.last}} von {{catalog.total}}</span>{% endif %}</div>
   {% if f.q %}<p class="small text-secondary">Suche nach „{{f.q}}“ in Titeln, Abkürzungen und Inhalten.</p>{% endif %}
   {% if f.bereich == 'ort' %}<p class="small text-secondary">Im Mittelpunkt steht das Ortsrecht. Texte ohne Ebenenzuordnung sind ebenfalls sichtbar. EU-, Bundes-, Landes- und Kreisrecht finden Sie unter „Weitere Rechtsgrundlagen“.</p>{% endif %}
-  <div class="lex-catalog-grid">
-  {% for law in catalog['items'] %}
-    <article class="card lex-law-card">
-      <div class="card-body">
-        <div class="lex-law-meta mb-2"><span class="badge text-bg-light border">{{doc_types.get(law.doc_type,law.doc_type)}}</span>{% if not law.published %}<span class="badge text-bg-warning">Entwurf · nicht veröffentlicht</span>{% elif expired(law) %}<span class="badge text-bg-secondary">Außer Kraft seit {{fmt_date(law.valid_until)}}</span>{% elif law.valid_from and law.valid_from > today %}<span class="badge text-bg-info">Gilt ab {{fmt_date(law.valid_from)}}</span>{% elif law.valid_from %}<span class="badge text-bg-success">In Kraft seit {{fmt_date(law.valid_from)}}</span>{% else %}<span class="badge text-bg-light border">{{ 'Intern' if law.internal else 'Veröffentlicht' }}</span>{% endif %}</div>
-        <h3 class="h5 mb-2"><a class="lex-law-title" href="{{ R }}/{{law.slug}}{{('?q=' ~ (f.q|urlencode)) if f.q else ''}}">{{law.title}}</a></h3>
-        {% if law.short_title %}<p class="small text-secondary mb-2">{{law.short_title}}</p>{% endif %}
-        <p class="lex-law-place small mb-2"><i class="fa-solid fa-location-dot me-1" aria-hidden="true"></i>{{law.level.name if law.level else 'Geltungsbereich noch nicht zugeordnet'}}</p>
-        {% if law.version_note %}<p class="small text-secondary mb-2">{{law.version_note}}</p>{% endif %}
-        {% if law_topics(law) %}<div class="lex-law-topics small text-secondary mb-2">{{law_topics(law)|join(' · ')}}</div>{% endif %}
-        <div class="lex-law-footer"><span class="small text-secondary">Aktualisiert {{law.updated_at|local('%d.%m.%Y')}}</span><a class="btn btn-outline-primary" href="{{ R }}/{{law.slug}}{{('?q=' ~ (f.q|urlencode)) if f.q else ''}}" aria-label="{{law.title}} öffnen">Text öffnen <i class="fa-solid fa-arrow-right ms-1" aria-hidden="true"></i></a></div>
-      </div>
-    </article>
-  {% else %}
-    <div class="card card-body lex-catalog-empty"><h3 class="h5">Keine passenden Rechtstexte</h3><p class="text-secondary">Versuchen Sie einen kürzeren Suchbegriff oder erweitern Sie Gemeinde, Thema oder Gültigkeit.</p><div class="d-flex flex-wrap gap-2"><a class="btn btn-primary" href="{{R}}">Auswahl zurücksetzen</a><a class="btn btn-outline-primary" href="{{R}}?{{{'q':f.q,'bereich':'alle','thema':f.thema,'geltung':f.geltung,'art':f.art}|urlencode}}">In allen Rechtsgrundlagen suchen</a></div></div>
-  {% endfor %}
-  </div>
+<div class="d-flex justify-content-end gap-2 mb-3" role="group" aria-label="Ergebnisdarstellung"><a class="btn btn-sm btn-outline-primary" href="{{catalog.url(ansicht='tabelle')}}" data-law-view="tabelle" aria-pressed="{{'true' if f.ansicht=='tabelle' else 'false'}}">Tabelle</a><a class="btn btn-sm btn-outline-primary" href="{{catalog.url(ansicht='bloecke')}}" data-law-view="bloecke" aria-pressed="{{'true' if f.ansicht=='bloecke' else 'false'}}">Blöcke</a></div>{{listing(catalog['items'])}}
   {% if catalog.pages > 1 %}<nav class="lex-catalog-pages d-flex flex-wrap gap-2 justify-content-center mt-4" aria-label="Ergebnisseiten">{% if catalog.page > 1 %}<a class="btn btn-outline-secondary" rel="prev" href="{{catalog.url(seite=catalog.page-1)}}">Zurück</a>{% endif %}<span class="align-self-center px-2">Seite {{catalog.page}} von {{catalog.pages}}</span>{% if catalog.page < catalog.pages %}<a class="btn btn-outline-secondary" rel="next" href="{{catalog.url(seite=catalog.page+1)}}">Weiter</a>{% endif %}</nav>{% endif %}
 </section>
+</div></div>
 {% endblock %}
 {% block scripts %}<script src="/static/laws.js"></script>{% endblock %}
