@@ -516,17 +516,9 @@ def _task_badge(user: User | None) -> int:
     hit = _badge_cache.get(cache_key)
     if hit and time.monotonic() - hit[0] < 30:
         return hit[1]
-    n = 0
     with SessionLocal() as db:
-        if "applications" in mods:
-            from . import workflow
-            n += workflow.task_count(db, user)
-        if "resources" in mods:
-            from . import resources as rs
-            n += rs.booking_task_count(db, user)
-        if "circulations" in mods:
-            from . import circulations
-            n += len(circulations.pending_tasks(db, user))
+        from . import task_overview
+        n = task_overview.collect(db, user, mods)['count']
     if len(_badge_cache) > 2000:
         _badge_cache.clear()
     _badge_cache[cache_key] = (time.monotonic(), n)

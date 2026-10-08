@@ -1,0 +1,18 @@
+{% macro work_list(items, now, csrf, waiting=false) %}
+<ul class="list-group list-group-flush">
+{% for item in items %}
+<li class="list-group-item d-flex flex-wrap align-items-center gap-2 py-3 {{'border-start border-danger border-3' if item.late}}">
+  <i class="fa-solid {{item.icon}} fa-fw text-{{'danger' if item.late else 'secondary'}}" aria-hidden="true"></i>
+  <div class="flex-grow-1" style="min-width:min(100%, 14rem)">
+    <div class="small text-secondary">{{item.source_label}} · {{'Gruppenaufgabe' if item.scope=='group' else 'Vertretung' if item.scope=='proxy' else 'Persönlich'}}</div>
+    <a class="fw-semibold text-break" href="{{item.href}}">{{item.title}}</a>
+    <div class="small text-secondary text-break">{{item.detail}}</div>
+  </div>
+  {% if item.due %}<span class="small {{'text-danger fw-semibold' if item.late else 'text-secondary'}}">{{'überfällig seit ' if item.late else 'Frist ' if waiting else 'bis '}}{{item.due|local('%d.%m.%Y')}}</span>{% else %}<span class="small text-secondary">ohne Frist</span>{% endif %}
+  {% if item.get('claim_url') %}<form method="post" action="{{item.claim_url}}"><input type="hidden" name="csrf" value="{{csrf}}"><input type="hidden" name="action" value="claim"><input type="hidden" name="back" value="tasks"><button class="btn btn-sm btn-primary"><i class="fa-solid fa-hand me-1" aria-hidden="true"></i>Übernehmen</button></form>
+  <a class="btn btn-sm btn-outline-secondary" href="{{item.href}}">Ansehen</a>
+  {% else %}<a class="btn btn-sm {{'btn-outline-secondary' if waiting else 'btn-primary'}}" href="{{item.href}}">{{item.action}}<i class="fa-solid fa-arrow-right ms-1" aria-hidden="true"></i></a>{% endif %}
+</li>
+{% endfor %}
+</ul>
+{% endmacro %}

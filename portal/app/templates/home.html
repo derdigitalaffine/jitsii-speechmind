@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
+{% from '_work_list.html' import work_list %}
 {% block title %}Übersicht{% endblock %}
 {% block content %}
 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
@@ -14,13 +15,10 @@
 {% endif %}
 
 <div class="row g-3 mb-4" id="dash-today">
-  <div class="col-12 col-lg-7"><section class="card h-100 border-primary-subtle" aria-labelledby="dash-act-title">
-    <div class="card-header d-flex align-items-center gap-2"><i class="fa-solid fa-bell text-primary" aria-hidden="true"></i><h2 class="h6 mb-0" id="dash-act-title">Handlungsbedarf</h2></div>
-    {% if top.actions %}
-    <div class="card-body d-flex flex-wrap gap-2">
-      {% for a in top.actions %}<a class="dash-action dash-action-{{ a.level }}" href="{{ a.url }}"><i class="fa-solid {{ a.icon }}" aria-hidden="true"></i><span class="dash-action-n">{{ a.count }}</span><span>{{ a.label }}</span></a>{% endfor %}
-    </div>
-    {% else %}<div class="card-body text-secondary"><i class="fa-regular fa-face-smile me-1"></i>Alles erledigt – nichts wartet auf Sie.</div>{% endif %}
+  <div class="col-12 col-lg-7"><section class="card h-100" aria-labelledby="dash-act-title">
+    <div class="card-header d-flex flex-wrap align-items-center gap-2"><i class="fa-solid fa-list-check text-primary" aria-hidden="true"></i><h2 class="h6 mb-0 flex-grow-1" id="dash-act-title">Handlungsbedarf – Jetzt bearbeiten</h2>{% if top.work.available %}<a class="small" href="/tasks">Alle Aufgaben <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>{% endif %}</div>
+    {% if top.work.ready %}{{work_list(top.work.ready[:5], now, csrf)}}{% else %}<div class="card-body text-secondary"><i class="fa-regular fa-face-smile me-1" aria-hidden="true"></i>Keine Aufgaben, die Sie jetzt bearbeiten müssen.</div>{% endif %}
+    {% if top.work.group_count or top.work.waiting_count %}<div class="card-footer small d-flex flex-wrap gap-3">{% if top.work.group_count %}<a href="/tasks?scope=group"><i class="fa-solid fa-users me-1"></i>{{top.work.group_count}} Gruppenaufgaben übernehmen</a>{% endif %}{% if top.work.waiting_count %}<a href="/tasks#waiting"><i class="fa-solid fa-hourglass-half me-1"></i>{{top.work.waiting_count}} warten auf andere</a>{% endif %}</div>{% endif %}
   </section></div>
   <div class="col-12 col-lg-5"><section class="card h-100" aria-labelledby="dash-today-title">
     <div class="card-header d-flex align-items-center gap-2"><i class="fa-regular fa-calendar text-primary" aria-hidden="true"></i><h2 class="h6 mb-0" id="dash-today-title">Heute</h2></div>
@@ -31,8 +29,11 @@
   </section></div>
 </div>
 
+{% if top.actions %}<section class="mb-4" aria-label="Weitere Hinweise"><h2 class="h6 text-secondary">Weitere Hinweise</h2><div class="d-flex flex-wrap gap-2">{% for a in top.actions %}<a class="btn btn-sm btn-outline-secondary" href="{{a.url}}"><i class="fa-solid {{a.icon}} me-1" aria-hidden="true"></i>{{a.count}} {{a.label}}</a>{% endfor %}</div></section>{% endif %}
 <div class="alert alert-light border small d-none" id="dash-help"><i class="fa-solid fa-arrows-up-down-left-right me-1"></i>Kacheln am <i class="fa-solid fa-grip-vertical"></i> ziehen, um die Reihenfolge zu ändern; mit <i class="fa-regular fa-eye-slash"></i> aus- und einblenden. Wird automatisch gespeichert.</div>
 
+<p class="small text-secondary" id="dash-save-status" role="status" aria-live="polite"></p>
+<button class="btn btn-sm btn-outline-secondary d-none mb-3" type="button" id="dash-retry"><i class="fa-solid fa-rotate-right me-1" aria-hidden="true"></i>Speichern wiederholen</button>
 <div class="row g-3" id="dash-tiles">
 {% for t in tiles %}{% set d = t.data %}
 <div class="col-12 col-lg-6 col-xxl-4 dash-tile {{ 'is-hidden' if t.hidden }}" data-key="{{ t.key }}">
@@ -40,6 +41,7 @@
     <div class="card-header d-flex align-items-center gap-2">
       <span class="dash-handle d-none text-secondary" title="Ziehen"><i class="fa-solid fa-grip-vertical"></i></span>
       <i class="fa-solid {{ t.icon }} text-primary"></i><strong class="flex-grow-1">{{ t.title }}</strong>
+      <span class="dash-move d-none d-flex gap-1"><button class="btn btn-sm btn-link p-0 text-secondary" type="button" data-dash-move="up" aria-label="Kachel nach oben verschieben"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></button><button class="btn btn-sm btn-link p-0 text-secondary" type="button" data-dash-move="down" aria-label="Kachel nach unten verschieben"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i></button></span>
       <button class="btn btn-sm btn-link p-0 text-secondary dash-toggle d-none" type="button" title="Aus-/einblenden" aria-label="Kachel aus- oder einblenden"><i class="fa-regular {{ 'fa-eye' if t.hidden else 'fa-eye-slash' }}"></i></button>
     </div>
     {% if t.hidden %}<div class="card-body small text-secondary">Ausgeblendet.</div>
@@ -51,8 +53,8 @@
       <ul class="list-group list-group-flush small">{% for task in d['items'] %}<li class="list-group-item d-flex gap-2"><div class="flex-grow-1"><a class="fw-semibold" href="{{ task.href }}">{{ task.title }}</a><div class="text-secondary">{{ task.sub }}</div></div>{% if task.due %}<span class="{{ 'text-danger fw-semibold' if task.due < d.now else 'text-secondary' }} text-nowrap">{{ task.due | local('%d.%m.') }}</span>{% endif %}</li>{% else %}<li class="list-group-item text-secondary"><i class="fa-regular fa-face-smile me-1"></i>Keine offenen Aufgaben.</li>{% endfor %}</ul>
       <div class="card-footer small"><a href="/tasks">Alle Aufgaben <i class="fa-solid fa-arrow-right"></i></a></div>
     {% elif t.key == 'circulations' %}
-      <div class="card-body"><div class="d-flex gap-3"><a class="dash-num" href="/umlaeufe?tab=open"><span>{{ d.count }}</span>offen</a><a class="dash-num" href="/umlaeufe?tab=open"><span>{{ d.overdue }}</span>überfällig</a></div></div>
-      <ul class="list-group list-group-flush small">{% for item in d['items'] %}<li class="list-group-item"><a class="fw-semibold" href="/umlaeufe/{{ item.row.id }}?recipient={{item.recipient_id}}">{{ item.title }}</a><div class="mt-1 {{'text-primary fw-semibold' if item.ready else 'text-secondary'}}">{{item.action if item.ready else 'Sie sind später an der Reihe'}}{{' · in Vertretung' if item.proxy}}</div><div class="small text-secondary">{{item.done}} / {{item.required}} Nachweise{% if item.due %} · bis {{item.due|local}}{% endif %}</div>{% if not item.ready %}<span class="text-secondary"> · wartet auf vorige Station</span>{% endif %}</li>{% else %}<li class="list-group-item text-secondary">Keine offenen Kenntnisnahmen oder Freigaben.</li>{% endfor %}</ul><div class="card-footer small"><a href="/umlaeufe">Umläufe & Aushänge öffnen →</a></div>
+      <div class="card-body"><div class="d-flex gap-3"><a class="dash-num" href="/umlaeufe?tab=open"><span>{{ d.count }}</span>bearbeitbar</a><a class="dash-num" href="/umlaeufe?tab=open"><span>{{ d.overdue }}</span>überfällig</a></div></div>
+      <ul class="list-group list-group-flush small">{% for item in d['items'] %}<li class="list-group-item"><a class="fw-semibold" href="/umlaeufe/{{ item.row.id }}?recipient={{item.recipient_id}}">{{ item.title }}</a><div class="mt-1 {{'text-primary fw-semibold' if item.ready else 'text-secondary'}}">{{item.action if item.ready else 'Sie sind später an der Reihe'}}{{' · in Vertretung' if item.proxy}}</div><div class="small text-secondary">{{item.done}} / {{item.required}} Nachweise{% if item.due %} · bis {{item.due|local}}{% endif %}</div>{% if not item.ready %}<span class="text-secondary"> · wartet auf vorige Station</span>{% endif %}</li>{% else %}<li class="list-group-item text-secondary">Keine offenen Kenntnisnahmen oder Freigaben.</li>{% endfor %}</ul><div class="card-footer small"><a href="/umlaeufe">Umläufe & Aushänge öffnen <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a></div>
     {% elif t.key == 'applications' %}
       <div class="card-body pb-2"><div class="d-flex gap-3 mb-2">
         <a class="dash-num" href="/forms/applications?status=open"><span>{{ d.open }}</span>offen</a>
