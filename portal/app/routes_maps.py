@@ -13,7 +13,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from . import maps as mp
-from .db import MapLayer, SessionLocal, User, UserMap, Group, get_settings, set_setting
+from . import map_lifecycle
+from .db import MapLayer, TrashItem, SessionLocal, User, UserMap, Group, get_settings, set_setting
 from .main import (
     app, check_csrf, enabled_modules, flash, get_db, rate_limit, redirect, render, require,
     session_user, current_user,
@@ -380,8 +381,11 @@ def can_open_map(saved,user):
 
 @app.get("/maps")
 def maps_list(request: Request, user: User = Depends(map_user), db: Session = Depends(get_db)):
-    items = [item for item in db.scalars(select(UserMap).order_by(UserMap.updated_at.desc())) if item.owner_id == user.id or (not user.is_admin and can_open_map(item,user)) or (user.is_admin and (user.id in map_sharing(item)['users'] or any(g.id in map_sharing(item)['groups'] for g in user.groups)))]
-    return render(request, "maps.html", user, items=items, state=mp.view_state, sharing=map_sharing,
+    trash = request.query_params.get('state') == 'trash'
+    items = ([item for item in db.scalars(select(TrashItem).where(TrashItem.kind == 'user_map').order_by(TrashItem.deleted_at.desc())) if map_lifecycle.trash_access(user, item)] if trash else
+             [item for item in db.scalars(select(UserMap).order_by(UserMap.updated_at.desc())) if can_open_map(item, user)])
+    return render(request, "maps.html", user, items=items, trash=trash, state=mp.view_state, sharing=map_sharing,
+        suggestions=lambda item: map_lifecycle.valid_shares(db, item.restore_share_json),
         users=list(db.scalars(select(User).where(User.active.is_(True)).order_by(User.name))),
         groups=list(db.scalars(select(Group).order_by(Group.name))))
 
@@ -427,7 +431,7 @@ async def maps_save(request: Request, user: User = Depends(map_user), db: Sessio
 def maps_public(request: Request, map_id: int, action: str = Form("enable"), user: User = Depends(map_user),
                 db: Session = Depends(get_db)):
     saved = db.get(UserMap, map_id)
-    if saved is None or saved.owner_id != user.id:
+    if saved is None or not map_lifecycle.can_manage(saved, user):
         raise HTTPException(404)
     saved.public_token = secrets.token_urlsafe(16) if action in ("enable", "renew") else None
     db.commit()
@@ -441,23 +445,52 @@ def maps_delete(request: Request, map_id: int, user: User = Depends(map_user), d
     saved = db.get(UserMap, map_id)
     if saved is None or (saved.owner_id != user.id and not user.is_admin):
         raise HTTPException(404)
-    db.delete(saved)
+    map_lifecycle.remove(db, saved, user)
     db.commit()
-    flash(request, f"Karte „{saved.title}“ gelöscht.")
+    flash(request, f"Karte „{saved.title}“ im Papierkorb. 30 Tage wiederherstellbar; Freigaben und öffentliche Links sind abgeschaltet.")
     return redirect("/maps")
 
 
 @app.post('/maps/{map_id:int}/share', dependencies=[Depends(check_csrf)])
 async def maps_share(request: Request, map_id: int, user: User = Depends(map_user), db: Session = Depends(get_db)):
     saved=db.get(UserMap,map_id)
-    if saved is None or saved.owner_id != user.id: raise HTTPException(404)
+    if saved is None or not map_lifecycle.can_manage(saved, user): raise HTTPException(404)
     data=await request.form()
     shared={}
     for key,model in (('users',User),('groups',Group)):
         ids={int(v) for v in data.getlist(key) if str(v).isdigit()}
         shared[key]=list(db.scalars(select(model.id).where(model.id.in_(ids))))[:500]
-    saved.share_json=json.dumps(shared);db.commit()
+    saved.share_json=json.dumps(shared);saved.restore_share_json='{}';db.commit()
     flash(request,'Freigabe für Benutzer und Gruppen gespeichert. Diese dürfen die Karte ansehen und als eigene Kopie speichern.')
+    return redirect('/maps')
+
+
+@app.post('/maps/{map_id:int}/restore', dependencies=[Depends(check_csrf)])
+def maps_restore(request: Request, map_id: int, user: User = Depends(map_user), db: Session = Depends(get_db)):
+    from . import trash
+    item = db.get(TrashItem, map_id)
+    if not map_lifecycle.trash_access(user, item):
+        raise HTTPException(404)
+    error = trash.restore(db, item, user.name)
+    if error:
+        raise HTTPException(409, error)
+    db.commit()
+    flash(request, 'Karte privat wiederhergestellt. Frühere interne Freigaben können Sie ausdrücklich erneut bestätigen; öffentliche Links müssen neu erzeugt werden.')
+    return redirect('/maps')
+
+
+@app.post('/maps/{map_id:int}/restore-shares', dependencies=[Depends(check_csrf)])
+def maps_restore_shares(request: Request, map_id: int, user: User = Depends(map_user), db: Session = Depends(get_db)):
+    saved = db.get(UserMap, map_id)
+    if saved is None or not map_lifecycle.can_manage(saved, user):
+        raise HTTPException(404)
+    previous = map_lifecycle.valid_shares(db, saved.restore_share_json)
+    if not any(previous.values()):
+        raise HTTPException(409, 'Es liegen keine früheren Freigaben zur Bestätigung vor.')
+    saved.share_json = json.dumps(previous)
+    saved.restore_share_json = '{}'
+    db.commit()
+    flash(request, 'Bestehende frühere Benutzer- und Gruppenfreigaben ausdrücklich erneut aktiviert.')
     return redirect('/maps')
 
 

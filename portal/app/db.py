@@ -2340,6 +2340,7 @@ class UserMap(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     state_json: Mapped[str] = mapped_column(Text, default="{}")
     share_json: Mapped[str] = mapped_column(Text, default="{}")
+    restore_share_json: Mapped[str] = mapped_column(Text, default="{}")
     public_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
@@ -2883,7 +2884,7 @@ _NEW_COLUMNS = {
     'seminar_activities': {'scope_id': 'INTEGER NOT NULL DEFAULT 0', 'once_per_series': 'BOOLEAN NOT NULL DEFAULT 0'},
     'seminar_certificates': {'scope_id': 'INTEGER NOT NULL DEFAULT 0'},
 
-    "user_maps": {"share_json": "TEXT NOT NULL DEFAULT '{}'"},
+    "user_maps": {"share_json": "TEXT NOT NULL DEFAULT '{}'", "restore_share_json": "TEXT NOT NULL DEFAULT '{}'"},
     "map_layers": {"service_json": "TEXT NOT NULL DEFAULT '{}'"},
     "application_requests": {"prefill_json": "TEXT NOT NULL DEFAULT '{}'"},
     "payments": {"active_refund": "VARCHAR(36) NOT NULL DEFAULT ''"},
