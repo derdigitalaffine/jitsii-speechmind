@@ -1,0 +1,26 @@
+.portal-date-field { min-width: 0; width: 100%; }
+.input-group > .portal-date-field { flex: 1 1 8rem; width: auto; }
+.portal-date-entry { display: flex; align-items: stretch; }
+.portal-date-entry > .form-control { min-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.portal-date-toggle { flex: 0 0 2.75rem; border-top-left-radius: 0; border-bottom-left-radius: 0; border-color: var(--bs-border-color); }
+.portal-date-field > .invalid-feedback[hidden] { display: none !important; }
+.portal-date-panel { position: fixed; z-index: 1090; width: min(22rem, calc(100vw - 16px)); max-height: calc(100vh - 16px); overflow: auto; padding: .8rem; border: 1px solid var(--bs-border-color); border-radius: .75rem; background: var(--bs-body-bg); color: var(--bs-body-color); box-shadow: 0 .5rem 2rem rgba(0,0,0,.18); }
+.portal-date-heading { display: flex; gap: .4rem; align-items: center; margin-bottom: .6rem; }
+.portal-date-heading > .btn { flex: 0 0 2.2rem; }
+.portal-date-heading > select { min-width: 0; }
+.portal-date-year { width: 5rem; flex: 0 0 5rem; }
+.portal-date-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .1rem; }
+.portal-date-weekday { text-align: center; color: var(--bs-secondary-color); font-size: .8rem; padding: .3rem 0; }
+.portal-date-day { appearance: none; border: 1px solid transparent; border-radius: .35rem; background: transparent; color: inherit; min-height: 2.35rem; padding: .3rem; }
+.portal-date-day:hover:not(:disabled) { background: var(--bs-tertiary-bg); border-color: var(--bs-primary); }
+.portal-date-day:focus-visible { outline: 3px solid var(--bs-primary); outline-offset: -2px; }
+.portal-date-day.is-today { border-color: var(--bs-primary); font-weight: 700; }
+.portal-date-day.is-range { background: var(--bs-primary-bg-subtle); }
+.portal-date-day.is-selected { background: var(--bs-primary); color: white; }
+.portal-date-day:disabled { color: var(--bs-secondary-color); opacity: .45; }
+.portal-date-time { display: flex; align-items: center; gap: .75rem; margin-top: .75rem; }
+.portal-date-time > input { min-width: 0; }
+.portal-date-actions { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .75rem; }
+.portal-date-actions > :last-child { margin-left: auto; }
+@media (pointer: coarse) { .portal-date-day { min-height: 2.6rem; } .portal-date-toggle { flex-basis: 2.75rem; } }
+@media (prefers-reduced-motion: reduce) { .portal-date-panel * { transition: none !important; } }
