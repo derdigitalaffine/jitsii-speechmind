@@ -16,6 +16,7 @@
   </div></div>
 
   <form method="post" {% if action %}action="{{ action }}"{% endif %} enctype="multipart/form-data" id="fill-form" class="js-fill" data-start="{{ page_index }}" {% if not preview and not errors %}data-draft-key="form-{{ form.id }}"{% endif %} {% if review %}data-review="1"{% endif %} novalidate>
+    {% set error_items = pages | map(attribute='items') | sum(start=[]) %}{% include '_form_error_summary.html' %}
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="d-none" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
     {% if pages | length > 1 %}

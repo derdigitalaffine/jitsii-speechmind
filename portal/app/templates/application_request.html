@@ -9,9 +9,10 @@
     {% if req.message %}<div class="mb-2" style="white-space: pre-line">{{ req.message }}</div>{% endif %}
     <div class="small text-secondary">{% if req.due_at %}<i class="fa-regular fa-hourglass-half me-1"></i>Bitte bis {{ req.due_at | local('%d.%m.%Y') }} · {% endif %}<span class="req">*</span> Pflichtfeld</div>
   </div></div>
-  {% if errors %}<div class="alert alert-danger"><i class="fa-solid fa-circle-exclamation me-1"></i>Bitte prüfen Sie die markierten Angaben.</div>{% endif %}
+
 
   <form method="post" enctype="multipart/form-data" class="js-fill" id="fill-form" data-original-dates="{{ original_dates | tojson | forceescape }}" novalidate>
+    {% set error_items = extra + reopen %}{% include '_form_error_summary.html' %}
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <section class="fill-page row g-3" data-page="0">
       {% for item in extra %}{% include "_form_field.html" %}{% endfor %}

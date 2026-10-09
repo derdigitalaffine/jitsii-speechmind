@@ -1,0 +1,7 @@
+{% if errors %}
+<div class="alert alert-danger js-form-errors" tabindex="-1" role="region" aria-labelledby="form-errors-title">
+<h2 class="h5" id="form-errors-title">Bitte prüfen Sie Ihre Angaben</h2>
+<p>Ihre Texte und ausgewählten Antworten bleiben erhalten. Falls Sie Dateien ausgewählt hatten, wählen Sie diese bitte erneut aus.</p>
+<ul class="mb-0">{% for error_item in error_items if errors.get(error_item.id) %}<li><a class="alert-link" href="#frage-{{ error_item.id }}" data-form-error="{{ error_item.id }}">{{ error_item.title or 'Angabe' }}: {{ errors.get(error_item.id) }}</a></li>{% endfor %}</ul>
+</div>
+{% endif %}
