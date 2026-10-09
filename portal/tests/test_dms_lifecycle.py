@@ -105,6 +105,14 @@ def test_file_owner_not_editor_and_archive_write_guard(db):
     c=login(owner.email,'lifecycle-test');page=c.get(f'/dms/r/{record.id}');token=csrf_of(page.text)
     assert c.post(f'/dms/r/{record.id}/archive',data={'csrf':token}).status_code==303
     assert c.get(f'/dms/r/{record.id}/files/{file.id}').status_code==200
+    archived_page=c.get(f'/dms/r/{record.id}')
+    assert f'action="/dms/r/{record.id}/upload"' not in archived_page.text
+    assert f'action="/dms/r/{record.id}/edit"' not in archived_page.text
+    target=DmsArea(name='Archive move target '+suffix);db.add(target);db.flush()
+    db.add(DmsAccess(area_id=target.id,user_id=owner.id,level=2));db.commit()
+    assert c.post('/dms/move',data={'csrf':token,'ids':str(record.id),'area_id':str(target.id)}).status_code==303
+    db.expire_all();assert db.get(DmsRecord,record.id).area_id==area.id
+    db.delete(target);db.commit()
     assert c.post(f'/dms/r/{record.id}/edit',data={'csrf':token,'title':'Bad change'}).status_code==409
     assert c.post(f'/dms/r/{record.id}/files/{file.id}/delete',data={'csrf':token}).status_code==409
     assert c.post(f'/dms/r/{record.id}/activate',data={'csrf':token}).status_code==303
