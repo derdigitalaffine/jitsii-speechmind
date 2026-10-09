@@ -159,7 +159,7 @@ def circulation_edit(request: Request, cid: int, user: User = Depends(current_us
 @app.post('/umlaeufe/preview', dependencies=[Depends(check_csrf)])
 async def circulation_preview(request: Request, user: User = Depends(current_user)):
     module()
-    if not any(user.can(p) for p in ['circulations_create', 'circulations_publish', 'circulations_manage']) and not user.active:
+    if not any(user.can(p) for p in ['circulations_create', 'circulations_publish', 'circulations_manage']):
         raise HTTPException(403)
     data = await request.form()
     return HTMLResponse(cl.markdown(str(data.get('body', ''))[:100000]))
