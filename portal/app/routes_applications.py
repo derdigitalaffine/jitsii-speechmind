@@ -26,8 +26,10 @@ def _module_on() -> None:
 def _form(db: Session, form_id: int, user: User, need: int) -> tuple[Form, int]:
     form = db.get(Form, form_id)
     level = fm.access_level(db, form, user) if form is not None else 0
-    if level == 0:
+    if level == 0 or form.deleted_at:
         raise HTTPException(404, "Formular nicht gefunden.")
+    if form.archived_at and need >= fm.INVITE:
+        raise HTTPException(409, "Archiviertes Formular: Zum Bearbeiten zuerst wiederherstellen.")
     if level < need:
         raise HTTPException(403, "Für diese Aktion reicht Ihre Freigabe nicht aus.")
     return form, level

@@ -366,7 +366,7 @@ def shuffled(options: list[dict]) -> list[dict]:
 
 
 def is_open(form: Form) -> bool:
-    return form.active and not (form.expires_at and form.expires_at < utcnow())
+    return bool(form.active and not form.deleted_at and not form.archived_at and not (form.expires_at and form.expires_at < utcnow()))
 
 
 # --- Antworten prüfen ------------------------------------------------------------
@@ -1187,7 +1187,7 @@ def copy_form(db, form: Form, owner: User) -> Form:
                  schema_json=json.dumps(items, ensure_ascii=False), anonymous=form.anonymous,
                  multiple=form.multiple, submit_message=form.submit_message, confirm_mail=form.confirm_mail,
                  notify=form.notify, notify_answers=form.notify_answers, notify_json=form.notify_json,
-                 notify_csv=form.notify_csv, notify_scope=form.notify_scope, active=True,
+                 notify_csv=form.notify_csv, notify_scope=form.notify_scope, active=False,
                  **{k: getattr(form, k) for k in ("notify_pdf", "notify_files", "pdf_uploads", "confirm_csv", "confirm_json", "confirm_pdf", "confirm_files")})
     db.add(clone)
     return clone
@@ -1212,7 +1212,7 @@ def user_invites(db, user: User) -> list[FormInvite]:
 VIEW, INVITE, EDIT, OWNER = 1, 2, 3, 4
 LEVELS = {VIEW: ("Ergebnisse einsehen", "Antworten, Auswertung und Export ansehen"),
           INVITE: ("Einladen", "zusätzlich Teilnehmende einladen, erinnern und den öffentlichen Link verwalten"),
-          EDIT: ("Bearbeiten", "zusätzlich Fragen und Einstellungen ändern, Antworten und das Formular löschen")}
+          EDIT: ("Bearbeiten", "zusätzlich Fragen und Einstellungen ändern; keine Löschrechte")}
 
 
 def access_level(db, form: Form, user: User) -> int:

@@ -174,6 +174,9 @@ def test_shortcode_in_form_and_legal_basis():
         form = db.get(Form, fid)
         assert json.loads(form.legal_json) == [{"law_id": gid, "anchor": "p2", "para": "§ 2"}]
         token = form.public_token
+        # New forms are closed drafts until explicitly published.
+        form.active = True
+        db.commit()
     fill = client().get(f"/f/{token}").text
     assert 'href="/recht/gemeindeordnung/p2"' in fill and "Rechtsgrundlage" in fill
     assert "[[" not in fill and "Unbekannt § 9" in fill

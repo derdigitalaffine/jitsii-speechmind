@@ -17,6 +17,7 @@ from .main import (
 )
 from .planning import parse_emails
 from .security import new_link_token
+from . import form_lifecycle as lifecycle
 
 forms_user = require("forms")
 
@@ -31,8 +32,10 @@ def _form(db: Session, form_id: int, user: User, need: int) -> tuple[Form, int]:
     """Formular mit Zugriffsprüfung. need: fm.VIEW, fm.INVITE, fm.EDIT oder fm.OWNER."""
     form = db.get(Form, form_id)
     level = fm.access_level(db, form, user) if form is not None else 0
-    if level == 0:
+    if level == 0 or form.deleted_at:
         raise HTTPException(404, "Formular nicht gefunden.")
+    if form.archived_at and need >= fm.INVITE:
+        raise HTTPException(409, "Archiviertes Formular: Zum Bearbeiten zuerst wiederherstellen.")
     if level < need:
         raise HTTPException(403, "Für diese Aktion reicht Ihre Freigabe für das Formular nicht aus.")
     return form, level
@@ -56,19 +59,26 @@ def _ctx(db: Session, form: Form, tab: str, level: int) -> dict:
 # --- Übersicht -----------------------------------------------------------------
 
 @app.get("/forms")
-def forms_list(request: Request, all: str = "", user: User = Depends(current_user), db: Session = Depends(get_db)):
+def forms_list(request: Request, all: str = "", state: str = "active", user: User = Depends(current_user), db: Session = Depends(get_db)):
     show_all = user.is_admin and all == "1"
+    state = state if state in ("active", "archive", "trash") else "active"
     own = []
     if user.can("forms"):
         q = select(Form).options(joinedload(Form.owner)).order_by(Form.updated_at.desc())
+        if state == "trash":
+            q = q.where(Form.deleted_at.is_not(None))
+        elif state == "archive":
+            q = q.where(Form.deleted_at.is_(None), Form.archived_at.is_not(None))
+        else:
+            q = q.where(Form.deleted_at.is_(None), Form.archived_at.is_(None))
         if not show_all:
             q = q.where(Form.owner_id == user.id)
         own = db.scalars(q).all()
-    shared = [] if show_all else fm.shared_with(db, user)
+    shared = [] if show_all or state == "trash" else [(f, lvl) for f, lvl in fm.shared_with(db, user) if not f.deleted_at and bool(f.archived_at) == (state == "archive")]
     counts = dict(db.execute(select(FormResponse.form_id, func.count(FormResponse.id))
                              .group_by(FormResponse.form_id)).all())
     return render(request, "forms.html", user, forms=own, shared=shared, counts=counts, show_all=show_all,
-                  is_open=fm.is_open, levels=fm.LEVELS)
+                  is_open=fm.is_open, levels=fm.LEVELS, state=state, can_manage=lifecycle.can_manage)
 
 
 @app.post("/forms", dependencies=[Depends(check_csrf)])
@@ -80,7 +90,7 @@ def forms_create(request: Request, title: str = FormField(...), kind: str = Form
         items[1]["required"] = True
     form = Form(owner_id=user.id, title=" ".join(title.split())[:255] or "Neues Formular",
                 schema_json=json.dumps(items, ensure_ascii=False), kind="application" if application else "survey",
-                confirm_mail=application, confirm_pdf=application)
+                confirm_mail=application, confirm_pdf=application, active=False)
     db.add(form)
     db.commit()
     flash(request, "Online-Antrag angelegt. Legen Sie die Fragen fest und danach im Reiter „Antrag“ Aktenzeichen, "
@@ -166,7 +176,11 @@ async def form_settings_save(request: Request, form_id: int, user: User = Depend
     data = await request.form()
     flag = lambda key: data.get(key) == "1"  # noqa: E731
     form.internal = flag("internal")
+    if form.active and not form.published_at:
+        form.published_at = utcnow()
     form.active = flag("active")
+    if form.active and not form.published_at:
+        form.published_at = utcnow()
     form.expires_at = _parse_local(str(data.get("expires_at", "")))
     form.anonymous = flag("anonymous") and not form.internal
     form.multiple = flag("multiple")
@@ -233,6 +247,7 @@ def form_public(request: Request, form_id: int, action: str = FormField(...), us
     form, level = _form(db, form_id, user, fm.INVITE)
     if action == "enable" or action == "renew":
         form.public_token = new_link_token()
+        form.published_at = form.published_at or utcnow()
         flash(request, "Öffentlicher Link erzeugt." if action == "enable" else
               "Neuer öffentlicher Link erzeugt. Der bisherige funktioniert nicht mehr.")
     elif action == "disable":
@@ -254,6 +269,8 @@ async def form_invite(request: Request, form_id: int, user: User = Depends(curre
         flash(request, "Ungültige E-Mail-Adresse: " + ", ".join(bad), "error")
         return redirect(f"/forms/{form.id}/share")
     added, skipped, mail_ready = fm.invite(db, form, user, user_ids, group_ids, emails)
+    if added or skipped:
+        form.published_at = form.published_at or utcnow()
     db.commit()
     worker.wake()
     if not added and not skipped:
@@ -394,7 +411,7 @@ def response_map(request: Request, form_id: int, response_id: int, question_id: 
 @app.post("/forms/{form_id}/responses/{response_id}/delete", dependencies=[Depends(check_csrf)])
 def form_response_delete(request: Request, form_id: int, response_id: int, user: User = Depends(current_user),
                          db: Session = Depends(get_db)):
-    form, level = _form(db, form_id, user, fm.EDIT)
+    form, level = _form(db, form_id, user, fm.OWNER)
     resp = db.get(FormResponse, response_id)
     if resp is None or resp.form_id != form.id:
         raise HTTPException(404)
@@ -408,7 +425,7 @@ def form_response_delete(request: Request, form_id: int, response_id: int, user:
 @app.post("/forms/{form_id}/responses/delete-all", dependencies=[Depends(check_csrf)])
 def form_responses_delete_all(request: Request, form_id: int, user: User = Depends(current_user),
                               db: Session = Depends(get_db)):
-    form, level = _form(db, form_id, user, fm.EDIT)
+    form, level = _form(db, form_id, user, fm.OWNER)
     n = len(form.responses)
     for resp in list(form.responses):
         db.delete(resp)
@@ -497,11 +514,23 @@ def form_copy(request: Request, form_id: int, user: User = Depends(forms_user), 
 
 @app.post("/forms/{form_id}/delete", dependencies=[Depends(check_csrf)])
 def form_delete(request: Request, form_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    form, level = _form(db, form_id, user, fm.EDIT)
-    db.delete(form)
+    form = db.get(Form, form_id)
+    if form is None or not fm.access_level(db, form, user):
+        raise HTTPException(404, "Formular nicht gefunden.")
+    result = lifecycle.remove(db, form, user)
     db.commit()
-    fm.delete_files(form_id)
-    flash(request, f"Formular „{form.title}“ mit allen Antworten gelöscht.")
+    flash(request, "Formular geschlossen und archiviert. Antworten, Dateien und Vorgänge bleiben erhalten." if result == "archive" else "Entwurf in den Papierkorb verschoben. 30 Tage lang wiederherstellbar.")
+    return redirect("/forms")
+
+
+@app.post("/forms/{form_id}/restore", dependencies=[Depends(check_csrf)])
+def form_restore(request: Request, form_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    form = db.get(Form, form_id)
+    if form is None or not fm.access_level(db, form, user):
+        raise HTTPException(404, "Formular nicht gefunden.")
+    lifecycle.restore(db, form, user)
+    db.commit()
+    flash(request, "Formular wiederhergestellt. Es bleibt geschlossen, bis Sie es ausdrücklich öffnen.")
     return redirect("/forms")
 
 
@@ -590,6 +619,7 @@ async def _submit(request: Request, db: Session, form: Form, invite: FormInvite 
         resp.source = "user"
         if not form.anonymous:
             resp.name, resp.email, resp.user_id = member.name, member.email, member.id
+    form.published_at = form.published_at or utcnow()
     db.add(resp)
     db.flush()
     if uploads:

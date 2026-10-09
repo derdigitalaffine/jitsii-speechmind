@@ -6,8 +6,8 @@
     <ul class="dropdown-menu dropdown-menu-end">
       {% if user.can('forms') %}<li><form method="post" action="/forms/{{ form.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item" type="submit"><i class="fa-regular fa-copy fa-fw me-2"></i>Kopie anlegen</button></form></li>{% endif %}
       <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#export-modal"><i class="fa-solid fa-file-export fa-fw me-2"></i>Als Datei exportieren …</button></li>
-      {% if level >= 3 %}<li><hr class="dropdown-divider"></li>
-      <li><form method="post" action="/forms/{{ form.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item text-danger" type="submit" data-confirm-title="Formular löschen?" data-confirm="Das Formular wird mit allen {{ response_count }} Antworten und hochgeladenen Dateien gelöscht. Links funktionieren danach nicht mehr."><i class="fa-regular fa-trash-can fa-fw me-2"></i>Löschen</button></form></li>{% endif %}
+      {% if level >= 4 and not form.archived_at %}<li><hr class="dropdown-divider"></li>
+      <li><form method="post" action="/forms/{{ form.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item text-danger" type="submit" data-confirm-title="Formular entfernen?" data-confirm="Veröffentlichte oder verwendete Formulare werden geschlossen und archiviert. Antworten, Dateien und Vorgänge bleiben erhalten. Ungenutzte Entwürfe kommen für 30 Tage in den Papierkorb."><i class="fa-regular fa-trash-can fa-fw me-2"></i>Entfernen …</button></form></li>{% endif %}
     </ul>
   </div>
 {% endcall %}
@@ -28,6 +28,7 @@
   <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button><button class="btn btn-primary" type="submit" data-bs-dismiss="modal"><i class="fa-solid fa-download me-1"></i>Herunterladen</button></div>
 </form></div></div>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-3 small">
+  {% if form.archived_at %}<span class="badge text-bg-secondary"><i class="fa-solid fa-box-archive me-1" aria-hidden="true"></i>archiviert</span>{% endif %}
   {% if is_open %}<span class="badge text-bg-success">nimmt Antworten an</span>{% else %}<span class="badge text-bg-secondary">geschlossen</span>{% endif %}
   {% if form.expires_at %}<span class="text-secondary"><i class="fa-regular fa-hourglass-half me-1"></i>bis {{ form.expires_at | local }} Uhr</span>{% endif %}
   {% if form.anonymous %}<span class="badge text-bg-light border"><i class="fa-solid fa-user-secret me-1"></i>anonym</span>{% endif %}
@@ -36,7 +37,7 @@
   {% if level < 4 %}<span class="badge text-bg-info"><i class="fa-solid fa-share-nodes me-1"></i>für Sie freigegeben: {{ levels[level][0] }}{% if form.owner %} (von {{ form.owner.name }}){% endif %}</span>{% elif form.shares %}<span class="badge text-bg-light border"><i class="fa-solid fa-user-group me-1"></i>{{ form.shares | length }} Freigabe(n)</span>{% endif %}
 </div>
 <ul class="nav nav-tabs mb-4">
-  {% for key, href, icon, label, need in (('build', '', 'fa-pen-ruler', 'Fragen', 3), ('settings', '/settings', 'fa-sliders', 'Einstellungen', 3), ('share', '/share', 'fa-share-nodes', 'Teilen', 2), ('application', '/application', 'fa-file-signature', 'Antrag', 3), ('results', '/results', 'fa-chart-pie', 'Antworten', 1)) if level >= need and (key != 'application' or 'applications' in modules) %}
+  {% for key, href, icon, label, need in (('build', '', 'fa-pen-ruler', 'Fragen', 3), ('settings', '/settings', 'fa-sliders', 'Einstellungen', 3), ('share', '/share', 'fa-share-nodes', 'Teilen', 2), ('application', '/application', 'fa-file-signature', 'Antrag', 3), ('results', '/results', 'fa-chart-pie', 'Antworten', 1)) if level >= need and (not form.archived_at or key == 'results') and (key != 'application' or 'applications' in modules) %}
   <li class="nav-item"><a class="nav-link {{ 'active' if tab == key }}" href="/forms/{{ form.id }}{{ href }}"><i class="fa-solid {{ icon }} me-1"></i>{{ label }}{% if key == 'results' %} <span class="badge rounded-pill text-bg-primary">{{ response_count }}</span>{% endif %}</a></li>
   {% endfor %}
 </ul>
