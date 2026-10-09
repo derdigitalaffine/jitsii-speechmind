@@ -14,6 +14,7 @@ import re
 import secrets
 import unicodedata
 import statistics
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 
@@ -23,6 +24,8 @@ from .db import LiveAnswer, LivePoll, LiveQuestion
 KINDS = {
     "single": ("Auswahl (eine Antwort)", "fa-circle-dot", ("bar", "column", "pie", "donut")),
     "multi": ("Auswahl (mehrere Antworten)", "fa-square-check", ("bar", "column", "pie", "donut")),
+    "quiz": ("Quiz (Wissen prüfen)", "fa-graduation-cap", ("table",)),
+    "rank": ("Rangfolge (priorisieren)", "fa-ranking-star", ("table",)),
     "yesno": ("Ja / Nein", "fa-thumbs-up", ("pie", "donut", "bar", "column")),
     "scale": ("Skala (z. B. 1–5)", "fa-sliders", ("column", "bar", "number")),
     "stars": ("Sterne (1–5)", "fa-star", ("number", "column", "bar")),
@@ -70,6 +73,13 @@ def settings(q: LiveQuestion) -> dict:
         hi = _int(data.get("max"), lo + 1, 1000000, max(lo + 1, 100))
         return {**data, "min": lo, "max": hi, "step": _int(data.get("step"), 1, max(1, hi - lo), 1),
                 "unit": str(data.get("unit", ""))[:12]}
+    if q.kind == "quiz":
+        return {**data, "correct": data.get("correct", []) if isinstance(data.get("correct"), list) else [],
+                "points": _int(data.get("points"), 0, 1000, 1), "partial": data.get("partial") is True,
+                "nickname": data.get("nickname") is True, "top_n": _int(data.get("top_n"), 1, 50, 10),
+                "seconds": _int(data.get("seconds"), 0, 3600, 0), "max_choices": MAX_OPTIONS}
+    if q.kind == "rank":
+        return {**data, "top_n": _int(data.get("top_n"), 1, max(1, len(opts(q))), max(1, len(opts(q))))}
     if q.kind == "multi":
         return {**data, "max_choices": _int(data.get("max_choices"), 1, MAX_OPTIONS, 3)}
     if q.kind in ENTRY_KINDS:
@@ -108,9 +118,10 @@ def apply_question(q: LiveQuestion, data) -> str:
     title = " ".join(str(data.get("title", "")).split())[:500]
     if not title:
         return "Bitte die Frage eintragen."
+    previous_settings = settings(q) if q.kind == "quiz" else {}
     kind = data.get("kind") if data.get("kind") in KINDS else q.kind or "single"
     q.kind, q.title = kind, title
-    if kind in ("single", "multi"):
+    if kind in ("single", "multi", "quiz", "rank"):
         labels = [" ".join(line.split())[:200] for line in str(data.get("options", "")).splitlines() if line.strip()]
         if len(labels) < 2:
             return "Bitte mindestens zwei Antwortmöglichkeiten angeben (eine je Zeile)."
@@ -130,11 +141,30 @@ def apply_question(q: LiveQuestion, data) -> str:
     if kind == "words":   # Moderation (zusammengefasst/ausgeblendet) beim Bearbeiten behalten
         old = settings(q) if q.settings_json and q.kind == "words" else {}
         sett.update(merge=old.get("merge", {}), hidden=old.get("hidden", []), filter=data.get("filter") == "1")
-    tmp = LiveQuestion(kind=kind, settings_json=json.dumps(sett))
+    if kind == "quiz":
+        indices = str(data.get("correct", "")).replace(";", ",").split(",")
+        try:
+            correct = list(dict.fromkeys(int(x.strip()) for x in indices if x.strip()))
+        except ValueError:
+            return "Richtige Lösung: Nummern der Antworten mit Komma trennen (z. B. 1, 3)."
+        options = opts(q)
+        if not correct or any(x < 1 or x > len(options) for x in correct):
+            return "Bitte mindestens eine gültige Antwortnummer als richtige Lösung angeben."
+        sett.update(correct=[options[i-1]["id"] for i in correct], points=data.get("points", 1),
+                    partial=data.get("partial") == "1", nickname=data.get("nickname") == "1",
+                    seconds=data.get("seconds", 0), top_n=data.get("top_n", 10))
+        if previous_settings.get("started"):
+            sett["started"] = previous_settings["started"]
+    if kind == "rank":
+        sett["top_n"] = _int(data.get("top_n"), 1, len(opts(q)), len(opts(q)))
+    tmp = LiveQuestion(kind=kind, options_json=q.options_json, settings_json=json.dumps(sett))
     q.settings_json = json.dumps(settings(tmp), ensure_ascii=False)
     chart = data.get("chart")
     q.chart = chart if chart in KINDS[kind][2] else KINDS[kind][2][0]
     q.show_results = data.get("show_results") if data.get("show_results") in SHOW_RESULTS else "immediate"
+    if kind == "quiz":
+        q.show_results = "never" if data.get("show_results") == "never" else "release"
+        q.released = False
     return ""
 
 
@@ -147,7 +177,15 @@ def read_answer(q: LiveQuestion, raw) -> tuple[dict | None, str]:
     if q.kind in ("single", "yesno"):
         choice = str(raw.get("o", ""))
         return ({"o": choice}, "") if choice in ids else (None, "Bitte eine Antwort wählen.")
-    if q.kind == "multi":
+    if q.kind == "rank":
+        ranked = raw.get("r")
+        n = settings(q)["top_n"]
+        if not isinstance(ranked, list) or len(ranked) != n or any(not isinstance(x, str) or x not in ids for x in ranked) or len(set(ranked)) != n:
+            return None, f"Bitte genau {n} unterschiedliche Optionen in eine Rangfolge bringen."
+        return {"r": ranked}, ""
+    if q.kind in ("multi", "quiz"):
+        if q.kind == "quiz" and (not isinstance(raw.get("o"), list) or any(not isinstance(x, str) or x not in ids for x in raw["o"])):
+            return None, "Bitte gültige Antworten wählen."
         chosen = [str(x) for x in (raw.get("o") or []) if str(x) in ids] if isinstance(raw.get("o"), list) else []
         chosen = list(dict.fromkeys(chosen))
         mx = settings(q)["max_choices"]
@@ -211,6 +249,8 @@ def my_answers(db, poll: LivePoll, device: str) -> dict[int, dict]:
     for a in db.scalars(select(LiveAnswer).where(LiveAnswer.poll_id == poll.id, LiveAnswer.device == device)):
         try:
             out[a.question_id] = json.loads(a.value_json or "{}")
+            if a.nickname:
+                out[a.question_id]["nickname"] = a.nickname
         except ValueError:
             pass
     return out
@@ -229,7 +269,7 @@ def tally(db, q: LiveQuestion) -> dict:
             continue
     total = len(values)
     out: dict = {"total": total, "rows": [], "stats": {}}
-    if q.kind in ("single", "multi", "yesno"):
+    if q.kind in ("single", "multi", "yesno", "quiz"):
         counts = {o["id"]: 0 for o in opts(q)}
         for v in values:
             chosen = v.get("o")
@@ -238,6 +278,15 @@ def tally(db, q: LiveQuestion) -> dict:
                     counts[c] += 1
         out["rows"] = [{"label": o["label"], "count": counts[o["id"]],
                         "pct": round(100 * counts[o["id"]] / total) if total else 0} for o in opts(q)]
+    elif q.kind == "rank":
+        n = len(opts(q))
+        rows = []
+        for o in opts(q):
+            ranks = [v["r"].index(o["id"]) + 1 for v in values if o["id"] in v.get("r", [])]
+            points = sum(n-r+1 for r in ranks)
+            rows.append({"label": o["label"], "count": points, "pct": round(100*points/(total*n), 1) if total else 0,
+                         "avg_rank": round(statistics.fmean(ranks), 2) if ranks else None, "votes": len(ranks)})
+        out["rows"] = sorted(rows, key=lambda r: (-r["count"], r["label"].casefold()))
     elif q.kind in ENTRY_KINDS:
         out["rows"] = []        # Beiträge liefert entries()
     elif q.kind == "words":
@@ -280,6 +329,8 @@ def tally(db, q: LiveQuestion) -> dict:
 
 
 def visible_to_participants(q: LiveQuestion) -> bool:
+    if q.kind == "quiz":
+        return q.released and q.show_results != "never"
     return q.show_results == "immediate" or (q.show_results == "release" and q.released)
 
 
@@ -287,11 +338,21 @@ def question_payload(db, q: LiveQuestion, mine: dict | None = None, staff: bool 
     """Frage für die Teilnehmer- bzw. Präsentationsansicht (JSON)."""
     data = {"id": q.id, "kind": q.kind, "title": q.title, "options": opts(q), "settings": settings(q),
             "chart": q.chart, "locked": q.locked, "answered": mine is not None, "mine": mine}
+    if q.kind == "quiz":
+        data["settings"] = {k: settings(q)[k] for k in ("points", "partial", "nickname", "top_n", "seconds", "max_choices")}
+        data["locked"] = q.locked or q.released or timed_out(q)
+        data["remaining"] = remaining(q)
+        if q.released and (staff or q.show_results != "never"):
+            data["solution"] = settings(q)["correct"]
+            if mine is not None:
+                data["score"] = quiz_score(q, mine)
+            data["scoreboard"] = scoreboard(db, q)
     if q.kind in ENTRY_KINDS:
         return {**data, **entry_payload(db, q, device, staff)}
-    if staff or (mine is not None and visible_to_participants(q)):
+    if (staff and (q.kind != "quiz" or q.released)) or ((mine is not None or q.kind == "quiz") and visible_to_participants(q)):
         data["results"] = tally(db, q)
     if staff:
+        data["answer_count"] = tally(db, q)["total"]
         data["show_results"], data["released"] = q.show_results, q.released
     return data
 
@@ -301,7 +362,7 @@ def state(db, poll: LivePoll, device: str | None = None, staff: bool = False) ->
     mine = my_answers(db, poll, device) if device else {}
     if poll.pacing == "moderated" and not staff:
         current = next((q for q in poll.questions if q.id == poll.current_id), None)
-        shown = [current] if current else []
+        shown = ([current] if current else []) + [q for q in poll.questions if q.kind == "quiz" and q.released and q.id != poll.current_id]
     else:
         shown = list(poll.questions)
     return {"status": poll.status, "pacing": poll.pacing, "title": poll.title, "current": poll.current_id,
@@ -316,7 +377,11 @@ def step(poll: LivePoll, direction: int) -> LiveQuestion | None:
         return None
     idx = next((i for i, q in enumerate(qs) if q.id == poll.current_id), -1)
     idx = max(0, min(len(qs) - 1, idx + direction)) if idx >= 0 else 0
+    previous = next((q for q in qs if q.id == poll.current_id), None)
+    if previous and previous.kind == "quiz" and previous.id != qs[idx].id:
+        previous.released, previous.locked = True, True
     poll.current_id = qs[idx].id
+    start_timer(qs[idx])
     return qs[idx]
 
 
@@ -396,6 +461,15 @@ def to_csv(db, q: LiveQuestion) -> str:
     buf = io.StringIO()
     w = csvsafe.writer(buf, delimiter=";")
     w.writerow([q.title])
+    if q.kind in ("quiz", "rank"):
+        w.writerow(["Antwort Nr.", "Rohantwort / Rangfolge", "Punkte" if q.kind == "quiz" else "Ränge"])
+        labels = {o["id"]: o["label"] for o in opts(q)}
+        for i, a in enumerate(db.scalars(select(LiveAnswer).where(LiveAnswer.question_id == q.id).order_by(LiveAnswer.id)), 1):
+            value = json.loads(a.value_json or "{}")
+            chosen = value.get("o" if q.kind == "quiz" else "r", [])
+            w.writerow([i, json.dumps(chosen, ensure_ascii=False), quiz_score(q, value) if q.kind == "quiz" else
+                        " | ".join(f"{rank}: {labels.get(oid, oid)}" for rank, oid in enumerate(chosen, 1))])
+        return "\ufeff" + buf.getvalue()
     if q.kind in ENTRY_KINDS:
         w.writerow(["Beitrag", "Stimmen", "Status", "Zeit"])
         for e in entry_payload(db, q, None, True)["entries"]:
@@ -542,3 +616,41 @@ def moderate_entry(a: LiveAnswer, action: str) -> str:
     else:
         return "Unbekannte Aktion."
     return ""
+
+
+def quiz_score(q, value):
+    s = settings(q)
+    correct, chosen = set(s["correct"]), set(value.get("o", []))
+    if not correct:
+        return 0
+    if not s["partial"]:
+        return s["points"] if correct == chosen else 0
+    return round(s["points"] * max(0, len(chosen & correct) - len(chosen - correct)) / len(correct), 2)
+
+
+def scoreboard(db, q):
+    if not settings(q)["nickname"]:
+        return []
+    rows = [{"name": a.nickname, "points": quiz_score(q, json.loads(a.value_json or "{}"))}
+            for a in db.scalars(select(LiveAnswer).where(LiveAnswer.question_id == q.id, LiveAnswer.hidden.is_(False))) if a.nickname]
+    return sorted(rows, key=lambda r: (-r["points"], r["name"].casefold()))[:settings(q)["top_n"]]
+
+
+def remaining(q):
+    s = settings(q)
+    if q.kind != "quiz" or not s["seconds"] or not s.get("started"):
+        return None
+    return max(0, int(s["seconds"] - (datetime.now(timezone.utc).timestamp() - s["started"])))
+
+
+def timed_out(q):
+    return remaining(q) == 0
+
+
+def start_timer(q, restart=False):
+    if q.kind != "quiz":
+        return
+    s = settings(q)
+    if s["seconds"] and (restart or not s.get("started")):
+        s["started"] = datetime.now(timezone.utc).timestamp()
+        q.settings_json = json.dumps(s)

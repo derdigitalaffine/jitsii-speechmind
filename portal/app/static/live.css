@@ -57,3 +57,8 @@
 .live-qa.is-big li { font-size: 1.5rem; }
 .live-entry { display: flex; gap: .5rem; align-items: baseline; padding: .45rem 0; border-bottom: 1px solid var(--bs-border-color); }
 .live-entry .live-entry-text { flex: 1 1 auto; word-wrap: break-word; min-width: 0; }
+
+.live-ranking li { touch-action: pan-y; cursor: grab; }
+.live-ranking .btn { min-width: 2.75rem; min-height: 2.75rem; }
+.live-present .live-p-controls { flex-wrap: wrap; }
+.live-present .live-p-result { overflow: auto; }

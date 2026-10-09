@@ -6,11 +6,22 @@
 <form method="post" action="/votes/live/{{ poll.id }}/fragen" class="row g-2">
   <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="question_id" value="{{ q.id if q else '' }}"><input type="hidden" name="kind" value="{{ k }}">
   <div class="col-12"><label class="form-label small" for="{{ fid }}-t">Frage</label><input class="form-control" id="{{ fid }}-t" name="title" required maxlength="500" value="{{ q.title if q else '' }}" placeholder="z. B. Wie zufrieden sind Sie mit …?"></div>
-  {% if k in ('single', 'multi') %}
+  {% if k in ('single', 'multi', 'quiz', 'rank') %}
   <div class="col-md-8"><label class="form-label small" for="{{ fid }}-o">Antwortmöglichkeiten <span class="text-secondary">(eine je Zeile)</span></label>
     <textarea class="form-control" id="{{ fid }}-o" name="options" rows="4" required>{% if q %}{% for o in opts(q) %}{{ o.label }}
 {% endfor %}{% endif %}</textarea></div>
   {% if k == 'multi' %}<div class="col-md-4"><label class="form-label small" for="{{ fid }}-mx">Höchstens wählbar</label><input class="form-control" type="number" id="{{ fid }}-mx" name="max_choices" min="1" max="20" value="{{ st.max_choices or 3 }}"></div>{% endif %}
+  {% if k == 'quiz' %}
+  <fieldset class="col-12 border rounded p-3 mt-3"><legend class="float-none w-auto h6 px-2">Richtige Lösung & Wertung</legend>
+    <label class="form-label" for="{{ fid }}-correct">Richtige Antwortnummern</label><input class="form-control mb-2" id="{{ fid }}-correct" name="correct" required placeholder="z. B. 1, 3" value="{% if q %}{% for o in opts(q) %}{% if o.id in st.correct %}{{ loop.index }}, {% endif %}{% endfor %}{% endif %}">
+    <p class="small text-secondary">Nummern beziehen sich auf die Zeilen oben. Lösungen werden erst nach Freigabe oder beim Wechsel zur nächsten Frage gezeigt; danach sind Antworten gesperrt.</p>
+    <div class="row g-2"><div class="col-sm-4"><label for="{{ fid }}-points" class="form-label">Punkte</label><input class="form-control" type="number" name="points" id="{{ fid }}-points" min="0" max="1000" value="{{ st.points if q else 1 }}"></div>
+    <div class="col-sm-4"><label for="{{ fid }}-seconds" class="form-label">Zeitlimit (Sekunden)</label><input class="form-control" type="number" id="{{ fid }}-seconds" name="seconds" min="0" max="3600" value="{{ st.seconds if q else 0 }}"><div class="form-text">0 = ohne Limit. Start beim Anzeigen bzw. Starten im freien Ablauf.</div></div>
+    <div class="col-sm-4"><label for="{{ fid }}-top" class="form-label">Rangliste: Top-N</label><input class="form-control" type="number" id="{{ fid }}-top" name="top_n" min="1" max="50" value="{{ st.top_n if q else 10 }}"></div></div>
+    <label class="form-check mt-3"><input class="form-check-input" type="checkbox" name="partial" value="1" {% if st.partial %}checked{% endif %}>Teilpunkte bei Mehrfachlösung (falsche Auswahl zieht Teilpunkte ab; mindestens 0)</label>
+    <label class="form-check"><input class="form-check-input" type="checkbox" name="nickname" value="1" {% if st.nickname %}checked{% endif %}>Freiwilligen Anzeigenamen und Rangliste anbieten</label>
+  </fieldset>
+  {% elif k == 'rank' %}<div class="col-md-4"><label class="form-label" for="{{ fid }}-top">Top-N priorisieren</label><input class="form-control" type="number" id="{{ fid }}-top" name="top_n" min="1" max="20" value="{{ st.top_n if q else 3 }}"><div class="form-text">Bis zur Anzahl der Optionen. Borda: erster Rang erhält so viele Punkte wie Optionen, jeder weitere einen weniger; nicht gewählt = 0.</div></div>{% endif %}
   {% elif k in ('open', 'qa') %}
   <div class="col-sm-4"><label class="form-label small" for="{{ fid }}-me">Beiträge je Person</label><input class="form-control" type="number" id="{{ fid }}-me" name="max_entries" min="1" max="20" value="{{ st.max_entries if q else (3 if k == 'open' else 5) }}"></div>
   <div class="col-sm-4"><label class="form-label small" for="{{ fid }}-ml">Höchstlänge</label><div class="input-group"><input class="form-control" type="number" id="{{ fid }}-ml" name="max_len" min="20" max="1000" value="{{ st.max_len if q else 280 }}"><span class="input-group-text">Zeichen</span></div></div>
@@ -35,7 +46,7 @@
   <div class="col-sm-6"><label class="form-label small" for="{{ fid }}-c">Darstellung</label>
     <select class="form-select form-select-sm" id="{{ fid }}-c" name="chart">{% for c in kinds[k][2] %}<option value="{{ c }}" {% if q and q.chart == c %}selected{% endif %}>{{ charts[c] }}</option>{% endfor %}</select></div>
   <div class="col-sm-6"><label class="form-label small" for="{{ fid }}-r">Ergebnis für Teilnehmende</label>
-    <select class="form-select form-select-sm" id="{{ fid }}-r" name="show_results">{% for kk, v in show_results.items() %}<option value="{{ kk }}" {% if q and q.show_results == kk %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+    <select class="form-select form-select-sm" id="{{ fid }}-r" name="show_results">{% for kk, v in show_results.items() %}<option value="{{ kk }}" {% if (q and q.show_results == kk) or (not q and k == 'quiz' and kk == 'release') %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
   <div class="col-12"><button class="btn btn-sm btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>{{ 'Speichern' if q else 'Frage hinzufügen' }}</button></div>
 </form>
 {% endmacro %}
@@ -67,8 +78,9 @@
       <div class="card-body">
         <div class="d-flex flex-wrap gap-2 mb-3">
           {% if poll.pacing == 'moderated' %}<form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/show"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-eye me-1"></i>Jetzt zeigen</button></form>{% endif %}
-          {% if q.show_results == 'release' %}<form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/release"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm {{ 'btn-success' if q.released else 'btn-outline-success' }}"><i class="fa-solid fa-chart-pie me-1"></i>{{ 'Ergebnis freigegeben' if q.released else 'Ergebnis freigeben' }}</button></form>{% endif %}
-          <form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/lock"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-secondary"><i class="fa-solid {{ 'fa-lock-open' if q.locked else 'fa-lock' }} me-1"></i>{{ 'Antworten wieder zulassen' if q.locked else 'Antworten sperren' }}</button></form>
+          {% if q.show_results == 'release' or q.kind == 'quiz' %}<form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/release"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm {{ 'btn-success' if q.released else 'btn-outline-success' }}"><i class="fa-solid fa-chart-pie me-1"></i>{{ 'Ergebnis freigegeben' if q.released else 'Ergebnis freigeben' }}</button></form>{% endif %}
+          {% if q.kind == 'quiz' and settings_of(q).seconds %}<form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/timer"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-secondary" {% if q.released %}disabled title="Quiz ist bereits aufgelöst; für eine neue Runde zuerst zurücksetzen."{% endif %}><i class="fa-solid fa-stopwatch me-1"></i>Zeitlimit neu starten</button></form>{% endif %}
+          <form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/lock"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-secondary" {% if q.kind == 'quiz' and q.released %}disabled title="Quiz ist bereits aufgelöst; für eine neue Runde zuerst zurücksetzen."{% endif %}><i class="fa-solid {{ 'fa-lock-open' if q.locked else 'fa-lock' }} me-1"></i>{{ 'Antworten wieder zulassen' if q.locked else 'Antworten sperren' }}</button></form>
           <form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/reset"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-secondary" data-confirm="Alle Antworten zu dieser Frage löschen?" data-confirm-button="Zurücksetzen"><i class="fa-solid fa-rotate-left me-1"></i>Antworten zurücksetzen</button></form>
           <form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/delete" class="ms-auto"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger" data-confirm="Frage „{{ q.title }}“ mit allen Antworten löschen?" data-confirm-button="Löschen" aria-label="Frage löschen"><i class="fa-regular fa-trash-can"></i></button></form>
         </div>
@@ -110,7 +122,7 @@
         {% else %}
         <div class="mb-3 small"><a href="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/export.csv"><i class="fa-solid fa-file-csv me-1"></i>Ergebnis als CSV</a></div>
         {% endif %}
-        <details><summary class="small mb-2">Bearbeiten</summary>{{ qform(q) }}</details>
+        <details><summary class="small mb-2">Bearbeiten</summary>{% if counts[q.id] or (q.kind == 'quiz' and q.released) %}<p class="small text-secondary">Diese Frage hat bereits Antworten. Legen Sie eine neue Frage an oder setzen Sie die vorhandenen Antworten bewusst zurück, bevor Sie die Frage verändern.</p>{% else %}{{ qform(q) }}{% endif %}</details>
       </div>
     </div>
     {% else %}
@@ -127,7 +139,7 @@
     <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-qrcode me-2"></i>Teilnahme</div><div class="card-body text-center">
       <img src="/votes/live/{{ poll.id }}/qr.svg" alt="QR-Code zur Teilnahme" style="width: 12rem; height: 12rem">
       <div class="input-group input-group-sm mt-2"><input class="form-control" value="{{ join }}" readonly aria-label="Link zur Teilnahme"><button class="btn btn-outline-secondary" type="button" data-copy-text="{{ join }}" aria-label="Link kopieren"><i class="fa-regular fa-copy"></i></button></div>
-      <p class="small text-secondary mt-2 mb-0">QR scannen und sofort antworten – ohne Anmeldung, ohne Namen. Je Gerät eine Antwort je Frage (änderbar).</p>
+      <p class="small text-secondary mt-2 mb-0">QR scannen und sofort antworten – ohne Anmeldung, standardmäßig ohne Namen. Im Quiz sind freiwillige Anzeigenamen möglich. Je Gerät eine Antwort je Frage (änderbar).</p>
     </div></div>
     <div class="card"><div class="card-header"><i class="fa-solid fa-sliders me-2"></i>Einstellungen</div>
       <form class="card-body" method="post" action="/votes/live/{{ poll.id }}/settings"><input type="hidden" name="csrf" value="{{ csrf }}">

@@ -4,12 +4,12 @@
 {% block content %}
 <div class="live-join mx-auto" id="live-join" data-token="{{ token }}" data-device="{{ device }}">
   <div class="text-center mb-3">
-    <div class="small text-secondary"><i class="fa-solid fa-tower-broadcast me-1"></i>Live-Umfrage · anonym</div>
+    <div class="small text-secondary"><i class="fa-solid fa-tower-broadcast me-1"></i>Live-Umfrage · ohne Anmeldung</div>
     <h1 class="h4 mb-1">{{ poll.title }}</h1>
     {% if poll.description %}<p class="text-secondary small mb-0">{{ poll.description | richtext }}</p>{% endif %}
   </div>
   <div id="live-questions" aria-live="polite"><div class="text-center text-secondary py-5"><span class="spinner-border spinner-border-sm me-2"></span>Lädt …</div></div>
-  <p class="small text-secondary text-center mt-4 mb-0"><i class="fa-solid fa-user-secret me-1"></i>Ohne Namen und ohne Anmeldung. Ihre Antwort können Sie ändern, solange die Frage offen ist.</p>
+  <p class="small text-secondary text-center mt-4 mb-0"><i class="fa-solid fa-user-secret me-1"></i>Standardmäßig ohne Namen und ohne Anmeldung. Im Quiz kann ein freiwilliger Anzeigename angeboten werden. Ihre Antwort können Sie ändern, solange die Frage offen ist.</p>
 </div>
 {% endblock %}
 {% block scripts %}<script src="/static/vendor/chartjs/chart.umd.min.js"></script><script src="/static/live-chart.js"></script><script src="/static/live-join.js"></script>{% endblock %}
