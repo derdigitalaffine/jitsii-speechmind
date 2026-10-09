@@ -91,6 +91,25 @@ async def oidc_save(request:Request,user:User=Depends(admin_user),db:Session=Dep
     set_setting(db,'oidc_config',json.dumps(cfg));db.commit();return redirect('/admin/oidc')
 
 
+async def _oidc_start_redirect(request:Request,db:Session,cfg:dict,target:str,link_user=None,actor=None):
+    doc=await asyncio.to_thread(oidc.discovery,cfg)
+    flow,state,verifier,nonce=oidc.new_flow(request,db,cfg,target,link_user,actor)
+    challenge=base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
+    query=dict(client_id=cfg['client_id'],redirect_uri=oidc.callback_url(),response_type='code',scope='openid profile email groups',state=state,nonce=nonce,code_challenge=challenge,code_challenge_method='S256')
+    if link_user:query['prompt']='select_account'
+    return protect(redirect(doc['authorization_endpoint']+('&' if '?' in doc['authorization_endpoint'] else '?')+urlencode(query)))
+
+
+@app.get('/auth/oidc/start')
+async def oidc_start_get(request:Request,db:Session=Depends(get_db)):
+    """Normalen Login als Navigation starten; so kann eine Modul-Domain zuerst zur konfigurierten Portal-Domain wechseln."""
+    cfg=oidc.config(db)
+    if not oidc.usable(cfg):raise HTTPException(404,'OIDC-Anmeldung ist noch nicht eingerichtet.')
+    rate_limit(request,'oidc-start',limit=20)
+    target=safe_next(str(request.query_params.get('next','/')))
+    return await _oidc_start_redirect(request,db,cfg,target)
+
+
 @app.post('/auth/oidc/start',dependencies=[Depends(check_csrf)])
 async def oidc_start(request:Request,db:Session=Depends(get_db)):
     cfg=oidc.config(db)
@@ -104,12 +123,7 @@ async def oidc_start(request:Request,db:Session=Depends(get_db)):
         if not value.isdigit():raise HTTPException(422)
         link_user=db.get(User,int(value))
         if not link_user or not link_user.active or (link_user.id!=actor.id and not actor.is_admin):raise HTTPException(403)
-    doc=await asyncio.to_thread(oidc.discovery,cfg)
-    flow,state,verifier,nonce=oidc.new_flow(request,db,cfg,target,link_user,actor)
-    challenge=base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
-    query=dict(client_id=cfg['client_id'],redirect_uri=oidc.callback_url(),response_type='code',scope='openid profile email groups',state=state,nonce=nonce,code_challenge=challenge,code_challenge_method='S256')
-    if link_user:query['prompt']='select_account'
-    return protect(redirect(doc['authorization_endpoint']+('&' if '?' in doc['authorization_endpoint'] else '?')+urlencode(query)))
+    return await _oidc_start_redirect(request,db,cfg,target,link_user,actor)
 
 
 def exchange(cfg,flow,code,doc):
