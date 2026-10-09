@@ -57,7 +57,7 @@ def collect(db, user, modules, *, now=None):
     if 'circulations' in modules:
         for task in circulations.pending_tasks(db, user):
             detail = task['action'] + f' · {task["done"]} / {task["required"]} Nachweise'
-            detail += f' · Als Vertretung für {task["recipient_name"]}' if task['proxy'] else ' · persönlich bestätigen'
+            detail += f' · als Vertretung für {task["recipient_name"]}' if task['proxy'] else ' · persönlich bestätigen'
             if not task['ready']:
                 detail += ' · Umlauf nach Ablehnung gestoppt' if task['stopped'] else ' · Sie sind später an der Reihe – wartet auf vorherige Station'
             item = entry('circulation', task['title'], f'/umlaeufe/{task["row"].id}?recipient={task["recipient_id"]}',
