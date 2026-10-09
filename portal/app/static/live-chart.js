@@ -85,6 +85,16 @@
   function render(box, q, opts) {
     opts = opts || {};
     if (q.kind === 'open' || q.kind === 'qa') { destroy(box); entries(box, q, opts.big); return; }
+    if (q.kind === 'quiz' || q.kind === 'rank') {
+      destroy(box);
+      var result = q.results;
+      if (!result) { box.innerHTML = q.kind === 'quiz' ? '<ul class="list-group mb-3">' + q.options.map(function (o) { return '<li class="list-group-item">' + esc(o.label) + '</li>'; }).join('') + '</ul><p class="text-secondary">Lösung und Ergebnis erscheinen nach Freigabe.</p>' : ''; return; }
+      var solution = q.solution || [];
+      box.innerHTML = (q.kind === 'quiz' && solution.length ? '<div class="alert alert-success"><i class="fa-solid fa-circle-check me-2"></i>Richtige Lösung: ' + q.options.filter(function (o) { return solution.indexOf(o.id) >= 0; }).map(function (o) { return esc(o.label); }).join(', ') + (q.score != null ? '<br>Ihre Punkte: ' + q.score + ' / ' + q.settings.points : '') + '</div>' : '') +
+        '<div class="table-responsive live-table"><table class="table align-middle"><thead><tr><th>' + (q.kind === 'rank' ? 'Priorität' : 'Antwort') + '</th><th>' + (q.kind === 'rank' ? 'Borda-Punkte' : 'Nennungen') + '</th><th>' + (q.kind === 'rank' ? 'Mittlerer Rang' : 'Anteil') + '</th></tr></thead><tbody>' + result.rows.map(function (r) { return '<tr><td>' + esc(r.label) + '</td><td>' + r.count + '</td><td>' + (q.kind === 'rank' ? (r.avg_rank == null ? '–' : r.avg_rank) : r.pct + '%') + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+        (q.scoreboard && q.scoreboard.length ? '<h3 class="h6">Freiwillige Rangliste · diese Frage</h3><ol>' + q.scoreboard.map(function (r) { return '<li>' + esc(r.name) + ' · ' + r.points + ' Punkte</li>'; }).join('') + '</ol>' : '');
+      return;
+    }
     var r = q.results;
     if (!r) { box.innerHTML = ''; return; }
     var type = q.chart || 'bar';

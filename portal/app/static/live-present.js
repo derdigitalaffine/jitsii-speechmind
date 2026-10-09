@@ -33,7 +33,7 @@
     if (!q) { titleEl.textContent = 'Noch keine Fragen'; resultEl.innerHTML = ''; countEl.textContent = '0'; return; }
     if (titleEl.textContent !== q.title) titleEl.textContent = q.title;
     posEl.textContent = 'Frage ' + (index + 1) + ' von ' + state.questions.length + ' · ' + (kinds[q.kind] ? kinds[q.kind][0] : '');
-    countEl.textContent = q.results ? q.results.total : 0;
+    countEl.textContent = q.results ? q.results.total : (q.answer_count || 0);
     var allowed = kinds[q.kind] ? kinds[q.kind][2] : [];
     while (chartsEl.firstChild) chartsEl.removeChild(chartsEl.firstChild);
     allowed.forEach(function (c) {
@@ -45,6 +45,7 @@
       btn.textContent = chartNames[c] != null ? String(chartNames[c]) : '';
       chartsEl.appendChild(btn);
     });
+    document.getElementById('lp-release').hidden = q.kind !== 'quiz' || q.released;
     if (window.LiveChart) LiveChart.render(resultEl, q, { big: true });
   }
   function load() {
@@ -55,14 +56,17 @@
     if (moderated) {
       post('/votes/live/' + id + '/schritt', { dir: dir > 0 ? 'next' : 'prev' }).then(function (s) { state = s; draw(); });
     } else {
-      index += dir;
-      draw();
+      var q = current();
+      if (dir > 0 && q && q.kind === 'quiz' && !q.released && index < state.questions.length - 1) {
+        post('/votes/live/' + id + '/fragen/' + q.id + '/release', {}).then(function (s) { state = s; index += dir; draw(); });
+      } else { index += dir; draw(); }
     }
   }
   function toggle(cls, btn) {
     var on = root.classList.toggle(cls);
     btn.setAttribute('aria-pressed', on ? 'false' : 'true');
   }
+  document.getElementById('lp-release').addEventListener('click', function () { var q = current(); if (q && !q.released) post('/votes/live/' + id + '/fragen/' + q.id + '/release', {}).then(function (s) { state = s; draw(); }); });
   document.getElementById('lp-prev').addEventListener('click', function () { go(-1); });
   document.getElementById('lp-next').addEventListener('click', function () { go(1); });
   document.getElementById('lp-results').addEventListener('click', function () { toggle('hide-results', this); });

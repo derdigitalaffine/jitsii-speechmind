@@ -84,6 +84,11 @@ async def live_question_save(request: Request, poll_id: int, user: User = Depend
             flash(request, f"Höchstens {lv.MAX_QUESTIONS} Fragen je Umfrage.", "error")
             return redirect(f"/votes/live/{poll.id}")
         q = LiveQuestion(poll_id=poll.id, position=len(poll.questions), title="", kind=str(data.get("kind", "single")))
+    if q.kind == "quiz" and q.released:
+        raise HTTPException(409, "Eine aufgelöste Quizfrage kann erst nach bewusstem Zurücksetzen verändert werden.")
+    if q.id and lv.tally(db, q)["total"]:
+        flash(request, "Fragen mit Antworten können nicht verändert werden. Erst Antworten zurücksetzen oder eine neue Frage anlegen.", "error")
+        return redirect(f"/votes/live/{poll.id}#frage-{q.id}")
     error = lv.apply_question(q, data)
     if error:
         db.rollback()
@@ -91,9 +96,13 @@ async def live_question_save(request: Request, poll_id: int, user: User = Depend
         return redirect(f"/votes/live/{poll.id}#neu")
     if q.id is None:
         poll.questions.append(q)
+    if poll.status == "open" and (poll.pacing == "free" or poll.current_id == q.id):
+        lv.start_timer(q)
     db.commit()
     if poll.current_id is None:
         poll.current_id = q.id
+        if poll.status == "open":
+            lv.start_timer(q)
         db.commit()
     flash(request, "Frage gespeichert.")
     return redirect(f"/votes/live/{poll.id}#frage-{q.id}")
@@ -146,17 +155,37 @@ async def live_question_action(request: Request, poll_id: int, qid: int, action:
             poll.current_id = None
         db.delete(q)
     elif action == "release":
-        q.released = not q.released
+        if q.kind == "quiz":
+            q.released, q.locked = True, True
+        else:
+            q.released = not q.released
+    elif action == "timer" and q.kind == "quiz":
+        if q.released:
+            raise HTTPException(409, "Aufgelöste Quizfragen bleiben gesperrt. Für eine neue Runde bewusst zurücksetzen.")
+        lv.start_timer(q, restart=True)
     elif action == "lock":
+        if q.kind == "quiz" and q.released:
+            raise HTTPException(409, "Aufgelöste Quizfragen bleiben gesperrt. Für eine neue Runde bewusst zurücksetzen.")
         q.locked = not q.locked
     elif action == "chart" and data.get("chart") in lv.KINDS[q.kind][2]:
         q.chart = data.get("chart")
     elif action == "show":
+        old = next((x for x in poll.questions if x.id == poll.current_id), None)
+        if old and old.id != q.id and old.kind == "quiz":
+            old.released, old.locked = True, True
         poll.current_id = q.id
+        lv.start_timer(q)
     elif action == "reset":
         from sqlalchemy import delete
         from .db import LiveAnswer
         db.execute(delete(LiveAnswer).where(LiveAnswer.question_id == q.id))
+        if q.kind == "quiz":
+            q.released, q.locked = False, False
+            s = lv.settings(q)
+            s.pop("started", None)
+            q.settings_json = json.dumps(s)
+            if poll.status == "open" and (poll.pacing == "free" or poll.current_id == q.id):
+                lv.start_timer(q)
     else:
         raise HTTPException(400)
     db.commit()
@@ -197,6 +226,9 @@ async def live_status(request: Request, poll_id: int, user: User = Depends(vote_
         poll.opened_at = poll.opened_at or utcnow()
         if poll.current_id is None:
             poll.current_id = poll.questions[0].id
+        for question in poll.questions:
+            if poll.pacing == "free" or question.id == poll.current_id:
+                lv.start_timer(question)
     elif action == "close":
         poll.status = "closed"
     db.commit()
@@ -296,10 +328,11 @@ async def live_answer(request: Request, token: str, db: Session = Depends(get_db
         body = json.loads((await request.body())[:20000] or b"{}")
     except ValueError:
         body = {}
+    body = body if isinstance(body, dict) else {}
     q = next((x for x in poll.questions if str(x.id) == str(body.get("question"))), None)
     if q is None or (poll.pacing == "moderated" and q.id != poll.current_id):
         return JSONResponse({"ok": False, "error": "Diese Frage ist gerade nicht aktiv."}, status_code=409)
-    if q.locked:
+    if q.locked or (q.kind == "quiz" and (q.released or lv.timed_out(q))):
         return JSONResponse({"ok": False, "error": "Für diese Frage sind keine Antworten mehr möglich."}, status_code=409)
     value, error = lv.read_answer(q, body.get("value"))
     if error:
@@ -309,7 +342,9 @@ async def live_answer(request: Request, token: str, db: Session = Depends(get_db
         if error:
             return JSONResponse({"ok": False, "error": error}, status_code=400)
     else:
-        lv.save_answer(db, poll, q, lv.device_hash(raw), value)
+        saved = lv.save_answer(db, poll, q, lv.device_hash(raw), value)
+        if q.kind == "quiz" and "nickname" in body:
+            saved.nickname = " ".join(str(body.get("nickname", "")).split())[:40] if lv.settings(q)["nickname"] else ""
     lifecycle.mark_used(poll)
     db.commit()
     return JSONResponse({"ok": True, **lv.state(db, poll, lv.device_hash(raw))})

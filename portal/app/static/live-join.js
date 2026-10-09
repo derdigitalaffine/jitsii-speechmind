@@ -8,18 +8,18 @@
   var box = document.getElementById('live-questions');
   var token = root.dataset.token, device = root.dataset.device;
   var esc = window.LiveChart ? LiveChart.esc : function (s) { return String(s); };
-  var last = '', drafts = {}, busy = false;
+  var last = '', drafts = {}, names = {}, busy = false, latest = null;
 
   function load() {
     if (busy) return;
     var ae = document.activeElement;
-    if (ae && ae.classList && (ae.classList.contains('js-word') || ae.classList.contains('js-entry'))) return;   // nicht beim Tippen neu zeichnen
+    if (ae && ae.classList && (ae.classList.contains('js-word') || ae.classList.contains('js-entry') || ae.classList.contains('js-nickname'))) return;   // nicht beim Tippen neu zeichnen
     fetch('/l/' + token + '/state.json', { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.json(); }).then(render).catch(function () { /* nächster Versuch */ });
   }
 
   function choiceButtons(q) {
-    var mine = q.mine || {}, multi = q.kind === 'multi';
+    var mine = q.mine || {}, multi = q.kind === 'multi' || q.kind === 'quiz';
     var chosen = multi ? (drafts[q.id] || mine.o || []) : null;
     if (q.kind === 'yesno') {
       return '<div class="live-yesno">' + q.options.map(function (o) {
@@ -33,6 +33,28 @@
         (multi ? '<i class="fa-' + (on ? 'solid fa-square-check' : 'regular fa-square') + ' me-2"></i>' : '') + esc(o.label) + '</button>';
     }).join('') + (multi ? '<div class="d-flex align-items-center gap-2"><button type="button" class="btn btn-primary js-send-multi" data-q="' + q.id + '">Absenden</button><span class="small text-secondary">höchstens ' + q.settings.max_choices + '</span></div>' : '');
   }
+  function rankOrder(q) {
+    var selected = drafts[q.id] || (q.mine || {}).r || [];
+    return selected.concat(q.options.map(function (o) { return o.id; }).filter(function (id) { return selected.indexOf(id) < 0; }));
+  }
+  function rankInputs(q) {
+    return '<p class="small text-secondary">Die ersten ' + q.settings.top_n + ' Plätze zählen. Ziehen oder mit den Pfeilen verschieben (Touch und Tastatur).</p><ol class="list-group live-ranking">' + rankOrder(q).map(function (id, i) {
+      var o = q.options.find(function (x) { return x.id === id; });
+      return '<li class="list-group-item d-flex align-items-center gap-2" draggable="true" data-q="' + q.id + '" data-rank="' + esc(id) + '"><span class="badge text-bg-' + (i < q.settings.top_n ? 'primary' : 'secondary') + '">' + (i+1) + '</span><span class="flex-grow-1">' + esc(o.label) + '</span><button type="button" class="btn btn-outline-secondary js-rank-up" data-q="' + q.id + '" data-o="' + esc(id) + '" aria-label="' + esc(o.label) + ' nach oben" ' + (i === 0 ? 'disabled' : '') + '><i class="fa-solid fa-arrow-up"></i></button><button type="button" class="btn btn-outline-secondary js-rank-down" data-q="' + q.id + '" data-o="' + esc(id) + '" aria-label="' + esc(o.label) + ' nach unten" ' + (i === q.options.length-1 ? 'disabled' : '') + '><i class="fa-solid fa-arrow-down"></i></button></li>';
+    }).join('') + '</ol><button type="button" class="btn btn-primary mt-3 js-send-rank" data-q="' + q.id + '">Rangfolge absenden</button>';
+  }
+  function moveRank(qid, id, delta, target) {
+    var q = latest.questions.find(function (x) { return x.id === qid; });
+    if (!q || q.locked) return;
+    var order = rankOrder(q), i = order.indexOf(id), j = target ? order.indexOf(target) : i + delta;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    order.splice(i, 1); order.splice(j, 0, id); drafts[qid] = order;
+    last = ''; render(latest);
+  }
+  var dragging = null;
+  box.addEventListener('dragstart', function (e) { var row = e.target.closest('[data-rank]'); if (row) { dragging = row; e.dataTransfer.setData('text/plain', row.dataset.rank); } });
+  box.addEventListener('dragover', function (e) { if (dragging && e.target.closest('[data-rank]')) e.preventDefault(); });
+  box.addEventListener('drop', function (e) { var row = e.target.closest('[data-rank]'); if (dragging && row && row.dataset.q === dragging.dataset.q) { e.preventDefault(); moveRank(+row.dataset.q, dragging.dataset.rank, 0, row.dataset.rank); } dragging = null; });
   function scaleButtons(q) {
     var s = q.settings, mine = (q.mine || {}).n, out = '';
     if (q.kind === 'stars') {
@@ -78,10 +100,12 @@
   }
 
   function render(state) {
+    latest = state;
+    state.questions.forEach(function (q) { if (!Object.prototype.hasOwnProperty.call(names, q.id)) names[q.id] = (q.mine || {}).nickname || ''; });
     var key = JSON.stringify(state) + JSON.stringify(drafts);
     if (key === last) return;
     last = key;
-    if (state.status !== 'open') {
+    if (state.status !== 'open' && !(state.status === 'closed' && state.questions.some(function (q) { return q.kind === 'quiz' && q.solution; }))) {
       box.innerHTML = '<div class="card live-q"><div class="card-body text-center py-5"><i class="fa-regular fa-hourglass-half fa-2x text-secondary mb-3"></i><p class="mb-0">' +
         (state.status === 'closed' ? 'Die Umfrage ist beendet. Vielen Dank fürs Mitmachen!' : 'Gleich geht es los – diese Seite aktualisiert sich von selbst.') + '</p></div></div>';
       return;
@@ -90,15 +114,17 @@
       box.innerHTML = '<div class="card live-q"><div class="card-body text-center py-5 text-secondary">Bitte warten Sie auf die nächste Frage …</div></div>';
       return;
     }
+    if (state.status === 'closed') state.questions.forEach(function (q) { q.locked = true; });
     var focus = document.activeElement && document.activeElement.closest && document.activeElement.closest('[data-q]');
     var focusKey = focus ? focus.dataset.q + '|' + (focus.dataset.o || focus.dataset.n || '') : '';
+    var rankFocus = focus && (focus.classList.contains('js-rank-up') || focus.classList.contains('js-rank-down')) ? (focus.classList.contains('js-rank-up') ? 'js-rank-up' : 'js-rank-down') : '';
     box.innerHTML = state.questions.map(function (q) {
       var entry = q.kind === 'open' || q.kind === 'qa';
       var inner = entry ? entryBox(q) : (q.locked ? '<p class="text-secondary mb-0"><i class="fa-solid fa-lock me-1"></i>Für diese Frage sind keine Antworten mehr möglich.</p>'
-        : (['single', 'multi', 'yesno'].indexOf(q.kind) >= 0 ? choiceButtons(q) : (q.kind === 'words' ? wordInputs(q) : scaleButtons(q))));
+        : (['single', 'multi', 'yesno', 'quiz'].indexOf(q.kind) >= 0 ? choiceButtons(q) : (q.kind === 'words' ? wordInputs(q) : (q.kind === 'rank' ? rankInputs(q) : scaleButtons(q)))));
       return '<section class="card live-q mb-3" aria-labelledby="lq-' + q.id + '"><div class="card-body">' +
-        '<h2 class="h5 mb-3" id="lq-' + q.id + '">' + esc(q.title) + '</h2>' + inner +
-        (q.answered && !entry ? '<p class="live-done mt-3 mb-0"><i class="fa-solid fa-circle-check me-1"></i>Antwort gespeichert – ändern ist möglich.</p>' : '') +
+        '<h2 class="h5 mb-3" id="lq-' + q.id + '">' + esc(q.title) + '</h2>' + (q.remaining != null ? '<p class="small text-secondary"><i class="fa-solid fa-stopwatch me-1"></i>Noch ' + q.remaining + ' Sekunden</p>' : '') + (q.kind === 'quiz' && q.settings.nickname && !q.locked ? '<label class="form-label small" for="nickname-' + q.id + '">Anzeigename (freiwillig, sichtbar in Rangliste)</label><input class="form-control mb-3 js-nickname" id="nickname-' + q.id + '" data-q="' + q.id + '" maxlength="40" value="' + esc(names[q.id] || '') + '" placeholder="Anonym teilnehmen: leer lassen">' : '') + inner +
+        (q.answered && !entry ? '<p class="live-done mt-3 mb-0"><i class="fa-solid fa-circle-check me-1"></i>Antwort gespeichert.</p>' : '') +
         '<div class="small text-danger mt-2 js-err" data-q="' + q.id + '"></div>' +
         (q.results && !entry ? '<hr><div class="small text-secondary mb-2">Ergebnis (' + q.results.total + ' Antworten)</div><div class="js-chart" data-q="' + q.id + '"></div>' : '') +
         '</div></section>';
@@ -110,6 +136,7 @@
     if (focusKey) {
       var parts = focusKey.split('|');
       var again = box.querySelector('[data-q="' + parts[0] + '"][data-o="' + parts[1] + '"], [data-q="' + parts[0] + '"][data-n="' + parts[1] + '"]');
+      if (rankFocus) { var preferred = box.querySelector('.' + rankFocus + '[data-q="' + parts[0] + '"][data-o="' + parts[1] + '"]'); if (preferred && !preferred.disabled) again = preferred; else again = box.querySelector('.' + (rankFocus === 'js-rank-up' ? 'js-rank-down' : 'js-rank-up') + '[data-q="' + parts[0] + '"][data-o="' + parts[1] + '"]'); }
       if (again) again.focus();
     }
   }
@@ -117,7 +144,7 @@
   function send(qid, value) {
     busy = true;
     fetch('/l/' + token + '/answer', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Live-Device': device },
-      body: JSON.stringify({ question: qid, value: value }) })
+      body: JSON.stringify({ question: qid, value: value, nickname: names[qid] || '' }) })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         busy = false;
@@ -134,19 +161,22 @@
     var b = e.target.closest('button');
     if (!b) return;
     var qid = +b.dataset.q;
-    if (b.classList.contains('js-pick')) send(qid, { o: b.dataset.o });
+    if (b.classList.contains('js-send-rank')) {
+      var question = latest.questions.find(function (q) { return q.id === qid; });
+      send(qid, { r: rankOrder(question).slice(0, question.settings.top_n) });
+    } else if (b.classList.contains('js-rank-up') || b.classList.contains('js-rank-down')) {
+      moveRank(qid, b.dataset.o, b.classList.contains('js-rank-up') ? -1 : 1);
+    } else if (b.classList.contains('js-pick')) send(qid, { o: b.dataset.o });
     else if (b.classList.contains('js-num')) send(qid, { n: +b.dataset.n });
     else if (b.classList.contains('js-toggle')) {
-      var list = (drafts[qid] || []).slice();
-      if (!drafts[qid]) {
-        box.querySelectorAll('.js-toggle[data-q="' + qid + '"][aria-pressed="true"]').forEach(function (x) { list.push(x.dataset.o); });
-      }
+      var question = latest.questions.find(function (q) { return q.id === qid; });
+      var list = (drafts[qid] || (question.mine || {}).o || []).slice();
       var i = list.indexOf(b.dataset.o);
       if (i >= 0) list.splice(i, 1); else list.push(b.dataset.o);
       drafts[qid] = list;
       last = '';
       load();
-    } else if (b.classList.contains('js-send-multi')) send(qid, { o: drafts[qid] || [] });
+    } else if (b.classList.contains('js-send-multi')) send(qid, { o: drafts[qid] || Array.prototype.map.call(box.querySelectorAll('.js-toggle[data-q="' + qid + '"][aria-pressed="true"]'), function (x) { return x.dataset.o; }) });
     else if (b.classList.contains('js-send-entry')) {
       var ta = box.querySelector('.js-entry[data-q="' + qid + '"]');
       send(qid, { t: ta ? ta.value : '' });
@@ -163,6 +193,7 @@
     } else if (b.classList.contains('js-send-range')) send(qid, { n: +box.querySelector('.js-range[data-q="' + qid + '"]').value });
   });
   box.addEventListener('input', function (e) {
+    if (e.target.classList.contains('js-nickname')) { names[e.target.dataset.q] = e.target.value; return; }
     if (e.target.classList.contains('js-entry')) { drafts[e.target.dataset.q] = e.target.value; return; }
     if (e.target.classList.contains('js-word')) {
       var q = e.target.dataset.q;
