@@ -18,7 +18,7 @@ from sqlalchemy import and_, delete, func, insert, or_, select, update
 
 from .config import settings
 from .db import (
-    Base, Circulation, CirculationBundle, DeletionLog, DmsRecord, FormResponse, Payment, Poll, Resource, ResourceBooking, SessionLocal, ShortLink,
+    Base, Circulation, CirculationBundle, DeletionLog, DmsRecord, FormResponse, Payment, Poll, Resource, ResourceBooking, SessionLocal, ShortLink, UserMap,
     TrashItem, Vote, to_local, utcnow,
 )
 
@@ -42,6 +42,8 @@ def _response_label(r: FormResponse) -> str:
 
 
 KINDS = {
+    "user_map": {"model": UserMap, "label": "Eigene Karten", "icon": "fa-map", "search": ("title", "description"),
+                 "date": "created_at", "show": lambda o: o.title, "files": lambda o: []},
     "circulation_bundle": {"model":CirculationBundle,"label":"Sammelmappen","icon":"fa-folder-open","search":("draft_json",),"date":"created_at",
         "show":lambda o:json.loads(o.draft_json or '{}').get('title') or 'Neue Sammelmappe',
         "files":lambda o:[settings.data_dir / 'circulation-bundles' / str(o.id)]},
@@ -270,12 +272,23 @@ def delete_bulk(db, kind: str, before: date | None, status: str, actor: str) -> 
 
 def restore(db, item: TrashItem, actor: str) -> str | None:
     """Wiederherstellen. Gibt eine Fehlermeldung zurück oder None."""
+    if item.expires_at <= utcnow():
+        return "Die Frist zur Wiederherstellung ist abgelaufen."
+    for original, saved in json.loads(item.files_json or "[]"):
+        if Path(original).exists():
+            return "Am ursprünglichen Speicherort liegt bereits eine Datei. Bitte den Konflikt vor der Wiederherstellung klären."
+        if not Path(saved).exists():
+            return "Eine gesicherte Datei fehlt. Bitte die Wiederherstellung administrativ prüfen lassen."
+    data = json.loads(item.data_json or "{}")
+    if item.kind == "user_map":
+        from .map_lifecycle import prepare_restore
+        data = prepare_restore(db, data)
     tbl = _table(item.table_name)
     if db.execute(select(tbl.c.id).where(tbl.c.id == item.row_id)).first() is not None:
         return "Unter dieser Nummer gibt es inzwischen einen anderen Eintrag – Wiederherstellen nicht möglich."
     try:
         with db.begin_nested():
-            restore_rows(db, json.loads(item.data_json or "{}"))
+            restore_rows(db, data)
     except Exception as exc:  # noqa: BLE001  (z. B. ein übergeordneter Eintrag fehlt inzwischen)
         return f"Wiederherstellen nicht möglich: {str(exc).splitlines()[0][:200]}"
     for src, dst in json.loads(item.files_json or "[]"):

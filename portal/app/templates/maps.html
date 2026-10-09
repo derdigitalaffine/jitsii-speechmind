@@ -5,6 +5,11 @@
 {% call m.page_head('Meine Karten', 'Gespeicherte Kartenzusammenstellungen mit Ausschnitt, Ebenen, Transparenz und eigenen WMS/WFS-Layern. Freigaben für Benutzer und Gruppen bleiben intern; öffentliche Links erlauben Weitergabe und Einbettung.') %}
 <a class="btn btn-primary" href="/karte"><i class="fa-solid fa-map-location-dot me-1"></i>Kartenbrowser öffnen</a>
 {% endcall %}
+<nav class="nav nav-pills gap-2 mb-3" aria-label="Kartenansicht"><a class="nav-link {% if not trash %}active{% endif %}" href="/maps"><i class="fa-regular fa-map me-1"></i>Karten</a><a class="nav-link {% if trash %}active{% endif %}" href="/maps?state=trash"><i class="fa-regular fa-trash-can me-1"></i>Papierkorb</a></nav>
+{% if trash %}
+<p class="text-secondary">30 Tage wiederherstellbar. Öffentliche Links und interne Freigaben bleiben nach der Wiederherstellung abgeschaltet.</p>
+{% for item in items %}<div class="card mb-2"><div class="card-body d-flex flex-wrap align-items-center gap-3"><div class="flex-grow-1"><strong>{{ item.label }}</strong><div class="small text-secondary">Endgültige Löschung: {{ item.expires_at | local('%d.%m.%Y') }}</div></div><form method="post" action="/maps/{{ item.id }}/restore"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-primary" data-confirm="Karte „{{ item.label }}“ privat wiederherstellen? Frühere Links bleiben ungültig; interne Freigaben müssen erneut bestätigt werden." data-confirm-button="Privat wiederherstellen"><i class="fa-solid fa-rotate-left me-1"></i>Privat wiederherstellen</button></form></div></div>{% else %}<p class="text-secondary">Keine Karten im Papierkorb.</p>{% endfor %}
+{% else %}
 {% if items %}
 <div class="row g-3">
   {% for mp in items %}{% set st = state(mp.state_json) %}
@@ -15,10 +20,10 @@
       <i class="fa-solid fa-layer-group me-1"></i>{{ (st.layers or []) | selectattr('visible') | list | length }} Ebenen sichtbar{% if st.custom %}, {{ st.custom | length }} eigene Layer{% endif %}
       · geändert {{ mp.updated_at | local('%d.%m.%Y') }}
     </div>
-    {% if mp.owner_id == user.id %}
+    {% if mp.owner_id == user.id or user.is_admin %}
     {% if mp.public_token %}
     {% set pub = request.base_url ~ 'karte/m/' ~ mp.public_token %}
-    <div class="input-group input-group-sm mb-2"><input class="form-control" id="pub-{{ mp.id }}" readonly value="{{ pub }}"><button class="btn btn-outline-primary" type="button" data-copy="#pub-{{ mp.id }}" title="Link kopieren"><i class="fa-regular fa-copy"></i></button>{{ m.qr_button(pub, mp.name) }}</div>
+    <div class="input-group input-group-sm mb-2"><input class="form-control" id="pub-{{ mp.id }}" readonly value="{{ pub }}"><button class="btn btn-outline-primary" type="button" data-copy="#pub-{{ mp.id }}" title="Link kopieren"><i class="fa-regular fa-copy"></i></button>{{ m.qr_button(pub, mp.title) }}</div>
     <button class="btn btn-sm btn-outline-secondary mb-2" type="button" data-copy-text='<iframe src="{{ request.base_url }}karte-embed/m/{{ mp.public_token }}" title="{{ mp.title }}" style="width:100%;height:600px;border:0" allow="geolocation; fullscreen" loading="lazy"></iframe>'><i class="fa-solid fa-code me-1"></i>Einbettungscode kopieren</button>
     {% endif %}
     <div class="mt-auto d-flex flex-wrap gap-2">
@@ -26,9 +31,10 @@
       <form method="post" action="/maps/{{ mp.id }}/public"><input type="hidden" name="csrf" value="{{ csrf }}">
         {% if mp.public_token %}<button class="btn btn-sm btn-outline-secondary" name="action" value="disable"><i class="fa-solid fa-ban me-1"></i>Link aus</button>
         {% else %}<button class="btn btn-sm btn-outline-secondary" name="action" value="enable"><i class="fa-solid fa-globe me-1"></i>Öffentlicher Link</button>{% endif %}</form>
-      <form method="post" action="/maps/{{ mp.id }}/delete" class="ms-auto"><input type="hidden" name="csrf" value="{{ csrf }}">
-        <button class="btn btn-sm btn-outline-danger" data-confirm="Karte „{{ mp.title }}“ löschen? Ein öffentlicher Link funktioniert dann nicht mehr." data-confirm-button="Löschen" title="Löschen"><i class="fa-regular fa-trash-can"></i></button></form>
+      <details class="ms-auto"><summary class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-ellipsis me-1"></i>Mehr</summary><form method="post" action="/maps/{{ mp.id }}/delete" class="mt-2"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn btn-sm btn-outline-danger" data-confirm="Karte „{{ mp.title }}“ in den Papierkorb verschieben? Sie ist 30 Tage wiederherstellbar. Öffentliche Links und {{ sharing(mp).users | length }} Benutzer- sowie {{ sharing(mp).groups | length }} Gruppenfreigaben werden abgeschaltet. Eigene Kopien bleiben erhalten." data-confirm-button="In Papierkorb" title="In Papierkorb"><i class="fa-regular fa-trash-can me-1"></i>Papierkorb</button></form></details>
     </div>
+    {% set previous = suggestions(mp) %}{% if previous.users or previous.groups %}<div class="alert alert-info small mt-3 mb-0"><p>Privat wiederhergestellt. Frühere Freigaben: {{ previous.users | length }} aktive Benutzer, {{ previous.groups | length }} Gruppen.</p><ul class="mb-2">{% for u in users if u.id in previous.users %}<li><i class="fa-solid fa-user me-1"></i>{{ u.name }}</li>{% endfor %}{% for g in groups if g.id in previous.groups %}<li><i class="fa-solid fa-user-group me-1"></i>{{ g.name }}</li>{% endfor %}</ul><form method="post" action="/maps/{{ mp.id }}/restore-shares"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-primary" data-confirm="Frühere Freigaben für „{{ mp.title }}“ ausdrücklich wieder aktivieren? Die Benutzer und Gruppen erhalten wieder Lesezugriff." data-confirm-button="Freigaben aktivieren"><i class="fa-solid fa-user-group me-1"></i>Frühere Freigaben aktivieren</button></form><p class="mt-2 mb-0">Alternativ unten einzelne Freigaben neu auswählen. Öffentliche Links werden separat neu erzeugt.</p></div>{% endif %}
     <details class="mt-3"><summary class="small">Intern für Benutzer / Gruppen freigeben</summary>
       {% set shared = sharing(mp) %}
       <form method="post" action="/maps/{{ mp.id }}/share" class="mt-2"><input type="hidden" name="csrf" value="{{ csrf }}">
@@ -44,5 +50,6 @@
 {% else %}
 <div class="text-center text-secondary py-5"><i class="fa-solid fa-map-location-dot fa-3x mb-3"></i><p>Noch keine gespeicherten Karten. Öffnen Sie den Kartenbrowser, stellen Sie Ebenen zusammen und klicken Sie auf <i class="fa-solid fa-floppy-disk"></i>.</p>
   <a class="btn btn-primary" href="/karte">Kartenbrowser öffnen</a></div>
+{% endif %}
 {% endif %}
 {% endblock %}
