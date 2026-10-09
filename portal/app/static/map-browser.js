@@ -25,10 +25,14 @@
   map.addControl(new maplibregl.FullscreenControl({ container: document.getElementById('map-shell') }), 'top-right');
   map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
 
+  var infoPanel=document.getElementById('map-info'),parcelInfo=document.getElementById('map-info-parcel'),otherInfo=document.getElementById('map-info-other'),infoRevision=0;
+  function showInfo(){infoPanel.hidden=false;shell.classList.remove('panel-hidden');setTimeout(function(){map.resize();infoPanel.scrollIntoView({block:'nearest',behavior:'smooth'});},50);}
   /* --- Seitenleiste ------------------------------------------------------------------ */
   var shell = document.getElementById('map-shell');
   document.getElementById('panel-close').addEventListener('click', function () { shell.classList.add('panel-hidden'); setTimeout(function () { map.resize(); }, 50); });
   document.getElementById('panel-open').addEventListener('click', function () { shell.classList.remove('panel-hidden'); setTimeout(function () { map.resize(); }, 50); });
+  document.getElementById('panel-expand').addEventListener('click',function(){if(shell.classList.contains('panel-expanded')){shell.classList.remove('panel-expanded','panel-half');}else if(shell.classList.contains('panel-half')){shell.classList.remove('panel-half');shell.classList.add('panel-expanded');}else{shell.classList.add('panel-half');}this.setAttribute('aria-label',shell.classList.contains('panel-expanded')?'Seitenleiste verkleinern':'Seitenleiste vergrößern');map.resize();});
+  document.getElementById('map-info-close').addEventListener('click',function(){infoRevision++;infoPanel.hidden=true;parcelKit.cancelInspect();});
   if (window.innerWidth < 768) { shell.classList.add('panel-hidden'); }
 
   function renderBases() {
@@ -171,7 +175,10 @@
     return [lon * 180 / Math.PI, lat * 180 / Math.PI];
   }
 
-  var parcelKit=MapParcels.create(map,document.getElementById('parcel-browser'),{initial:bundle.state.parcels||[],isDrawing:function(){return draw&&draw.mode();},show:function(){shell.classList.remove('panel-hidden');}});
+  var parcelKit=MapParcels.create(map,document.getElementById('parcel-browser'),{browserMode:true,infoHost:parcelInfo,initial:bundle.state.parcels||[],isDrawing:function(){return draw&&draw.mode();},show:showInfo,onActive:function(f){if(f)showInfo();},onMode:function(enabled){if(!enabled)parcelInfo.replaceChildren();},onStyle:function(style){kit.setParcelStyle(style);},onPreset:function(){
+    if(!meta.canEdit){toast('Eigene Ebenen können angemeldete Portalnutzer ergänzen.',true);return;}
+    document.getElementById('map-catalog').value='parcels';bootstrap.Modal.getOrCreateInstance(document.getElementById('add-layer')).show();document.getElementById('map-catalog-load').click();
+  }});
   var advanced=document.getElementById('map-advanced');
   try{advanced.checked=localStorage.getItem('map-advanced')==='1';}catch(e){}
   function advancedMode(){shell.classList.toggle('is-advanced',advanced.checked);try{localStorage.setItem('map-advanced',advanced.checked?'1':'0');}catch(e){}}
@@ -183,31 +190,21 @@
     if (draw.mode()) { return; }
     var mine = draw.layerIds().filter(function (id) { return map.getLayer(id); });
     if (mine.length && map.queryRenderedFeatures(ev.point, { layers: mine }).length) { return; }   // Klick wählt eine Zeichnung
-    var html = '';
+    var revision=++infoRevision;otherInfo.replaceChildren();parcelKit.clearActive();showInfo();
     var feats = map.queryRenderedFeatures(ev.point, { layers: kit.vectorLayerIds() });
-    if (feats.length) {
-      var props = feats[0].properties || {};
-      html += '<div class="fw-semibold mb-1">Objekt</div><table class="table table-sm mb-2">' + Object.keys(props).slice(0, 30).map(function (k) {
-        return '<tr><th>' + esc(k) + '</th><td>' + esc(props[k]) + '</td></tr>';
-      }).join('') + '</table>';
-    }
-    var popup = new maplibregl.Popup({ maxWidth: '380px' }).setLngLat(ev.lngLat)
-      .setHTML(html + '<div class="small text-secondary">' + MapKit.fmtLatLon(ev.lngLat) + '</div><div data-info></div>').addTo(map);
-    kit.featureInfo(ev.point).then(function (rows) {
-      var target = popup.getElement() && popup.getElement().querySelector('[data-info]');
-      if (!target) { return; }
-      rows.forEach(function (r) {
-        var head = document.createElement('div');
-        head.className = 'fw-semibold mt-2';
-        head.textContent = r.layer.name;
-        var frame = document.createElement('iframe');
-        frame.setAttribute('sandbox', '');   // fremdes HTML ohne Skripte und ohne Zugriff aufs Portal
-        frame.setAttribute('title', 'Sachinformation ' + r.layer.name);
-        frame.srcdoc = '<base target="_blank"><style>body{font:12px sans-serif;margin:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:2px 4px}</style>' + r.html;
-        target.appendChild(head);
-        target.appendChild(frame);
-      });
+    var seen={};
+    feats.forEach(function(f){var signature=(f.source||'')+':'+JSON.stringify(f.properties||{});if(seen[signature])return;seen[signature]=true;
+      var section=document.createElement('details'),head=document.createElement('summary');var layer=kit.overlays.find(function(l){return 'src-'+l.id===f.source;});head.textContent=layer?layer.name:'Kartenobjekt';section.append(head);
+      var table=document.createElement('table');table.className='table table-sm small';Object.keys(f.properties||{}).slice(0,30).forEach(function(k){var row=table.insertRow(),key=document.createElement('th'),value=document.createElement('td');key.textContent=k;value.textContent=f.properties[k];row.append(key,value);});section.append(table);otherInfo.append(section);
     });
+    var loading=document.createElement('p');loading.className='small text-secondary mt-2';loading.textContent='Weitere Karteninformationen werden geladen …';otherInfo.append(loading);
+    kit.featureInfo(ev.point).then(function(rows){if(revision!==infoRevision)return;loading.remove();
+      rows.forEach(function(r){var section=document.createElement('details'),head=document.createElement('summary');head.textContent=r.layer.name+(r.error?' · nicht verfügbar':'');section.append(head);
+        var frame=document.createElement('iframe');frame.setAttribute('sandbox','');frame.title='Sachinformation '+r.layer.name;frame.srcdoc='<base target="_blank"><style>body{font:14px system-ui;margin:6px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px}img{max-width:100%}</style>'+r.html;section.append(frame);otherInfo.append(section);
+      });
+      if(!rows.length&&!feats.length){var empty=document.createElement('p');empty.className='small text-secondary mt-2';empty.textContent=parcelKit.activeMode()?'Keine weiteren Ebeneninformationen an dieser Stelle.':'Keine Objektinformationen an dieser Stelle. Flurstücksauskunft unter Kartenwerkzeuge öffnen.';otherInfo.append(empty);}
+    });
+
   });
 
   /* --- Zeichnen und Messen ------------------------------------------------------------- */

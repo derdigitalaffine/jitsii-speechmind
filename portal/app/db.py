@@ -2785,6 +2785,8 @@ DEFAULT_SETTINGS = {
     "map_center_lat": "49.4930",      # Startausschnitt: Verbandsgemeinde Otterbach-Otterberg
     "map_center_lon": "7.7680",
     "map_zoom": "11",
+    "map_parcel_vg_code": "33510",     # Amtliche VG-Nummer Otterbach-Otterberg
+    "map_parcel_vg_label": "VG Otterbach-Otterberg",
     "map_cache_mb": "500",           # Größe des Kachel-Zwischenspeichers
     "maps_embed": "1",
     "maps_embed_origins": "",

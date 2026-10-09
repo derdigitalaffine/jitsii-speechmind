@@ -48,6 +48,21 @@
   function fmtLen(m) { return m >= 1000 ? (m / 1000).toFixed(2).replace('.', ',') + ' km' : Math.round(m) + ' m'; }
   function fmtArea(m2) { return m2 >= 1e6 ? (m2 / 1e6).toFixed(3).replace('.', ',') + ' km²' : m2 >= 1e4 ? (m2 / 1e4).toFixed(2).replace('.', ',') + ' ha' : Math.round(m2) + ' m²'; }
 
+  /* DOM labels work without third-party glyph services or extra CSP origins. */
+  function parcelLabels(map){
+    var items=[],enabled=true,markers=[];
+    function refresh(){markers.forEach(function(m){m.remove();});markers=[];if(!enabled||map.getZoom()<16)return;
+      var occupied={},bounds=map.getBounds();items.slice(0,1000).forEach(function(f){if(markers.length>=120||!f.geometry)return;
+        var p=f.properties||{},label=String(p.flstnrzae||'')+(p.flstnrnen&&String(p.flstnrnen)!=='0'?'/'+p.flstnrnen:'');if(!label)return;label=label.slice(0,30);
+        var ring=f.geometry.type==='Polygon'?f.geometry.coordinates[0]:f.geometry.type==='MultiPolygon'?f.geometry.coordinates[0][0]:null;if(!ring||!ring.length)return;
+        var area=0,cx=0,cy=0;ring.forEach(function(a,i){var b=ring[(i+1)%ring.length],cross=a[0]*b[1]-b[0]*a[1];area+=cross;cx+=(a[0]+b[0])*cross;cy+=(a[1]+b[1])*cross;});
+        var point=area?[cx/(3*area),cy/(3*area)]:ring[0];if(!bounds.contains(point))return;
+        var screen=map.project(point),slot=Math.round(screen.x/65)+':'+Math.round(screen.y/24);if(occupied[slot])return;occupied[slot]=true;
+        var el=document.createElement('span');el.className='map-parcel-number';el.textContent=label;el.setAttribute('aria-hidden','true');markers.push(new maplibregl.Marker({element:el,anchor:'center'}).setLngLat(point).addTo(map));
+      });
+    }
+    map.on('moveend',refresh);map.on('load',refresh);return {update:function(features,on){items=features||[];if(on!=null)enabled=on;refresh();},clear:function(){items=[];refresh();},destroy:function(){items=[];refresh();map.off('moveend',refresh);map.off('load',refresh);}};
+  }
   /* --- Karte ------------------------------------------------------------------------- */
   function create(container, bundle, opts) {
     opts = opts || {};
@@ -70,6 +85,8 @@
     }
     var baseId = (state.base && bases.some(function (b) { return b.id === state.base; })) ? state.base
       : opts.base || ((bases.find(function (b) { return b.visible; }) || bases[0] || {}).id);
+    var parcelStyle={boundaries:true,numbers:true};
+    function isParcel(l){return /flurst|ave:flurstueck/i.test((l.layers||'')+' '+(l.name||''));}
     var listeners = [];
     var emit = function () { listeners.forEach(function (fn) { fn(); }); };
 
@@ -116,11 +133,12 @@
       }
       var vis = l.visible ? 'visible' : 'none', c = l.color || '#e4572e';
       map.addLayer({ id: 'lyr-' + l.id + '-fill', type: 'fill', source: sid, filter: ['==', ['geometry-type'], 'Polygon'],
-        layout: { visibility: vis }, paint: { 'fill-color': c, 'fill-opacity': 0.25 * l.opacity } });
+        layout: { visibility: vis }, paint: { 'fill-color': c, 'fill-opacity': (isParcel(l)?0.025:0.25) * l.opacity } });
       map.addLayer({ id: 'lyr-' + l.id + '-line', type: 'line', source: sid, filter: ['in', ['geometry-type'], ['literal', ['LineString', 'Polygon']]],
-        layout: { visibility: vis }, paint: { 'line-color': c, 'line-width': 2, 'line-opacity': l.opacity } });
+        layout: { visibility: vis }, paint: { 'line-color': c, 'line-width': isParcel(l)?1:2, 'line-opacity': l.opacity } });
       map.addLayer({ id: 'lyr-' + l.id + '-point', type: 'circle', source: sid, filter: ['==', ['geometry-type'], 'Point'],
         layout: { visibility: vis }, paint: { 'circle-color': c, 'circle-radius': 5, 'circle-stroke-color': '#fff', 'circle-stroke-width': 1.5, 'circle-opacity': l.opacity } });
+      if(isParcel(l)){if(l._labels)l._labels.destroy();l._labels=parcelLabels(map);map.setLayoutProperty('lyr-'+l.id+'-line','visibility',l.visible&&parcelStyle.boundaries?'visible':'none');}
       l._loaded = '';
       if (l.visible) { loadVector(l); }
     }
@@ -145,7 +163,7 @@
       if (l._abort) { l._abort.abort(); }
       l._abort = window.AbortController ? new AbortController() : null;
       fetch(url, { credentials: 'same-origin', signal: l._abort ? l._abort.signal : undefined }).then(function (r) { if(!r.ok)throw new Error('Dienst nicht erreichbar');return r.json(); }).then(function (data) {
-        if (data && map.getSource('src-' + l.id)) { map.getSource('src-' + l.id).setData(data); l._loaded = l._loaded || 'x'; }
+        if (data && map.getSource('src-' + l.id)) { map.getSource('src-' + l.id).setData(data);l._features=data.features||[];if(l._labels)l._labels.update(l._features,l.visible&&parcelStyle.numbers&&l.opacity>0);if(data.tooLarge)map.fire('map-service-error',{message:'Für '+l.name+' bitte näher heranzoomen.'});l._loaded = l._loaded || 'x'; }
       }).catch(function(e){if(e.name!=='AbortError'){l._loaded='';map.fire('map-service-error',{message:'Geodaten konnten nicht geladen werden: '+l.name});}});
     }
     var vectorTimer = null;
@@ -190,7 +208,7 @@
         var l = overlays.find(function (x) { return x.id === id; });
         if (!l) { return; }
         l.visible = on;
-        setVis(l, on);
+        setVis(l, on);if(l._labels){map.setLayoutProperty('lyr-'+l.id+'-line','visibility',on&&parcelStyle.boundaries?'visible':'none');l._labels.update(l._features,on&&parcelStyle.numbers&&l.opacity>0);}
         if (on && (l.kind === 'wfs' || l.kind === 'geojson')) { loadVector(l); }
         emit();
       },
@@ -200,12 +218,14 @@
         l.opacity = value;
         if (map.getLayer('lyr-' + id)) { map.setPaintProperty('lyr-' + id, 'raster-opacity', value); }
         if (map.getLayer('lyr-' + id + '-fill')) {
-          map.setPaintProperty('lyr-' + id + '-fill', 'fill-opacity', 0.25 * value);
+          map.setPaintProperty('lyr-' + id + '-fill', 'fill-opacity', (isParcel(l)?0.025:0.25) * value);
           map.setPaintProperty('lyr-' + id + '-line', 'line-opacity', value);
           map.setPaintProperty('lyr-' + id + '-point', 'circle-opacity', value);
         }
+        if(l._labels)l._labels.update(l._features,l.visible&&parcelStyle.numbers&&value>0);
         emit();
       },
+      setParcelStyle:function(style){parcelStyle=Object.assign(parcelStyle,style);overlays.forEach(function(l){if(!isParcel(l))return;if(map.getLayer('lyr-'+l.id+'-line'))map.setLayoutProperty('lyr-'+l.id+'-line','visibility',l.visible&&parcelStyle.boundaries?'visible':'none');if(l._labels)l._labels.update(l._features,l.visible&&parcelStyle.numbers&&l.opacity>0);});},
       setTime: function (id, t) {
         var l = overlays.find(function (x) { return x.id === id; });
         if (!l) { return; }
@@ -233,7 +253,7 @@
       removeOverlay: function (id) {
         var i = overlays.findIndex(function (x) { return x.id === id; });
         if (i < 0) { return; }
-        var l = overlays[i];
+        var l = overlays[i];if(l._labels)l._labels.destroy();
         layerIds(l).forEach(function (lid) { if (map.getLayer(lid)) { map.removeLayer(lid); } });
         if (map.getSource('src-' + id)) { map.removeSource('src-' + id); }
         overlays.splice(i, 1);
@@ -269,6 +289,6 @@
     return api;
   }
 
-  window.MapKit = { create: create, esc: esc, toUtm32: toUtm32, toMerc: toMerc, fmtLatLon: fmtLatLon, haversine: haversine,
+  window.MapKit = { create: create, parcelLabels:parcelLabels, esc: esc, toUtm32: toUtm32, toMerc: toMerc, fmtLatLon: fmtLatLon, haversine: haversine,
     ringArea: ringArea, fmtLen: fmtLen, fmtArea: fmtArea };
 })();
