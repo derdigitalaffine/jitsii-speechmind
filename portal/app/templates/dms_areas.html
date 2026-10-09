@@ -55,6 +55,7 @@
             </select>
             <div class="d-flex gap-2"><select class="form-select form-select-sm w-auto" name="level"><option value="1">lesen</option><option value="2">lesen und ablegen</option></select><button class="btn btn-sm btn-outline-primary" type="submit">Hinzufügen</button></div>
           </form>
+          {% if user.is_admin and not a.system_key %}<a class="btn btn-sm btn-outline-danger mt-3" href="/dms/areas/{{ a.id }}/delete-preview">Ordner mit Inhalt prüfen</a>{% endif %}
           {% if not a.system_key %}<form method="post" action="/dms/areas/{{ a.id }}/delete" class="mt-3"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" type="submit" {% if counts.get(a.id, 0) %}disabled title="Enthält Einträge"{% endif %} data-confirm-title="Bereich löschen?" data-confirm="Nur leere Bereiche ohne Unterbereiche lassen sich löschen." data-confirm-button="Löschen">Bereich löschen</button></form>{% endif %}
         </div>
       </div>

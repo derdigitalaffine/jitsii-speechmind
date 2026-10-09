@@ -898,6 +898,7 @@ class FormResponse(Base):
     __tablename__ = "form_responses"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    dms_removed: Mapped[bool] = mapped_column(Boolean, default=False)
     form_id: Mapped[int] = mapped_column(ForeignKey("forms.id", ondelete="CASCADE"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
@@ -1290,6 +1291,8 @@ class DmsRecord(Base):
     __tablename__ = "dms_records"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     area_id: Mapped[int] = mapped_column(ForeignKey("dms_areas.id", ondelete="RESTRICT"), index=True)
     response_id: Mapped[int | None] = mapped_column(ForeignKey("form_responses.id", ondelete="SET NULL"), nullable=True,
                                                     unique=True)
@@ -1331,6 +1334,7 @@ class DmsFile(Base):
     __tablename__ = "dms_files"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    uploaded_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     record_id: Mapped[int] = mapped_column(ForeignKey("dms_records.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(255))
     file: Mapped[str] = mapped_column(String(80))
@@ -2935,7 +2939,7 @@ _NEW_COLUMNS = {
               "dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL",
               "fee_json": "TEXT NOT NULL DEFAULT '{}'", "legal_json": "TEXT NOT NULL DEFAULT '[]'",
               "org_id": "INTEGER REFERENCES organizations(id) ON DELETE SET NULL"},
-    "form_responses": {"ref_no": "VARCHAR(40)", "status": "VARCHAR(16) NOT NULL DEFAULT ''", "status_at": "DATETIME",
+    "form_responses": {"dms_removed": "BOOLEAN NOT NULL DEFAULT 0","ref_no": "VARCHAR(40)", "status": "VARCHAR(16) NOT NULL DEFAULT ''", "status_at": "DATETIME",
                        "assignee_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
                        "group_id": "INTEGER REFERENCES groups(id) ON DELETE SET NULL",
                        "route_email": "VARCHAR(255) NOT NULL DEFAULT ''", "due_at": "DATETIME",
@@ -2944,7 +2948,8 @@ _NEW_COLUMNS = {
                        "process_version_id": "INTEGER REFERENCES process_versions(id) ON DELETE SET NULL",
                        "fields_json": "TEXT NOT NULL DEFAULT '{}'"},
     "dms_areas": {"system_key": "VARCHAR(20) NOT NULL DEFAULT ''"},
-    "dms_records": {"person_id": "INTEGER REFERENCES persons(id) ON DELETE SET NULL",
+    "dms_files": {"uploaded_by_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL"},
+    "dms_records": {"owner_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL", "archived_at": "DATETIME", "person_id": "INTEGER REFERENCES persons(id) ON DELETE SET NULL",
                     "area_manual": "BOOLEAN NOT NULL DEFAULT 0",
                     "booking_id": "INTEGER REFERENCES resource_bookings(id) ON DELETE SET NULL"},
     "processes": {"dms_area_id": "INTEGER REFERENCES dms_areas(id) ON DELETE SET NULL"},

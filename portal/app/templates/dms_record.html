@@ -9,7 +9,12 @@
 {% if record.booking_id %}<a class="btn btn-outline-primary" href="/resources/bookings/{{ record.booking_id }}"><i class="fa-solid fa-building me-1"></i>Zur Buchung</a>{% endif %}
 {% if resp %}<button class="btn btn-outline-primary" type="button" data-dms-preview="{{ base }}/pdf?preview=1" data-title="Antrags-PDF">PDF-Vorschau</button><a class="btn btn-outline-secondary" href="{{ base }}/pdf"><i class="fa-regular fa-file-pdf me-1"></i>Antrags-PDF mit Anlagen</a>
 {% if case_access %}<a class="btn btn-outline-primary" href="/forms/{{ resp.form_id }}/applications/{{ resp.id }}"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Zum Vorgang</a>{% endif %}{% endif %}
+{% if may_remove %}<div class="d-flex flex-wrap gap-2">
+<form method="post" action="{{ base }}/{{ 'activate' if record.archived_at else 'archive' }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-secondary"><i class="fa-solid fa-box-archive me-1"></i>{{ 'Wieder anzeigen' if record.archived_at else 'Archivieren' }}</button></form>
+{% if not protection %}<form method="post" action="{{ base }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-danger" data-confirm="30 Tage wiederherstellbar im Papierkorb."><i class="fa-solid fa-trash-can me-1"></i>In Papierkorb</button></form>{% endif %}</div>{% endif %}
 {% endcall %}
+{% if record.archived_at %}<div class="alert alert-secondary">Archiviert – vorhandene Verknüpfungen bleiben lesbar.</div>{% endif %}
+{% if may_remove and protection %}<details class="mb-3"><summary>Warum ist nur Archivieren möglich?</summary><ul>{% for reason in protection %}<li>{{ reason }}</li>{% endfor %}</ul></details>{% endif %}
 
 <div class="d-flex flex-wrap gap-2 align-items-center mb-4 small">
   {% if record.kind == 'manuell' %}<span class="badge text-bg-light border"><i class="fa-solid fa-box-archive me-1"></i>manuell abgelegt von {{ record.created_by }}</span>
@@ -98,7 +103,7 @@
             <a class="flex-grow-1 text-break" href="{{ base }}/files/{{ f.id }}">{{ f.name }}</a>
             <span class="text-secondary text-nowrap">{{ f.size | filesize }}</span>
             {% if f.mime in ['application/pdf','image/png','image/jpeg','image/webp','image/gif'] %}<button class="btn btn-sm btn-outline-primary" type="button" data-dms-preview="{{ base }}/files/{{ f.id }}?preview=1" data-mime="{{ f.mime }}" data-title="{{ f.name }}">Vorschau</button>{% endif %}
-            {% if level >= 2 and f.kind == 'upload' %}<form method="post" action="{{ base }}/files/{{ f.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger p-0" type="submit" title="Löschen" aria-label="Datei löschen" data-confirm-title="Datei löschen?" data-confirm="Die Löschung wird protokolliert." data-confirm-button="Löschen"><i class="fa-regular fa-trash-can"></i></button></form>{% endif %}</div>
+            {% if level >= 2 and f.kind == 'upload' and (user.is_admin or f.uploaded_by_id == user.id) %}<form method="post" action="{{ base }}/files/{{ f.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-link text-danger p-0" type="submit" title="Löschen" aria-label="Datei löschen" data-confirm-title="Datei löschen?" data-confirm="30 Tage im Papierkorb wiederherstellbar. Verwendete Dateien bleiben geschützt." data-confirm-button="Löschen"><i class="fa-regular fa-trash-can"></i></button></form>{% endif %}</div>
           <div class="text-secondary">{{ {'abschluss': 'Abschlussstand', 'dokument': 'Dokument aus dem Vorgang', 'nachreichung': 'Nachreichung', 'upload': 'abgelegt'}.get(f.kind, f.kind) }} · {{ f.created_at | local }} · {{ f.uploaded_by }}{% if f.note %} · {{ f.note }}{% endif %}</div>
           <div class="text-secondary font-monospace text-truncate" title="SHA-256">SHA-256 {{ f.sha256 }}</div>
         </li>

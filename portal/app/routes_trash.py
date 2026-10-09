@@ -41,7 +41,11 @@ def deletion_one(request: Request, kind: str = Form(...), obj_id: int = Form(...
                  user: User = Depends(admin_user), db: Session = Depends(get_db)):
     if kind not in trash.KINDS:
         raise HTTPException(400)
-    item = trash.delete_one(db, kind, obj_id, user.name)
+    try:
+        item = trash.delete_one(db, kind, obj_id, user.name)
+    except ValueError as exc:
+        flash(request, str(exc), "error")
+        return redirect(f"/admin/loeschen?kind={kind}")
     db.commit()
     flash(request, f"„{item.label}“ liegt jetzt im Papierkorb ({trash.KEEP_DAYS} Tage wiederherstellbar)." if item
           else "Eintrag nicht gefunden.", "ok" if item else "error")

@@ -125,7 +125,7 @@ def material_response(db,row,m,user,back):
     item=json.loads(m.item_json)
     if not cl.item_access(db,user,item):raise HTTPException(403,'Bestehende Leserechte für dieses Portalobjekt fehlen.')
     if item['kind'] in {'law','form','dms'}:
-        title,url=cl.source(db,user,item)
+        title,url=cl.source(db,user,item,allow_archived=True)
         return protect(render(back['request'],'seminar_material_view.html',user,row=row,title=title,url=url,kind=item['kind'],body='',back=back['url']))
     if item['kind']=='markdown':
         return protect(render(back['request'],'seminar_material_view.html',user,row=row,title=m.title,url='',kind='markdown',body=cl.markdown(item.get('body','')),back=back['url']))

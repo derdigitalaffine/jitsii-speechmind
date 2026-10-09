@@ -120,7 +120,7 @@ def editor_context(db, user, row):
     groups = db.scalars(select(Group).order_by(Group.name)).all()
     laws = db.scalars(select(LawText).where(LawText.published.is_(True)).order_by(LawText.title)).all() if 'laws' in enabled_modules() else []
     forms = db.scalars(select(Form).where(Form.active.is_(True), Form.public_token.is_not(None), True if user.can('internal_forms') else Form.internal.is_(False)).order_by(Form.title)).all() if 'forms' in enabled_modules() else []
-    files = list(db.scalars(select(DmsFile).where(DmsFile.record_id.in_(select(cl.DmsRecord.id).where(cl.DmsRecord.area_id.in_(list(dms.levels(db,user)))))).order_by(DmsFile.name))) if 'dms' in enabled_modules() else []
+    files = list(db.scalars(select(DmsFile).where(DmsFile.record_id.in_(select(cl.DmsRecord.id).where(cl.DmsRecord.area_id.in_(list(dms.levels(db,user))),cl.DmsRecord.archived_at.is_(None)))).order_by(DmsFile.name))) if 'dms' in enabled_modules() else []
     objects = []
     for law in laws:
         objects.append(dict(ref=f'law:{law.id}', kind='law', id=law.id, title=law.title,
