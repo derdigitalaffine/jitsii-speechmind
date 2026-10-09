@@ -77,3 +77,14 @@ def test_plan_management_is_nested_and_existing_access_forms_remain(db,folders):
     assert f'/dms/areas/{child.id}/access' in page.text
     assert f'id="bereich-{root.id}"' in page.text
     assert login(reader.email,'dms-browser-test').get('/dms/areas').status_code==403
+
+
+def test_design_system_filter_reset_preserves_folder_archive(db,folders):
+    reader,root,child,hidden,records,pdf,unsafe=folders
+    c=login(reader.email,'dms-browser-test')
+    page=c.get('/dms',params={'area':child.id,'state':'archive','q':'nothing'})
+    assert page.status_code==200
+    assert f'href="/dms?area={child.id}&amp;state=archive"' in page.text
+    assert 'name="state" value="archive"' in page.text
+    assert 'ds-filter-chip' in page.text and 'ds-empty' in page.text
+    assert 'ds-page-header' in page.text

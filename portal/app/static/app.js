@@ -58,7 +58,7 @@
     try { order = JSON.parse(table.dataset.order || '[]'); } catch (e) { order = []; }
     table.dtApi = new DataTable(table, {
       language: DE,
-      responsive: true,
+      responsive: !table.classList.contains('ds-mobile-table'),
       stateSave: true,
       order: order,
       pageLength: parseInt(table.dataset.pageLength || '10', 10),

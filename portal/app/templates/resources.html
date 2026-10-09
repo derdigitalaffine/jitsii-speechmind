@@ -4,9 +4,9 @@
 {% block title %}Ressourcen{% endblock %}
 {% block content %}
 {% call rm.head('home', [], 'Ressourcen & Belegung', 'Buchungen, Anfragen und Belegung aller Räume, Plätze und Geräte.') %}
-  <a class="btn btn-outline-secondary" href="/r" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Öffentlicher Katalog</a>{{ m.qr_button(public_url('resources', '/r'), 'Räume & Plätze buchen') }}
-  {% if user.can('resources') %}<button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#res-import"><i class="fa-solid fa-file-import me-1"></i>Importieren</button>
-  <a class="btn btn-primary" href="/resources/new"><i class="fa-solid fa-plus me-1"></i>Neue Ressource</a>{% endif %}
+  {% call m.action_menu() %}<a class="btn btn-outline-secondary" href="/r" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square me-1" aria-hidden="true"></i>Öffentlicher Katalog</a>{{ m.qr_button(public_url('resources', '/r'), 'Räume & Plätze buchen') }}
+  {% if user.can('resources') %}<button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#res-import">Importieren</button>{% endif %}{% endcall %}
+  {% if user.can('resources') %}<a class="btn btn-primary ds-primary" href="/resources/new"><i class="fa-solid fa-plus me-1" aria-hidden="true"></i>Neue Ressource</a>{% endif %}
 {% endcall %}
 {% if user.can('resources') %}
 <div class="modal fade" id="res-import" tabindex="-1" aria-labelledby="ri-title" aria-hidden="true"><div class="modal-dialog"><form class="modal-content" method="post" action="/resources/import" enctype="multipart/form-data">
@@ -36,34 +36,37 @@
     <ul class="dropdown-menu dropdown-menu-end"><li><form method="post" action="/resources/{{ r.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item" type="submit"><i class="fa-regular fa-copy fa-fw me-2"></i>Kopie anlegen</button></form></li>
       <li><a class="dropdown-item" href="/resources/{{ r.id }}/export.json"><i class="fa-solid fa-file-export fa-fw me-2"></i>Als Datei exportieren</a></li></ul></div>{% endif %}
 {% endmacro %}
-{% macro state(r) %}{% if not r.active %}<span class="badge text-bg-secondary">inaktiv</span>{% elif not r.public %}<span class="badge text-bg-light border">nur intern</span>{% else %}<span class="badge text-bg-success">buchbar</span>{% endif %}{% endmacro %}
+{% macro state(r) %}{{ m.status_chip('Inaktiv','neutral') if not r.active else m.status_chip('Nur intern','info') if not r.public else m.status_chip('Buchbar','success') }}{% endmacro %}
 {% macro units_text(r) %}{% for mm in r.units.split(',') if mm in modes %}{{ modes[mm][0] }}{{ ', ' if not loop.last }}{% endfor %} · {{ 'Sofortbuchung' if r.mode == 'instant' else 'mit Freigabe' }}{% endmacro %}
 
+{% call m.filter_bar(expanded=not q) %}<form method="get" class="row g-2"><input type="hidden" name="ansicht" value="{{ view }}"><div class="col-12 col-md-9"><label class="form-label" for="res-search">Name, Art oder Ort</label><input type="search" class="form-control" id="res-search" name="q" value="{{ q }}" placeholder="Ressourcen suchen …"></div><div class="col-12 col-md-3 d-flex align-items-end"><button class="btn btn-outline-primary w-100">Suchen</button></div></form>{% endcall %}
+{% if q %}<div class="d-flex flex-wrap gap-2 align-items-center">{{ m.active_filter('Suche',q) }}<a href="/resources?ansicht={{ view }}">Suche zurücksetzen</a></div>{% endif %}
+{{ m.result_summary(items|length,'Ressourcen') }}
 <div class="res-list-bar">
   <h2 class="h6 mb-0 flex-grow-1">Alle Ressourcen <span class="badge rounded-pill text-bg-light border ms-1">{{ items | length }}</span></h2>
   <div class="btn-group btn-group-sm" role="group" aria-label="Ansicht">
-    <a class="btn {{ 'btn-secondary' if view == 'karten' else 'btn-outline-secondary' }}" href="?ansicht=karten" {% if view == 'karten' %}aria-current="true"{% endif %}><i class="fa-solid fa-grip me-1"></i>Karten</a>
-    <a class="btn {{ 'btn-secondary' if view == 'tabelle' else 'btn-outline-secondary' }}" href="?ansicht=tabelle" {% if view == 'tabelle' %}aria-current="true"{% endif %}><i class="fa-solid fa-table-list me-1"></i>Tabelle</a>
+    <a class="btn {{ 'btn-secondary' if view == 'karten' else 'btn-outline-secondary' }}" href="?ansicht=karten&amp;q={{ q|urlencode }}" {% if view == 'karten' %}aria-current="true"{% endif %}><i class="fa-solid fa-grip me-1"></i>Karten</a>
+    <a class="btn {{ 'btn-secondary' if view == 'tabelle' else 'btn-outline-secondary' }}" href="?ansicht=tabelle&amp;q={{ q|urlencode }}" {% if view == 'tabelle' %}aria-current="true"{% endif %}><i class="fa-solid fa-table-list me-1"></i>Tabelle</a>
   </div>
 </div>
 
 {% if not items %}
-<div class="text-center text-secondary py-5"><i class="fa-solid fa-building fa-3x mb-3"></i><p>Noch keine Ressourcen.</p></div>
+{{ m.empty_state('Keine passenden Ressourcen' if q else 'Noch keine Ressourcen', 'Suche anpassen oder zurücksetzen.' if q else 'Legen Sie Räume, Plätze oder Geräte für Buchungen an.', '/resources?ansicht=' ~ view if q else '/resources/new' if user.can('resources') else '', 'Suche zurücksetzen' if q else 'Neue Ressource', 'fa-building') }}
 {% elif view == 'tabelle' %}
 <div class="card"><div class="card-body">
-<table class="table table-hover align-middle js-table w-100 res-table" data-order='[]' data-page-length="25">
-  <thead><tr><th class="all">Ressource</th><th data-priority="4">Art</th><th data-priority="3">Status</th><th class="text-end" data-priority="2">Anfragen</th><th class="res-left" data-priority="1">Nächste Buchung</th><th class="all no-sort text-end">Aktionen</th></tr></thead>
-  <tbody>
+<table role="table" class="table table-hover align-middle js-table w-100 res-table ds-mobile-table" data-order='[]' data-page-length="25">
+  <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader" class="all">Ressource</th><th scope="col" role="columnheader" data-priority="4">Art</th><th scope="col" role="columnheader" data-priority="3">Status</th><th scope="col" role="columnheader" class="text-end" data-priority="2">Anfragen</th><th scope="col" role="columnheader" class="res-left" data-priority="1">Nächste Buchung</th><th scope="col" role="columnheader" class="all no-sort text-end">Aktionen</th></tr></thead>
+  <tbody role="rowgroup">
   {% for r, lvl in items %}{% set nb = next_by.get(r.id) %}
-    <tr>
-      <td data-order="{{ r.name }}"><div class="d-flex align-items-center gap-2">
+    <tr role="row">
+      <td role="cell" data-label="Ressource" data-order="{{ r.name }}"><div class="d-flex align-items-center gap-2">
         {% if r.photos %}<img class="res-table-thumb" src="/r/{{ r.slug }}/photo/{{ r.photos[0].id }}?s=thumb" alt="">{% else %}<span class="res-table-thumb res-table-thumb-empty"><i class="fa-solid fa-building"></i></span>{% endif %}
         <div class="min-w-0"><a class="fw-semibold text-decoration-none" href="/resources/{{ r.id }}">{{ r.name }}</a>{% if r.location %}<div class="small text-secondary text-truncate">{{ r.location }}</div>{% endif %}</div></div></td>
-      <td>{{ r.category }}<div class="small text-secondary">{{ units_text(r) }}</div></td>
-      <td>{{ state(r) }}</td>
-      <td class="text-end" data-order="{{ requests_by.get(r.id, 0) }}">{% if requests_by.get(r.id) %}<a class="badge text-bg-warning text-decoration-none" href="/resources/bookings?resource={{ r.id }}&status=requested">{{ requests_by[r.id] }}</a>{% else %}<span class="text-secondary">–</span>{% endif %}</td>
-      <td class="small text-nowrap res-left" data-order="{{ nb.starts_at.isoformat() if nb else '9999' }}">{% if nb %}<a href="/resources/bookings/{{ nb.id }}">{{ when(nb) }}</a><div class="text-secondary text-truncate">{{ nb.title or nb.name }}</div>{% else %}<span class="text-secondary">keine</span>{% endif %}</td>
-      <td class="text-end"><div class="d-flex flex-nowrap gap-1 justify-content-end">{{ actions(r, lvl, true) }}</div></td>
+      <td role="cell" data-label="Art">{{ r.category }}<div class="small text-secondary">{{ units_text(r) }}</div></td>
+      <td role="cell" data-label="Status">{{ state(r) }}</td>
+      <td role="cell" data-label="Anfragen" class="text-end" data-order="{{ requests_by.get(r.id, 0) }}">{% if requests_by.get(r.id) %}<a class="badge text-bg-warning text-decoration-none" href="/resources/bookings?resource={{ r.id }}&status=requested">{{ requests_by[r.id] }}</a>{% else %}<span class="text-secondary">–</span>{% endif %}</td>
+      <td role="cell" data-label="Nächste Buchung" class="small text-nowrap res-left" data-order="{{ nb.starts_at.isoformat() if nb else '9999' }}">{% if nb %}<a href="/resources/bookings/{{ nb.id }}">{{ when(nb) }}</a><div class="text-secondary text-truncate">{{ nb.title or nb.name }}</div>{% else %}<span class="text-secondary">keine</span>{% endif %}</td>
+      <td role="cell" data-label="Aktionen" class="text-end"><div class="d-flex flex-nowrap gap-1 justify-content-end ds-row-actions">{{ actions(r, lvl, true) }}</div></td>
     </tr>
   {% endfor %}
   </tbody>
