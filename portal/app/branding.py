@@ -50,7 +50,7 @@ def _mix(a: str, b: str, t: float) -> str:
 def _luminance(h: str) -> float:
     def lin(v: int) -> float:
         v /= 255
-        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+        return v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
     r, g, b = (lin(v) for v in _rgb(h))
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
@@ -62,61 +62,102 @@ def shade(color: str, amount: float) -> str:
 
 def on_color(bg: str) -> str:
     """Schriftfarbe mit gutem Kontrast auf bg."""
-    return "#000000" if _luminance(bg) > 0.33 else "#ffffff"
+    return "#000000" if _luminance(bg) > 0.179 else "#ffffff"
+
+
+def contrast(a: str, b: str) -> float:
+    x, y = sorted((_luminance(a), _luminance(b)))
+    return (y + .05) / (x + .05)
+
+
+def palette(primary: str, navbar: str, theme: str) -> dict:
+    """The exact solid and composited colors used by CSS and editor checks."""
+    dark = theme == "dark"
+    body = "#212529" if dark else "#ffffff"
+    link = _mix(primary, "#ffffff", .35) if dark and _luminance(primary) < .25 else primary
+    nav = {"primary": primary, "dark": "#1b2430", "light": "#11161d" if dark else "#f8f9fa"}[navbar]
+    focus = on_color(body)
+    return dict(primary=primary, text=on_color(primary), hover=shade(primary, .12), active=shade(primary, .2),
+                body=body, link=link, link_hover=_mix(link, "#ffffff" if dark else "#000000", .2 if dark else .25),
+                selection=_mix(body, link, .14), nav=nav, nav_text=on_color(nav),
+                nav_product=_mix(nav, on_color(nav), .75), focus=focus,
+                nav_focus=focus if contrast(focus, nav) >= 3 else on_color(nav))
+
+
+def contrast_report(primary: str, navbar: str) -> dict:
+    rows = []
+    for theme in ("light", "dark"):
+        c = palette(primary, navbar, theme)
+        combinations = [("Primärbutton / Badge / Auswahl", c["text"], primary, 4.5),
+                        ("Button beim Darüberfahren", on_color(c["hover"]), c["hover"], 4.5),
+                        ("Gedrückter Button", on_color(c["active"]), c["active"], 4.5),
+                        ("Link", c["link"], c["body"], 4.5),
+                        ("Link beim Darüberfahren", c["link_hover"], c["body"], 4.5),
+                        ("Aktive Seitennavigation", c["link"], c["selection"], 4.5),
+                        ("Kopfzeile", c["nav_text"], c["nav"], 4.5),
+                        ("Produktbezeichnung in Kopfzeile", c["nav_product"], c["nav"], 4.5),
+                        ("Fokus auf Seiteninhalt", c["focus"], c["body"], 3),
+                        ("Fokus in Kopfzeile", c["nav_focus"], c["nav"], 3),
+                        ("Fokus auf Karten / Nebenflächen", c["focus"], "#2b3035" if theme == "dark" else "#f8f9fa", 3),
+                        ("Checkbox-/Radio-/Schalter-Markierung", c["text"], primary, 3)]
+        for label, fg, bg, minimum in combinations:
+            ratio = contrast(fg, bg)
+            rows.append(dict(theme=theme, label=label, fg=fg, bg=bg, ratio=round(ratio, 2),
+                             minimum=minimum, ok=ratio >= minimum,
+                             rating="gut – AA für normalen Text" if ratio >= 4.5 else
+                                    "gut – sichtbarer Fokus / Markierung" if minimum == 3 and ratio >= 3 else
+                                    "nur große Schrift" if ratio >= 3 else "zu geringer Kontrast"))
+    # One nearby candidate improving the actual warnings in both schemes.
+    candidates = [_mix(primary, "#000000", i / 100) for i in range(1, 100)] + [_mix(primary, "#ffffff", i / 100) for i in range(1, 100)]
+    def link_ok(color):
+        return all(contrast(palette(color, navbar, t)["link"], palette(color, navbar, t)["selection"]) >= 4.5
+                   and contrast(palette(color, navbar, t)["link_hover"], palette(color, navbar, t)["body"]) >= 4.5
+                   and contrast(palette(color, navbar, t)["link"], palette(color, navbar, t)["body"]) >= 4.5
+                   and contrast(palette(color, navbar, t)["nav_product"], palette(color, navbar, t)["nav"]) >= 4.5 for t in ("light", "dark"))
+    valid = [c for c in candidates if link_ok(c)]
+    suggestion = min(valid, key=lambda c: sum((x-y)**2 for x,y in zip(_rgb(c), _rgb(primary)))) if valid else None
+    return dict(rows=rows, warnings=[r for r in rows if not r["ok"]], suggestion=suggestion)
 
 
 def theme_css(b: dict) -> str:
     p = b["primary"]
+    c = palette(p, b["navbar"], "light")
+    d = palette(p, b["navbar"], "dark")
     rgb = ",".join(map(str, _rgb(p)))
-    txt = on_color(p)
-    hover, active = _mix(p, "#000000", .12), _mix(p, "#000000", .2)
-    dark_p = _mix(p, "#ffffff", .35) if _luminance(p) < .25 else p
-    dark_rgb = ",".join(map(str, _rgb(dark_p)))
-    link_hover = _mix(p, "#000000", .25)
-    nav_bg = {"primary": p, "dark": "#1b2430", "light": ""}[b["navbar"]]
-    nav_fg = on_color(nav_bg) if nav_bg else ""
+    def variables(x):
+        return f"--bs-link-color: {x['link']}; --bs-link-color-rgb: {','.join(map(str,_rgb(x['link'])))}; --bs-link-hover-color: {x['link_hover']}; --bs-link-hover-color-rgb: {','.join(map(str,_rgb(x['link_hover'])))}; --app-nav-bg: {x['nav']}; --app-nav-fg: {x['nav_text']}; --app-focus: {x['focus']}; --app-nav-focus: {x['nav_focus']}; --app-selection: {x['selection']};"
+    # Bootstrap indicators otherwise remain white on a bright custom primary.
+    stroke = c['text'].replace('#', '%23')
+    check = f"url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='{stroke}' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3e%3c/svg%3e\")"
+    radio = f"url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='2' fill='{stroke}'/%3e%3c/svg%3e\")"
+    dash = f"url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='{stroke}' stroke-linecap='round' stroke-width='3' d='M6 10h8'/%3e%3c/svg%3e\")"
     return f"""
 :root, [data-bs-theme=light] {{
-  --app-primary: {p}; --app-primary-text: {txt};
-  --bs-primary: {p}; --bs-primary-rgb: {rgb};
-  --bs-link-color: {p}; --bs-link-color-rgb: {rgb};
-  --bs-link-hover-color: {link_hover}; --bs-link-hover-color-rgb: {",".join(map(str, _rgb(link_hover)))};
-  --bs-border-radius: {b["radius"]}; --bs-border-radius-lg: calc({b["radius"]} * 1.35);
-  --bs-border-radius-sm: calc({b["radius"]} * .7);
-  --app-nav-bg: {nav_bg or "var(--bs-tertiary-bg)"}; --app-nav-fg: {nav_fg or "var(--bs-body-color)"};
+ --app-primary: {p}; --app-primary-text: {c['text']}; --bs-primary: {p}; --bs-primary-rgb: {rgb};
+ --bs-border-radius: {b['radius']}; --bs-border-radius-lg: calc({b['radius']} * 1.35); --bs-border-radius-sm: calc({b['radius']} * .7);
+ {variables(c)}
 }}
-[data-bs-theme=dark] {{
-  --bs-primary: {dark_p}; --bs-primary-rgb: {dark_rgb};
-  --bs-link-color: {dark_p}; --bs-link-color-rgb: {dark_rgb};
-  --bs-link-hover-color: {_mix(dark_p, "#ffffff", .2)};
-  --bs-link-hover-color-rgb: {",".join(map(str, _rgb(_mix(dark_p, "#ffffff", .2))))};
-  {"--app-nav-bg: #11161d;" if b["navbar"] == "light" else ""}
-}}
-.btn-primary {{
-  --bs-btn-bg: {p}; --bs-btn-border-color: {p}; --bs-btn-color: {txt};
-  --bs-btn-hover-bg: {hover}; --bs-btn-hover-border-color: {hover}; --bs-btn-hover-color: {on_color(hover)};
-  --bs-btn-active-bg: {active}; --bs-btn-active-border-color: {active}; --bs-btn-active-color: {on_color(active)};
-  --bs-btn-disabled-bg: {p}; --bs-btn-disabled-border-color: {p}; --bs-btn-disabled-color: {txt};
-  --bs-btn-focus-shadow-rgb: {rgb};
-}}
-.btn-outline-primary {{
-  --bs-btn-color: {p}; --bs-btn-border-color: {p};
-  --bs-btn-hover-bg: {p}; --bs-btn-hover-border-color: {p}; --bs-btn-hover-color: {txt};
-  --bs-btn-active-bg: {hover}; --bs-btn-active-border-color: {hover}; --bs-btn-active-color: {txt};
-  --bs-btn-disabled-color: {p}; --bs-btn-disabled-border-color: {p};
-  --bs-btn-focus-shadow-rgb: {rgb};
-}}
-[data-bs-theme=dark] .btn-outline-primary {{ --bs-btn-color: {dark_p}; --bs-btn-border-color: {dark_p}; }}
-.text-bg-primary {{ color: {txt} !important; }}
-.form-check-input:checked, .form-check-input[type=checkbox]:indeterminate {{
-  background-color: {p}; border-color: {p};
-}}
-.form-control:focus, .form-select:focus, .form-check-input:focus {{
-  border-color: rgba({rgb}, .6); box-shadow: 0 0 0 .25rem rgba({rgb}, .22);
-}}
-.nav-pills {{ --bs-nav-pills-link-active-bg: {p}; --bs-nav-pills-link-active-color: {txt}; }}
-.page-link {{ --bs-pagination-color: {p}; --bs-pagination-active-bg: {p}; --bs-pagination-active-border-color: {p}; --bs-pagination-active-color: {txt}; }}
+[data-bs-theme=dark] {{ --bs-primary: {d["link"]}; --bs-primary-rgb: {",".join(map(str,_rgb(d["link"])))}; {variables(d)} }}
+.btn-primary {{ --bs-btn-bg: {p}; --bs-btn-border-color: {p}; --bs-btn-color: {c['text']};
+ --bs-btn-hover-bg: {c['hover']}; --bs-btn-hover-border-color: {c['hover']}; --bs-btn-hover-color: {on_color(c['hover'])};
+ --bs-btn-active-bg: {c['active']}; --bs-btn-active-border-color: {c['active']}; --bs-btn-active-color: {on_color(c['active'])};
+ --bs-btn-disabled-bg: {p}; --bs-btn-disabled-border-color: {p}; --bs-btn-disabled-color: {c['text']}; }}
+.btn-outline-primary {{ --bs-btn-color: var(--bs-link-color); --bs-btn-border-color: var(--bs-link-color);
+ --bs-btn-hover-bg: {p}; --bs-btn-hover-border-color: {p}; --bs-btn-hover-color: {c['text']};
+ --bs-btn-active-bg: {c['hover']}; --bs-btn-active-border-color: {c['hover']}; --bs-btn-active-color: {on_color(c['hover'])};
+ --bs-btn-disabled-color: var(--bs-link-color); --bs-btn-disabled-border-color: var(--bs-link-color); }}
+.text-bg-primary {{ background-color: {p} !important; color: {c['text']} !important; }}
+.form-check-input:checked, .form-check-input[type=checkbox]:indeterminate {{ background-color: {p}; border-color: {p}; }}
+.form-check-input[type=checkbox]:checked {{ --bs-form-check-bg-image: {check}; }}
+.form-check-input[type=radio]:checked, .form-switch .form-check-input:checked {{ --bs-form-check-bg-image: {radio}; }}
+.form-check-input[type=checkbox]:indeterminate {{ --bs-form-check-bg-image: {dash}; }}
+.nav-pills {{ --bs-nav-pills-link-active-bg: {p}; --bs-nav-pills-link-active-color: {c['text']}; }}
+.page-link {{ --bs-pagination-color: var(--bs-link-color); --bs-pagination-active-bg: {p}; --bs-pagination-active-border-color: {p}; --bs-pagination-active-color: {c['text']}; }}
 .progress-bar {{ background-color: {p}; }}
+.app-sidebar .nav-link.active {{ background: var(--app-selection); color: var(--bs-link-color); }}
+:where(a,button,input,select,textarea,summary,[tabindex]):focus-visible {{ outline: 3px solid var(--app-focus) !important; outline-offset: 3px !important; box-shadow: none !important; }}
+.app-navbar :where(a,button,input,select,textarea,[tabindex]):focus-visible {{ outline-color: var(--app-nav-focus) !important; }}
+.fill-choice > input:focus-visible + .fill-choice-label {{ outline: 3px solid var(--app-focus); outline-offset: 3px; }}
 """
 
 

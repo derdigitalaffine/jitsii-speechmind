@@ -6,6 +6,7 @@
 
 <form id="design-form" method="post" action="/admin/design" enctype="multipart/form-data" class="row g-4">
   <input type="hidden" name="csrf" value="{{ csrf }}">
+  {% if design_error %}<div class="col-12"><div class="alert alert-warning" role="alert">{{ design_error }}</div></div>{% endif %}
 
   <div class="col-12">
     <div class="card {{ 'border-success' if cfg.ui_custom == '1' else 'border-warning' }}">
@@ -85,7 +86,7 @@
         <input class="form-control" id="lg" name="logo" type="file" accept=".png,.jpg,.jpeg,.webp,.svg,image/*">
         <div class="form-text">PNG, JPG, WebP oder SVG. Große Bilder (auch Druckvorlagen) sind kein Problem: der Server verkleinert sie automatisch. Am besten mit transparentem Hintergrund.</div>
         {% if logo_url %}<div class="mt-2 d-flex align-items-center gap-3"><img src="{{ logo_url }}" alt="Aktuelles Logo" style="max-height:40px;max-width:160px">
-          <div class="form-check"><input class="form-check-input" type="checkbox" id="rl" name="remove_logo" value="1"><label class="form-check-label" for="rl">Entfernen</label></div></div>{% endif %}</div>
+          <div class="form-check"><input class="form-check-input" type="checkbox" id="rl" name="remove_logo" value="1" {% if cfg.remove_logo == "1" %}checked{% endif %}><label class="form-check-label" for="rl">Entfernen</label></div></div>{% endif %}</div>
       <div class="col-md-3"><label class="form-label" for="lh">Logohöhe (px)</label>
         <input class="form-control" id="lh" name="ui_logo_height" type="number" min="20" max="80" value="{{ cfg.ui_logo_height }}"></div>
       <div class="col-md-3 d-flex align-items-end"><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="sn" name="ui_show_name" value="1" {% if cfg.ui_show_name == '1' %}checked{% endif %}><label class="form-check-label" for="sn">Name zeigen</label></div></div>
@@ -93,7 +94,7 @@
         <input class="form-control" id="fv" name="favicon" type="file" accept=".png,.ico,.svg,.jpg,.jpeg,.webp,image/*">
         <div class="form-text">PNG, JPG, WebP, ICO oder SVG; wird automatisch auf 256 px verkleinert. <strong>Ohne eigenes Favicon wird das Logo verkleinert als Favicon verwendet.</strong></div>
         {% if favicon_url %}<div class="mt-2 d-flex align-items-center gap-3"><img src="{{ favicon_url }}" alt="Aktuelles Favicon" style="height:24px">
-          <div class="form-check"><input class="form-check-input" type="checkbox" id="rf" name="remove_favicon" value="1"><label class="form-check-label" for="rf">Entfernen</label></div></div>
+          <div class="form-check"><input class="form-check-input" type="checkbox" id="rf" name="remove_favicon" value="1" {% if cfg.remove_favicon == "1" %}checked{% endif %}><label class="form-check-label" for="rf">Entfernen</label></div></div>
         {% elif favicon_auto_url %}<div class="mt-2 d-flex align-items-center gap-2 small text-secondary"><img src="{{ favicon_auto_url }}" alt="Favicon aus dem Logo" style="height:24px">automatisch aus dem Logo erzeugt</div>{% endif %}</div>
       <div class="col-12"><hr class="my-1"></div>
       <div class="col-12"><div class="form-check form-switch">
@@ -107,19 +108,26 @@
   <div class="col-12 col-xl-5">
     <div class="position-sticky" style="top:5rem">
       <div class="card mb-3"><div class="card-header"><i class="fa-regular fa-eye me-2"></i>Vorschau</div><div class="card-body">
-        <div id="design-preview" class="design-preview">
-          <div class="pv-nav">
-            {% if logo_url %}<img class="pv-logo" src="{{ logo_url }}" alt="" style="height:{{ cfg.ui_logo_height }}px">{% endif %}
-            <strong class="pv-name" data-default="{{ brand }}">{{ brand }}</strong>
-          </div>
-          <div class="pv-body">
-            <button type="button" class="btn pv-btn">Primär</button>
-            <button type="button" class="btn btn-outline-secondary pv-out">Sekundär</button>
-            <span class="badge text-bg-success">aktiv</span>
-          </div>
+        <div class="btn-group mb-3" role="group" aria-label="Vorschau-Farbschema">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-preview-theme="light" aria-pressed="true">Hell</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-preview-theme="dark" aria-pressed="false">Dunkel</button>
         </div>
-        <p class="form-text mt-2 mb-0">Die Vorschau zeigt Farben, Kopfleiste und Rundungen. Gespeichert wird erst mit dem Knopf unten.</p>
+        <iframe id="design-preview" title="Interaktive Designvorschau" sandbox="allow-same-origin" class="w-100 border rounded" style="height:440px" data-logo="{{ logo_url }}" data-brand="{{ brand }}" data-product="{{ product }}"></iframe>
+        <p class="form-text mt-2 mb-0">Die Vorschau ist isoliert. Mit Tab lassen sich echte Fokuszustände prüfen. Erst „Design speichern“ übernimmt die Einstellungen.</p>
       </div></div>
+      <section class="card mb-3" aria-labelledby="contrast-heading">
+        <div class="card-header" id="contrast-heading">Lesbarkeit &amp; Kontrast</div><div class="card-body">
+          <p class="small">Text braucht mindestens 4,5:1, große Schrift und Fokusmarkierungen 3:1. Beide Farbschemata werden geprüft. Dies ersetzt keine vollständige Barrierefreiheitsprüfung.</p>
+          <div id="contrast-summary" role="status" aria-live="polite"></div>
+          <div id="contrast-values">{% for row in report.rows %}<div class="small mb-2"><strong>{{ 'Hell' if row.theme == 'light' else 'Dunkel' }} · {{ row.label }}</strong>: {{ row.ratio }}:1 – {{ row.rating }}</div>{% endfor %}</div>
+          <button type="button" id="contrast-suggest" class="btn btn-sm btn-outline-secondary mt-2" hidden>Ähnliche besser lesbare Farbe übernehmen</button>
+          <div class="form-check mt-3" id="contrast-confirm" {% if not report.warnings %}hidden{% endif %}>
+            <input class="form-check-input" type="checkbox" id="contrast-ack" name="contrast_ack" value="1">
+            <label class="form-check-label" for="contrast-ack">Ich habe die Kontrastwarnungen geprüft und möchte dieses Design trotzdem speichern.</label>
+          </div>
+          <input type="hidden" name="contrast_key" value="{{ (cfg.ui_primary or default_primary)|lower }}|{{ cfg.ui_navbar or 'dark' }}">
+        </div>
+      </section>
       <div class="d-flex flex-wrap gap-2">
         <button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>Design speichern</button>
       </div>
@@ -133,6 +141,7 @@
 </form>
 {% endblock %}
 {% block scripts %}{{ super() }}
+<script src="/static/branding-editor.js" defer></script>
 <script>
 document.querySelectorAll('#fotos input[type=range]').forEach(function (r) {
   var out = document.getElementById(r.id + '-out');

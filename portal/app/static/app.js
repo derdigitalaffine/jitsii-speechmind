@@ -323,68 +323,6 @@
     });
   }
 
-  /* ---- Live-Vorschau im Design-Editor --------------------------------- */
-  var form = document.getElementById('design-form');
-  if (form) {
-    var pv = document.getElementById('design-preview');
-    var mix = function (hex, t, to) {
-      var c = [1, 3, 5].map(function (i) { return parseInt(hex.substr(i, 2), 16); });
-      return '#' + c.map(function (v) { return Math.round(v + (to - v) * t).toString(16).padStart(2, '0'); }).join('');
-    };
-    var lum = function (hex) {
-      var c = [1, 3, 5].map(function (i) {
-        var v = parseInt(hex.substr(i, 2), 16) / 255;
-        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-      });
-      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-    };
-    var on = function (hex) { return lum(hex) > 0.33 ? '#000' : '#fff'; };
-    var update = function () {
-      var p = form.elements.ui_primary.value;
-      if (!/^#[0-9a-fA-F]{6}$/.test(p)) { return; }
-      var nav = form.elements.ui_navbar.value;
-      var navBg = nav === 'primary' ? p : nav === 'dark' ? '#1b2430' : 'var(--bs-tertiary-bg)';
-      var navFg = nav === 'light' ? 'var(--bs-body-color)' : on(navBg.charAt(0) === '#' ? navBg : '#ffffff');
-      pv.querySelector('.pv-nav').style.background = navBg;
-      pv.querySelector('.pv-nav').style.color = navFg;
-      var btn = pv.querySelector('.pv-btn');
-      btn.style.background = p; btn.style.borderColor = p; btn.style.color = on(p);
-      var out = pv.querySelector('.pv-out');
-      out.style.color = p; out.style.borderColor = p;
-      var r = form.elements.ui_radius.value;
-      pv.style.borderRadius = r; btn.style.borderRadius = r; out.style.borderRadius = r;
-      var logo = pv.querySelector('.pv-logo');
-      if (logo) { logo.style.height = (form.elements.ui_logo_height.value || 32) + 'px'; }
-      var name = pv.querySelector('.pv-name');
-      name.textContent = form.elements.ui_brand_name.value || name.dataset.default;
-      name.hidden = !form.elements.ui_show_name.checked && !!logo;
-    };
-    var master = form.elements.ui_custom;
-    var designFields = ['ui_primary', 'ui_navbar', 'ui_theme', 'ui_radius', 'ui_logo_height', 'ui_show_name', 'logo', 'favicon', 'ui_jitsi'];
-    var autoEnable = function (ev) {
-      if (!master || master.checked || !ev.target || designFields.indexOf(ev.target.name) < 0) { return; }
-      master.checked = true;
-      var note = document.getElementById('design-autoenabled');
-      if (note) { note.hidden = false; }
-    };
-    form.addEventListener('input', autoEnable);
-    form.addEventListener('change', autoEnable);
-    form.addEventListener('input', update);
-    form.addEventListener('change', update);
-    document.addEventListener('coloris:pick', update);
-    var file = form.elements.logo;
-    if (file) {
-      file.addEventListener('change', function () {
-        if (!file.files[0]) { return; }
-        var img = pv.querySelector('.pv-logo');
-        if (!img) { img = document.createElement('img'); img.className = 'pv-logo'; pv.querySelector('.pv-nav').prepend(img); }
-        img.src = URL.createObjectURL(file.files[0]);
-        update();
-      });
-    }
-    update();
-  }
-
   /* ---- Hinweise automatisch ausblenden -------------------------------- */
   $('.alert[data-autohide]').forEach(function (el) {
     setTimeout(function () { bootstrap.Alert.getOrCreateInstance(el).close(); }, 6000);

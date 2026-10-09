@@ -244,7 +244,7 @@
     <div class="card mb-4"><div class="card-header"><i class="fa-solid fa-flag me-2"></i>Status ändern</div><div class="card-body">
       <form method="post" action="{{ act }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="status">
         <select class="form-select mb-2" name="status" aria-label="Neuer Status">{% for k, st in statuses.items() %}<option value="{{ k }}" {% if resp.status == k %}selected{% endif %}>{{ st[0] }}</option>{% endfor %}</select>
-        <textarea class="form-control mb-2" name="text" rows="3" placeholder="Mitteilung an die antragstellende Person (optional, z. B. Begründung)"></textarea>
+        <textarea class="form-control mb-2" name="text" rows="3" aria-label="Mitteilung an die antragstellende Person" placeholder="Mitteilung an die antragstellende Person (optional, z. B. Begründung)"></textarea>
         <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="inform" value="1" id="inf" {% if applicant and mail_ready %}checked{% else %}disabled{% endif %}><label class="form-check-label small" for="inf">Antragsteller:in per E-Mail informieren{% if not applicant %} (keine Adresse bekannt){% endif %}</label></div>
         <button class="btn btn-primary btn-sm" type="submit">Status speichern</button>
       </form>

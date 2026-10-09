@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
 {% block body %}
-<div class="auth-wrap">
+<a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
+<main id="inhalt" class="auth-wrap" tabindex="-1">
   <div class="auth-card">
     <div class="auth-brand">
       {% if ui.logo %}<img class="brand-logo" src="{{ ui.logo }}" alt="" style="height:{{ [ui.logo_height * 1.6, 72] | min | int }}px">{% else %}<span class="brand-dot" style="width:1.2rem;height:1.2rem"></span>{% endif %}
@@ -14,5 +15,5 @@
       {% if ui.privacy_url %}<a class="link-secondary" href="{{ ui.privacy_url }}">Datenschutz</a>{% endif %}
     </div>
   </div>
-</div>
+</main>
 {% endblock %}
