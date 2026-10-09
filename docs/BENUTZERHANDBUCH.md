@@ -246,7 +246,7 @@ Menü **Terminumfragen** (Recht „Terminumfragen“). Damit finden Sie einen Te
    | Bei jeder Antwort informieren | Sie bekommen eine Mail mit der Antwort und dem aktuellen Stand |
    | Abstimmen bis | Danach ist keine Abstimmung mehr möglich |
 
-5. **Terminumfrage anlegen**.
+5. **Terminumfrage anlegen**. Sie startet als geschlossener Entwurf; **Veröffentlichen** gibt die Teilnahme frei.
 
 ### Teilnehmende gewinnen
 
@@ -267,7 +267,13 @@ Oben stehen Kennzahlen und die **drei am besten passenden Termine** mit Balken (
 - **Besprechung anlegen und einladen** (mit dem Recht Videokonferenzen) – legt einen Konferenzraum zu diesem Termin an und schickt allen eine Outlook-Besprechungsanfrage mit persönlichem Einwahllink; wahlweise nur denen, die für diesen Termin „Ja“ oder „Wenn nötig“ gesagt haben. Danach geht es in der Besprechung wie gewohnt weiter (Zu-/Absagen, Änderungen, Aufnahme),
 - **Nur festlegen**.
 
-Die Abstimmung ist danach beendet; alle Teilnehmenden sehen den festgelegten Termin. Über „…“ können Sie sie wieder öffnen, eine **Kopie** anlegen (z. B. für die nächste Runde) oder die Umfrage löschen.
+Die Abstimmung ist danach beendet; alle Teilnehmenden sehen den festgelegten Termin. Über „…“ können Eigentümer:innen oder Admins sie ausdrücklich wieder öffnen, sofern Fristen und Verknüpfungen das zulassen, oder eine **Kopie** für die nächste Runde anlegen.
+
+### Umfragen schließen, archivieren und löschen
+
+Terminumfragen, Abstimmungen/Wahlen und Live-Umfragen bieten **Aktiv**, **Archiv** und **Papierkorb** in ihren Übersichten. Nur Eigentümer:innen und Admins dürfen archivieren, löschen oder wiederherstellen. Ausschließlich ungenutzte Entwürfe kommen für **30 Tage** in den Papierkorb. Sobald eine Umfrage veröffentlicht, gestartet, eingeladen, beantwortet oder mit einem Seminar beziehungsweise einer Besprechung verknüpft ist, wird sie stattdessen geschlossen und archiviert. Auch frühere Nutzung bleibt berücksichtigt, wenn Antworten später entfernt werden.
+
+Archivierte Umfragen nehmen keine Antworten an; bisher berechtigte Personen können Ergebnisse weiterhin lesen und exportieren. **Aus Archiv holen** lässt die Umfrage geschlossen. Eine erneute Teilnahme erfordert eine eigene Öffnungsaktion und passende Fristen. Festgeschriebene Ergebnisse abgeschlossener Abstimmungen/Wahlen werden niemals wieder geöffnet; dafür eine Kopie anlegen. Wiederhergestellte Terminumfrageentwürfe bleiben geschlossen und erhalten keinen alten öffentlichen Link.
 
 ---
 
@@ -333,7 +339,7 @@ Wie Formulare lassen sich auch Terminumfragen und Buchungsseiten **im Portal mit
 |---|---|---|
 | **1 – Ergebnisse einsehen** | Abstimmungsergebnis, Teilnehmende, CSV-Export | Kalender (nur lesend), Terminliste, Exporte |
 | **2 – Einladen** | zusätzlich Personen einladen, erinnern, Abstimmungslink verwalten | zusätzlich Personen zum Buchen einladen, Buchungslink und QR-Code |
-| **3 – Bearbeiten** | zusätzlich Vorschläge und Einstellungen ändern, Termin festlegen, Teilnehmende entfernen, Umfrage löschen | zusätzlich Zeitbereiche und Einstellungen, Kalender-Abo, Termine verschieben/absagen, Seite löschen |
+| **3 – Bearbeiten** | zusätzlich Vorschläge und Einstellungen ändern, Termin festlegen, Teilnehmende entfernen | zusätzlich Zeitbereiche und Einstellungen, Kalender-Abo, Termine verschieben/absagen, Seite löschen |
 
 Die Stufe lässt sich in der Liste jederzeit ändern, das ✕ entfernt die Freigabe. Bekommt eine Person über ihre Gruppe und direkt unterschiedliche Stufen, gilt die höhere. Freigaben verwalten nur Sie als Besitzer:in (und Admins).
 
@@ -813,7 +819,13 @@ Menü **Ablage › Recherche**. Hier finden Sie Online-Anträge und manuell abge
 
 **Ablegen** (mit Schreibrecht): **Vorgang ablegen**, Bereich wählen, Titel, Aktenzeichen, Antragsteller:in, Anschrift (mit Adresssuche), Datum, Notiz und Dateien. Nachträglich lassen sich Angaben ändern, Dateien hinzufügen und löschen.
 
-**Löschfristen:** Jeder Bereich kann eine Aufbewahrungsfrist haben. Sie läuft am Ende des Jahres ab, in dem der Vorgang abgeschlossen wurde, plus die eingestellten Jahre. Abgelaufene Vorgänge löscht die Aktenplan-Verwaltung bewusst unter **Löschfristen** (mit Begründung und Protokoll) – automatisch wird nichts gelöscht.
+**Archiv und Papierkorb:** Archivierte Einträge verschwinden aus der normalen Recherche und neuen Auswahlfeldern, bleiben aber unter **Archiv** und über bestehende Verknüpfungen lesbar. Sie sind gegen Änderungen geschützt. Löschen dürfen Ersteller:innen und Admins, jeweils mit den nötigen Ordnerrechten; bei älteren Einträgen ohne eindeutige Eigentümerzuordnung nur Admins. Das gilt entsprechend für eigene Uploads.
+
+Verknüpfte Dokumente, laufende Vorgänge, noch geltende Aufbewahrungsfristen und unveränderliche Abschlussstände schützen vor Löschung. Unverknüpfte Einträge und löschbare Uploads bleiben **30 Tage** im Papierkorb einschließlich ihrer Dateien wiederherstellbar. Bei Wiederherstellung gelten die aktuellen Rechte des ursprünglichen Ordners; fehlt er, wählen Sie einen beschreibbaren Zielordner. Einzelne Dateien benötigen ihren vorhandenen oder zuvor wiederhergestellten Ablageeintrag.
+
+**Ordner:** Regulär dürfen nur leere, unverknüpfte Ordner entfernt werden. Bei gefüllten Ordnern Inhalte zuerst verschieben. Admins können eine rekursive Löschung mit eigener Vorschau ausführen; geschützte Inhalte verhindern die gesamte Löschung.
+
+**Löschfristen:** Jeder Bereich kann eine Aufbewahrungsfrist haben. Sie läuft am Ende des Jahres ab, in dem der Vorgang abgeschlossen wurde, plus die eingestellten Jahre. Abgelaufene Vorgänge entfernt die Aktenplan-Verwaltung bewusst unter **Löschfristen** mit Protokoll in den 30-Tage-Papierkorb. Verknüpfungen und Schutzregeln gelten weiterhin; der zugrunde liegende Online-Antrag wird dabei nicht gelöscht und nicht automatisch erneut abgelegt. Nach Ablauf der Papierkorbfrist werden die entfernten Ablageinhalte endgültig gelöscht.
 
 ---
 
@@ -942,6 +954,8 @@ Alle angemeldeten Portalnutzer können **Layer hinzufügen** und Karten speicher
 Im **einfachen Modus** stehen Auskunft, Grundkarten und Ebenen im Vordergrund. Im erweiterten Modus kommen Zeichenwerkzeuge hinzu. Dienste mit Zeitdimension erhalten eine Zeitauswahl; ein Zeitvergleich ist noch nicht enthalten.
 
 Unter **Meine Karten** kann der Eigentümer eine Karte intern für einzelne Benutzer oder Gruppen freigeben. Diese dürfen ansehen und eine eigene Kopie speichern. Öffentliche Links sind eine getrennte, bewusst zu aktivierende Freigabe und können abgeschaltet oder erneuert werden. Interne Systemebenen werden ohne Anmeldung nicht ausgeliefert.
+
+**Karten löschen:** Eigentümer:innen und Admins verschieben eigene Karten einschließlich Zeichnungen, Ebenenauswahl und Flurstückssammlung für **30 Tage** in den Papierkorb. Währenddessen funktionieren interne Freigaben und öffentliche Links nicht. Wiederherstellung macht die Karte zunächst privat: frühere interne Freigaben ausdrücklich bestätigen und einen öffentlichen Link neu erzeugen. Alte öffentliche Links bleiben ungültig.
 
 Formularersteller können bei Kartenfeldern mit erlaubten Flächen **Öffentliche Flurstücke suchen und übernehmen** aktivieren. Ausgewählte Flächen werden mit Kennzeichen, Quelle und Abrufzeit in der Antwort gespeichert und über die bestehenden Antrags- und Ablagewege weitergeführt. JSON und die Geometriespalte der CSV erhalten diese Angaben. Die Anzahl der Teilflächen zählt gegen das Limit des Feldes. Übernommene Katasterflächen lassen sich nicht durch Ziehen von Eckpunkten verfälschen; freie Zeichnungen bleiben verfügbar.
 
