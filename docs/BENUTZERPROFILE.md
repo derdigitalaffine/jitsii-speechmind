@@ -34,9 +34,9 @@ Es gibt keine öffentliche Profilabfrage und kein neues personenbezogenes Benutz
 
 **Alle freiwilligen Angaben löschen** entfernt auch die Zustimmung zur Vorbelegung. Schon abgesendete Formularantworten und deren Nachweise bleiben erhalten. Sobald eine Person Profilangaben als Formularantwort absendet, gelten die Rechte und Aufbewahrungsregeln dieses Formulars/Vorgangs. Die Angaben sind Selbstauskünfte und vergeben weder Gruppenmitgliedschaften noch Freigabezuständigkeiten.
 
-## Vorbereitung auf spätere Identitätsanbieter
+## OIDC-Anbindung und weitere Identitätsstandards
 
-**SSO, OIDC-Anmeldung, SCIM-Provisionierung und die Verbindung zu Keycloak oder Nextcloud sind nicht implementiert.** Festgelegt ist der freiwillige Profilumfang; die folgende Zuordnung beschreibt eine mögliche spätere Anbindung.
+**Die OIDC-Anmeldung über Nextcloud oder einen konfigurierten OIDC-Anbieter ist vorhanden.** Einrichtung und Grenzen stehen unter [Nextcloud / OIDC](NEXTCLOUD-OIDC.md). Die Administration kann ausgewählte Profilfelder aus Anbieter-Claims aktualisieren; andere freiwillige Angaben und die Zustimmung zur Formularvorbelegung bleiben erhalten. SCIM-Provisionierung ist nicht implementiert. Die Tabelle beschreibt mögliche Standardzuordnungen; sie bedeutet nicht, dass alle Felder automatisch synchronisiert werden.
 
 | Portalangaben | Mögliche Standardzuordnung |
 | --- | --- |
@@ -51,6 +51,6 @@ Es gibt keine öffentliche Profilabfrage und kein neues personenbezogenes Benutz
 | Name der vorgesetzten Person | Anzeigeinformation; keine Identitätsreferenz und keine Rechtezuweisung |
 | Bank, Dienststätte, Raum, Beschäftigungsart | Eigene Erweiterungsfelder; keine automatische Weitergabe an Identitätsanbieter |
 
-Eine spätere Anbindung muss externe Identität (`iss` + `sub`), verifizierte Attribute, Herkunft und Überschreibregeln separat und serverseitig führen. Diese Identifikatoren sind keine selbst editierbaren Profilfelder. Rollen/Gruppen, Rechte, Tokens und Passwörter bleiben von freiwilligen Angaben getrennt. E-Mail oder Personalnummer allein dürfen keine Identitätsverknüpfung auslösen.
+Die OIDC-Anbindung führt externe Identitäten (`iss` + `sub`) getrennt und serverseitig. Diese Identifikatoren sind keine selbst editierbaren Profilfelder. Rollen/Gruppen, Rechte, Tokens und Passwörter bleiben von freiwilligen Angaben getrennt. E-Mail oder Personalnummer allein dürfen keine Identitätsverknüpfung auslösen.
 
-Grundlagen: [OpenID Connect Core, Standard Claims](https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims) und [SCIM Core Schema, RFC 7643](https://www.rfc-editor.org/rfc/rfc7643.html). Dies ist ein Datenmodell-Vorschlag für die spätere Integration, keine bereits bestehende Schnittstelle.
+Grundlagen: [OpenID Connect Core, Standard Claims](https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims) und [SCIM Core Schema, RFC 7643](https://www.rfc-editor.org/rfc/rfc7643.html). Die weiterführenden SCIM-Zuordnungen sind ein Datenmodell-Vorschlag; eine SCIM-Schnittstelle besteht nicht.

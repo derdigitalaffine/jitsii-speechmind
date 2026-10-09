@@ -82,7 +82,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 
 - Freiwillige persönliche Angaben, Kontakt, Privat-/Dienstanschrift, Beschäftigung, Bankverbindung, Sprache und Zeitzone; verschlüsselt gespeichert, eigener Export und eigene Löschung.
 - Gruppierte Vorbelegung für Text, Datum und Anschrift im Formular- und Datenblockbaukasten. Neue freiwillige Angaben benötigen Zustimmung; bestehende Antworten bleiben vorrangig.
-- Profilumfang für eine spätere Identitätsanbieter-Anbindung festgelegt. **SSO mit Keycloak/Nextcloud und SCIM sind noch nicht implementiert.** [Umfang und Zuordnungen](docs/BENUTZERPROFILE.md).
+- Freiwillige Profile und gezielte Übernahme von Anbieter-Claims bei OIDC-Anmeldung; SCIM-Provisionierung ist nicht implementiert. [Umfang und Zuordnungen](docs/BENUTZERPROFILE.md).
 
 ### Aushänge, Umläufe und Sammelmappen (abschaltbares Modul)
 
@@ -150,7 +150,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 
 ### Startseite
 
-- Nach der Anmeldung eine **Übersicht** mit allem, was gerade wichtig ist: meine Aufgaben und Fristen, Antragseingang, Termine & Meetings, Terminumfragen, Buchungen, Formulare zum Ausfüllen, neue Antworten, Ablage und Schnellzugriff – jeweils direkt verlinkt, nur was die Person darf. **Kacheln per Ziehen sortieren und ausblenden.**
+- Nach der Anmeldung steht **Handlungsbedarf – Jetzt bearbeiten** mit den aktuell bearbeitbaren persönlichen Prozess-, Umlauf- und Ressourcenaufgaben immer oben. **Meine Aufgaben** trennt persönliche Arbeit, Gruppenpool, Vertretung und wartende Schritte. Termine, Favoriten und weitere berechtigte Inhalte ergänzen die Übersicht. **Optionale Kacheln per Ziehen oder Auf-/Ab-Schaltflächen sortieren und ausblenden.**
 
 ### Kartenbrowser und Kartenlayer (abschaltbares Modul)
 
@@ -172,6 +172,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 
 - **Benutzerverwaltung** mit Einladung per E-Mail, **Rechten je Bereich** (Videokonferenzen, Kurzlinks, Formulare, Formularbausteine, Online-Anträge einrichten, Prozesse, Aktenplan verwalten, Terminumfragen, Abstimmungen, Terminbuchung, Ressourcen, Zahlungen, Karten, Kartenlayer & Geocoding, Rechtstexte, Krankmeldungen, Krankmelder verwalten, Benutzerverwaltung) und **Gruppen**. **CSV-Import** mit Vorlage und Vorschau: Konten mit oder ohne Startpasswort, Gruppen werden angelegt bzw. ergänzt, Konten ohne Passwort auf Wunsch per Mail eingeladen.
 - **Gehärtet:** Content-Security-Policy und weitere Sicherheits-Header, CSRF-Schutz für alle Formulare, Bremse gegen Passwort-Raten je IP und je Konto, keine Kontenermittlung über Antwortzeiten, Uploads nur als Download, aktuelle Bibliotheken ohne bekannte Sicherheitslücken.
+- **Nextcloud / OIDC-Anmeldung:** Einrichtung im Administrationsbereich, ausdrückliche Kontoverknüpfung, Gruppenzuordnung und optionale zentrale Abmeldung. Lokale Anmeldung bleibt verfügbar. [Einrichtung und Grenzen](docs/NEXTCLOUD-OIDC.md).
 - **Zwei-Faktor-Anmeldung** per **Authenticator-App (TOTP)** oder **Code per E-Mail**, mit Notfallcodes; freiwillig oder Pflicht für Admins/alle. „Passwort vergessen“ per Mail-Link.
 - **Module** Kurzlinks, Formulare, Online-Anträge, Ablage (DMS), Umfragen & Abstimmungen, Terminbuchung, Ressourcenbuchung, Kartenbrowser, Rechtstexte und Krankmelder komplett abschaltbar; auf Wunsch je Modul mit **eigener Domain**.
 - **Sitzungen & Cookies:** technische Übersicht, wer angemeldet ist (Gerät, IP, letzte Aktivität), Inhalt und Eigenschaften der Session-Cookies; Sitzungen einzeln, je Person oder alle anderen beenden. Jede:r sieht unter Profil › Sicherheit die eigenen angemeldeten Geräte; ein neues Passwort meldet alle anderen Geräte ab.
@@ -476,4 +477,4 @@ Einrichtung und Grenzen: [GIS/Karten](docs/GIS-KARTEN.md), [Umläufe und Sammelm
 
 ## Seminare und Lehrgänge
 
-Das abschaltbare Modul integriert Reihenplanung, interne und externe Anmeldung, Wartelisten, Formulare, zeitgesteuerte Unterlagen, Anwesenheit und PDF-Teilnahmebescheinigungen. Bestehende Portalrechte und Benachrichtigungen bleiben maßgeblich. [Einrichtung und Bedienung](docs/SEMINARE-UND-LEHRGAENGE.md).
+Das abschaltbare Modul integriert eine kompakte Reihenplanung mit optionalem Assistenten, wechselnden Orten, internen und externen Dozenten sowie hybrider Teilnahme. Abonnements informieren über neue Termine; Einzelbuchung, Reihenbuchung, feste Teilnehmergruppen, Wartelisten, Formulare, zeitgesteuerte Unterlagen, Anwesenheit und Bescheinigungen pro Termin oder Reihe ergänzen den Ablauf. Bestehende Portalrechte und Benachrichtigungen bleiben maßgeblich. [Einrichtung und Bedienung](docs/SEMINARE-UND-LEHRGAENGE.md).

@@ -71,7 +71,9 @@ Nach mehreren falschen Versuchen sperrt das Portal kurz („Zu viele Versuche“
 
 ## 2. Die Oberfläche
 
-**Die Übersicht** (Startseite nach der Anmeldung, im Menü ganz oben) beginnt mit den **Schnellaktionen** (Meeting starten, Besprechung planen, Terminumfrage, Abstimmung, Formular, Kurzlink, Krank melden … – je nach Rechten) und zwei Kästen: **Handlungsbedarf** zählt, was auf Sie wartet – nach Dringlichkeit sortiert, z. B. überfällige Aufgaben und Anträge (rot), Terminumfragen zum Beantworten, Formulare zum Ausfüllen und Raumanfragen (gelb), neue Anträge, Rückfragen und neue Krankmeldungen; ein Klick führt direkt zur gefilterten Liste. **Heute** zeigt die heutigen Meetings, Terminbuchungen und Raumübergaben/-rücknahmen mit Uhrzeit. Darunter folgen die Kacheln mit Zahlen und direkten Links: **Meine Aufgaben**, **Antragseingang**, **Termine & Meetings**, **Terminumfragen**, **Buchungen**, **Zum Ausfüllen**, **neue Antworten**, **Ablage** mit Suchfeld, **Ressourcen**, **Krankmeldungen** sowie neu **Meine Favoriten** (die angehefteten Menüeinträge), **Abstimmungen**, **Ortsrecht – zuletzt geändert** und **Kurzlinks** mit Aufrufen. Sie sehen nur Kacheln, die Sie nutzen dürfen. **Anpassen** (oben rechts): Kacheln am ⠿ in eine andere Reihenfolge ziehen und mit dem Auge aus- oder einblenden; gespeichert wird sofort, **Fertig** beendet. Ihre Meetings finden Sie unter **Meetings** im Menü.
+**Die Übersicht** (Startseite nach der Anmeldung) beginnt mit **Handlungsbedarf – Jetzt bearbeiten**. Hier stehen bis zu fünf aktuell bearbeitbare persönliche Aufgaben aus Prozessen, Umläufen und Ressourcen, nach Dringlichkeit und Frist sortiert. Dieser Bereich bleibt sichtbar und kann nicht ausgeblendet werden. **Alle Aufgaben** öffnet die vollständige Liste. Noch nicht übernommene Gruppenaufgaben und Schritte, die auf andere warten, zählen nicht als aktuell zu bearbeitende persönliche Aufgaben.
+
+Daneben beziehungsweise darunter stehen Schnellaktionen, **Heute** mit Meetings, Buchungen und Raumübergaben sowie die optionalen Kacheln für weitere Bereiche und **Meine Favoriten**. Sichtbar sind ausschließlich berechtigte Inhalte. Unter **Anpassen** Kacheln am Griff verschieben oder mit Auf-/Ab-Schaltflächen per Tastatur und auf dem Handy ordnen; optionale Kacheln lassen sich ausblenden. Änderungen werden gespeichert, Speicherfehler sichtbar angezeigt und können erneut versucht werden. Ihre Meetings finden Sie auch unter **Meetings** im Menü.
 
 - **Links das Menü** (auf dem Handy über die drei Striche oben links): gegliedert nach Videokonferenzen, Kurzlinks, Termine, Formulare, Rechtstexte und – falls Sie die Rechte haben – Verwaltung. Sie sehen nur die Bereiche, für die Sie freigeschaltet sind oder in denen etwas mit Ihnen geteilt wurde.
 - **Oben rechts Ihr Name:** Profil, Sicherheit (Zwei-Faktor), „Über dieses Portal“ und Abmelden.
@@ -79,6 +81,8 @@ Nach mehreren falschen Versuchen sperrt das Portal kurz („Zu viele Versuche“
 - **Grüne und rote Meldungen** oben auf der Seite bestätigen eine Aktion bzw. erklären, was nicht geklappt hat.
 
 **Tabellen:** Ins Feld „Suchen …“ tippen filtert sofort alle Spalten. Ein Klick auf eine Spaltenüberschrift sortiert, ein zweiter dreht die Reihenfolge um. Unten blättern Sie, oben rechts stellen Sie ein, wie viele Zeilen erscheinen. Auf schmalen Bildschirmen öffnet das Plus-Symbol am Zeilenanfang die ausgeblendeten Spalten.
+
+**Datum und Uhrzeit:** In Datumsfelder können Sie direkt **TT.MM.JJJJ** eingeben, bei Datum mit Uhrzeit **TT.MM.JJJJ, HH:MM**, bei reiner Uhrzeit **HH:MM**. Der Kalender-/Uhrknopf öffnet die Auswahl; Monat und Jahr lassen sich direkt wechseln. **Heute** wählt den heutigen Tag, **Leeren** steht bei optionalen Feldern bereit. Der Kalender ist auch mit Pfeiltasten, Pos1/Ende und Bild auf/ab bedienbar; Escape schließt ihn. Pflichtangaben, gültige Grenzen und Beginn-/Ende-Zeiträume werden geprüft. Fehler erscheinen beim Verlassen des Feldes oder Absenden, statt während des Tippens. Eine ungültige Eingabe bleibt zur Korrektur sichtbar.
 
 **Bestätigungsdialoge:** Alles, was sich nicht rückgängig machen lässt (Löschen, Absagen), fragt vorher nach.
 
@@ -541,12 +545,12 @@ Menü **Formulare** (Recht „Formulare“). Damit bauen Sie Umfragen, Anmeldung
 
 | Baustein | Für | Einstellungen |
 |---|---|---|
-| **Kurze Antwort** | Name, Ort, kurze Angaben | Art der Eingabe: Text, **E-Mail-Adresse**, **Telefonnummer**, **Zahl** (mit kleinstem/größtem Wert) oder **eigenes Muster** (regulärer Ausdruck, z. B. `[0-9]{5}` für eine PLZ, mit eigenem Hinweistext); Platzhalter |
-| **Langer Text** | Anmerkungen, Begründungen | Platzhalter, höchste Zeichenzahl |
+| **Kurze Antwort** | Name, Ort, kurze Angaben | Text mit Mindest-/Höchstlänge, **E-Mail-Adresse**, **Telefonnummer**, **Webadresse** (HTTP/HTTPS), **Zahl** (kleinster/größter Wert und Schrittweite) oder **eigenes Muster** (regulärer Ausdruck, z. B. `[0-9]{5}` für eine PLZ); Platzhalter und optional eigene Fehlermeldung |
+| **Langer Text** | Anmerkungen, Begründungen | Platzhalter, Mindest-/Höchstlänge, optional eigene Fehlermeldung |
 | **Einfachauswahl** | genau eine Antwort (Kreise) | Optionen, „Sonstiges“ mit Freitext, zufällige Reihenfolge |
 | **Mehrfachauswahl** | mehrere Antworten (Kästchen) | Optionen, „Sonstiges“, zufällige Reihenfolge, mindestens/höchstens wählen |
 | **Auswahlliste** | eine Antwort aus einer langen Liste | Optionen, zufällige Reihenfolge |
-| **Datum** | Geburtsdatum, Wunschtermin, Zeitpunkt | frühestes/spätestes Datum, **mit Uhrzeit** (aus = nur Datum, die Vorgabe) |
+| **Datum** | Geburtsdatum, Wunschtermin, Zeitpunkt | feste oder relative Grenzen, Vergangenheit/Zukunft mit optional heute, Mindest-/Höchstalter, Abstand zu einem anderen Datumsfeld, **mit Uhrzeit** (aus = nur Datum) |
 | **Uhrzeit** | Ankunftszeit | – |
 | **Adresse** | Anschrift von Antragsteller:in, Ort eines Vorhabens | **Vollständige Anschrift** (Straße, Hausnummer, PLZ, Ort) oder **nur PLZ und Ort**; **Adresssuche** (beim Tippen erscheinen Vorschläge, ein Klick füllt alle Felder), **Meinen Standort übernehmen** (die Adresse am aktuellen Standort des Geräts), **Ortsteil** anzeigen, **Koordinaten speichern**. Der Ort wird nach Eingabe der PLZ automatisch ermittelt (bei mehreren Orten zur Auswahl). Alle Felder bleiben von Hand änderbar |
 | **Lineare Skala** | Zufriedenheit, Bewertung | von 0 oder 1 bis 2–10, Beschriftung links/rechts |
@@ -555,6 +559,16 @@ Menü **Formulare** (Recht „Formulare“). Damit bauen Sie Umfragen, Anmeldung
 | **Ort in der Karte** | **Punkt:** Ort eines Schadens · **Linie:** Leitungstrasse, Umleitung · **Fläche:** Baufläche, Sondernutzungsfläche – auch kombiniert | **Was darf eingezeichnet werden** (Punkt, Linie, Fläche – beliebig ankreuzen), **wie viele Objekte höchstens**, GPS-Knöpfe beim Einzeichnen (Punkt am Standort, Standort als Eckpunkt), bei einem einzelnen Punkt Felder für Breite/Länge, **Eigenen Standort zusätzlich erfassen** (unabhängig vom Eingezeichneten, wahlweise Pflicht). Länge und Fläche werden automatisch berechnet |
 
 Jede Frage hat einen **Titel**, eine optionale **Beschreibung** (Hilfetext), **Pflichtfeld** (Nein, Ja oder *Nur unter Bedingung …*), die **Breite** (ganze Zeile, zwei Drittel, halb, Drittel – so stehen z. B. PLZ und Ort nebeneinander; auf dem Handy immer ganze Breite) und den Schalter **Nur unter Bedingung anzeigen**.
+
+### Eingaben verständlich prüfen
+
+Die Regeln eines Feldes erzeugen automatisch einen lesbaren Hinweis für Ausfüllende. Optional kann eine eigene Fehlermeldung hinterlegt werden. Die Prüfung im Browser unterstützt die Eingabe; beim Absenden prüft der Server dieselben maßgeblichen Grenzen erneut.
+
+Bei **Datum** feste früheste/späteste Tage oder Grenzen relativ zum heutigen Tag wählen. Relative Werte sind ganze Tage, etwa **−30** für 30 Tage zuvor oder **7** für in sieben Tagen. **Nur Vergangenheit** und **Nur Zukunft** können den heutigen Tag ausdrücklich einschließen. Altersgrenzen beziehen sich auf vollendete Lebensjahre. Über eine sortierte Auswahl kann ein anderes Datumsfeld als Bezug gewählt werden, zum Beispiel Rückreise frühestens am Tag der Hinreise und höchstens 14 Tage später. Abstände verwenden Kalendertage, auch bei Feldern mit Uhrzeit. Maßgeblich ist die Portal-Zeitzone.
+
+Mehrere gesetzte Grenzen gelten gemeinsam. Widersprüchliche Grenzen werden im Baukasten und beim Speichern auf dem Server zurückgewiesen; vorhandene Einstellungen bleiben dabei erhalten. Neue Prüfregeln werden für neue oder tatsächlich geänderte Antworten angewendet; unveränderte historische Angaben und vorhandene Uploads werden dadurch nicht nachträglich ungültig gemacht. Wenn ein Bezugsdatum geändert wird, wird die Beziehung zu abhängigen Datumsfeldern erneut geprüft. Bei Korrekturanforderungen werden diese Felder deshalb automatisch mit geöffnet; die bisherigen Werte bleiben als Vorbelegung sichtbar.
+
+Textlängen, Zahlenbereiche und positive Schrittweiten sowie Auswahl- und Uploadgrenzen ergänzen die Datumsregeln. Dateiendungen, Dateigröße und Anzahl werden weiterhin anhand der Upload-Einstellungen geprüft. Webadressen müssen HTTP oder HTTPS verwenden.
 
 ### Bedingungen: Felder ein- und ausblenden
 
@@ -602,13 +616,21 @@ Die **Bibliothek** (Menü **Datenblöcke**) sehen alle mit dem Recht „Formular
 
 | Einstellung | Wirkung |
 |---|---|
-| Nimmt Antworten an | Aus = alle Links zeigen „Formular geschlossen“ |
+| Nimmt Antworten an | Aus = alle Links zeigen „Formular geschlossen“; neue Formulare und Kopien beginnen geschlossen |
 | Frist | Danach werden keine Antworten mehr angenommen. Die Frist steht in Einladung und Erinnerung |
 | Anonym | Name und E-Mail von Eingeladenen und Angemeldeten werden nicht zur Antwort gespeichert. Sie sehen bei Einladungen nur, *dass* jemand geantwortet hat (für Erinnerungen) |
 | Mehrfach ausfüllen | Eingeladene dürfen mehrere Antworten abgeben (sonst nur eine). Über den öffentlichen Link geht mehrfaches Ausfüllen immer |
 | Eingangsbestätigung | Die ausfüllende Person bekommt eine Kopie ihrer Antworten per Mail (bei öffentlichen Links an die Adresse aus der ersten E-Mail-Frage) |
 | Text nach dem Absenden | z. B. „Danke! Wir melden uns bis Freitag.“ |
 | Zusammenfassung vor dem Absenden | Vor dem Absenden sehen Ausfüllende alle Angaben noch einmal und können einzelne Abschnitte ändern (ab drei Fragen) |
+
+### Formulare schließen, archivieren und löschen
+
+Die Übersicht bietet **Archiv** und **Papierkorb**. Noch nie veröffentlichte, ungenutzte Entwürfe dürfen Eigentümer oder Administration in den Papierkorb verschieben und dort 30 Tage lang wiederherstellen. Danach werden sie durch den Bereinigungsdienst endgültig entfernt.
+
+Veröffentlichte oder bereits verwendete Formulare werden stattdessen **geschlossen und archiviert**. Antworten, Dateien, Einladungen und vorhandene Antragsvorgänge bleiben erhalten. Archivierte Formulare bleiben auswertbar; Formularbearbeitung, neue Einladungen und neue öffentliche Einsendungen sind gesperrt. Bereits eingegangene Antragsvorgänge können weiterhin bearbeitet werden. Zum erneuten Bearbeiten das Formular reaktivieren; die Annahme neuer Antworten anschließend bewusst einschalten.
+
+Geteilte Bearbeitungsrechte erlauben weder die Löschung des Formulars noch seiner Antworten. Diese Aktionen sind Eigentümer und Administration vorbehalten. Das Entfernen eines einzelnen Feldes im Baukasten ist davon getrennt.
 
 **Benachrichtigung bei neuen Antworten**
 
@@ -761,7 +783,7 @@ Die antragstellende Person bekommt eine Mail und sieht auf ihrer Statusseite obe
 
 Ist dem Antragsformular ein **Prozess** zugeordnet (Reiter „Antrag“ › Bearbeitungsprozess; Prozesse gestalten Kolleg:innen mit dem Recht „Prozesse“ unter **Prozesse**), läuft jeder Antrag durch festgelegte Schritte:
 
-- **Meine Aufgaben** (Navigation, die Zahl zeigt offene Schritte) listet alles, was Ihnen oder Ihren Gruppen zugewiesen ist – nach Frist sortiert. Bei Gruppenaufgaben **Übernehmen** klicken, damit niemand doppelt arbeitet. Wer Ressourcen verwaltet, sieht dort außerdem einen Abschnitt **Ressourcenbuchung**: offene **Anfragen**, **Kautionsfreigaben** nach Abnahme durch Hausmeister:innen, **Übergaben** heute und morgen, fehlende **Abnahmen** mit nicht abgerechneter Kaution und **überfällige Zahlungen** – jeweils mit Link zur Buchung, wo wie gewohnt entschieden wird. Die Zahl im Menü zählt Anfragen, Freigaben, überfällige Zahlungen und alles Überfällige; ohne Modul Online-Anträge steht „Meine Aufgaben“ im Menü unter Ressourcen.
+- **Meine Aufgaben** führt aktuell bearbeitbare Prozess-, Umlauf- und Ressourcenaufgaben zusammen. Filter unterscheiden persönliche Aufgaben, Gruppenaufgaben, Vertretung und die Quelle. Unter **Für meine Gruppen** zuerst **Übernehmen** klicken, damit niemand doppelt arbeitet. **Wartet auf andere** ist eingeklappt und enthält spätere Stationen, gestoppte Umläufe und offene Rückfragen; diese erzeugen keinen persönlichen Überfälligkeitshinweis. Ressourcenaufgaben führen direkt zur passenden Buchung, etwa für Anfragen, Kautionsfreigabe, Übergabe, Abnahme oder überfällige Zahlung. Die vorhandenen Rechte und Vertretungsregeln gelten weiterhin.
 - Im Vorgang zeigt oben die **Schrittleiste**, wo der Antrag steht (✓ erledigt, blau = aktuell, durchgestrichen = übersprungen).
 - **Aufgabe:** Prüfpunkte abhaken, interne Angaben (z. B. Gebühr) eintragen, optional Vermerk, **Erledigt**. Der Knopf wird erst aktiv, wenn alle Prüfpunkte abgehakt sind.
 - **Freigabe:** **Genehmigen** oder **Ablehnen/Zurückgeben** (mit Begründung). Beim Vier-Augen-Prinzip darf nicht freigeben, wer den Schritt davor erledigt hat.
@@ -836,13 +858,17 @@ Der Umlaufeditor gliedert sich in Inhalt, Empfänger und Ablauf. Personen und Gr
 
 ## 13. Profil und Sicherheit (Zwei-Faktor)
 
+### Anmeldung mit Nextcloud / OIDC
+
+Ist die Funktion eingerichtet, erscheint auf der Anmeldeseite zusätzlich der Anbieter-Button. Ein vorhandenes Portalkonto zuerst wie gewohnt anmelden und unter **Profil → Sicherheit → Kontoverknüpfung** ausdrücklich verbinden. Die abschließende Bestätigung zeigt, welche Konten verknüpft werden. Gleiche E-Mail-Adressen werden nicht automatisch zusammengeführt. Eine gegebenenfalls erforderliche Portal-Zwei-Faktor-Anmeldung bleibt bestehen. Die normale Abmeldung beendet die Portalsitzung; eine zusätzlich angebotene zentrale Abmeldung meldet auch beim Anbieter ab. [Anleitung und Grenzen](NEXTCLOUD-OIDC.md).
+
 ### Profil
 
 Oben rechts auf Ihren Namen › **Profil**: Anzeigenamen ändern (so erscheinen Sie in Konferenzen) und Passwort ändern (aktuelles Passwort und neues mit mindestens 10 Zeichen).
 
 Unter **Freiwillige Angaben** können Sie Person, Kontakt, Privat-/Dienstanschrift, Beschäftigung, Bankverbindung sowie Sprache und Zeitzone ergänzen. Alle Felder sind optional und werden verschlüsselt gespeichert. **Freiwillige Angaben speichern** ist getrennt vom Speichern der Kontodaten. **Eigene Angaben als JSON herunterladen** und **Alle freiwilligen Angaben löschen** stehen direkt dort bereit.
 
-Mit **Meine freiwilligen Angaben für meine Formulare vorbelegen** erlauben Sie die Vorbelegung dafür vorgesehener Formularfelder. Die Vorbelegung nutzt ausschließlich Ihr angemeldetes Profil und bleibt bearbeitbar; bestehende Antworten werden nicht überschrieben. Löschen entfernt keine schon abgesendeten Formularantworten. Beschäftigungsangaben vergeben keine Rechte. SSO ist noch nicht implementiert. Umfang und Vorbereitung: [Benutzerprofile](BENUTZERPROFILE.md).
+Mit **Meine freiwilligen Angaben für meine Formulare vorbelegen** erlauben Sie die Vorbelegung dafür vorgesehener Formularfelder. Die Vorbelegung nutzt ausschließlich Ihr angemeldetes Profil und bleibt bearbeitbar; bestehende Antworten werden nicht überschrieben. Löschen entfernt keine schon abgesendeten Formularantworten. Beschäftigungsangaben vergeben keine Rechte. Bei eingerichteter OIDC-Anmeldung können ausgewählte Angaben vom Anbieter aktualisiert werden. Ihre Zustimmung zur Vorbelegung bleibt davon unabhängig. Umfang: [Benutzerprofile](BENUTZERPROFILE.md).
 
 ### Zwei-Faktor-Anmeldung
 
@@ -930,6 +956,6 @@ Im erweiterten Modus kann der Herausgeber bei Einzelbestätigungen eine verbindl
 
 ## Seminare und Lehrgänge
 
-Unter **Termine & Räume → Seminare & Lehrgänge** Veranstaltungen finden und den persönlichen Anmeldestand aufrufen. Einladungen, Pflichtformulare und Platzangebote erfordern eine ausdrückliche Aktion. Dort stehen auch freigegebene Unterlagen, Kalenderdateien und ausgestellte Bescheinigungen bereit. Die Planung nutzt vorhandene Formulare, Umfragen, Räume und Sammelmappen. [Schrittweise Anleitung](SEMINARE-UND-LEHRGAENGE.md).
+Unter **Termine & Räume → Seminare & Lehrgänge** Veranstaltungen finden und den persönlichen Anmeldestand aufrufen. **Meine Teilnahmen** zeigt anstehende und vergangene Buchungen; **Meine Abonnements** zeigt abonnierte Reihen. Ein Abonnement reserviert keine Plätze: passende Termine zusätzlich buchen. Bei hybriden Terminen die Teilnahme vor Ort oder online wählen; ein späterer Wechsel ist bis zum Anmeldeschluss bei freien Plätzen möglich. Einladungen, Pflichtformulare und Platzangebote erfordern eine ausdrückliche Aktion. Im persönlichen Bereich stehen freigegebene Unterlagen, Kalenderdateien und ausgestellte Bescheinigungen bereit. Die Planung bietet eine kompakte Ansicht und einen optionalen Assistenten; Dozenten, wiederkehrende Termine und wechselnde Orte lassen sich direkt erfassen. Vorhandene Formulare, Umfragen, Räume und Sammelmappen werden weiterverwendet. [Schrittweise Anleitung](SEMINARE-UND-LEHRGAENGE.md).
 
 Unter **Mein Arbeitsplatz → Meine Aufgaben** erscheinen außerdem offene Kenntnisnahmen und Freigaben aus Umläufen, mit Frist und Dokumentfortschritt. Spätere Stationen sind als wartend gekennzeichnet. Berechtigte Freigaben in Vertretung nennen die vertretene Person; persönliche Kenntnisnahmen bleiben bei den jeweiligen Empfängern. Erledigte, abgelaufene und archivierte Umläufe werden dort nicht als offene Aufgaben aufgeführt.
