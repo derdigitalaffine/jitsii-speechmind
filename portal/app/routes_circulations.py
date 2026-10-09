@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from . import circulations as cl, csvsafe, dms, circulation_reports as reports
+from . import circulations as cl, csvsafe, dms, circulation_reports as reports, bundle_lifecycle as bl
 from .db import (Circulation, CirculationBundle, CirculationDistributor, CirculationEvent, CirculationReceipt,
                  CirculationRecipient, CirculationVersion, DmsFile, Form, Group, LawText, User, to_local, utcnow)
 from .main import app, check_csrf, current_user, enabled_modules, flash, get_db, redirect, render, session_user
@@ -191,6 +191,7 @@ async def save_documents(db, user, row, data, c, staged):
         if not str(value).isdigit():
             raise HTTPException(422, 'Ungültige Sammelmappe.')
         bundle = bundle_of(db, user, int(value))
+        if bundle.archived:raise HTTPException(409,'Archivierte Sammelmappen bitte zuerst reaktivieren.')
         for original in cl.content(bundle)['items']:
             if original['kind'] in {'law','form','dms'}:
                 cl.source(db,user,original)
@@ -534,9 +535,10 @@ def bundle_of(db,user,bid,editing=False):
     return row
 
 
-def available_bundles(db,user):
+def available_bundles(db,user,include_archived=False):
     result=[]
     for row in db.scalars(select(CirculationBundle).order_by(CirculationBundle.updated_at.desc())):
+        if row.archived and not include_archived:continue
         try:bundle_of(db,user,row.id)
         except HTTPException:continue
         result.append(row)
@@ -565,9 +567,16 @@ def bundle_list(request:Request,user:User=Depends(current_user),db:Session=Depen
     module()
     if not bundle_creator(user) and not available_bundles(db,user):raise HTTPException(403)
     q=request.query_params.get('q','').strip()[:200]
-    bundles=[b for b in available_bundles(db,user) if q.casefold() in (cl.content(b)['title']+' '+cl.content(b)['body']).casefold()]
+    tab=request.query_params.get('tab','active')
+    if tab not in {'active','archive','trash'}:tab='active'
+    if tab=='trash':
+        from .db import TrashItem
+        items=[i for i in db.scalars(select(TrashItem).where(TrashItem.kind=='circulation_bundle').order_by(TrashItem.deleted_at.desc())) if bl.trash_access(user,i)]
+        return protect(render(request,'circulation_bundle_trash.html',user,items=items))
+    bundles=[b for b in available_bundles(db,user,include_archived=True) if b.archived==(tab=='archive') and q.casefold() in (cl.content(b)['title']+' '+cl.content(b)['body']).casefold()]
     all_reports = reports.overview(db,user,'allowed')
-    return protect(render(request,'circulation_bundles.html',user,bundles=bundles,content=cl.content,q=q,
+    references=bl.used_ids(db)
+    return protect(render(request,'circulation_bundles.html',user,bundles=bundles,content=cl.content,q=q,tab=tab, removable={b.id:bl.removable(db,b,references) for b in bundles}, may_remove={b.id:bl.may_remove(user,b) for b in bundles}, may_archive={b.id:bundle_may_edit(db,user,b) for b in bundles},
                    usage={b.id:[r for r in all_reports if str(b.id) in r['bundle_ids']] for b in bundles}, editable={b.id:bundle_may_edit(db,user,b) for b in bundles},can_create=bundle_creator(user),return_to=return_path(request.query_params.get('return_to'))))
 
 
@@ -585,12 +594,15 @@ async def bundle_new(request:Request,user:User=Depends(current_user),db:Session=
 @app.get('/sammelmappen/{bid:int}/edit')
 def bundle_edit(request:Request,bid:int,user:User=Depends(current_user),db:Session=Depends(get_db)):
     row=bundle_of(db,user,bid,editing=True)
-    return protect(render(request,'circulation_bundle_edit.html',user,**editor_context(db,user,row),return_to=return_path(request.query_params.get('return_to'))))
+    if row.archived:return redirect(f'/sammelmappen/{bid}')
+    return protect(render(request,'circulation_bundle_edit.html',user,**editor_context(db,user,row),may_remove=bl.may_remove(user,row),may_archive=bundle_may_edit(db,user,row),removable=bl.removable(db,row),return_to=return_path(request.query_params.get('return_to'))))
 
 
 @app.post('/sammelmappen/{bid:int}/save',dependencies=[Depends(check_csrf)])
 async def bundle_save(request:Request,bid:int,user:User=Depends(current_user),db:Session=Depends(get_db)):
-    row=bundle_of(db,user,bid,editing=True);data=await request.form()
+    row=bundle_of(db,user,bid,editing=True)
+    if row.archived:raise HTTPException(409,'Archivierte Sammelmappen bitte zuerst reaktivieren.')
+    data=await request.form()
     if str(data.get('revision',''))!=row.updated_at.isoformat():raise HTTPException(409,'Die Mappe wurde zwischenzeitlich geändert. Bitte neu laden.')
     c=cl.form_data(data,cl.content(row))
     if not c['title']:raise HTTPException(422,'Bitte einen Titel für die Mappe angeben.')
@@ -629,6 +641,38 @@ def bundle_file(bid:int,key:str,user:User=Depends(current_user),db:Session=Depen
     return protect(FileResponse(path,media_type=item.get('mime') if inline else 'application/octet-stream',filename=item['title'],content_disposition_type='inline' if inline else 'attachment',
                    headers={'X-Content-Type-Options':'nosniff','X-Frame-Options':'SAMEORIGIN' if inline else 'DENY',
                             'Content-Security-Policy':"default-src 'none'; frame-ancestors 'self'; sandbox"}))
+
+
+@app.post('/sammelmappen/{bid:int}/archive',dependencies=[Depends(check_csrf)])
+def bundle_archive(request:Request,bid:int,user:User=Depends(current_user),db:Session=Depends(get_db)):
+    row=bundle_of(db,user,bid)
+    if not bundle_may_edit(db,user,row):raise HTTPException(404)
+    row.archived=not row.archived;row.updated_at=utcnow();db.commit()
+    flash(request,'Sammelmappe archiviert. Bereits übernommene Inhalte bleiben erhalten.' if row.archived else 'Sammelmappe reaktiviert.')
+    return redirect('/sammelmappen?tab='+('archive' if row.archived else 'active'))
+
+
+@app.post('/sammelmappen/{bid:int}/delete',dependencies=[Depends(check_csrf)])
+def bundle_delete(request:Request,bid:int,user:User=Depends(current_user),db:Session=Depends(get_db)):
+    from . import trash
+    row=bundle_of(db,user,bid)
+    if not bl.may_remove(user,row):raise HTTPException(404)
+    if not bl.removable(db,row):raise HTTPException(409,'Diese Mappe ist geteilt oder wurde bereits verwendet. Bitte archivieren: übernommene Dokumente und historische Verweise bleiben erhalten.')
+    trash.delete_obj(db,'circulation_bundle',row,user.email);trash.log(db,user.email,'delete','circulation_bundle',1,'Eigene ungenutzte Sammelmappe');db.commit()
+    flash(request,'Sammelmappe mit ihren Dokumenten für 30 Tage in den Papierkorb verschoben.')
+    return redirect('/sammelmappen?tab=trash')
+
+
+@app.post('/sammelmappen/papierkorb/{tid:int}/restore',dependencies=[Depends(check_csrf)])
+def bundle_restore(request:Request,tid:int,user:User=Depends(current_user),db:Session=Depends(get_db)):
+    from .db import TrashItem
+    from . import trash
+    module();item=db.get(TrashItem,tid)
+    if not bl.trash_access(user,item):raise HTTPException(404)
+    error=trash.restore(db,item,user.email)
+    if error:raise HTTPException(409,error)
+    db.commit();flash(request,'Sammelmappe mit ihren Dokumenten wiederhergestellt.')
+    return redirect('/sammelmappen')
 
 
 @app.post('/umlaeufe/{cid:int}/bundle',dependencies=[Depends(check_csrf)])

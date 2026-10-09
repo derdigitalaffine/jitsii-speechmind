@@ -18,7 +18,7 @@ from sqlalchemy import and_, delete, func, insert, or_, select, update
 
 from .config import settings
 from .db import (
-    Base, Circulation, DeletionLog, DmsRecord, FormResponse, Payment, Poll, Resource, ResourceBooking, SessionLocal, ShortLink,
+    Base, Circulation, CirculationBundle, DeletionLog, DmsRecord, FormResponse, Payment, Poll, Resource, ResourceBooking, SessionLocal, ShortLink,
     TrashItem, Vote, to_local, utcnow,
 )
 
@@ -42,6 +42,9 @@ def _response_label(r: FormResponse) -> str:
 
 
 KINDS = {
+    "circulation_bundle": {"model":CirculationBundle,"label":"Sammelmappen","icon":"fa-folder-open","search":("draft_json",),"date":"created_at",
+        "show":lambda o:json.loads(o.draft_json or '{}').get('title') or 'Neue Sammelmappe',
+        "files":lambda o:[settings.data_dir / 'circulation-bundles' / str(o.id)]},
     "circulation_draft": {"model":Circulation,"label":"Umlaufentwürfe","icon":"fa-bullhorn","search":("draft_json",),"date":"created_at",
         "show":lambda o:json.loads(o.draft_json or '{}').get('title') or 'Neuer Umlaufentwurf',
         "files":lambda o:[settings.data_dir / 'circulations' / str(o.id)]},
@@ -214,6 +217,9 @@ def delete_obj(db, kind: str, obj, actor: str, batch: str = "") -> TrashItem:
     """In den Papierkorb: sichern, Dateien verschieben, löschen."""
     k = KINDS[kind]
     if kind == "circulation_draft" and obj.current_version: raise ValueError("Veröffentlichte Umläufe können nicht als Entwurf gelöscht werden.")
+    if kind == "circulation_bundle":
+        from .bundle_lifecycle import removable
+        if not removable(db,obj):raise ValueError("Geteilte oder verwendete Sammelmappen können nur archiviert werden.")
     model = k["model"]
     label = k["show"](obj)[:300]
     files = k["files"](obj)
@@ -234,6 +240,9 @@ def delete_one(db, kind: str, obj_id: int, actor: str) -> TrashItem | None:
     obj = db.get(KINDS[kind]["model"], obj_id)
     if obj is None or (kind == "circulation_draft" and obj.current_version != 0):
         return None
+    if kind == "circulation_bundle":
+        from .bundle_lifecycle import removable
+        if not removable(db,obj):return None
     item = delete_obj(db, kind, obj, actor)
     log(db, actor, "delete", kind, 1, item.label)
     return item
@@ -249,6 +258,9 @@ def delete_bulk(db, kind: str, before: date | None, status: str, actor: str) -> 
     for oid in ids:
         obj = db.get(model, oid)
         if obj is not None:
+            if kind == "circulation_bundle":
+                from .bundle_lifecycle import removable
+                if not removable(db,obj):continue
             delete_obj(db, kind, obj, actor, batch)
             n += 1
     crit = (f"vor {before.strftime('%d.%m.%Y')}" if before else "") + (f", Status {status}" if status else "")

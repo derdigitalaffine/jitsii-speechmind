@@ -391,6 +391,15 @@ def _poll_rsvp() -> None:
         rsvp.poll_safely()
 
 
+def purge_form_drafts() -> None:
+    """Commit expired draft removal before deleting its associated storage."""
+    from . import form_lifecycle
+    with SessionLocal() as db:
+        ids = form_lifecycle.purge(db)
+        db.commit()
+    form_lifecycle.purge_files(ids)
+
+
 async def run_forever() -> None:
     global _loop
     _loop = asyncio.get_running_loop()
@@ -447,6 +456,7 @@ async def run_forever() -> None:
                 await asyncio.to_thread(chat.prune)
                 from . import form_mail
                 await asyncio.to_thread(form_mail.purge_expired)
+                await asyncio.to_thread(purge_form_drafts)
                 from . import updates
                 await asyncio.to_thread(updates.check)
         except Exception:  # noqa: BLE001

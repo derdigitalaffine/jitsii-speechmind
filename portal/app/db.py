@@ -771,6 +771,9 @@ class Form(Base):
     """Formular aus dem Baukasten. Aufbau als JSON-Liste von Elementen (siehe forms.py)."""
     __tablename__ = "forms"
 
+    published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     id: Mapped[int] = mapped_column(primary_key=True)
     org_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
     org: Mapped["Organization | None"] = relationship(foreign_keys=[org_id])
@@ -844,7 +847,7 @@ class FormShare(Base):
     """Freigabe eines Formulars im Portal für eine Person oder Gruppe.
 
     level: 1 = Ergebnisse einsehen, 2 = zusätzlich Teilnehmende einladen,
-           3 = zusätzlich Formular bearbeiten und löschen
+           3 = zusätzlich Formular bearbeiten
     """
     __tablename__ = "form_shares"
 
@@ -2911,7 +2914,7 @@ _NEW_COLUMNS = {
                  "ics_uid": "VARCHAR(255)", "ics_sequence": "INTEGER NOT NULL DEFAULT 0",
                  "cancelled_at": "DATETIME", "guest_token": "VARCHAR(64)"},
     "notifications": {"reply_to": "VARCHAR(255)", "attachments_json": "TEXT"},
-    "forms": {"internal": "BOOLEAN NOT NULL DEFAULT 0", "notify_pdf": "BOOLEAN NOT NULL DEFAULT 0", "notify_files": "BOOLEAN NOT NULL DEFAULT 0",
+    "forms": {"published_at": "DATETIME", "archived_at": "DATETIME", "deleted_at": "DATETIME", "internal": "BOOLEAN NOT NULL DEFAULT 0", "notify_pdf": "BOOLEAN NOT NULL DEFAULT 0", "notify_files": "BOOLEAN NOT NULL DEFAULT 0",
               "pdf_uploads": "BOOLEAN NOT NULL DEFAULT 1", "confirm_csv": "BOOLEAN NOT NULL DEFAULT 0",
               "confirm_json": "BOOLEAN NOT NULL DEFAULT 0", "confirm_pdf": "BOOLEAN NOT NULL DEFAULT 1",
               "confirm_files": "BOOLEAN NOT NULL DEFAULT 0", "kind": "VARCHAR(12) NOT NULL DEFAULT 'survey'", "app_prefix": "VARCHAR(12) NOT NULL DEFAULT ''",
@@ -2977,6 +2980,8 @@ def _migrate() -> None:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
             if table == "seminar_sessions" and "delivery_mode" not in existing:
                 conn.execute(text("UPDATE seminar_sessions SET delivery_mode = 'hybrid' WHERE online_url <> ''"))
+            if table == "forms" and "published_at" not in existing:
+                conn.execute(text("UPDATE forms SET published_at = created_at WHERE active = 1"))
             if table == "forms" and "confirm_pdf" not in existing:
                 conn.execute(text("UPDATE forms SET confirm_pdf = CASE WHEN kind = 'application' THEN app_pdf ELSE 0 END"))
         for name, table, column in (("ix_recordings_status", "recordings", "status"),

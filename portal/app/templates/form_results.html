@@ -17,7 +17,7 @@
 <div class="d-flex flex-wrap gap-2 mb-3">
   <a class="btn btn-outline-primary" href="/forms/{{ form.id }}/export.csv"><i class="fa-solid fa-file-csv me-1"></i>CSV (Excel)</a>
   <a class="btn btn-outline-primary" href="/forms/{{ form.id }}/export.json"><i class="fa-solid fa-file-code me-1"></i>JSON</a>
-  {% if level >= 3 %}<form method="post" action="/forms/{{ form.id }}/responses/delete-all" class="ms-auto"><input type="hidden" name="csrf" value="{{ csrf }}">
+  {% if level >= 4 and not form.archived_at %}<form method="post" action="/forms/{{ form.id }}/responses/delete-all" class="ms-auto"><input type="hidden" name="csrf" value="{{ csrf }}">
     <button class="btn btn-outline-danger" data-confirm-title="Alle {{ responses | length }} Antworten löschen?" data-confirm="Auch hochgeladene Dateien werden gelöscht. Eingeladene können danach erneut antworten."><i class="fa-regular fa-trash-can me-1"></i>Alle löschen</button></form>{% endif %}
 </div>
 
