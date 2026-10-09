@@ -149,6 +149,9 @@ def _record(db: Session, user: User, record_id: int, need: int = dms.READ, *, al
 def dms_record(request: Request, record_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     from . import workflow
     record, level = _record(db, user, record_id)
+    may_remove = lifecycle.owns(user, record) and level >= dms.WRITE
+    if record.archived_at:
+        level = dms.READ
     resp = record.response
     ctx = {}
     if resp is not None:
@@ -168,7 +171,7 @@ def dms_record(request: Request, record_id: int, user: User = Depends(current_us
         candidates = db.scalars(q.order_by(Person.name).limit(15)).all()
     ctx.update(person_q=person_q, candidates=candidates)
     return render(request, "dms_record.html", user, record=record, level=level, by_id=by_id, label=dms.label,
-                  may_remove=lifecycle.owns(user, record), protection=lifecycle.protection(db, record),
+                  may_remove=may_remove, protection=lifecycle.protection(db, record),
                   area_path=dms.path(record.area, by_id), statuses=apps.STATUSES, write_areas=[(a, d) for a, d in dms.tree(db) if lv.get(a.id, 0) >= dms.WRITE],
                   **ctx)
 
@@ -540,13 +543,13 @@ async def dms_move(request: Request, user: User = Depends(current_user), db: Ses
     moved = skipped = 0
     for rid in data.getlist("ids"):
         record = db.get(DmsRecord, int(rid)) if str(rid).isdigit() else None
-        if record is None or lv.get(record.area_id, 0) < dms.WRITE:
+        if record is None or record.archived_at or lv.get(record.area_id, 0) < dms.WRITE:
             skipped += 1
             continue
         moved += dms.move_record(db, record, target, user)
     db.commit()
     flash(request, f"{moved} Eintrag/Einträge nach „{target.name}“ verschoben."
-          + (f" {skipped} übersprungen (keine Schreibrechte)." if skipped else ""), "error" if skipped and not moved else "ok")
+          + (f" {skipped} übersprungen (archiviert oder keine Schreibrechte)." if skipped else ""), "error" if skipped and not moved else "ok")
     return redirect(safe_next(str(data.get("next", ""))) if data.get("next") else "/dms")
 
 

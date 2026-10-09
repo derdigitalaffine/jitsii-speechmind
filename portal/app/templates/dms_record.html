@@ -11,7 +11,7 @@
 {% if case_access %}<a class="btn btn-outline-primary" href="/forms/{{ resp.form_id }}/applications/{{ resp.id }}"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Zum Vorgang</a>{% endif %}{% endif %}
 {% if may_remove %}<div class="d-flex flex-wrap gap-2">
 <form method="post" action="{{ base }}/{{ 'activate' if record.archived_at else 'archive' }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-secondary"><i class="fa-solid fa-box-archive me-1"></i>{{ 'Wieder anzeigen' if record.archived_at else 'Archivieren' }}</button></form>
-{% if not protection %}<form method="post" action="{{ base }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-danger" data-confirm="30 Tage wiederherstellbar im Papierkorb."><i class="fa-solid fa-trash-can me-1"></i>In Papierkorb</button></form>{% endif %}</div>{% endif %}
+{% if not protection and not record.archived_at %}<form method="post" action="{{ base }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-danger" data-confirm="30 Tage wiederherstellbar im Papierkorb."><i class="fa-solid fa-trash-can me-1"></i>In Papierkorb</button></form>{% endif %}</div>{% endif %}
 {% endcall %}
 {% if record.archived_at %}<div class="alert alert-secondary">Archiviert – vorhandene Verknüpfungen bleiben lesbar.</div>{% endif %}
 {% if may_remove and protection %}<details class="mb-3"><summary>Warum ist nur Archivieren möglich?</summary><ul>{% for reason in protection %}<li>{{ reason }}</li>{% endfor %}</ul></details>{% endif %}
