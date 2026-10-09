@@ -116,13 +116,17 @@ def test_free_pacing_multi_slider_and_presenter():
     r = admin.post(f"/votes/live/{pid}/fragen/{multi}/chart", data={"csrf": csrf_of(edit.text), "chart": "donut"},
                    headers={"Accept": "application/json"})
     assert r.json()["questions"][3]["chart"] == "donut"
-    # Übersicht und Löschen
+    # Übersicht und evidenzerhaltendes Archivieren
     assert "Live-Umfragen" in admin.get("/votes").text
     # fremde Personen sehen die Umfrage nicht
     assert client().get(f"/votes/live/{pid}", follow_redirects=False).status_code in (303, 404)
     admin.post(f"/votes/live/{pid}/loeschen", data={"csrf": csrf_of(edit.text)})
     with SessionLocal() as db:
-        assert db.get(LivePoll, pid) is None
+        archived = db.get(LivePoll,pid)
+        assert archived is not None and archived.archived_at and archived.status == "closed"
+        assert db.scalar(select(LiveAnswer.id).where(LiveAnswer.poll_id == pid).limit(1)) is not None
+    assert admin.get(f"/votes/live/{pid}").status_code == 200
+    assert admin.post(f"/votes/live/{pid}/fragen/{multi}/reset", data={"csrf":csrf_of(edit.text)}).status_code == 409
 
 
 def test_word_cloud_normalize_filter_moderate_export():

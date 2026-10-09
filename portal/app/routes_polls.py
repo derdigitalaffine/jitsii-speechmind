@@ -9,7 +9,7 @@ from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
-from . import access, planning, polls as pl, shares as sh, shortlinks as sl, worker
+from . import poll_lifecycle as lifecycle, access, planning, polls as pl, shares as sh, shortlinks as sl, worker
 from .db import LOCAL_TZ, Group, Meeting, Poll, PollParticipant, User, to_local, utcnow
 from .main import (
     app, check_csrf, current_user, home_for, ensure_guest_token, flash, get_db, rate_limit, redirect, render, require,
@@ -30,6 +30,8 @@ def _poll(db: Session, poll_id: int, user: User, need: int) -> tuple[Poll, int]:
         raise HTTPException(404, "Terminumfrage nicht gefunden.")
     if level < need:
         raise HTTPException(403, "Für diese Aktion reicht Ihre Freigabe für die Terminumfrage nicht aus.")
+    if need > sh.VIEW:
+        lifecycle.mutable(poll)
     return poll, level
 
 
@@ -67,7 +69,7 @@ def _form_ctx(poll: Poll | None) -> dict:
 # --- Verwaltung ----------------------------------------------------------------------
 
 @app.get("/polls")
-def polls_list(request: Request, all: str = "", user: User = Depends(current_user), db: Session = Depends(get_db)):
+def polls_list(request: Request, all: str = "", state: str = "active", user: User = Depends(current_user), db: Session = Depends(get_db)):
     show_all = user.is_admin and all == "1"
     shared = [] if show_all else sh.shared_with(db, "poll", user)
     if not user.can("polls") and not shared:
@@ -76,12 +78,15 @@ def polls_list(request: Request, all: str = "", user: User = Depends(current_use
     q = select(Poll).options(joinedload(Poll.owner)).order_by(Poll.updated_at.desc())
     if not show_all:
         q = q.where(Poll.owner_id == user.id)
-    items = db.scalars(q).unique().all() if user.can("polls") else []
+    state = state if state in ("active", "archive", "trash") else "active"
+    q = q.where(Poll.archived_at.is_not(None) if state == "archive" else Poll.archived_at.is_(None))
+    items = db.scalars(q).unique().all() if user.can("polls") and state != "trash" else []
+    shared = [(p, lvl) for p, lvl in shared if (bool(p.archived_at) == (state == "archive")) and state != "trash"]
     counts = dict(db.execute(select(PollParticipant.poll_id, func.count(PollParticipant.id))
                              .where(PollParticipant.answered_at.is_not(None))
                              .group_by(PollParticipant.poll_id)).all())
     return render(request, "polls.html", user, polls=items, counts=counts, show_all=show_all, is_open=pl.is_open,
-                  parts=pl.option_parts, shared=shared, levels=sh.LEVELS["poll"])
+                  parts=pl.option_parts, shared=shared, state=state, trash_items=lifecycle.trash_items(db, ["poll"], user) if state == "trash" else [], levels=sh.LEVELS["poll"])
 
 
 @app.get("/polls/new")
@@ -96,13 +101,12 @@ async def poll_create(request: Request, user: User = Depends(poll_user), db: Ses
     if not options:
         flash(request, "Bitte mindestens einen Terminvorschlag angeben.", "error")
         return redirect("/polls/new")
-    poll = Poll(owner_id=user.id, title="", public_token=new_link_token())
+    poll = Poll(owner_id=user.id, title="", closed=True, published_at=None)
     _apply_settings(poll, data)
     db.add(poll)
     pl.set_options(db, poll, options)
     db.commit()
-    flash(request, f"Terminumfrage mit {len(options)} Vorschlägen angelegt. Teilen Sie jetzt den Link oder laden "
-                   "Sie Teilnehmende ein.")
+    flash(request, f"Entwurf mit {len(options)} Vorschlägen angelegt. Veröffentlichen Sie ihn, sobald alles bereit ist.")
     return redirect(f"/polls/{poll.id}#teilen")
 
 
@@ -126,7 +130,7 @@ def poll_detail(request: Request, poll_id: int, user: User = Depends(current_use
                   waiting=[p for p in poll.participants if not p.answered_at],
                   shortlink_url=("/shortlinks?new=" + quote(public) + "&title=" + quote(poll.title)
                                  + "&next=" + quote(f"/polls/{poll.id}") + "#neu") if public else "",
-                  level=level, share_levels=sh.LEVELS["poll"])
+                  level=sh.VIEW if poll.archived_at else level, lifecycle_owner=lifecycle.owner(poll,user), removable=lifecycle.removable(db,"poll",poll), share_levels=sh.LEVELS["poll"])
 
 
 @app.get("/polls/{poll_id}/edit")
@@ -153,12 +157,20 @@ async def poll_update(request: Request, poll_id: int, user: User = Depends(curre
 def poll_state(request: Request, poll_id: int, action: str = Form(...), user: User = Depends(current_user),
                db: Session = Depends(get_db)):
     poll, level = _poll(db, poll_id, user, sh.EDIT if action in ("close", "reopen") else sh.INVITE)
-    if action == "close":
+    if action in ("reopen", "publish"):
+        lifecycle.require_owner(poll,user)
+        if poll.expires_at and poll.expires_at < utcnow():
+            raise HTTPException(409, "Bitte zunächst die abgelaufene Frist ändern.")
+        poll.published_at = poll.published_at or utcnow()
+        poll.public_token = poll.public_token or new_link_token()
+        poll.closed = False
+        flash(request,"Terminumfrage veröffentlicht und geöffnet.")
+    elif action == "close":
         poll.closed = True
         flash(request, "Abstimmung beendet. Die Ergebnisse bleiben sichtbar.")
-    elif action == "reopen":
-        poll.closed = False
-        flash(request, "Abstimmung wieder geöffnet.")
+
+    elif action in ("renew", "enable_link") and not poll.published_at:
+        raise HTTPException(409, "Bitte den Entwurf zuerst veröffentlichen.")
     elif action == "renew":
         poll.public_token = new_link_token()
         flash(request, "Neuer Link erzeugt. Der bisherige funktioniert nicht mehr.")
@@ -196,6 +208,7 @@ def poll_final(request: Request, poll_id: int, option_id: int = Form(...), notif
         added = planning.add_invitees(db, meeting, pl.participant_emails(poll, only_yes == "1"))
         count, mail_ready = planning.send(db, meeting, added, "invite", user, copy_to_organizer=True)
         poll.meeting_id = meeting.id
+        lifecycle.mark_used(poll)
         db.commit()
         access.sync(db)
         worker.wake()
@@ -204,6 +217,7 @@ def poll_final(request: Request, poll_id: int, option_id: int = Form(...), notif
                  " – Mailversand ist nicht eingerichtet, es gingen keine Einladungen raus."))
         return redirect(f"/meetings/{meeting.id}")
     sent = pl.announce_final(db, poll, user) if notify == "1" else 0
+    lifecycle.mark_used(poll)
     db.commit()
     worker.wake()
     flash(request, f"Termin festgelegt: {label}." + (f" {sent} Teilnehmende werden per Mail informiert." if sent else ""))
@@ -213,6 +227,8 @@ def poll_final(request: Request, poll_id: int, option_id: int = Form(...), notif
 @app.post("/polls/{poll_id}/invite", dependencies=[Depends(check_csrf)])
 async def poll_invite(request: Request, poll_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     poll, level = _poll(db, poll_id, user, sh.INVITE)
+    if not poll.published_at:
+        raise HTTPException(409, "Bitte vor dem Einladen veröffentlichen.")
     data = await request.form()
     emails, bad = parse_emails(str(data.get("emails", "")))
     if bad:
@@ -220,6 +236,8 @@ async def poll_invite(request: Request, poll_id: int, user: User = Depends(curre
         return redirect(f"/polls/{poll.id}#teilen")
     added, skipped = pl.invite(db, poll, user, [int(v) for v in data.getlist("users") if str(v).isdigit()],
                                [int(v) for v in data.getlist("groups") if str(v).isdigit()], emails)
+    if added:
+        lifecycle.mark_used(poll)
     db.commit()
     worker.wake()
     if added or skipped:
@@ -282,7 +300,7 @@ def poll_copy(request: Request, poll_id: int, user: User = Depends(poll_user), d
     clone = Poll(owner_id=user.id, title=(poll.title + " (Kopie)")[:255], description=poll.description,
                  location=poll.location, duration_minutes=poll.duration_minutes, allow_maybe=poll.allow_maybe,
                  hidden=poll.hidden, single_choice=poll.single_choice, max_per_option=poll.max_per_option,
-                 require_email=poll.require_email, notify_votes=poll.notify_votes, public_token=new_link_token())
+                 require_email=poll.require_email, notify_votes=poll.notify_votes, closed=True, published_at=None)
     db.add(clone)
     pl.set_options(db, clone, [{"starts_at": o.starts_at, "ends_at": o.ends_at, "all_day": o.all_day,
                                 "note": o.note} for o in poll.options])
@@ -293,10 +311,10 @@ def poll_copy(request: Request, poll_id: int, user: User = Depends(poll_user), d
 
 @app.post("/polls/{poll_id}/delete", dependencies=[Depends(check_csrf)])
 def poll_delete(request: Request, poll_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    poll, level = _poll(db, poll_id, user, sh.EDIT)
-    db.delete(poll)
+    poll, level = _poll(db, poll_id, user, sh.VIEW)
+    result = lifecycle.remove(db,"poll",poll,user)
     db.commit()
-    flash(request, f"Terminumfrage „{poll.title}“ gelöscht.")
+    flash(request, "Ungenutzter Entwurf für 30 Tage im Papierkorb." if result == "deleted" else "Terminumfrage geschlossen und archiviert. Antworten bleiben erhalten.")
     return redirect("/polls" if user.can("polls") else home_for(user))
 
 
@@ -306,6 +324,8 @@ async def poll_share_add(request: Request, poll_id: int, user: User = Depends(cu
     """Im Portal für Personen oder Gruppen freigeben (nur Besitzer:in bzw. Admin)."""
     poll, _ = _poll(db, poll_id, user, sh.OWNER)
     added, level = sh.add(db, "poll", poll, await request.form())
+    if added:
+        lifecycle.mark_used(poll)
     db.commit()
     flash(request, f"Freigabe für {added} Eintrag/Einträge gespeichert: {sh.LEVELS['poll'][level][0]}." if added else
           "Bitte Personen oder Gruppen auswählen.", "ok" if added else "error")
@@ -347,7 +367,7 @@ def _closed_page(request: Request, poll: Poll | None):
 
 
 def _poll_by_token(db: Session, token: str) -> Poll | None:
-    return db.scalar(select(Poll).where(Poll.public_token == token)) if len(token) > 10 else None
+    return db.scalar(select(Poll).where(Poll.public_token == token, Poll.published_at.is_not(None))) if len(token) > 10 else None
 
 
 def _participant_by_token(db: Session, token: str) -> PollParticipant | None:
@@ -357,7 +377,7 @@ def _participant_by_token(db: Session, token: str) -> PollParticipant | None:
 @app.get("/t/p/{token}")
 def poll_personal(request: Request, token: str, db: Session = Depends(get_db)):
     p = _participant_by_token(db, token)
-    if p is None:
+    if p is None or not p.poll.published_at:
         return _closed_page(request, None)
     return _vote_page(request, db, p.poll, p, f"/t/p/{token}")
 
@@ -405,6 +425,7 @@ async def _save_vote(request: Request, db: Session, poll: Poll, p: PollParticipa
     p.answered_at = utcnow()
     db.flush()
     pl.notify_vote(db, poll, p, changed)
+    lifecycle.mark_used(poll)
     db.commit()
     worker.wake()
     flash(request, "Danke! Ihre Antwort ist gespeichert. Über diesen Link können Sie sie jederzeit ändern: "
@@ -418,7 +439,7 @@ async def _save_vote(request: Request, db: Session, poll: Poll, p: PollParticipa
 @app.post("/t/p/{token}", dependencies=[Depends(check_csrf)])
 async def poll_personal_save(request: Request, token: str, db: Session = Depends(get_db)):
     p = _participant_by_token(db, token)
-    if p is None:
+    if p is None or not p.poll.published_at:
         return _closed_page(request, None)
     return await _save_vote(request, db, p.poll, p, f"/t/p/{token}")
 
@@ -429,3 +450,32 @@ async def poll_public_save(request: Request, token: str, db: Session = Depends(g
     if poll is None:
         return _closed_page(request, None)
     return await _save_vote(request, db, poll, None, f"/t/{token}")
+
+
+@app.post("/umfragen/papierkorb/{item_id}/restore", dependencies=[Depends(check_csrf)])
+def poll_trash_restore(request: Request, item_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    from .db import TrashItem
+    from . import trash
+    item = db.get(TrashItem,item_id)
+    if item is None or item.kind not in lifecycle.MODELS or item.expires_at <= utcnow():
+        raise HTTPException(404,"Dieser Papierkorbeintrag ist nicht mehr verfügbar.")
+    if not user.is_admin and lifecycle.trash_owner(item) != user.id:
+        raise HTTPException(403)
+    kind = item.kind
+    error = trash.restore(db,item,user.name)
+    if error:
+        raise HTTPException(409,error)
+    db.commit()
+    flash(request,"Entwurf wiederhergestellt. Er bleibt geschlossen, bis Sie ihn ausdrücklich starten.")
+    return redirect("/polls" if kind == "poll" else "/votes")
+
+
+@app.post("/polls/{poll_id}/unarchive", dependencies=[Depends(check_csrf)])
+def poll_unarchive(request: Request,poll_id: int,user: User=Depends(current_user),db: Session=Depends(get_db)):
+    poll,_ = _poll(db,poll_id,user,sh.VIEW)
+    lifecycle.require_owner(poll,user)
+    poll.archived_at = None
+    poll.closed = True
+    db.commit()
+    flash(request,"Aus dem Archiv zurückgeholt. Die Abstimmung bleibt geschlossen.")
+    return redirect(f"/polls/{poll.id}")

@@ -126,7 +126,7 @@ def access_modes(vote: Vote) -> set[str]:
 
 
 def is_open(vote: Vote) -> bool:
-    return vote.status == "open" and (vote.ends_at is None or vote.ends_at > utcnow())
+    return not vote.archived_at and vote.status == "open" and (vote.ends_at is None or vote.ends_at > utcnow())
 
 
 def public_link(vote: Vote) -> str:

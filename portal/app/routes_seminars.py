@@ -46,7 +46,7 @@ def can_read(db,user,row):
 def edit_context(db,user,row):
     forms=list(db.scalars(select(Form).where(Form.owner_id.in_(sm.absence.acting_ids(db,user)),Form.active.is_(True),Form.anonymous.is_(False),Form.kind=='survey')))
     forms=[f for f in forms if f.fee_json in ('','{}') and (not f.internal or user.can('internal_forms'))] if 'forms' in enabled_modules() else []
-    polls=list(db.scalars(select(Poll).where(Poll.owner_id.in_(sm.absence.acting_ids(db,user))))) if 'polls' in enabled_modules() else []
+    polls=list(db.scalars(select(Poll).where(Poll.owner_id.in_(sm.absence.acting_ids(db,user)), ((Poll.archived_at.is_(None)) | (Poll.id == row.poll_id))))) if 'polls' in enabled_modules() else []
     from . import resources
     allowed_resources={r.id:r for r,level in resources.visible(db,user) if level>=3} if 'resources' in enabled_modules() else {}
     conflicts={t.id:resources.conflicts(db,allowed_resources[t.resource_id],None,t.starts_at,t.ends_at) for t in sm.sessions(db,row) if t.resource_id in allowed_resources}
@@ -126,6 +126,9 @@ async def seminar_save(request:Request,sid:int,user:User=Depends(current_user),d
     row.title=title;row.description=str(data.get('description',''))[:100000];row.channels=','.join(dict.fromkeys(channels));row.booking_mode=mode
     for key in ('manual_admission','waitlist','advanced','contact_visible','certificates'):setattr(row,key,data.get(key)=='1')
     for key,lo,hi,default in [('offer_hours',1,720,48),('cancel_hours',0,8760,24),('materials_days',0,3650,0),('guest_days',0,3650,0),('certificate_percent',0,100,80)]:setattr(row,key,sm.integer(data.get(key,default),lo,hi))
+    if poll_id:
+        from .poll_lifecycle import mark_used
+        mark_used(db.get(Poll,poll_id))
     row.form_id=form_id or None;row.poll_id=poll_id or None;row.lecturers_json=json.dumps(lecturers if row.advanced else [])
     from . import seminar_series
     if 'series_options' in data:

@@ -13,6 +13,8 @@
     </div>
   </div></div>
 
+  {% if vote.archived_at %}<div class="alert alert-secondary" role="status"><i class="fa-solid fa-box-archive me-1"></i>Archiviert – keine Teilnahme mehr möglich. Ergebnisse bleiben entsprechend den bisherigen Zugriffsrechten verfügbar.</div>{% endif %}
+
   {% if notice %}<div class="alert alert-info" role="status"><i class="fa-solid fa-circle-info me-1"></i>{{ notice }}</div>{% endif %}
 
   {% if receipt %}

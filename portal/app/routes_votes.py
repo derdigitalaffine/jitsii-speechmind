@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import shares as sh, shortlinks as sl, votes as vt
+from . import poll_lifecycle as lifecycle, shares as sh, shortlinks as sl, votes as vt
 from .db import Group, User, Vote, VoteBallot, VoteVoter, to_local, utcnow
 from .main import (
     app, check_csrf, current_user, enabled_modules, flash, get_db, rate_limit, redirect, render, require, session_user,
@@ -32,6 +32,8 @@ def _vote(db: Session, vote_id: int, user: User, need: int) -> tuple[Vote, int]:
         raise HTTPException(404, "Abstimmung nicht gefunden.")
     if level < need:
         raise HTTPException(403, "Für diese Aktion reicht Ihre Freigabe für die Abstimmung nicht aus.")
+    if need > sh.VIEW:
+        lifecycle.mutable(vote)
     return vote, level
 
 
@@ -57,27 +59,29 @@ def _editor_ctx(vote: Vote | None) -> dict:
 # --- Verwaltung ------------------------------------------------------------------------------
 
 @app.get("/votes")
-def votes_list(request: Request, all: str = "", user: User = Depends(current_user), db: Session = Depends(get_db)):
+def votes_list(request: Request, all: str = "", state: str = "active", user: User = Depends(current_user), db: Session = Depends(get_db)):
     _module_on()
     show_all = user.is_admin and all == "1"
     shared = [] if show_all else sh.shared_with(db, "vote", user)
     if not user.can("votes") and not shared:
         raise HTTPException(403, "Für „Abstimmungen“ fehlt die Berechtigung. Bitte wenden Sie sich an die Verwaltung des Portals.")
-    q = select(Vote).order_by(Vote.updated_at.desc())
+    state = state if state in ("active","archive","trash") else "active"
+    shared = [(v,lvl) for v,lvl in shared if bool(v.archived_at) == (state == "archive") and state != "trash"]
+    q = select(Vote).where(Vote.archived_at.is_not(None) if state == "archive" else Vote.archived_at.is_(None)).order_by(Vote.updated_at.desc())
     if not show_all:
         q = q.where(Vote.owner_id == user.id)
-    items = db.scalars(q).all() if user.can("votes") or show_all else []
+    items = db.scalars(q).all() if (user.can("votes") or show_all) and state != "trash" else []
     counts = dict(db.execute(select(VoteBallot.vote_id, func.count(VoteBallot.id)).group_by(VoteBallot.vote_id)).all())
     from . import live as lv
     from .db import LiveAnswer, LivePoll
-    lq = select(LivePoll).order_by(LivePoll.updated_at.desc())
+    lq = select(LivePoll).where(LivePoll.archived_at.is_not(None) if state == "archive" else LivePoll.archived_at.is_(None)).order_by(LivePoll.updated_at.desc())
     if not show_all:
         lq = lq.where(LivePoll.owner_id == user.id)
-    lives = db.scalars(lq).all() if user.can("votes") or show_all else []
+    lives = db.scalars(lq).all() if (user.can("votes") or show_all) and state != "trash" else []
     live_counts = dict(db.execute(select(LiveAnswer.poll_id, func.count(func.distinct(LiveAnswer.device)))
                                   .group_by(LiveAnswer.poll_id)).all())
     return render(request, "votes.html", user, votes=items, shared=shared, counts=counts, show_all=show_all,
-                  statuses=vt.STATUSES, secrecy=vt.SECRECY, levels=sh.LEVELS["vote"], is_open=vt.is_open,
+                  state=state, trash_items=lifecycle.trash_items(db,["vote","live_poll"],user) if state == "trash" else [], statuses=vt.STATUSES, secrecy=vt.SECRECY, levels=sh.LEVELS["vote"], is_open=vt.is_open,
                   lives=lives, live_counts=live_counts, live_statuses=lv.STATUSES, pacing=lv.PACING)
 
 
@@ -123,7 +127,7 @@ def vote_detail(request: Request, vote_id: int, user: User = Depends(current_use
         from . import dms
         lv = dms.levels(db, user)
         dms_areas = [(a, d) for a, d in dms.tree(db) if lv.get(a.id, 0) >= dms.WRITE]
-    return render(request, "vote.html", user, vote=vote, level=level, results=vt.frozen(vote) or vt.tally(db, vote),
+    return render(request, "vote.html", user, vote=vote, level=sh.VIEW if vote.archived_at else level, lifecycle_owner=lifecycle.owner(vote,user), removable=lifecycle.removable(db,"vote",vote), results=vt.frozen(vote) or vt.tally(db, vote),
                   turnout=vt.turnout(vote, len(ballots)), statuses=vt.STATUSES, secrecy=vt.SECRECY, access=vt.ACCESS,
                   results_modes=vt.RESULTS, kinds=vt.KINDS, modes=vt.access_modes(vote), public_link=vt.public_link(vote),
                   personal_link=vt.personal_link, format_code=vt.format_code, named=named, options=vt.options,
@@ -164,6 +168,10 @@ async def vote_save(request: Request, vote_id: int, user: User = Depends(current
 def vote_state(request: Request, vote_id: int, action: str = Form(...), user: User = Depends(current_user),
                db: Session = Depends(get_db)):
     vote, level = _vote(db, vote_id, user, sh.INVITE)
+    if action == "start":
+        lifecycle.require_owner(vote,user)
+        if vote.status == "closed":
+            raise HTTPException(409, "Ein festgeschriebenes Ergebnis kann nicht wieder geöffnet werden.")
     if action == "start" and vote.status != "closed":
         if not vote.questions:
             flash(request, "Bitte zuerst Fragen anlegen.", "error")
@@ -197,6 +205,8 @@ async def vote_invite(request: Request, vote_id: int, user: User = Depends(curre
     added, skipped = vt.invite(db, vote, user, ids("users"), ids("groups"), emails)
     if "invite" not in vt.access_modes(vote):
         vote.access = ",".join(sorted(vt.access_modes(vote) | {"invite"}))
+    if added:
+        lifecycle.mark_used(vote)
     db.commit()
     msg = f"{added} Wahlberechtigte eingetragen" + (" und eingeladen." if vote.status == "open" else " – die Einladungen gehen beim Start raus.")
     if skipped:
@@ -239,6 +249,7 @@ def vote_codes(request: Request, vote_id: int, count: int = Form(10), label: str
     n = vt.make_codes(db, vote, count, " ".join(label.split()))
     if "codes" not in vt.access_modes(vote):
         vote.access = ",".join(sorted(vt.access_modes(vote) | {"codes"}))
+    lifecycle.mark_used(vote)
     db.commit()
     flash(request, f"{n} Zugangscodes erzeugt.")
     return redirect(f"/votes/{vote.id}#codes")
@@ -345,11 +356,10 @@ def vote_copy(request: Request, vote_id: int, user: User = Depends(vote_user), d
 
 @app.post("/votes/{vote_id:int}/delete", dependencies=[Depends(check_csrf)])
 def vote_delete(request: Request, vote_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    vote, _ = _vote(db, vote_id, user, sh.EDIT)
-    db.query(VoteBallot).filter(VoteBallot.vote_id == vote.id).delete()
-    db.delete(vote)
+    vote, _ = _vote(db, vote_id, user, sh.VIEW)
+    result = lifecycle.remove(db,"vote",vote,user)
     db.commit()
-    flash(request, "Abstimmung gelöscht.")
+    flash(request,"Ungenutzter Entwurf für 30 Tage im Papierkorb." if result == "deleted" else "Abstimmung beendet und archiviert; Ergebnisse bleiben erhalten.")
     return redirect("/votes")
 
 
@@ -357,6 +367,8 @@ def vote_delete(request: Request, vote_id: int, user: User = Depends(current_use
 async def vote_share_add(request: Request, vote_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     vote, _ = _vote(db, vote_id, user, sh.OWNER)
     added, level = sh.add(db, "vote", vote, await request.form())
+    if added:
+        lifecycle.mark_used(vote)
     db.commit()
     flash(request, f"{added} Freigabe(n) mit Stufe „{sh.LEVELS['vote'][level][0]}“." if added else "Bitte Personen oder Gruppen wählen.")
     return redirect(f"/votes/{vote.id}#teilen")
@@ -458,7 +470,7 @@ def vote_code(request: Request, token: str, code: str = Form(""), db: Session = 
 def vote_personal(request: Request, token: str, db: Session = Depends(get_db)):
     voter = _voter(db, token)
     vote = voter.vote
-    if not voter.confirmed:
+    if not vote.archived_at and not voter.confirmed:
         voter.confirmed = True       # Klick auf den Link aus der Mail = Adresse bestätigt
         db.commit()
     _remember(request, token)
@@ -479,6 +491,7 @@ async def vote_cast(request: Request, token: str, db: Session = Depends(get_db))
             flash(request, e, "error")
         return _ballot_page(request, db, vote, voter, draft=data)
     receipt = vt.cast(db, vote, voter, answers)
+    lifecycle.mark_used(vote)
     db.commit()
     request.session["vote_receipt"] = receipt
     _remember(request, token)
@@ -500,3 +513,13 @@ def vote_receipt(request: Request, token: str, code: str = "", db: Session = Dep
     ok = bool(code) and db.scalar(select(VoteBallot.id).where(VoteBallot.vote_id == vote.id,
                                                               VoteBallot.receipt == code.strip().upper())) is not None
     return JSONResponse({"ok": ok})
+
+
+@app.post("/votes/{vote_id:int}/unarchive", dependencies=[Depends(check_csrf)])
+def vote_unarchive(request: Request,vote_id: int,user: User=Depends(current_user),db: Session=Depends(get_db)):
+    vote,_ = _vote(db,vote_id,user,sh.VIEW)
+    lifecycle.require_owner(vote,user)
+    vote.archived_at = None
+    db.commit()
+    flash(request,"Aus dem Archiv zurückgeholt. Das festgeschriebene Ergebnis bleibt geschlossen.")
+    return redirect(f"/votes/{vote.id}")

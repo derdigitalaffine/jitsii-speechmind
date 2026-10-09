@@ -83,11 +83,11 @@ def _meetings(db, user):
 
 
 def _polls(db, user):
-    polls = db.scalars(select(Poll).where(Poll.owner_id == user.id, Poll.closed.is_(False), Poll.final_option_id.is_(None))
+    polls = db.scalars(select(Poll).where(Poll.owner_id == user.id, Poll.closed.is_(False), Poll.archived_at.is_(None), Poll.published_at.is_not(None), Poll.final_option_id.is_(None))
                        .order_by(Poll.updated_at.desc()).limit(5)).all()
     todo = db.scalars(select(PollParticipant).join(Poll).where(
         or_(PollParticipant.user_id == user.id, PollParticipant.email == user.email),
-        PollParticipant.answered_at.is_(None), Poll.closed.is_(False))).all()
+        PollParticipant.answered_at.is_(None), Poll.closed.is_(False), Poll.archived_at.is_(None), Poll.published_at.is_not(None))).all()
     return {"items": polls, "todo": todo[:5]}
 
 
@@ -155,7 +155,7 @@ def _absence(db, user):
 
 
 def _votes(db, user):
-    rows = db.scalars(select(Vote).where(Vote.owner_id == user.id, Vote.status != "closed")
+    rows = db.scalars(select(Vote).where(Vote.owner_id == user.id, Vote.status != "closed", Vote.archived_at.is_(None))
                       .order_by(Vote.updated_at.desc()).limit(5)).all()
     return {"items": rows}
 

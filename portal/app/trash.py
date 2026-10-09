@@ -18,7 +18,7 @@ from sqlalchemy import and_, delete, func, insert, or_, select, update
 
 from .config import settings
 from .db import (
-    Base, Circulation, CirculationBundle, DeletionLog, DmsArea, DmsFile, DmsRecord, FormResponse, Payment, Poll, Resource, ResourceBooking, SessionLocal, ShortLink, UserMap,
+    Base, Circulation, CirculationBundle, DeletionLog, DmsArea, DmsFile, DmsRecord, FormResponse, LivePoll, Payment, Poll, Resource, ResourceBooking, SessionLocal, ShortLink, UserMap,
     TrashItem, Vote, to_local, utcnow,
 )
 
@@ -48,6 +48,9 @@ def _response_label(r: FormResponse) -> str:
 KINDS = {
     "user_map": {"model": UserMap, "label": "Eigene Karten", "icon": "fa-map", "search": ("title", "description"),
                  "date": "created_at", "show": lambda o: o.title, "files": lambda o: []},
+    "live_poll": {"model": LivePoll, "label": "Live-Umfragen", "icon": "fa-chart-simple", "search": ("title",),
+                  "date": "created_at", "status": "status", "statuses": {"draft": "Entwurf", "open": "läuft", "closed": "beendet"},
+                  "show": lambda o: o.title, "files": lambda o: []},
     "dms_file": {"model": DmsFile, "label": "DMS-Dateien", "icon": "fa-file", "search": ("name",),
                  "date": "created_at", "show": lambda o: o.name,
                  "files": lambda o: [settings.data_dir / "dms" / str(o.record_id) / o.file]},
@@ -229,7 +232,7 @@ def log(db, actor: str, action: str, kind: str = "", count: int = 1, detail: str
     db.add(DeletionLog(actor=actor[:255], action=action, kind=kind, count=count, detail=detail[:5000]))
 
 
-PROTECTED_KINDS = {"dms", "dms_file", "dms_area", "circulation_bundle", "circulation_draft"}
+PROTECTED_KINDS = {"dms", "dms_file", "dms_area", "poll", "vote", "live_poll", "circulation_bundle", "circulation_draft"}
 
 
 def protection(db, kind: str, obj) -> str:
@@ -240,6 +243,10 @@ def protection(db, kind: str, obj) -> str:
         from .bundle_lifecycle import removable
         if not removable(db, obj):
             return "Geteilte oder verwendete Sammelmappen können nur archiviert werden."
+    if kind in {"poll", "vote", "live_poll"}:
+        from .poll_lifecycle import removable
+        if not removable(db, kind, obj):
+            return "Gestartete, geteilte oder verwendete Umfragen können nur geschlossen und archiviert werden."
     if kind in {"dms", "dms_file", "dms_area"}:
         from . import dms_lifecycle
         check = {"dms": dms_lifecycle.protection, "dms_file": dms_lifecycle.file_protection,
@@ -322,6 +329,9 @@ def restore(db, item: TrashItem, actor: str) -> str | None:
     if item.kind == "user_map":
         from .map_lifecycle import prepare_restore
         data = prepare_restore(db, data)
+    if item.kind in {"poll", "vote", "live_poll"}:
+        from .poll_lifecycle import prepare_restore
+        data = prepare_restore(db, item.kind, data)
     tbl = _table(item.table_name)
     if db.execute(select(tbl.c.id).where(tbl.c.id == item.row_id)).first() is not None:
         return "Unter dieser Nummer gibt es inzwischen einen anderen Eintrag – Wiederherstellen nicht möglich."
