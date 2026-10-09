@@ -100,7 +100,7 @@ Jede Person bekommt einzeln die Bereiche freigeschaltet, die sie braucht:
 | **Benutzerverwaltung** | Benutzer und Gruppen anlegen, bearbeiten, sperren, löschen – aber keine Admin-Konten ändern und niemanden zum Admin machen |
 | **Administrator:in** | Alles, auch Systemeinstellungen (Mail, HTTPS, Design, SpeechMind, Module, Zwei-Faktor) und alle Aufnahmen, Kurzlinks und Formulare |
 
-**Geteilte Inhalte:** Formulare, Terminumfragen und Buchungsseiten können ihre Besitzer:innen im Portal mit Personen oder Gruppen teilen – in drei Stufen (1 Ergebnisse einsehen, 2 zusätzlich einladen, 3 zusätzlich bearbeiten und löschen). Wer etwas geteilt bekommt, sieht es unter „Mit mir geteilt“ auch **ohne** das jeweilige Recht; Neues anlegen kann nur, wer das Recht hat. Freigaben verwalten nur Besitzer:in und Admins.
+**Geteilte Inhalte:** Formulare, Terminumfragen und Buchungsseiten können ihre Besitzer:innen im Portal mit Personen oder Gruppen teilen – in drei Stufen (1 Ergebnisse einsehen, 2 zusätzlich einladen, 3 zusätzlich bearbeiten). Löschbefugnisse hängen vom Modul ab; Formulare und deren Antworten dürfen nur Eigentümer:innen und Admins löschen. Wer etwas geteilt bekommt, sieht es unter „Mit mir geteilt“ auch **ohne** das jeweilige Recht; Neues anlegen kann nur, wer das Recht hat. Freigaben verwalten nur Besitzer:in und Admins.
 
 Ohne Recht „Videokonferenzen“ kommt eine angemeldete Person in Portal-Räume nur wie ein Gast (per Link) und kann nicht aufnehmen. Ist ein Modul abgeschaltet (siehe [Module](#module-ein--und-ausschalten)), verschwindet das Recht aus der Auswahl.
 
@@ -185,7 +185,7 @@ Benutzer:innen klicken auf der Anmeldeseite „Passwort vergessen?“. Der Link 
 
 Unter **Profil** pflegen Personen freiwillige Angaben getrennt von Kontodaten und Rechten. Eine gemeinsame Allowlist versorgt Profilformular, Formular-/Datenblockbaukasten und Vorbelegung. Neue freiwillige Daten werden verschlüsselt gespeichert; Vorbelegung benötigt die Zustimmung der angemeldeten Person. Es gibt keinen neuen öffentlichen Profilzugriff. Die zusätzliche Kontakt-E-Mail ändert die Anmeldung nicht.
 
-Die Bestandsmigration ergänzt `users.profile_data_enc`. Datenbank und `PORTAL_SECRET_KEY` gemeinsam sichern. Beschäftigungsangaben sind Selbstauskünfte ohne Rechtewirkung. Der Umfang orientiert sich an möglichen OIDC-/SCIM-Zuordnungen; **Keycloak-/Nextcloud-SSO und Provisionierung sind noch nicht implementiert**. Vollständiger Umfang, Datenschutz und Zuordnungen: [BENUTZERPROFILE.md](BENUTZERPROFILE.md).
+Die Bestandsmigration ergänzt `users.profile_data_enc`. Datenbank und `PORTAL_SECRET_KEY` gemeinsam sichern. Beschäftigungsangaben sind Selbstauskünfte ohne Rechtewirkung. OIDC kann ausgewählte Anbieter-Claims übernehmen; **SCIM-Provisionierung ist nicht implementiert**. Vollständiger Umfang, Datenschutz und Zuordnungen: [BENUTZERPROFILE.md](BENUTZERPROFILE.md).
 
 ## Körperschaften und Einrichtungen
 
@@ -835,6 +835,8 @@ Rechts auf der Seite gibt es **Root-Zertifikat herunterladen**. Dieses Zertifika
 
 ## Löschen & Papierkorb
 
+**Eigene Formulare und Sammelmappen:** Die jeweilige Modulübersicht bietet Archiv und Papierkorb. Unveröffentlichte, ungenutzte Formularentwürfe und ungenutzte private Sammelmappen können Eigentümer:innen oder Admins für 30 Tage in den Papierkorb verschieben und wiederherstellen. Veröffentlichte beziehungsweise verwendete Formulare sowie verwendete oder geteilte Mappen werden archiviert; vorhandene Antworten, Dateien, Prozesse, veröffentlichte Kopien und Nachweise bleiben erhalten. Neue Formulare und Kopien starten geschlossen. Archivierte Formulare bleiben auswertbar, nehmen aber keine neuen Antworten an; bestehende Vorgänge bleiben bearbeitbar. Geteilte Formularbearbeitung erlaubt keine Löschung von Formularen oder Antworten. [Formulare](BENUTZERHANDBUCH.md#formulare-schließen-archivieren-und-löschen), [Sammelmappen](UMLAEUFE-UND-SAMMELMAPPEN.md#sammelmappen-archivieren-und-löschen).
+
 Menü **Verwaltung › Löschen & Papierkorb** (nur Administrator:innen). Bereiche: Buchungen, Ressourcen, Zahlungen, Online-Anträge/Formularantworten, Ablage-Einträge, Terminumfragen, Abstimmungen, Kurzlinks.
 
 - **Einzelne Einträge:** suchen (Nummer, Name, E-Mail, Titel …), „Löschen“ und im Dialog bestätigen. Mitgelöscht wird alles, was davon abhängt (z. B. bei einer Ressource Buchungen, Räume, Fotos); Verweise anderer Einträge (z. B. die Zahlung an einer Buchung) werden gelöst.
@@ -1144,6 +1146,16 @@ WMS/WFS-Importe verwenden die in GetCapabilities angegebene Operationsadresse un
 Quellen, Lizenzhinweise, Umfang und technische Grenzen: [GIS-Karten](GIS-KARTEN.md).
 
 
+## Nextcloud / OIDC-Anmeldung
+
+Unter **Administration → Nextcloud / OIDC-Anmeldung** einen externen Anbieter konfigurieren, Verbindung prüfen und ausdrücklich aktivieren. Bestehende Konten werden nach Anmeldung und Bestätigung verknüpft; gleiche E-Mail-Adressen genügen dafür nicht. Standardgruppe, Startrechte, erlaubte Anbietergruppen und Profilübernahme sind einstellbar. Lokale Anmeldung und Portal-Zwei-Faktor bleiben erhalten. Der Verbindungstest prüft Discovery und Signaturschlüssel; ein vollständiger Login mit dem eigenen Anbieter ist anschließend erforderlich. [Einrichtung, Gruppen, Abmeldung und Grenzen](NEXTCLOUD-OIDC.md).
+
 ## Seminare und Lehrgänge
 
-Das Modul unter **Administration → Module** einschalten und die Rechte **Seminare** beziehungsweise **Seminare verwalten** gezielt vergeben. SMTP, Portaladresse und Worker werden gemeinsam mit den anderen Modulen verwendet. Dozentenrechte und die Sichtbarkeit von Kontaktdaten sind pro Veranstaltung einstellbar. [Einrichtung, Rechte, Grenzen und Betrieb](SEMINARE-UND-LEHRGAENGE.md).
+Das Modul unter **Administration → Module** einschalten und die Rechte **Seminare** beziehungsweise **Seminare verwalten** gezielt vergeben. SMTP, Portaladresse und Worker werden gemeinsam mit den anderen Modulen verwendet. Die kompakte Planung und der optionale Assistent erfassen Termine und Dozenten bereits beim Anlegen. Reihen können wechselnde Orte, hybride Teilnahme und einen festen Teilnehmerkreis verwenden. Dozentenrechte, terminspezifische Unterlagen, Abonnements, Benachrichtigungen und Bescheinigungen sind gezielt einstellbar. Externe Dozenten ohne Portalzugang erhalten keine Verwaltungsrechte. [Einrichtung, Rechte, Grenzen und Betrieb](SEMINARE-UND-LEHRGAENGE.md).
+
+## Gemeinsame Datums- und Eingabeprüfung
+
+Datum und Uhrzeit verwenden eine deutsche manuelle Eingabe mit zugänglicher Kalender-/Uhrauswahl, auch in eingebetteten und dynamisch ergänzten Formularen. Serverseitig bleiben die bisherigen ISO-Werte maßgeblich. Pflicht, Grenzen und Beginn-/Ende-Paare werden berücksichtigt. Die gemeinsame Komponente benötigt keinen zusätzlichen externen Dienst.
+
+Im Formularbaukasten können verständliche Feldregeln und eine eigene Fehlermeldung eingestellt werden: Textlänge, Zahlenbereich und Schrittweite, Auswahl-/Uploadgrenzen sowie feste oder relative Datumsgrenzen, Vergangenheit/Zukunft mit optional heute, vollendetes Mindest-/Höchstalter und Kalendertage-Abstände zu einem anderen Datumsfeld. Hinweise werden automatisch erzeugt. Browserprüfung ersetzt keine serverseitige Prüfung. Unveränderte historische Antworten bleiben bei später ergänzten Regeln erhalten. [Bedienung und Beispiele](BENUTZERHANDBUCH.md#eingaben-verständlich-prüfen).

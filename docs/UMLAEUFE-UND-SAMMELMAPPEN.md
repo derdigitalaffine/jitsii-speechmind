@@ -16,6 +16,12 @@ PDF, Bilder, Markdown, Text, Office-Dateien und E-Mails sind unterstützt. Maxim
 
 Eigene Mappen können bearbeitet werden; die Verwaltung und eine aktuell bestätigte Portalvertretung können im berechtigten Rahmen aushelfen. Gemeinsame Vorlagen anderer Ersteller dürfen angesehen und verwendet werden, werden dadurch aber nicht frei bearbeitbar.
 
+### Sammelmappen archivieren und löschen
+
+Die Übersicht trennt **Aktiv**, **Archiv** und **Papierkorb**. Eine private, noch nirgends verwendete Mappe darf nur ihr Eigentümer oder die Administration in den Papierkorb verschieben. Dokumente und Mappenstand bleiben dort 30 Tage wiederherstellbar; danach entfernt der bestehende Bereinigungsdienst sie endgültig. Wiederherstellen ist ebenfalls Eigentümer und Administration vorbehalten.
+
+Bereits verwendete oder gemeinsam bereitgestellte Mappen werden stattdessen **archiviert**. Als Verwendung zählen auch gespeicherte Umlaufentwürfe, frühere veröffentlichte Fassungen, Seminarunterlagen und noch wiederherstellbare Dokumentkopien im Papierkorb. Der Hinweis an der Mappe erklärt die Einschränkung. Berechtigte Bearbeitende einschließlich zulässiger Vertretungen dürfen archivieren und reaktivieren. Archivierte Mappen sind bis zur Reaktivierung schreibgeschützt und werden für neue Umläufe oder Seminare nicht mehr zur Übernahme angeboten. Bereits übernommene Dateien, veröffentlichte Fassungen und vorhandene Rückmeldungen bleiben erhalten.
+
 ## Im Umlauf oder Aushang verwenden
 
 **Neu erstellen** öffnet die drei Bereiche **Inhalt**, **Empfänger** und **Ablauf**. Ein Aushang informiert; ein Umlauf kann eine Kenntnisnahme oder Entscheidung verlangen. Beide können Sammelmappen verwenden.
@@ -68,4 +74,4 @@ Im Editor kann ein einzelner unveröffentlichter Entwurf ebenfalls gelöscht wer
 
 ## Umlaufaufgaben im Arbeitsplatz
 
-**Meine Aufgaben** führt sämtliche offenen eigenen Kenntnisnahmen und Freigaben neben Antrags- und Buchungsaufgaben auf. Die Liste zeigt die erforderliche Aktion, Frist, Fortschritt pro Dokument und einen direkten Link zur richtigen Empfängerstation. Wartende Stationen und nach einer Ablehnung gestoppte Umläufe sind erkennbar. Zulässige Freigaben in Vertretung nennen die vertretene Person. Informationen ohne Rückmeldepflicht sowie erledigte, abgelaufene oder archivierte Fassungen erscheinen nicht als offene Aufgaben. Der Aufgabenindikator im Menü und die Aufgaben-Kachel auf der Startseite berücksichtigen ebenfalls Umläufe; der Menüindikator wird bis zu 30 Sekunden zwischengespeichert.
+**Meine Aufgaben** führt aktuell bearbeitbare eigene Kenntnisnahmen und Freigaben neben Prozess- und Ressourcenaufgaben auf. Die Liste zeigt erforderliche Aktion, Frist, Dokumentfortschritt und einen direkten Link zur Empfängerstation. Persönliche, Gruppen- und Vertretungsaufgaben sowie die Quelle lassen sich filtern. Wartende spätere Stationen und nach einer Ablehnung gestoppte Umläufe stehen im eingeklappten Bereich **Wartet auf andere**; sie zählen nicht zum aktuellen Handlungsbedarf und erhalten keine persönlichen Überfälligkeitshinweise. Zulässige Freigaben in Vertretung nennen die vertretene Person. Informationen ohne Rückmeldepflicht sowie erledigte, abgelaufene oder archivierte Fassungen erscheinen nicht als offene Aufgaben. Der stets sichtbare Bereich **Handlungsbedarf – Jetzt bearbeiten** auf der Startseite verwendet dieselbe Auswahl aktuell bearbeitbarer Aufgaben. Der Menüindikator wird bis zu 30 Sekunden zwischengespeichert.
