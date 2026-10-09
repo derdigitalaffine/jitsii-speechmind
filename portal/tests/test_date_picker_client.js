@@ -89,6 +89,10 @@ const selected = panel.querySelectorAll('.portal-date-day').find(n => n.dataset.
 panel = document.body.querySelector('.portal-date-panel'); panel.querySelectorAll('.btn').find(n => n.textContent === 'Leeren').dispatchEvent(new BrowserEvent('click')); assert.equal(original.value, ''); assert.equal(proxy.value, '');
 const requiredDate = field('must_date', 'date', '2026-10-09', true); window.PortalDatePicker.enhance(requiredDate); requiredDate.parentNode.querySelector('.portal-date-toggle').dispatchEvent(new BrowserEvent('click')); panel = document.body.querySelector('.portal-date-panel'); assert.equal(panel.querySelectorAll('.btn').some(n => n.textContent === 'Leeren'), false);
 panel.dispatchEvent(new BrowserEvent('keydown', { key: 'Escape' })); assert.equal(document.body.querySelector('.portal-date-panel'), null);
+const portalToday = field('portal_today', 'date', ''); portalToday.dataset.dateRules = JSON.stringify({today:'2030-02-03'});
+window.PortalDatePicker.enhance(portalToday); portalToday.parentNode.querySelector('.portal-date-toggle').dispatchEvent(new BrowserEvent('click'));
+panel = document.body.querySelector('.portal-date-panel'); panel.querySelectorAll('.btn').find(n => n.textContent === 'Heute').dispatchEvent(new BrowserEvent('click'));
+assert.equal(portalToday.value, '2030-02-03', 'Today must follow the portal day for constrained form fields.');
 const invalidSubmit = new BrowserEvent('submit', { target: form }); document.dispatchEvent(invalidSubmit); assert.equal(invalidSubmit.defaultPrevented, true);
 const deleteSubmit = new BrowserEvent('submit', { target: form, submitter: { formNoValidate: true } }); document.dispatchEvent(deleteSubmit); assert.equal(deleteSubmit.defaultPrevented, undefined, 'Non-validating delete/draft actions must remain usable.');
 form.noValidate = true; const wizardSubmit = new BrowserEvent('submit', { target: form }); document.dispatchEvent(wizardSubmit); assert.equal(wizardSubmit.defaultPrevented, undefined, 'Modules with custom wizard validation retain control.');

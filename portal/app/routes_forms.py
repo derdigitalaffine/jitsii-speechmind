@@ -139,9 +139,13 @@ def form_save_schema(request: Request, form_id: int, title: str = FormField(""),
                      items_json: str = FormField("[]"), user: User = Depends(current_user),
                      db: Session = Depends(get_db)):
     form, level = _form(db, form_id, user, fm.EDIT)
+    items = fm.clean_schema(items_json)
+    rule_errors = fm.form_validation.schema_errors(items)
+    if rule_errors:
+        labels = {i['id']: i.get('title') or fm.TYPES[i['type']][0] for i in items}
+        raise HTTPException(400, ' · '.join(f"{labels[qid]}: {message}" for qid, message in rule_errors.items()))
     form.title = " ".join(title.split())[:255] or form.title
     form.description = description.replace("\r\n", "\n").strip()[:5000]
-    items = fm.clean_schema(items_json)
     form.schema_json = json.dumps(items, ensure_ascii=False)
     form.updated_at = utcnow()
     db.commit()

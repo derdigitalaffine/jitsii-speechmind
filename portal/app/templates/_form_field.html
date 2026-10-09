@@ -18,18 +18,19 @@
   <{{ 'label' if label_for else 'div' }} class="form-label fw-semibold d-block" {% if label_for %}for="{{ name }}"{% else %}id="lbl-{{ qid }}"{% endif %}>{{ item.title or types[item.type][0] }}{% if item.required %} <span class="req" title="Pflichtfeld">*</span>{% endif %}</{{ 'label' if label_for else 'div' }}>
   {% if item.description %}<div class="form-text mt-0 mb-2">{{ item.description | richtext }}</div>{% endif %}
 
+  {% set rule_hint = form_rule_hint(item) %}{% if rule_hint %}<div class="form-text mb-2" id="rules-{{ qid }}"><i class="fa-solid fa-circle-info me-1" aria-hidden="true"></i>{{ rule_hint }}</div>{% endif %}
   {% if item.type in ('period', 'table', 'calculation', 'declaration', 'signature', 'route', 'expense_accounting') %}
     {% include '_form_structured.html' %}
   {% elif item.type == 'short' %}
     {% set st = item.subtype %}
-    <input class="form-control {{ 'is-invalid' if err }}" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" maxlength="1000"
-      type="{{ {'email': 'email', 'phone': 'tel', 'number': 'number'}.get(st, 'text') }}"
-      {% if st == 'number' %}step="any" {% if item.min is not none %}min="{{ item.min }}"{% endif %} {% if item.max is not none %}max="{{ item.max }}"{% endif %}{% endif %}
+    <input class="form-control {{ 'is-invalid' if err }}" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" maxlength="{{ item.max_length or 1000 }}" {% if item.min_length %}minlength="{{ item.min_length }}"{% endif %}
+      type="{{ {'email': 'email', 'phone': 'tel', 'number': 'number', 'url': 'url'}.get(st, 'text') }}"
+      {% if st == 'number' %}step="{{ item.step or 'any' }}" {% if item.min is not none %}min="{{ item.min }}"{% endif %} {% if item.max is not none %}max="{{ item.max }}"{% endif %}{% endif %}
       {% if st == 'regex' and item.pattern %}pattern="{{ item.pattern }}" title="{{ item.pattern_hint }}"{% endif %}
       {% if st == 'email' %}autocomplete="email"{% elif st == 'phone' %}autocomplete="tel"{% endif %}
       placeholder="{{ item.placeholder or '' }}" {% if item.required %}required{% endif %}>
   {% elif item.type == 'long' %}
-    <textarea class="form-control {{ 'is-invalid' if err }}" id="{{ name }}" name="{{ name }}" rows="4" placeholder="{{ item.placeholder or '' }}" {% if item.max_length %}maxlength="{{ item.max_length }}"{% endif %} {% if item.required %}required{% endif %}>{{ val or '' }}</textarea>
+    <textarea class="form-control {{ 'is-invalid' if err }}" id="{{ name }}" name="{{ name }}" rows="4" {% if item.min_length %}minlength="{{ item.min_length }}"{% endif %} placeholder="{{ item.placeholder or '' }}" {% if item.max_length %}maxlength="{{ item.max_length }}"{% endif %} {% if item.required %}required{% endif %}>{{ val or '' }}</textarea>
   {% elif item.type in ('radio', 'checkbox') %}
     {% set chosen = val if val is iterable and val is not string else [val] %}
     {% set labels = item.options | map(attribute='label') | list %}
@@ -52,13 +53,13 @@
       {% for o in item.options %}<option {% if o.label == val %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
     </select>
   {% elif item.type == 'date' and item.with_time %}
-    <input class="form-control {{ 'is-invalid' if err }}" style="max-width: 18rem" type="datetime-local" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" {% if item.min %}min="{{ item.min[:10] }}T00:00"{% endif %} {% if item.max %}max="{{ item.max[:10] }}T23:59"{% endif %} {% if item.required %}required{% endif %}>
+    <input class="form-control {{ 'is-invalid' if err }}" style="max-width: 18rem" type="datetime-local" data-date-rules="{{ form_constraints(item) | tojson | forceescape }}" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" {% if item.min %}min="{{ item.min[:10] }}T00:00"{% endif %} {% if item.max %}max="{{ item.max[:10] }}T23:59"{% endif %} {% if item.required %}required{% endif %}>
   {% elif item.type == 'date' %}
-    <input class="form-control {{ 'is-invalid' if err }}" style="max-width: 14rem" type="date" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" {% if item.min %}min="{{ item.min }}"{% endif %} {% if item.max %}max="{{ item.max }}"{% endif %} {% if item.required %}required{% endif %}>
+    <input class="form-control {{ 'is-invalid' if err }}" style="max-width: 14rem" type="date" data-date-rules="{{ form_constraints(item) | tojson | forceescape }}" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" {% if item.min %}min="{{ item.min }}"{% endif %} {% if item.max %}max="{{ item.max }}"{% endif %} {% if item.required %}required{% endif %}>
   {% elif item.type == 'time' %}
     <input class="form-control {{ 'is-invalid' if err }}" style="max-width: 10rem" type="time" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" {% if item.required %}required{% endif %}>
   {% elif item.type == 'datetime' %}
-    <input class="form-control {{ 'is-invalid' if err }}" style="max-width: 18rem" type="datetime-local" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" {% if item.min %}min="{{ item.min }}T00:00"{% endif %} {% if item.max %}max="{{ item.max }}T23:59"{% endif %} {% if item.required %}required{% endif %}>
+    <input class="form-control {{ 'is-invalid' if err }}" style="max-width: 18rem" type="datetime-local" data-date-rules="{{ form_constraints(item) | tojson | forceescape }}" id="{{ name }}" name="{{ name }}" value="{{ val or '' }}" {% if item.min %}min="{{ item.min }}T00:00"{% endif %} {% if item.max %}max="{{ item.max }}T23:59"{% endif %} {% if item.required %}required{% endif %}>
   {% elif item.type == 'scale' %}
     <div class="d-flex flex-wrap align-items-center gap-2" role="radiogroup" aria-labelledby="lbl-{{ qid }}">
       {% if item.low_label %}<span class="small text-secondary">{{ item.low_label }}</span>{% endif %}

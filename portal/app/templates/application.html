@@ -294,6 +294,7 @@
     <div id="req-fields" class="mb-3"></div>
     {% if questions %}
     <details class="mb-3"><summary class="fw-semibold small">Angaben aus dem Antrag zur Korrektur öffnen</summary>
+      <p class="form-text mb-1">Abhängige Datumsfelder werden automatisch ebenfalls zur Korrektur geöffnet, damit beispielsweise Beginn und Ende gemeinsam geprüft werden können.</p>
       <div class="row row-cols-1 row-cols-md-2 g-1 mt-1">{% for q in questions %}<div class="col"><div class="form-check"><input class="form-check-input" type="checkbox" name="reopen" value="{{ q.id }}" id="ro-{{ q.id }}"><label class="form-check-label small" for="ro-{{ q.id }}">{{ q.title or 'Frage' }} <span class="text-secondary">({{ display(q, current.get(q.id)) | truncate(40) or 'leer' }})</span></label></div></div>{% endfor %}</div>
       <div class="form-text">Die Felder erscheinen vorausgefüllt; die ursprünglichen Angaben bleiben erhalten.</div>
     </details>

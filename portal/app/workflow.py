@@ -996,10 +996,8 @@ def requested_text(resp: FormResponse, req: ApplicationRequest) -> str:
     for item in req.items:
         if fm.TYPES.get(item["type"], ("", "", False))[2]:
             lines.append(f"– {item.get('title') or fm.TYPES[item['type']][0]}" + (" (Datei)" if item["type"] == "file" else ""))
-    for qid in req.reopen:
-        q = next((x for x in case_questions(resp) if x["id"] == qid), None)
-        if q:
-            lines.append(f"– {q.get('title') or 'Angabe'} (bitte prüfen/korrigieren)")
+    for q in reopen_items(resp, req):
+        lines.append(f"– {q.get('title') or 'Angabe'} (bitte prüfen/korrigieren)")
     return "\n".join(lines) or "– siehe Nachricht"
 
 
@@ -1009,11 +1007,25 @@ def _request_values(resp, req) -> dict:
             "nachreichen_bis": f"bis zum {to_local(req.due_at).strftime('%d.%m.%Y')}" if req.due_at else "möglichst bald"}
 
 
+def date_dependents(questions, selected):
+    """Include editable date fields affected by any selected reference, transitively."""
+    selected = set(selected)
+    added = []
+    while True:
+        dependent = [q['id'] for q in questions if q['type'] in ('date', 'datetime')
+                     and q.get('date_reference') in selected and q['id'] not in selected]
+        if not dependent:
+            return added
+        selected.update(dependent)
+        added.extend(dependent)
+
+
 def create_request(db, resp: FormResponse, title: str, message: str, items: list, reopen: list[str], due_at,
                    actor_name: str, task: ApplicationTask | None = None, set_query: bool = True) -> ApplicationRequest:
     if task is not None and task.state == "open":   # zusammengestellte Nachforderung: jetzt auf die Antwort warten
         task.state = "waiting"
     cleaned_items = clean_request_items(items)
+    reopen = list(dict.fromkeys(reopen[:40]))
     selected = set(reopen) | {q['id'] for q in cleaned_items}
     for q in case_questions(resp):
         if q['type']=='expense_accounting' and selected & {q[k] for k in q if k.endswith('_source')} and q['id'] not in selected:
@@ -1023,11 +1035,12 @@ def create_request(db, resp: FormResponse, title: str, message: str, items: list
             for q in previous.items:
                 if q['type']=='declaration' and q.get('required') and q['id'] not in selected:
                     reopen.append(q['id']);selected.add(q['id'])
+    reopen.extend(date_dependents(case_questions(resp), selected))
     current = current_answers(resp)
     prefill = {i["id"]: current[i["prefill_from"]] for i in cleaned_items if i.get("prefill_from") in current and i["type"] not in ("declaration", "signature", "file", "calculation")}
     req = ApplicationRequest(prefill_json=json.dumps(prefill, ensure_ascii=False), title=title[:200] or "Nachforderung", message=message[:10000],
                              schema_json=json.dumps(cleaned_items, ensure_ascii=False),
-                             reopen_json=json.dumps(reopen[:40]), due_at=due_at, created_by=actor_name,
+                             reopen_json=json.dumps(reopen), due_at=due_at, created_by=actor_name,
                              task_id=task.id if task else None)
     resp.requests.append(req)
     db.flush()
@@ -1058,8 +1071,12 @@ def case_questions(resp):
 
 def reopen_items(resp: FormResponse, req: ApplicationRequest) -> list[dict]:
     """Die zur Korrektur geöffneten Antragsfragen (mit ihrer ursprünglichen Konfiguration)."""
-    by_id = {q["id"]: q for q in case_questions(resp)}
-    return [by_id[qid] for qid in req.reopen if qid in by_id]
+    questions = case_questions(resp)
+    by_id = {q["id"]: q for q in questions}
+    supplied = {q['id'] for q in fm.questions(req.items)}
+    selected = set(req.reopen) | supplied
+    opened = req.reopen + date_dependents(questions, selected)
+    return [by_id[qid] for qid in dict.fromkeys(opened) if qid in by_id and qid not in supplied]
 
 
 async def answer_request(db, resp: FormResponse, req: ApplicationRequest, data, files) -> dict:
