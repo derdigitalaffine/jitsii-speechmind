@@ -13,7 +13,7 @@
 {% elif item.type == 'divider' %}
   <hr class="my-1">
 {% else %}
-<div class="card question {{ 'has-error' if err }}" id="frage-{{ qid }}"><div class="card-body">
+<div class="card question {{ 'has-error' if err }}" id="frage-{{ qid }}" tabindex="-1" {% if err %}aria-describedby="error-{{ qid }}" data-server-error="error-{{ qid }}"{% endif %}><div class="card-body">
   {% set label_for = name if item.type in ('short', 'long', 'dropdown', 'date', 'time', 'datetime', 'color', 'file') else '' %}
   <{{ 'label' if label_for else 'div' }} class="form-label fw-semibold d-block" {% if label_for %}for="{{ name }}"{% else %}id="lbl-{{ qid }}"{% endif %}>{{ item.title or types[item.type][0] }}{% if item.required %} <span class="req" title="Pflichtfeld">*</span>{% endif %}</{{ 'label' if label_for else 'div' }}>
   {% if item.description %}<div class="form-text mt-0 mb-2">{{ item.description | richtext }}</div>{% endif %}
@@ -137,7 +137,7 @@
       {% endif %}
     </div>
   {% endif %}
-  {% if err %}<div class="text-danger small mt-2" role="alert"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ err }}</div>{% endif %}
+  {% if err %}<div class="text-danger small mt-2" id="error-{{ qid }}"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ err }}</div>{% endif %}
 </div></div>
 {% endif %}
 </div>

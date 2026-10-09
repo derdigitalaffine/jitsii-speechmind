@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{{ resp.ref_no }} – Stand Ihres Antrags{% endblock %}
 {% block content %}
+{% set payable = open_payments | selectattr('status', 'equalto', 'open') | list %}
+{% set next_action = 'closed' if resp.closed_at or resp.status in ('approved', 'rejected', 'done', 'withdrawn') else ('confirm' if confirm_task else ('request' if open_requests else ('payment' if payable else ('reply' if resp.status == 'query' else 'wait')))) %}
 {% set st = statuses.get(resp.status, (resp.status, 'secondary', 'fa-circle')) %}
 <div class="form-fill" style="max-width: 52rem">
   <div class="card mb-3 border-top border-primary border-4"><div class="card-body">
@@ -12,6 +14,15 @@
       <div><div class="small text-secondary">Eingegangen</div><div>{{ resp.created_at | local }} Uhr</div></div>
     </div>
   </div></div>
+
+  <div class="alert alert-info" aria-labelledby="next-action-title">
+    <h2 class="h5" id="next-action-title">{{ 'Ihr nächster Schritt' if next_action not in ('wait', 'closed') else ('Ihr Antrag ist abgeschlossen' if next_action == 'closed' else 'Ihr Antrag wird bearbeitet') }}</h2>
+    {% if next_action == 'confirm' %}<p>Bestätigen Sie Ihre E-Mail-Adresse über den zugesandten Link. Erst danach beginnt die Bearbeitung.</p><a class="btn btn-primary" href="#email-confirmation">Bestätigungslink finden</a>
+    {% elif next_action == 'request' %}<p>Bitte reichen Sie die angeforderten Angaben nach.</p><a class="btn btn-primary" href="/a/{{ resp.track_token }}/request/{{ open_requests[0].id }}">Angaben ergänzen</a>
+    {% elif next_action == 'payment' %}<p>Bitte bezahlen Sie die offene Gebühr.</p><a class="btn btn-primary" href="/pay/{{ payable[0].token }}">Jetzt bezahlen</a>
+    {% elif next_action == 'reply' %}<p>Bitte lesen Sie die Rückfrage im Verlauf und antworten Sie darauf.</p><a class="btn btn-primary" href="#application-reply">Rückfrage beantworten</a>
+    {% else %}<p class="mb-0">{% if payable %}Die Entscheidung beendet nicht automatisch offene Gebühren. Bitte prüfen und bezahlen Sie die unten aufgeführten offenen Gebühren.{% else %}Sie müssen derzeit nichts tun.{% endif %} {% if resp.status == 'withdrawn' %}Ihr Antrag wurde zurückgezogen und wird nicht weiter bearbeitet.{% elif next_action == 'closed' %}Den Bescheid, Verlauf und verfügbare Dokumente finden Sie unten.{% else %}Hier sehen Sie den weiteren Bearbeitungsstand.{% endif %}</p>{% endif %}
+  </div>
 
   {% if progress %}
   <div class="card mb-3"><div class="card-body">
@@ -30,13 +41,14 @@
   {% for p in open_payments %}
   <div class="card mb-3 border-warning border-2"><div class="card-body d-flex flex-wrap gap-3 align-items-center">
     <span class="text-warning fs-3"><i class="fa-solid fa-euro-sign"></i></span>
-    <div class="flex-grow-1"><h2 class="h5 mb-1">Bitte bezahlen: {{ money(p.amount_cents) }}</h2>
+    <div class="flex-grow-1"><h2 class="h5 mb-1">{{ 'Zahlung wird geprüft' if p.status == 'pending' else 'Offene Gebühr' }}: {{ money(p.amount_cents) }}</h2>
       <p class="mb-0 small">{{ p.purpose }}{% if p.due_at %} – bis {{ p.due_at | local('%d.%m.%Y') }}{% endif %}.{% if resp.status == 'payment' %} Ihr Antrag wird bearbeitet, sobald die Zahlung eingegangen ist.{% endif %}</p></div>
-    <a class="btn btn-primary" href="/pay/{{ p.token }}"><i class="fa-solid fa-credit-card me-1"></i>Jetzt bezahlen</a>
+    {% if p.status == 'pending' %}<p class="mb-0 small">Bitte nicht erneut bezahlen. Sobald die Prüfung abgeschlossen ist, wird der Stand aktualisiert.</p>{% endif %}
+    <a class="btn {{ 'btn-primary' if next_action == 'closed' and p.status == 'open' and p == payable[0] else 'btn-outline-secondary' }}" href="/pay/{{ p.token }}"><i class="fa-solid fa-credit-card me-1"></i>{{ 'Zahlungsstand ansehen' if p.status == 'pending' else 'Zur Zahlung' }}</a>
   </div></div>
   {% endfor %}
-  {% if confirm_task %}
-  <div class="card mb-3 border-primary border-2"><div class="card-body d-flex flex-wrap gap-3 align-items-start">
+  {% if confirm_task and next_action != 'closed' %}
+  <div class="card mb-3 border-primary border-2" id="email-confirmation"><div class="card-body d-flex flex-wrap gap-3 align-items-start">
     <span class="pe-icon text-primary fs-5"><i class="fa-solid fa-envelope-circle-check"></i></span>
     <div class="flex-grow-1"><h2 class="h5 mb-1">Bitte bestätigen Sie Ihre E-Mail-Adresse</h2>
       <p class="mb-2">Wir haben Ihnen{% if applicant %} an <strong>{{ applicant }}</strong>{% endif %} einen Bestätigungslink geschickt{% if confirm_task.due_at %} – bitte bis {{ confirm_task.due_at | local('%d.%m.%Y') }} anklicken{% endif %}. Erst danach wird Ihr Antrag bearbeitet. Bitte prüfen Sie auch den Spam-Ordner.</p>
@@ -44,7 +56,7 @@
   </div></div>
   {% endif %}
 
-  {% for r in open_requests %}
+  {% for r in open_requests if next_action != 'closed' %}
   <div class="card mb-3 border-warning border-2" id="nachforderung-{{ r.id }}"><div class="card-body">
     <div class="d-flex flex-wrap align-items-start gap-3">
       <span class="pe-icon text-warning fs-5"><i class="fa-solid fa-file-circle-question"></i></span>
@@ -53,7 +65,7 @@
         <p class="mb-2">Bitte ergänzen Sie Ihren Antrag{% if r.due_at %} bis zum <strong>{{ r.due_at | local('%d.%m.%Y') }}</strong>{% endif %}. Ohne diese Angaben können wir nicht weiterarbeiten.</p>
         {% if r.message %}<div class="bg-body-tertiary rounded p-2 mb-2" style="white-space: pre-line">{{ r.message }}</div>{% endif %}
         <ul class="small mb-3">{% for q in r.items if q.type != 'text' %}<li>{{ q.title or 'Angabe' }}{% if q.type == 'file' %} <span class="text-secondary">(Datei)</span>{% endif %}</li>{% endfor %}{% for qid in r.reopen %}{% set q = questions | selectattr('id', 'equalto', qid) | first %}{% if q %}<li>{{ q.title }} <span class="text-secondary">(bitte prüfen und ggf. korrigieren)</span></li>{% endif %}{% endfor %}</ul>
-        <a class="btn btn-warning" href="/a/{{ resp.track_token }}/request/{{ r.id }}"><i class="fa-solid fa-pen-to-square me-1"></i>Jetzt ergänzen</a>
+        <a class="btn btn-outline-secondary" href="/a/{{ resp.track_token }}/request/{{ r.id }}"><i class="fa-solid fa-pen-to-square me-1"></i>Jetzt ergänzen</a>
       </div>
     </div>
   </div></div>
@@ -83,11 +95,11 @@
       {% endfor %}
     </ul></div>
 
-  {% if not resp.closed_at %}
-  <div class="card mb-3"><div class="card-header"><i class="fa-regular fa-envelope me-2"></i>Nachricht an die Verwaltung</div><div class="card-body">
+  {% if next_action != 'closed' %}
+  <div class="card mb-3" id="application-reply"><div class="card-header"><i class="fa-regular fa-envelope me-2"></i>Nachricht an die Verwaltung</div><div class="card-body">
     <form method="post" action="/a/{{ resp.track_token }}/reply"><input type="hidden" name="csrf" value="{{ csrf }}">
-      <textarea class="form-control mb-2" name="text" rows="4" maxlength="10000" required placeholder="z. B. Antwort auf eine Rückfrage oder eine Ergänzung zu Ihrem Antrag"></textarea>
-      <button class="btn btn-primary" type="submit"><i class="fa-regular fa-paper-plane me-1"></i>Senden</button>
+      <label class="form-label" for="application-message">Ihre Nachricht</label><textarea id="application-message" class="form-control mb-2" name="text" rows="4" maxlength="10000" required placeholder="z. B. Antwort auf eine Rückfrage oder eine Ergänzung zu Ihrem Antrag"></textarea>
+      <button class="btn btn-outline-secondary" type="submit"><i class="fa-regular fa-paper-plane me-1"></i>Senden</button>
     </form>
   </div></div>
   {% endif %}
@@ -102,7 +114,7 @@
 
   <div class="d-flex flex-wrap gap-2 mb-5">
     <a class="btn btn-outline-secondary" href="/a/{{ resp.track_token }}/pdf"><i class="fa-regular fa-file-pdf me-1"></i>Antrag als PDF</a>
-    {% if not resp.closed_at %}
+    {% if next_action != 'closed' %}
     <form method="post" action="/a/{{ resp.track_token }}/withdraw"><input type="hidden" name="csrf" value="{{ csrf }}">
       <button class="btn btn-outline-danger" type="submit" data-confirm-title="Antrag zurückziehen?" data-confirm="Der Antrag wird nicht weiter bearbeitet. Das lässt sich nicht rückgängig machen." data-confirm-button="Zurückziehen"><i class="fa-solid fa-rotate-left me-1"></i>Antrag zurückziehen</button></form>
     {% endif %}
