@@ -1443,6 +1443,8 @@ class Vote(Base):
     __tablename__ = "votes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(255))
     description: Mapped[str] = mapped_column(Text, default="")
@@ -1529,6 +1531,9 @@ class LivePoll(Base):
     __tablename__ = "live_polls"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(255))
     description: Mapped[str] = mapped_column(Text, default="")
@@ -2009,6 +2014,9 @@ class Poll(Base):
     __tablename__ = "polls"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime().evaluates_none(), nullable=True, default=utcnow)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
                                                  index=True)
     title: Mapped[str] = mapped_column(String(255))
@@ -2898,7 +2906,9 @@ _NEW_COLUMNS = {
                       "holidays_closed": "BOOLEAN NOT NULL DEFAULT 1"},
     "bookings": {"type_id": "INTEGER REFERENCES booking_types(id) ON DELETE SET NULL",
                  "provider_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL", "answers_json": "TEXT NOT NULL DEFAULT ''"},
-    "votes": {"chart": "VARCHAR(8) NOT NULL DEFAULT 'bar'"},
+    "votes": {"chart": "VARCHAR(8) NOT NULL DEFAULT 'bar'", "archived_at": "DATETIME", "used_at": "DATETIME"},
+    "polls": {"published_at": "DATETIME", "archived_at": "DATETIME", "used_at": "DATETIME"},
+    "live_polls": {"opened_at": "DATETIME", "archived_at": "DATETIME", "used_at": "DATETIME"},
     "resource_extras": {"per_n": "INTEGER NOT NULL DEFAULT 0", "tiers_json": "TEXT NOT NULL DEFAULT '[]'",
                         "min_cents": "INTEGER NOT NULL DEFAULT 0", "max_cents": "INTEGER NOT NULL DEFAULT 0",
                         "cancel_rule": "VARCHAR(8) NOT NULL DEFAULT ''", "cancel_days": "INTEGER NOT NULL DEFAULT 0"},
@@ -2986,6 +2996,15 @@ def _migrate() -> None:
             for name, ddl in columns.items():
                 if name not in existing:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+            if table in {"polls", "votes", "live_polls"} and "used_at" not in existing:
+                related = {"polls": "EXISTS (SELECT 1 FROM poll_participants WHERE poll_id = polls.id) OR EXISTS (SELECT 1 FROM poll_shares WHERE poll_id = polls.id)",
+                           "votes": "EXISTS (SELECT 1 FROM vote_voters WHERE vote_id = votes.id) OR EXISTS (SELECT 1 FROM vote_shares WHERE vote_id = votes.id) OR EXISTS (SELECT 1 FROM vote_ballots WHERE vote_id = votes.id) OR EXISTS (SELECT 1 FROM seminar_activities WHERE kind = 'vote' AND object_id = votes.id)",
+                           "live_polls": "EXISTS (SELECT 1 FROM live_questions JOIN live_answers ON live_answers.question_id = live_questions.id WHERE live_questions.poll_id = live_polls.id) OR EXISTS (SELECT 1 FROM seminar_activities WHERE kind = 'live' AND object_id = live_polls.id)"}[table]
+                conn.execute(text(f"UPDATE {table} SET used_at = created_at WHERE {related}"))
+            if table == "polls" and "published_at" not in existing:
+                conn.execute(text("UPDATE polls SET published_at = created_at"))
+            if table == "live_polls" and "opened_at" not in existing:
+                conn.execute(text("UPDATE live_polls SET opened_at = created_at WHERE status <> 'draft'"))
             if table == "seminar_sessions" and "delivery_mode" not in existing:
                 conn.execute(text("UPDATE seminar_sessions SET delivery_mode = 'hybrid' WHERE online_url <> ''"))
             if table == "forms" and "published_at" not in existing:

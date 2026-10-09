@@ -69,8 +69,8 @@ def seminar_materials(request:Request,sid:int,user:User=Depends(current_user),db
     if 'forms' in enabled_modules():
         objects.extend(dict(kind='form',id=f.id,title=f.title,detail='Formular') for f in db.scalars(select(Form).where(Form.active.is_(True),Form.kind=='survey',Form.owner_id.in_(sm.absence.acting_ids(db,user)))) if f.fee_json in ('','{}'))
     if 'polls' in enabled_modules():
-        objects.extend(dict(kind='vote',id=v.id,title=v.title,detail='Abstimmung') for v in db.scalars(select(Vote)) if shares.access_level(db,'vote',v,user)>=3)
-        objects.extend(dict(kind='live',id=p.id,title=p.title,detail='Live-Umfrage') for p in db.scalars(select(LivePoll).where(LivePoll.owner_id==user.id)))
+        objects.extend(dict(kind='vote',id=v.id,title=v.title,detail='Abstimmung') for v in db.scalars(select(Vote).where(Vote.archived_at.is_(None))) if shares.access_level(db,'vote',v,user)>=3)
+        objects.extend(dict(kind='live',id=p.id,title=p.title,detail='Live-Umfrage') for p in db.scalars(select(LivePoll).where(LivePoll.owner_id==user.id,LivePoll.archived_at.is_(None))))
     return protect(render(request,'seminar_materials.html',user,row=row,role=sm.role(db,user,row),bundles=bundles,content=cl.content,
         tid=tid,terms=terms,whole_staff=series.whole_staff(db,user,row),materials=list(db.scalars(select(SeminarMaterial).where(SeminarMaterial.seminar_id==sid,SeminarMaterial.scope_id==tid).order_by(SeminarMaterial.position,SeminarMaterial.id))),
         activities=list(db.scalars(select(SeminarActivity).where(SeminarActivity.seminar_id==sid,SeminarActivity.scope_id==tid))),objects=objects,phases=learning.PHASES,local_input=sm.local_input,selected_bundle=request.query_params.get('bundle','')))
@@ -168,11 +168,15 @@ async def seminar_activity_add(request:Request,sid:int,user:User=Depends(current
     model={'form':Form,'vote':Vote,'live':LivePoll}.get(kind);obj=db.get(model,ident) if model else None
     if not obj or (obj.owner_id not in sm.absence.acting_ids(db,user) and not (kind=='vote' and shares.access_level(db,'vote',obj,user)>=3)):raise HTTPException(404)
     if kind=='form' and (not obj.active or obj.kind!='survey' or obj.fee_json not in ('','{}')):raise HTTPException(422)
+    if kind in {'vote','live'} and obj.archived_at:raise HTTPException(409,'Archivierte Umfragen können nicht neu hinzugefügt werden.')
     required=data.get('required')=='1'
     if required and (kind!='form' or phase!='before'):raise HTTPException(422,'Verpflichtend vor Anmeldung ist für Vorabformulare möglich.')
     if required and db.scalar(select(SeminarEnrollment.id).where(SeminarEnrollment.seminar_id==sid,SeminarEnrollment.scope_id.in_([0,scope]) if scope else True,SeminarEnrollment.status.in_(['confirmed','offered','pending','waitlist']))):raise HTTPException(409,'Pflichtabfragen vor Beginn der Anmeldungen festlegen.')
     start=sm.parse_time(data.get('opens_at'),True);end=sm.parse_time(data.get('closes_at'),True)
     if start and end and end<=start:raise HTTPException(422,'Ende muss nach Beginn liegen.')
+    if kind in {'vote','live'}:
+        from .poll_lifecycle import mark_used
+        mark_used(obj)
     db.add(SeminarActivity(seminar_id=sid,scope_id=scope,once_per_series=data.get('once_per_series')=='1' and not scope,kind=kind,object_id=ident,title=obj.title,phase=phase,required=required,opens_at=start,closes_at=end));sm.event(db,row,'activity_added',user,kind);db.commit();return redirect(f'/seminare/{sid}/materials?tid={scope}')
 
 

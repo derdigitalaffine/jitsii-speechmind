@@ -8,11 +8,12 @@
   {% if user.is_admin %}<a class="btn btn-outline-secondary" href="?{{ '' if show_all else 'all=1' }}">{{ 'Nur meine' if show_all else 'Alle anzeigen' }}</a>{% endif %}
 {% endcall %}
 {% with active = 'polls' %}{% include "_poll_tabs.html" %}{% endwith %}
+{% include "_poll_lifecycle_list.html" %}
 {% macro card(p, lvl) %}{% set n = counts.get(p.id, 0) %}
   <div class="col-12 col-md-6 col-xxl-4"><div class="card h-100"><div class="card-body d-flex flex-column">
     <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
       <a class="h6 mb-0 text-decoration-none" href="/polls/{{ p.id }}">{{ p.title }}</a>
-      {% if p.final_option %}<span class="badge text-bg-success">festgelegt</span>{% elif is_open(p) %}<span class="badge text-bg-primary">läuft</span>{% else %}<span class="badge text-bg-secondary">beendet</span>{% endif %}
+      {% if not p.published_at %}<span class="badge text-bg-secondary">Entwurf</span>{% elif p.final_option %}<span class="badge text-bg-success">festgelegt</span>{% elif is_open(p) %}<span class="badge text-bg-primary">läuft</span>{% else %}<span class="badge text-bg-secondary">beendet</span>{% endif %}
     </div>
     <div class="d-flex gap-1 my-2 overflow-hidden">{% if p.final_option %}{{ m.date_tile(parts(p.final_option), True) }}{% else %}{% for o in p.options[:5] %}{{ m.date_tile(parts(o)) }}{% endfor %}{% if p.options | length > 5 %}<span class="align-self-center small text-secondary ms-1">+{{ p.options | length - 5 }}</span>{% endif %}{% endif %}</div>
     <div class="small text-secondary mb-3">
@@ -22,7 +23,7 @@
     </div>
     <div class="mt-auto d-flex flex-wrap gap-2">
       <a class="btn btn-sm btn-primary" href="/polls/{{ p.id }}"><i class="fa-solid fa-table-cells me-1"></i>{{ n }} Antwort{{ '' if n == 1 else 'en' }}</a>
-      {% if lvl >= 3 %}<a class="btn btn-sm btn-outline-secondary" href="/polls/{{ p.id }}/edit"><i class="fa-solid fa-pen me-1"></i>Bearbeiten</a>{% endif %}
+      {% if lvl >= 3 and not p.archived_at %}<a class="btn btn-sm btn-outline-secondary" href="/polls/{{ p.id }}/edit"><i class="fa-solid fa-pen me-1"></i>Bearbeiten</a>{% endif %}
       {% if lvl < 4 %}<span class="badge text-bg-info align-self-center ms-auto" title="{{ levels[lvl][1] }}"><i class="fa-solid fa-share-nodes me-1"></i>{{ levels[lvl][0] }}</span>{% endif %}
     </div>
   </div></div></div>
@@ -38,7 +39,7 @@
   {% for p, lvl in shared %}{{ card(p, lvl) }}{% endfor %}
 </div>
 {% endif %}
-{% if not polls and not shared %}
+{% if not polls and not shared and state != "trash" %}
 <div class="text-center text-secondary py-5"><i class="fa-solid fa-calendar-check fa-3x mb-3"></i><p>Noch keine Terminumfragen.</p>
   {% if user.can('polls') %}<a class="btn btn-primary" href="/polls/new"><i class="fa-solid fa-plus me-1"></i>Erste Terminumfrage anlegen</a>{% endif %}</div>
 {% endif %}

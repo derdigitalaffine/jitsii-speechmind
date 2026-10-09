@@ -7,9 +7,9 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
-from . import links, live as lv, shortlinks as sl
+from . import poll_lifecycle as lifecycle, links, live as lv, shortlinks as sl
 from .config import settings
-from .db import LivePoll, LiveQuestion, User
+from .db import LivePoll, LiveQuestion, User, utcnow
 from .main import app, check_csrf, flash, get_db, rate_limit, redirect, render, require, session_user
 from .routes_votes import _module_on
 from .security import new_link_token
@@ -47,9 +47,10 @@ async def live_create(request: Request, user: User = Depends(vote_user), db: Ses
 @app.get("/votes/live/{poll_id:int}")
 def live_edit(request: Request, poll_id: int, user: User = Depends(vote_user), db: Session = Depends(get_db)):
     poll = _poll(db, poll_id, user)
-    return render(request, "live_edit.html", user, poll=poll, kinds=lv.KINDS, charts=lv.CHARTS, pacing=lv.PACING,
+    return render(request, "live_archive.html" if poll.archived_at else "live_edit.html", user, poll=poll, lifecycle_owner=True, removable=lifecycle.removable(db,"live_poll",poll), kinds=lv.KINDS, charts=lv.CHARTS, pacing=lv.PACING,
                   show_results=lv.SHOW_RESULTS, statuses=lv.STATUSES, opts=lv.opts, settings_of=lv.settings,
                   join=join_url(poll), counts={q.id: lv.tally(db, q)["total"] for q in poll.questions},
+                  results={q.id: lv.tally(db,q) for q in poll.questions},
                   words={q.id: lv.raw_words(db, q) for q in poll.questions if q.kind == "words"},
                   entries={q.id: lv.entry_payload(db, q, None, True)["entries"] for q in poll.questions
                            if q.kind in lv.ENTRY_KINDS})
@@ -58,6 +59,7 @@ def live_edit(request: Request, poll_id: int, user: User = Depends(vote_user), d
 @app.post("/votes/live/{poll_id:int}/settings", dependencies=[Depends(check_csrf)])
 async def live_settings(request: Request, poll_id: int, user: User = Depends(vote_user), db: Session = Depends(get_db)):
     poll = _poll(db, poll_id, user)
+    lifecycle.mutable(poll)
     data = await request.form()
     poll.title = " ".join(str(data.get("title", "")).split())[:255] or poll.title
     poll.description = str(data.get("description", "")).replace("\r\n", "\n").strip()[:2000]
@@ -71,6 +73,7 @@ async def live_settings(request: Request, poll_id: int, user: User = Depends(vot
 async def live_question_save(request: Request, poll_id: int, user: User = Depends(vote_user),
                              db: Session = Depends(get_db)):
     poll = _poll(db, poll_id, user)
+    lifecycle.mutable(poll)
     data = await request.form()
     qid = str(data.get("question_id", ""))
     q = next((x for x in poll.questions if str(x.id) == qid), None) if qid else None
@@ -108,6 +111,7 @@ async def live_words(request: Request, poll_id: int, qid: int, user: User = Depe
                      db: Session = Depends(get_db)):
     """Wortwolke moderieren: Begriff ausblenden, wieder zeigen, zusammenfassen."""
     poll = _poll(db, poll_id, user)
+    lifecycle.mutable(poll)
     q = _question(poll, qid)
     if q.kind != "words":
         raise HTTPException(400)
@@ -126,6 +130,7 @@ async def live_words(request: Request, poll_id: int, qid: int, user: User = Depe
 async def live_question_action(request: Request, poll_id: int, qid: int, action: str, user: User = Depends(vote_user),
                                db: Session = Depends(get_db)):
     poll = _poll(db, poll_id, user)
+    lifecycle.mutable(poll)
     q = _question(poll, qid)
     data = await request.form()
     if action in ("up", "down"):
@@ -182,12 +187,14 @@ def live_cloud_png(poll_id: int, qid: int, dunkel: str = "", user: User = Depend
 @app.post("/votes/live/{poll_id:int}/status", dependencies=[Depends(check_csrf)])
 async def live_status(request: Request, poll_id: int, user: User = Depends(vote_user), db: Session = Depends(get_db)):
     poll = _poll(db, poll_id, user)
+    lifecycle.mutable(poll)
     action = (await request.form()).get("action")
     if action == "open":
         if not poll.questions:
             flash(request, "Bitte zuerst mindestens eine Frage anlegen.", "error")
             return redirect(f"/votes/live/{poll.id}")
         poll.status = "open"
+        poll.opened_at = poll.opened_at or utcnow()
         if poll.current_id is None:
             poll.current_id = poll.questions[0].id
     elif action == "close":
@@ -202,6 +209,7 @@ async def live_status(request: Request, poll_id: int, user: User = Depends(vote_
 async def live_step(request: Request, poll_id: int, user: User = Depends(vote_user), db: Session = Depends(get_db)):
     """Präsentation: nächste/vorige Frage (moderierter Ablauf)."""
     poll = _poll(db, poll_id, user)
+    lifecycle.mutable(poll)
     data = await request.form()
     lv.step(poll, 1 if data.get("dir") == "next" else -1)
     db.commit()
@@ -231,9 +239,9 @@ def live_qr(poll_id: int, user: User = Depends(vote_user), db: Session = Depends
 @app.post("/votes/live/{poll_id:int}/loeschen", dependencies=[Depends(check_csrf)])
 def live_delete(request: Request, poll_id: int, user: User = Depends(vote_user), db: Session = Depends(get_db)):
     poll = _poll(db, poll_id, user)
-    db.delete(poll)
+    result = lifecycle.remove(db,"live_poll",poll,user)
     db.commit()
-    flash(request, f"Live-Umfrage „{poll.title}“ gelöscht.")
+    flash(request,"Ungenutzter Entwurf für 30 Tage im Papierkorb." if result == "deleted" else "Live-Umfrage beendet und archiviert; Antworten bleiben erhalten.")
     return redirect("/votes")
 
 
@@ -302,6 +310,7 @@ async def live_answer(request: Request, token: str, db: Session = Depends(get_db
             return JSONResponse({"ok": False, "error": error}, status_code=400)
     else:
         lv.save_answer(db, poll, q, lv.device_hash(raw), value)
+    lifecycle.mark_used(poll)
     db.commit()
     return JSONResponse({"ok": True, **lv.state(db, poll, lv.device_hash(raw))})
 
@@ -324,6 +333,7 @@ async def live_upvote(request: Request, token: str, db: Session = Depends(get_db
     error = lv.upvote(db, q, int(body.get("answer") or 0), lv.device_hash(raw))
     if error:
         return JSONResponse({"ok": False, "error": error}, status_code=400)
+    lifecycle.mark_used(poll)
     db.commit()
     return JSONResponse({"ok": True, **lv.state(db, poll, lv.device_hash(raw))})
 
@@ -334,6 +344,7 @@ def live_entry_action(request: Request, poll_id: int, aid: int, action: str, use
     """Moderation von Pinnwand- und Q&A-Beiträgen: freigeben, ausblenden, beantwortet markieren."""
     from .db import LiveAnswer
     poll = _poll(db, poll_id, user)
+    lifecycle.mutable(poll)
     a = db.get(LiveAnswer, aid)
     if a is None or a.poll_id != poll.id:
         raise HTTPException(404)
@@ -344,3 +355,13 @@ def live_entry_action(request: Request, poll_id: int, aid: int, action: str, use
     if request.headers.get("accept", "").startswith("application/json"):
         return JSONResponse(lv.state(db, poll, staff=True))
     return redirect(f"/votes/live/{poll.id}#frage-{a.question_id}")
+
+
+@app.post("/votes/live/{poll_id:int}/unarchive", dependencies=[Depends(check_csrf)])
+def live_unarchive(request: Request,poll_id: int,user: User=Depends(vote_user),db: Session=Depends(get_db)):
+    poll = _poll(db,poll_id,user)
+    poll.archived_at = None
+    poll.status = 'closed'
+    db.commit()
+    flash(request,"Aus dem Archiv zurückgeholt. Antworten sind erst nach ausdrücklichem Öffnen möglich.")
+    return redirect(f"/votes/live/{poll.id}")

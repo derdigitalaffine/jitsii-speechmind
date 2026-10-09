@@ -2,6 +2,8 @@
 {% import "_macros.html" as m with context %}
 {% block title %}{{ vote.title }} · Abstimmungen{% endblock %}
 {% block content %}
+{% set live_lifecycle = false %}
+{% include "_poll_lifecycle_actions.html" %}
 {% set st = statuses[vote.status] %}
 <nav aria-label="Pfad" class="small mb-2"><a href="/votes">Abstimmungen</a> › {{ vote.title }}</nav>
 {% call m.page_head(vote.title, vote.description) %}
@@ -12,7 +14,6 @@
       <li><a class="dropdown-item" href="/votes/{{ vote.id }}/protocol.pdf" target="_blank"><i class="fa-regular fa-file-pdf me-2"></i>Ergebnisprotokoll (PDF)</a></li>
       {% if vote.status == 'closed' or vote.results == 'live' %}<li><a class="dropdown-item" href="/votes/{{ vote.id }}/export.csv"><i class="fa-solid fa-file-csv me-2"></i>Stimmzettel (CSV)</a></li>{% endif %}
       {% if user.can('votes') %}<li><form method="post" action="/votes/{{ vote.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item" type="submit"><i class="fa-regular fa-clone me-2"></i>Kopie anlegen</button></form></li>{% endif %}
-      {% if level >= 3 %}<li><hr class="dropdown-divider"></li><li><form method="post" action="/votes/{{ vote.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item text-danger" type="submit" data-confirm-title="Abstimmung löschen?" data-confirm="Alle Stimmzettel und das Wählerverzeichnis werden gelöscht." data-confirm-button="Löschen"><i class="fa-regular fa-trash-can me-2"></i>Löschen</button></form></li>{% endif %}
     </ul></div>
 {% endcall %}
 
@@ -24,7 +25,7 @@
   {% if vote.ends_at %}<div><div class="small text-secondary">Ende</div>{{ vote.ends_at | local }}</div>{% endif %}
   <div class="ms-auto d-flex gap-2">
     {% if level >= 2 %}
-    {% if vote.status != 'open' and vote.status != 'closed' %}<form method="post" action="/votes/{{ vote.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="start"><button class="btn btn-success" type="submit"><i class="fa-solid fa-play me-1"></i>{{ 'Fortsetzen' if vote.opened_at else 'Abstimmung starten' }}</button></form>{% endif %}
+    {% if lifecycle_owner and vote.status != 'open' and vote.status != 'closed' %}<form method="post" action="/votes/{{ vote.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="start"><button class="btn btn-success" type="submit"><i class="fa-solid fa-play me-1"></i>{{ 'Fortsetzen' if vote.opened_at else 'Abstimmung starten' }}</button></form>{% endif %}
     {% if vote.status == 'open' %}<form method="post" action="/votes/{{ vote.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="pause"><button class="btn btn-outline-secondary" type="submit"><i class="fa-solid fa-pause me-1"></i>Anhalten</button></form>{% endif %}
     {% endif %}
     {% if level >= 3 and vote.status != 'closed' and vote.opened_at %}<form method="post" action="/votes/{{ vote.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="close"><button class="btn btn-danger" type="submit" data-confirm-title="Abstimmung beenden?" data-confirm="Danach kann niemand mehr abstimmen; das Ergebnis wird mit Prüfsumme festgeschrieben." data-confirm-button="Beenden"><i class="fa-solid fa-flag-checkered me-1"></i>Beenden</button></form>{% endif %}

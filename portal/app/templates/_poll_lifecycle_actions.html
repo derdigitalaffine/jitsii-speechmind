@@ -1,0 +1,7 @@
+{% if lifecycle_owner %}
+{% set obj = vote if vote is defined else poll %}
+{% set prefix = '/votes/' ~ obj.id if vote is defined else ('/votes/live/' ~ obj.id if live_lifecycle else '/polls/' ~ obj.id) %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+{% if obj.archived_at %}<div class="alert alert-secondary flex-grow-1 mb-0"><i class="fa-solid fa-box-archive me-1"></i>Archiviert – Ergebnisse und Zugriffsrechte bleiben erhalten; Änderungen und neue Antworten sind gesperrt.</div><form method="post" action="{{ prefix }}/unarchive"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-secondary"><i class="fa-solid fa-rotate-left me-1"></i>Aus Archiv zurückholen</button></form>
+{% else %}<form method="post" action="{{ prefix }}/{{ 'loeschen' if live_lifecycle else 'delete' }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-secondary" data-confirm="{{ 'Der ungenutzte Entwurf wird 30 Tage wiederherstellbar in den Papierkorb gelegt.' if removable else 'Die Umfrage wird geschlossen und archiviert. Antworten und Ergebnisse bleiben erhalten.' }}"><i class="fa-solid {{ 'fa-trash-can' if removable else 'fa-box-archive' }} me-1"></i>{{ 'Entwurf in Papierkorb' if removable else 'Schließen und archivieren' }}</button></form>{% endif %}
+</div>{% endif %}

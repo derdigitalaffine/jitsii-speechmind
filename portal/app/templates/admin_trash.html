@@ -34,7 +34,7 @@
         {% if k.statuses %}<div class="col-sm-6"><label class="form-label small mb-1" for="tb-status">Status</label><select class="form-select form-select-sm" id="tb-status" name="status"><option value="">– alle –</option>{% for sk, sl in k.statuses.items() %}<option value="{{ sk }}" {% if status == sk %}selected{% endif %}>{{ sl }}</option>{% endfor %}</select></div>{% endif %}
         <div class="col-12"><button class="btn btn-sm btn-outline-secondary" type="submit"><i class="fa-solid fa-calculator me-1"></i>Anzahl prüfen</button></div>
       </form>
-      <div class="form-text mb-2">Maßgeblich ist {{ {'ends_at': 'das Ende der Buchung', 'received_at': 'das Eingangsdatum'}.get(k.date, 'das Anlagedatum') }}. Ohne Bedingung wird nie etwas gelöscht. Geschützte DMS-Dokumente sind von der Vorschau und Sammellöschung ausgeschlossen.</div>
+      <div class="form-text mb-2">Maßgeblich ist {{ {'ends_at': 'das Ende der Buchung', 'received_at': 'das Eingangsdatum'}.get(k.date, 'das Anlagedatum') }}. Ohne Bedingung wird nie etwas gelöscht. Verwendete Umfragen und geschützte DMS-Dokumente sind von der Vorschau und Sammellöschung ausgeschlossen.</div>
       {% if preview is not none %}
         {% if preview %}
         <form method="post" action="/admin/loeschen/bereich" class="alert alert-danger mb-0"><input type="hidden" name="csrf" value="{{ csrf }}">

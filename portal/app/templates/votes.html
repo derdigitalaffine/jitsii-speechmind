@@ -18,6 +18,7 @@
   {% if user.is_admin %}<a class="btn btn-outline-secondary" href="?{{ '' if show_all else 'all=1' }}">{{ 'Nur meine' if show_all else 'Alle anzeigen' }}</a>{% endif %}
 {% endcall %}
 {% with active = 'votes' %}{% include "_poll_tabs.html" %}{% endwith %}
+{% include "_poll_lifecycle_list.html" %}
 {% macro card(v, lvl) %}{% set st = statuses[v.status] %}{% set n = counts.get(v.id, 0) %}
   <div class="col-12 col-md-6 col-xxl-4"><div class="card h-100"><div class="card-body d-flex flex-column">
     <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
@@ -53,7 +54,7 @@
 <h2 class="h5 mb-3"><i class="fa-solid fa-share-nodes me-2 text-secondary"></i>Mit mir geteilt</h2>
 <div class="row g-3 mb-4">{% for v, lvl in shared %}{{ card(v, lvl) }}{% endfor %}</div>
 {% endif %}
-{% if not votes and not shared and not lives %}
+{% if not votes and not shared and not lives and state != "trash" %}
 <div class="text-center text-secondary py-5"><i class="fa-solid fa-check-to-slot fa-3x mb-3"></i><p>Noch keine Abstimmungen.</p>
   {% if user.can('votes') %}<a class="btn btn-primary" href="/votes/new"><i class="fa-solid fa-plus me-1"></i>Erste Abstimmung anlegen</a>{% endif %}</div>
 {% endif %}

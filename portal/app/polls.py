@@ -115,7 +115,7 @@ def set_options(db, poll: Poll, wanted: list[dict]) -> None:
 # --- Auswertung ---------------------------------------------------------------------
 
 def is_open(poll: Poll) -> bool:
-    return not poll.closed and not (poll.expires_at and poll.expires_at < utcnow())
+    return not poll.archived_at and bool(poll.published_at) and not poll.closed and not (poll.expires_at and poll.expires_at < utcnow())
 
 
 def tally(poll: Poll, exclude: PollParticipant | None = None) -> dict[int, dict]:

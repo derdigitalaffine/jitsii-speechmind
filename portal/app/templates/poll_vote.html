@@ -19,6 +19,8 @@
     </div>
   </div></div>
 
+  {% if poll.archived_at %}<div class="alert alert-secondary" role="status"><i class="fa-solid fa-box-archive me-1"></i>Archiviert – keine Teilnahme mehr möglich. Ergebnisse bleiben entsprechend den bisherigen Zugriffsrechten verfügbar.</div>{% endif %}
+
   {% if poll.final_option %}
   <div class="alert alert-success d-flex align-items-center gap-3">{{ m.date_tile(parts(poll.final_option), True) }}
     <div><div class="small">Der Termin steht fest</div><div class="h5 mb-0">{{ parts(poll.final_option).label }}</div></div></div>

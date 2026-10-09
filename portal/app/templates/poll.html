@@ -2,6 +2,8 @@
 {% import "_macros.html" as m with context %}
 {% block title %}{{ poll.title }} · Terminumfragen{% endblock %}
 {% block content %}
+{% set live_lifecycle = false %}
+{% include "_poll_lifecycle_actions.html" %}
 {% call m.page_head(poll.title, poll.location) %}
   {% if level >= 3 %}<a class="btn btn-outline-secondary" href="/polls/{{ poll.id }}/edit"><i class="fa-solid fa-pen me-1"></i>Bearbeiten</a>{% endif %}
   <div class="dropdown"><button class="btn btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Weitere Aktionen"><i class="fa-solid fa-ellipsis"></i></button>
@@ -10,16 +12,15 @@
       {% if user.can('polls') %}<li><form method="post" action="/polls/{{ poll.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item"><i class="fa-regular fa-copy fa-fw me-2"></i>Kopie anlegen</button></form></li>{% endif %}
       {% if level >= 3 %}
       <li><form method="post" action="/polls/{{ poll.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}">
-        {% if poll.closed %}<button class="dropdown-item" name="action" value="reopen"><i class="fa-solid fa-lock-open fa-fw me-2"></i>Abstimmung wieder öffnen</button>{% else %}<button class="dropdown-item" name="action" value="close"><i class="fa-solid fa-lock fa-fw me-2"></i>Abstimmung beenden</button>{% endif %}</form></li>
+        {% if poll.closed and lifecycle_owner %}<button class="dropdown-item" name="action" value="reopen"><i class="fa-solid fa-lock-open fa-fw me-2"></i>{{ "Veröffentlichen und öffnen" if not poll.published_at else "Abstimmung wieder öffnen" }}</button>{% else %}<button class="dropdown-item" name="action" value="close"><i class="fa-solid fa-lock fa-fw me-2"></i>Abstimmung beenden</button>{% endif %}</form></li>
       <li><hr class="dropdown-divider"></li>
-      <li><form method="post" action="/polls/{{ poll.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item text-danger" data-confirm-title="Terminumfrage löschen?" data-confirm="Alle Antworten werden gelöscht, die Links funktionieren nicht mehr."><i class="fa-regular fa-trash-can fa-fw me-2"></i>Löschen</button></form></li>
       {% endif %}
     </ul></div>
 {% endcall %}
 
 <div class="d-flex flex-wrap gap-2 mb-3 small align-items-center">
-  {% if level < 4 %}<span class="badge text-bg-info"><i class="fa-solid fa-share-nodes me-1"></i>geteilt von {{ poll.owner.name if poll.owner else '–' }} · {{ share_levels[level][0] }}</span>{% endif %}
-  {% if poll.final_option %}<span class="badge text-bg-success">Termin festgelegt</span>{% elif is_open %}<span class="badge text-bg-primary">Abstimmung läuft</span>{% else %}<span class="badge text-bg-secondary">Abstimmung beendet</span>{% endif %}
+  {% if level < 4 and not lifecycle_owner %}<span class="badge text-bg-info"><i class="fa-solid fa-share-nodes me-1"></i>geteilt von {{ poll.owner.name if poll.owner else '–' }} · {{ share_levels[level][0] }}</span>{% endif %}
+  {% if not poll.published_at %}<span class="badge text-bg-secondary">Entwurf</span>{% elif poll.final_option %}<span class="badge text-bg-success">Termin festgelegt</span>{% elif is_open %}<span class="badge text-bg-primary">Abstimmung läuft</span>{% else %}<span class="badge text-bg-secondary">Abstimmung beendet</span>{% endif %}
   {% if poll.expires_at %}<span class="text-secondary"><i class="fa-regular fa-hourglass-half me-1"></i>bis {{ poll.expires_at | local }} Uhr</span>{% endif %}
   {% if poll.hidden %}<span class="badge text-bg-light border"><i class="fa-solid fa-eye-slash me-1"></i>verdeckt</span>{% endif %}
   {% if poll.single_choice %}<span class="badge text-bg-light border">nur ein Termin</span>{% endif %}
