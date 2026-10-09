@@ -205,7 +205,7 @@ def sync_audience(db, row, ver):
     db.flush()
 
 
-def source(db, user, item):
+def source(db, user, item, *, allow_archived=False):
     """Validate on save and publication; no snapshots of protected portal references."""
     kind, ident = item['kind'], item.get('id')
     modules = get_settings(db)
@@ -226,6 +226,8 @@ def source(db, user, item):
         obj = db.get(DmsFile, ident)
         if not obj or dms.record_level(db, user, obj.record) < dms.READ:
             raise HTTPException(403, 'Keine Leseberechtigung für dieses DMS-Dokument.')
+        if obj.record.archived_at and not allow_archived:
+            raise HTTPException(409, 'Archivierte DMS-Dokumente können nicht neu hinzugefügt werden.')
         return obj.name, f'/dms/r/{obj.record_id}/files/{obj.id}'
     return item['title'], ''
 
@@ -260,7 +262,7 @@ def publish(db, row, user, reack=True):
         raise HTTPException(422, 'Bitte mindestens einen Empfänger auswählen.')
     for item in c['items']:
         if item['kind'] in {'law', 'form', 'dms'}:
-            item['title'], item['url'] = source(db, user, item)
+            item['title'], item['url'] = source(db, user, item, allow_archived=True)
         if item['kind'] == 'law':
             if db.get(LawText, item['id']).internal and (c['public'] or c['audience']['guests']):
                 raise HTTPException(422, 'Interne Dienstanweisungen sind nur für angemeldete Benutzer verfügbar.')

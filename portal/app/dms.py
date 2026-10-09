@@ -202,6 +202,8 @@ def enabled(db) -> bool:
 
 def sync(db, resp: FormResponse) -> DmsRecord | None:
     """Ablage-Eintrag eines Online-Antrags anlegen bzw. aktualisieren – ab Eingang, auch laufende Vorgänge."""
+    if resp.dms_removed:
+        return None
     form = resp.form
     record = db.scalar(select(DmsRecord).where(DmsRecord.response_id == resp.id))
     if record is None:
@@ -313,7 +315,7 @@ def reconcile() -> int:
             db.commit()
             return n
         # Anträge, die noch fehlen (z. B. aus der Zeit vor der Ablage), aufnehmen
-        missing = db.scalars(select(FormResponse).where(FormResponse.ref_no.is_not(None),
+        missing = db.scalars(select(FormResponse).where(FormResponse.dms_removed.is_(False), FormResponse.ref_no.is_not(None),
                                                         ~FormResponse.id.in_(select(DmsRecord.response_id).where(DmsRecord.response_id.is_not(None))))).all()
         for resp in missing:
             sync(db, resp)
@@ -329,12 +331,12 @@ def reconcile() -> int:
 
 # --- Recherche ---------------------------------------------------------------------------------
 
-FILTERS = ("q", "applicant", "ref", "area", "form", "status", "from", "to", "place", "kind", "sort", "person", "scope")
+FILTERS = ("q", "applicant", "ref", "area", "form", "status", "from", "to", "place", "kind", "sort", "person", "scope", "state")
 
 
 def search(db, user: User, f: dict, limit: int = 50, offset: int = 0, root_ids=None) -> tuple[list[DmsRecord], int]:
     lv = levels(db, user)
-    q = select(DmsRecord)
+    q = select(DmsRecord).where(DmsRecord.archived_at.is_not(None) if f.get("state") == "archive" else DmsRecord.archived_at.is_(None))
     if not user.is_admin:
         q = q.where(DmsRecord.area_id.in_(list(lv) or [-1]))
     if f.get("area", "").isdigit():
@@ -478,15 +480,16 @@ def expired(db) -> list[DmsRecord]:
 
 
 def delete_record(db, record: DmsRecord, user: User, reason: str) -> None:
-    """Eintrag samt Dateien löschen – bei Anträgen auch den Vorgang mit allen Angaben und Uploads."""
-    desc = f"{record.ref_no or '#' + str(record.id)} „{record.title}“ ({record.applicant or 'ohne Name'}), Bereich {record.area.name}"
-    resp = record.response
-    shutil.rmtree(files_dir(record.id), ignore_errors=True)
-    if resp is not None:
-        fm.delete_files(resp.form_id, resp.id)
-        db.delete(resp)
-    db.delete(record)
-    log(db, user, "gelöscht", f"{desc} – {reason}")
+    """Recoverably remove only unprotected records; preserve linked source cases."""
+    from . import dms_lifecycle as lifecycle, trash
+    if not lifecycle.owns(user, record):
+        raise ValueError("Nur Ersteller oder Admin dürfen diesen Eintrag löschen.")
+    reasons = lifecycle.protection(db, record)
+    if reasons:
+        raise ValueError("; ".join(reasons))
+    trash.delete_obj(db, "dms", record, user.name)
+    log(db, user, "Papierkorb", reason)
+
 
 
 def folder_tree(all_areas):

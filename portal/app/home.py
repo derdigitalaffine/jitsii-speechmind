@@ -120,7 +120,7 @@ def _dms(db, user):
     from . import dms
     from .db import DmsRecord
     lv = dms.levels(db, user)
-    q = select(DmsRecord).order_by(DmsRecord.updated_at.desc()).limit(6)
+    q = select(DmsRecord).where(DmsRecord.archived_at.is_(None)).order_by(DmsRecord.updated_at.desc()).limit(6)
     if not user.is_admin:
         q = q.where(DmsRecord.area_id.in_(list(lv) or [-1]))
     return {"items": db.scalars(q).all(), "can_write": any(v >= 2 for v in lv.values())}

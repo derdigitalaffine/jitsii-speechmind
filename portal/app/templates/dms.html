@@ -8,6 +8,8 @@
 {%- endmacro %}
 {% block head %}<link rel="stylesheet" href="/static/dms-browser.css">{% endblock %}
 {% block content %}
+<nav class="d-flex flex-wrap gap-2 mb-3" aria-label="Ablagestatus"><a href="/dms" class="btn btn-sm btn-outline-primary">Ablage</a><a href="/dms?state=archive" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-box-archive me-1"></i>Archiv</a><a href="/dms/trash" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-trash-can me-1"></i>Papierkorb</a></nav>
+{% if may_delete_folder %}<form method="post" action="/dms/areas/{{ selected_folder.id }}/delete" class="mb-3"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" data-confirm="Leeren Ordner 30 Tage in den Papierkorb verschieben?"><i class="fa-solid fa-trash-can me-1"></i>Leeren Ordner entfernen</button></form>{% endif %}
 {% import "_dms_folders.html" as folders_ui with context %}
 {% call m.page_head('Ablage', 'Ordner öffnen, Vorgänge finden und Dokumente lesen – mit Ihren vorhandenen Ablagerechten.') %}
 <a class="btn btn-outline-secondary" href="/dms/persons"><i class="fa-solid fa-address-book me-1"></i>Personen</a>
