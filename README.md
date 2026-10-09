@@ -39,7 +39,9 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - Abstimmen mit **Ja / Wenn nötig / Nein** per öffentlichem Link (ohne Konto) oder persönlicher Einladung an Benutzer, Gruppen und Gäste; Antworten jederzeit änderbar, Erinnerungen, Frist.
 - Optionen: nur ein Termin, **Plätze je Termin** (Terminbuchung, z. B. Sprechstunden), verdeckte Umfrage, E-Mail-Pflicht.
 - Ergebnis-Raster mit besten Terminen, CSV-Export; **Termin festlegen** mit Mail und Kalenderdatei an alle oder **direkt als Besprechung mit Outlook-Einladungen**.
-- **Im Portal teilen** mit Personen oder Gruppen in drei Stufen: Ergebnisse einsehen · zusätzlich einladen · zusätzlich bearbeiten und löschen.
+- **Im Portal teilen** mit Personen oder Gruppen in drei Stufen: Ergebnisse einsehen · zusätzlich einladen · zusätzlich bearbeiten. Archivieren und Löschen bleiben Eigentümer:innen und Admins vorbehalten.
+
+- **Archiv und Papierkorb:** Nur ungenutzte Umfrageentwürfe sind 30 Tage wiederherstellbar löschbar. Verwendete Terminumfragen, Abstimmungen und Live-Umfragen werden geschlossen und archiviert; Antworten und Ergebnisse bleiben erhalten.
 
 ### Abstimmungen und Wahlen (im Modul „Umfragen & Abstimmungen“)
 
@@ -132,7 +134,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - Einträge einzeln oder gesammelt **verschieben**, Bereiche im Aktenplan umhängen.
 - **Personenbezug:** Jeder Eintrag gehört zu einer Bürgerin bzw. einem Bürger (automatisch über E-Mail, sonst Name und PLZ); Personenseite mit allen Vorgängen, Kontaktdaten, Doppelungen zusammenführen.
 - **Recherche** nach Volltext, Antragsteller:in, Aktenzeichen, Ort/PLZ/Straße, Antragsart, Status, Art und Eingangsdatum; **gespeicherte Suchen**, CSV-Export.
-- **Löschfristen** je Bereich (vererbbar): Ablauf am Jahresende nach Abschluss + N Jahre; Löschen mit Begründung und Protokoll. Eigenes Recht „Aktenplan verwalten“.
+- **Archiv und 30-Tage-Papierkorb** für Ablageeinträge und eigene Uploads, mit Eigentümerrechten und Schutz bestehender Verknüpfungen. Löschfristen je Bereich sind vererbbar; Entfernen wird protokolliert und erhält den Quellantrag. Admins können ungeschützte Ordnerbäume nach gesicherter Vorschau rekursiv entfernen.
 
 ### BlueOtter Krankmelder (abschaltbares Modul, standardmäßig aus)
 
@@ -156,6 +158,7 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 
 - **Kartenbrowser** mit MapLibre GL unter `/karte` für alle, auch ohne Anmeldung (einbettbar): Grundkarten (basemap.de farbig/grau/Vektor, OpenStreetMap), Fachdaten als **WMS, WMS-T (Zeitregler), WFS, WMTS/XYZ** und GeoJSON, Transparenz, Reihenfolge per Ziehen, Legende, Sachinformation per Klick, **Zeichnen und Messen** von Punkten, Linien und Flächen (benennen, einfärben, Eckpunkte verschieben, GeoJSON laden und herunterladen), Koordinaten in WGS84 und UTM 32, **Orts- und Adresssuche** (Nominatim, über den Server) und Koordinatensuche, Kartenbild als PNG, Link auf den Ausschnitt.
 - Alle angemeldeten Portalnutzer fügen **eigene Dienste** komfortabel hinzu („Dienst abfragen“ liest die Layer aus GetCapabilities), **speichern Karten** samt Zeichnungen und **teilen** sie intern für Benutzer/Gruppen oder öffentlich per Link beziehungsweise iframe.
+- **Eigene Karten:** 30-Tage-Papierkorb; Wiederherstellung zunächst privat, interne Freigaben ausdrücklich bestätigen und öffentliche Links neu erzeugen.
 - **Systemweite Layerverwaltung** für Admins: Layer anlegen (mit Dienstabfrage), Grundkarte oder Überlagerung, Gruppen, Reihenfolge per Ziehen, öffentlich/intern, Startsichtbarkeit, Verwendung in Formularen, WMS-T-Zeitwerte, Legende, Erreichbarkeit prüfen, Duplizieren, Export/Import als JSON, Übernahme von Benutzer-Layern, Startausschnitt, Zwischenspeicher.
 - Je Layer wählbar: **über das Portal laden** (Proxy mit Kachel-Zwischenspeicher, keine IP-Adressen an Dritte, keine CORS-Probleme) oder direkt beim Anbieter. Eigene Layer von Benutzer:innen laufen immer über den Proxy – mit Schutz vor Zugriffen ins interne Netz.
 

@@ -30,6 +30,10 @@ Der einfache Modus priorisiert Auskunft und Ebenen; Zeichenwerkzeuge stehen im e
 
 Formular-Kartenfelder können die Flurstücksübernahme aktivieren, wenn Flächen erlaubt sind. Übernommene Geometrien und Metadaten verwenden die vorhandenen Antwort-, Antrags- und DMS-Wege. Teilflächen zählen gegen das Objektlimit. CSV-Geometriespalte und JSON erhalten die Metadaten. Katasterflächen bleiben in der Oberfläche unverändert; diese Informationsausgabe ist kein amtlich beglaubigter Auszug und keine rechtliche Prüfung von Nutzereingaben.
 
+## Eigene Karten löschen und wiederherstellen
+
+Eigentümer:innen und Admins können gespeicherte Karten für **30 Tage** in den Papierkorb verschieben. Einstellungen, Ebenenauswahl, Zeichnungen und Flurstückssammlung bleiben wiederherstellbar; interne Freigaben und öffentliche Links sind währenddessen unwirksam. Beim Wiederherstellen wird die Karte zunächst privat. Noch gültige frühere Benutzer-/Gruppenfreigaben werden zur ausdrücklichen Bestätigung angeboten; öffentliche Links müssen neu erzeugt werden. Alte öffentliche Token werden nicht reaktiviert. Geteiltes Leserecht erlaubt weder Löschung noch Wiederherstellung der Ursprungskarte.
+
 ## OGC-Unterstützung und Grenzen
 
 - WMS 1.1.1/1.3.0 in EPSG:3857, Operationsadresse aus GetCapabilities, vererbte Abfragefähigkeit und Zeitdimension. GetFeatureInfo fragt exakt den geklickten Kachelausschnitt ab, auch bei gedrehter Karte.
