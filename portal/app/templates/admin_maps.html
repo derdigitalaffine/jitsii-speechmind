@@ -69,6 +69,7 @@
       <div class="map-mini mb-1" id="center-map"></div>
       <button class="btn btn-sm btn-outline-secondary mb-3" type="button" id="take-view"><i class="fa-solid fa-crosshairs me-1"></i>Aktuellen Kartenausschnitt als Start übernehmen</button>
       <div class="row g-2">
+        <div class="col-12"><label class="form-label small" for="parcel-vg-search">Bevorzugtes Gebiet der Flurstückssuche</label><input class="form-control form-control-sm" id="parcel-vg-search" value="{{cfg.get('map_parcel_vg_label','VG Otterbach-Otterberg')}}" autocomplete="off" aria-controls="parcel-vg-results" aria-describedby="parcel-vg-status"><input type="hidden" name="map_parcel_vg_code" id="parcel-vg-code" value="{{cfg.get('map_parcel_vg_code','33510')}}"><div id="parcel-vg-results" class="list-group mt-1"></div><div id="parcel-vg-status" class="form-text" role="status">Verbandsgemeinde suchen und einen amtlichen Treffer wählen. Im Kartenbrowser bleibt die Suche in ganz Rheinland-Pfalz verfügbar.</div></div>
         <div class="col-md-4"><label class="form-label small" for="c-cache">Zwischenspeicher (MB)</label><input class="form-control form-control-sm" id="c-cache" name="map_cache_mb" type="number" min="10" value="{{ cfg.map_cache_mb }}"></div>
         <div class="col-md-8"><label class="form-label small">Einbetten des Kartenbrowsers (<code>/karte-embed</code>)</label>
           <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="c-embed" name="maps_embed" value="1" {% if cfg.maps_embed == '1' %}checked{% endif %}><label class="form-check-label small" for="c-embed">erlaubt</label></div></div>
@@ -118,6 +119,21 @@
 <script type="module" src="/static/map-core.js"></script>
 <script type="module">
 (function () {
+  var vgSearch = document.getElementById('parcel-vg-search'), vgCode = document.getElementById('parcel-vg-code'), vgResults = document.getElementById('parcel-vg-results'), vgStatus = document.getElementById('parcel-vg-status'), vgTimer, vgSequence = 0;
+  if (vgSearch) vgSearch.addEventListener('input', function () {
+    clearTimeout(vgTimer); var sequence = ++vgSequence, query = vgSearch.value.trim();
+    vgCode.value = ''; vgResults.replaceChildren();
+    if (query.length < 2) { vgStatus.textContent = 'Mindestens zwei Zeichen eingeben und einen Treffer wählen.'; return; }
+    vgTimer = setTimeout(function () {
+      vgStatus.textContent = 'Amtliche Verbandsgemeinden werden gesucht …';
+      fetch('/admin/maps/verbandsgemeinden?q=' + encodeURIComponent(query), {credentials:'same-origin'}).then(function (r) { if (!r.ok) throw new Error(); return r.json(); }).then(function (d) {
+        if (sequence !== vgSequence) return;
+        vgResults.replaceChildren();
+        (d.items || []).forEach(function (item) { var button = document.createElement('button'); button.type = 'button'; button.className = 'list-group-item list-group-item-action'; button.textContent = item.name; button.addEventListener('click', function () { vgSearch.value = item.name; vgCode.value = item.code; vgResults.replaceChildren(); vgStatus.textContent = 'Ausgewählt: ' + item.name; ++vgSequence; }); vgResults.appendChild(button); });
+        vgStatus.textContent = d.items.length ? (d.complete ? 'Bitte einen Treffer auswählen.' : 'Weitere Treffer möglich; bitte genauer suchen.') : 'Keine Verbandsgemeinde gefunden.';
+      }).catch(function () { if (sequence === vgSequence) vgStatus.textContent = 'Amtliche Suche derzeit nicht verfügbar. Bitte später erneut versuchen.'; });
+    }, 400);
+  });
   var csrf = document.querySelector('meta[name="csrf"]').content;
   function post(url, fields) {
     var body = new FormData(); body.append('csrf', csrf);

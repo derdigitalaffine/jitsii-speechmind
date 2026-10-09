@@ -13,9 +13,9 @@
         <div class="fw-semibold text-truncate"><i class="fa-solid fa-map-location-dot me-1 text-primary"></i>{{ saved.title if saved else 'Kartenbrowser' }}</div>
         {% if saved and saved.description %}<div class="small text-secondary">{{ saved.description }}</div>{% endif %}
       </div>
-      <button class="btn btn-sm btn-link text-secondary ms-auto" type="button" id="panel-close" aria-label="Seitenleiste schließen"><i class="fa-solid fa-angles-left"></i></button>
+      <button class="btn btn-sm btn-link text-secondary ms-auto" id="panel-expand" type="button" aria-label="Seitenleiste vergrößern"><i class="fa-solid fa-expand"></i></button><button class="btn btn-sm btn-link text-secondary" type="button" id="panel-close" aria-label="Seitenleiste schließen"><i class="fa-solid fa-angles-left"></i></button>
     </div>
-    <div class="map-panel-body"><label class="form-check form-switch small mb-3"><input type="checkbox" id="map-advanced" class="form-check-input">Erweiterter Modus</label><div id="parcel-browser" class="mb-3"></div><div id="map-service-status" role="status" class="small text-danger mb-2"></div>
+    <div class="map-panel-body"><label class="form-check form-switch small mb-3"><input type="checkbox" id="map-advanced" class="form-check-input">Erweiterter Modus</label><div id="map-info" class="map-info mb-3" aria-live="polite" hidden><div class="d-flex align-items-center gap-2"><h2 class="h6 mb-0">Auskunft</h2><button type="button" class="btn btn-sm btn-link ms-auto" id="map-info-close" aria-label="Auskunft schließen"><i class="fa-solid fa-xmark"></i></button></div><div id="map-info-parcel"></div><div id="map-info-other"></div></div><div id="map-service-status" role="status" class="small text-danger mb-2"></div>
       <form class="input-group input-group-sm mb-1" id="coord-search" role="search">
         <input class="form-control" id="coord-input" type="search" placeholder="Ort, Adresse oder Koordinate" aria-label="Ort, Adresse oder Koordinate suchen" title="z. B. „Rathaus Otterberg“, „Hauptstraße 1, Otterbach“, „49.49, 7.77“ oder „UTM 32 412345 5483210“">
         <button class="btn btn-outline-secondary" type="submit" aria-label="Suchen"><i class="fa-solid fa-magnifying-glass"></i></button>
@@ -32,7 +32,7 @@
       <div id="overlay-list"></div>
       <p class="small text-secondary mt-2 mb-0" id="overlay-empty" hidden>Keine Ebenen verfügbar.</p>
 
-      <div class="map-advanced-only"><div class="d-flex align-items-center map-section-title mt-3"><span>Zeichnen &amp; messen</span></div>
+      <details class="map-tools mt-3"><summary class="fw-semibold"><i class="fa-solid fa-toolbox me-1"></i>Kartenwerkzeuge</summary><div id="parcel-browser" class="mt-3"></div><div class="map-advanced-only"><div class="d-flex align-items-center map-section-title mt-3"><span>Zeichnen &amp; messen</span></div>
       <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="Zeichenwerkzeuge">
         <button class="btn btn-outline-primary" type="button" data-draw="point" title="Punkt setzen"><i class="fa-solid fa-location-dot me-1"></i>Punkt</button>
         <button class="btn btn-outline-primary" type="button" data-draw="line" title="Linie zeichnen und Länge messen"><i class="fa-solid fa-route me-1"></i>Linie</button>
@@ -45,7 +45,7 @@
       </div>
       <label class="btn btn-sm btn-link px-0 small"><i class="fa-solid fa-file-import me-1"></i>GeoJSON laden<input type="file" id="draw-import" accept=".geojson,.json,application/geo+json,application/json" hidden></label>
       {% if can_edit %}<div class="form-text mt-0">Zeichnungen werden mit der Karte gespeichert (<i class="fa-solid fa-floppy-disk"></i>).</div>{% else %}<div class="form-text mt-0">Zum Speichern als GeoJSON herunterladen.</div>{% endif %}
-    </div></div>
+    </div></details></div>
     <div class="map-panel-foot">
       <div class="btn-group btn-group-sm flex-wrap w-100" role="group" aria-label="Werkzeuge">
         <button class="btn btn-outline-secondary" type="button" id="btn-export" title="Kartenbild speichern (PNG)"><i class="fa-solid fa-image"></i></button>

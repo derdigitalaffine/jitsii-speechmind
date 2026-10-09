@@ -58,7 +58,9 @@ def map_bundle(db: Session, request: Request, user: User | None, state: dict | N
             cfg = mp.custom_config(defn, mp.sign(defn), float(entry.get("opacity", 1) or 1))
             configs.append(cfg)
     request.state.csp_hosts = mp.csp_hosts(configs) + mp.extra_hosts(layers)
-    return {"layers": configs, "view": view_defaults(db), "state": state}
+    from . import parcels
+    return {"layers": configs, "view": view_defaults(db), "state": state,
+            "parcel_lookup": parcels.preference(get_settings(db))}
 
 
 # --- Kartenbrowser ------------------------------------------------------------------
@@ -538,6 +540,7 @@ def admin_maps_settings(request: Request, map_center_lat: str = Form(""), map_ce
                         maps_embed_origins: str = Form(""), geocoder_url: str = Form(""), geocoder_countries: str = Form("de"),
                         geocoder_contact: str = Form(""), geocoder_search_mode: str = Form("auto"),
                         geocoder_delay_ms: str = Form("300"), user: User = Depends(maps_admin_user),
+                        map_parcel_vg_code: str = Form("33510"),
                         db: Session = Depends(get_db)):
     try:
         lat, lon, zoom = float(map_center_lat.replace(",", ".")), float(map_center_lon.replace(",", ".")), float(map_zoom)
@@ -557,6 +560,17 @@ def admin_maps_settings(request: Request, map_center_lat: str = Form(""), map_ce
     except (ValueError, AssertionError):
         flash(request, "Bitte Suchmodus und Verzögerung von 250 bis 5000 ms prüfen.", "error")
         return redirect("/admin/maps#einstellungen")
+    from . import parcels
+    try:
+        old_cfg=get_settings(db)
+        vg_label=(old_cfg.get('map_parcel_vg_label','VG Otterbach-Otterberg').removeprefix('VG ')
+                  if map_parcel_vg_code.strip()==old_cfg.get('map_parcel_vg_code','33510')
+                  else parcels.validate_vg(map_parcel_vg_code.strip()))
+    except (ValueError, httpx.HTTPError, mp.ET.ParseError) as exc:
+        flash(request, str(exc)[:300], "error")
+        return redirect("/admin/maps#einstellungen")
+    set_setting(db, "map_parcel_vg_code", map_parcel_vg_code.strip())
+    set_setting(db, "map_parcel_vg_label", "VG "+vg_label)
     set_setting(db, "geocoder_search_mode", geocoder_search_mode)
     set_setting(db, "geocoder_delay_ms", str(delay))
     set_setting(db, "geocoder_url", geo_url[:300])
@@ -789,18 +803,49 @@ def admin_map_adopt(request: Request, map_id: int = Form(...), index: int = Form
 
 
 @app.get('/map/parcels')
-async def parcel_information(request: Request, lon: float | None = None, lat: float | None = None):
+async def parcel_information(request: Request, lon: float | None = None, lat: float | None = None,
+                             db: Session = Depends(get_db)):
     from . import parcels
     if 'maps' not in enabled_modules(): raise HTTPException(404)
     rate_limit(request, 'parcel-information', limit=60, window=60)
     if (lon is None) != (lat is None): raise HTTPException(422, 'Länge und Breite gemeinsam angeben.')
     try:
         if lon is None: parcels.filter_xml(request.query_params)
-        elif not (5.5 <= lon <= 9 and 48.5 <= lat <= 51.5): raise ValueError('Die Auskunft ist für Rheinland-Pfalz verfügbar.')
+        if request.query_params.get('scope') not in (None,'','preferred','rlp'): raise ValueError('Bitte Suchgebiet prüfen.')
+        if lon is not None and not (5.5 <= lon <= 9 and 48.5 <= lat <= 51.5): raise ValueError('Die Auskunft ist für Rheinland-Pfalz verfügbar.')
     except ValueError as exc: raise HTTPException(422, str(exc)) from None
-    try: data = await run_in_threadpool(parcels.fetch, request.query_params, (lon,lat) if lon is not None else None)
+    try: data = await run_in_threadpool(parcels.fetch, request.query_params, (lon,lat) if lon is not None else None, get_settings(db))
     except (ValueError, httpx.HTTPError, mp.ET.ParseError) as exc: raise HTTPException(502, str(exc)[:1000]) from None
     return JSONResponse(data, headers={'Cache-Control':'public, max-age=60'})
+
+
+@app.get('/map/parcels/options')
+async def parcel_options(request: Request, db: Session = Depends(get_db)):
+    from . import parcels
+    if 'maps' not in enabled_modules(): raise HTTPException(404)
+    rate_limit(request, 'parcel-options', limit=60, window=60)
+    try:
+        scope=request.query_params.get('scope','preferred')
+        if scope not in ('preferred','rlp'): raise ValueError('Bitte Suchgebiet prüfen.')
+        parcels._name(request.query_params.get('gemarkung',''),2 if scope=='rlp' else 0)
+        for key in ('flur','zaehler'):
+            value=request.query_params.get(key,'')
+            if value and not re.fullmatch(r'\d{1,5}',value): raise ValueError('Flur und Zähler bitte als Zahlen eingeben.')
+    except ValueError as exc: raise HTTPException(422,str(exc)) from None
+    try: data=await run_in_threadpool(parcels.lookup,request.query_params,get_settings(db))
+    except (ValueError,httpx.HTTPError,mp.ET.ParseError) as exc: raise HTTPException(502,str(exc)[:500]) from None
+    return JSONResponse(data,headers={'Cache-Control':'public, max-age=300'})
+
+
+@app.get('/admin/maps/verbandsgemeinden')
+async def parcel_vg_options(request: Request, q: str = '', user: User = Depends(maps_admin_user)):
+    from . import parcels
+    rate_limit(request,'parcel-vg-options',limit=30,window=60)
+    try: parcels._name(q,2)
+    except ValueError as exc: raise HTTPException(422,str(exc)) from None
+    try: data=await run_in_threadpool(parcels.vg_options,q)
+    except (ValueError,httpx.HTTPError,mp.ET.ParseError) as exc: raise HTTPException(502,str(exc)[:500]) from None
+    return JSONResponse(data)
 
 
 @app.post('/maps/catalog/{key}', dependencies=[Depends(check_csrf)])
