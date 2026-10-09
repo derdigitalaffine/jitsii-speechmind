@@ -131,6 +131,8 @@ def _forms_mod():
 templates.env.filters["geocenter"] = lambda v: _forms_mod().geo_center(v)
 templates.env.filters["geoinput"] = lambda v: _forms_mod().geo_input(v)
 templates.env.globals["geo_position"] = lambda v, raw="": _forms_mod().geo_position(v, raw)
+templates.env.globals["form_constraints"] = lambda item: _forms_mod().validation_constraints(item)
+templates.env.globals["form_rule_hint"] = lambda item: _forms_mod().validation_hint(item)
 templates.env.globals["perm_modules"] = {"processes": "applications", "app_create": "applications", "formblocks": "forms",
                                          "dms_admin": "dms", "seminars_manage": "seminars", "votes": "polls", "resources": "resources",
                                          "krank": "krank", "krank_admin": "krank"}

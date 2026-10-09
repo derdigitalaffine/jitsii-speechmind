@@ -310,8 +310,13 @@ def _request_page(request: Request, db: Session, resp: FormResponse, req: Applic
                 values[q["id"]] = v
     values = fm.form_fields.profile_values(items,values,session_user(request,db))
     geo = any(i["type"] in ("geo", "route") for i in items)
+    date_ids = {i['id'] for i in items if i['type'] in ('date', 'datetime')}
+    date_ids.update(i['date_reference'] for i in items if i.get('date_reference'))
+    original_dates = {i['id']: current[i['id']] for i in wf.case_questions(resp)
+                      if i['type'] in ('date', 'datetime') and i['id'] in date_ids and i['id'] in current}
     response = render(request, "application_request.html", None, resp=resp, req=req, form=resp.form,
                       extra=req.items, reopen=wf.reopen_items(resp, req), values=values, errors=errors or {},
+                      original_dates=original_dates,
                       types=fm.TYPES, other=fm.OTHER,
                       geo_bundle=map_bundle(db, request, None, None, "forms") if geo else None)
     response.headers["Cache-Control"] = "no-store"

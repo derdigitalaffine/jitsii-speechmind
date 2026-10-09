@@ -78,11 +78,15 @@ async def block_save(request: Request, block_id: int, user: User = Depends(block
     _module_on()
     block = _block(db, block_id)
     data = await request.form()
+    items = [i for i in fm.clean_schema(str(data.get("items_json", "[]"))) if i["type"] not in ("block", "pagebreak")]
+    rule_errors = fm.form_validation.schema_errors(items)
+    if rule_errors:
+        labels = {i['id']: i.get('title') or fm.TYPES[i['type']][0] for i in items}
+        raise HTTPException(400, ' · '.join(f"{labels[qid]}: {message}" for qid, message in rule_errors.items()))
     block.name = " ".join(str(data.get("title", "")).split())[:200] or block.name
     block.description = str(data.get("description", "")).replace("\r\n", "\n").strip()[:2000]
     icon = str(data.get("icon", ""))
     block.icon = icon if icon in ICONS else block.icon
-    items = [i for i in fm.clean_schema(str(data.get("items_json", "[]"))) if i["type"] not in ("block", "pagebreak")]
     # IDs lesbar halten: aus dem Titel, falls neu (bestehende IDs bleiben – sonst gingen Antworten verloren)
     old = {i.get("id") for i in json.loads(block.schema_json or "[]") if isinstance(i, dict)}
     taken = set(old)
@@ -94,7 +98,9 @@ async def block_save(request: Request, block_id: int, user: User = Depends(block
         while new in taken:
             new, n = f"{base}{n}", n + 1
         mapping = {item["id"]: new}
-        for other in items:   # Bedingungen innerhalb des Blocks mitziehen
+        for other in items:   # Bedingungen und Datumsbezüge innerhalb des Blocks mitziehen
+            if other.get("date_reference"):
+                other["date_reference"] = mapping.get(other["date_reference"], other["date_reference"])
             for key in ("show_if", "required_if"):
                 if other.get(key):
                     other[key]["rules"] = [{**r, "q": mapping.get(r["q"], r["q"])} for r in other[key]["rules"]]

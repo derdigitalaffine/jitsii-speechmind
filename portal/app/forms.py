@@ -12,6 +12,7 @@ alte Antworten lesbar, wenn das Formular später geändert wird.
 
 import io
 import json
+import math
 import re
 import secrets
 import shutil
@@ -22,7 +23,8 @@ from pathlib import Path
 import regex
 from sqlalchemy import select
 
-from . import form_fields, csvsafe, links, mailtpl, notify
+from . import form_fields, form_validation, csvsafe, links, mailtpl, notify
+from .form_validation import constraints as validation_constraints, hint as validation_hint
 from .config import settings
 from .db import Form, FormInvite, FormResponse, FormShare, Group, GroupMember, User, get_settings, to_local, utcnow
 from .planning import EMAIL_RE
@@ -51,7 +53,7 @@ TYPES = {
     "pagebreak": ("Neue Seite", "fa-file-circle-plus", False),
 }
 TYPES.update(form_fields.TYPES)
-SUBTYPES = {"text": "Text", "email": "E-Mail-Adresse", "phone": "Telefonnummer", "number": "Zahl",
+SUBTYPES = {"text": "Text", "email": "E-Mail-Adresse", "phone": "Telefonnummer", "number": "Zahl", "url": "Internetadresse (URL)",
             "regex": "Eigenes Muster (regulärer Ausdruck)"}
 CHOICE_TYPES = {"radio", "checkbox", "dropdown"}
 GEOMETRIES = {"point": "Punkt", "line": "Linie", "polygon": "Fläche"}
@@ -77,7 +79,8 @@ def _int(value, lo: int, hi: int, default: int | None) -> int | None:
 
 def _num(value) -> float | None:
     try:
-        return float(str(value).replace(",", "."))
+        number = float(str(value).replace(",", "."))
+        return number if math.isfinite(number) else None
     except (TypeError, ValueError):
         return None
 
@@ -163,7 +166,9 @@ def clean_schema(raw) -> list[dict]:
             item["low_label"] = _str(src.get("low_label"), 100)
             item["high_label"] = _str(src.get("high_label"), 100)
         elif kind == "file":
-            exts = [e.strip().lower().lstrip(".") for e in re.split(r"[,;\s]+", str(src.get("file_types") or ""))]
+            raw_types = src.get("file_types") or []
+            ext_values = raw_types if isinstance(raw_types, list) else re.split(r"[,;\s]+", str(raw_types))
+            exts = [str(e).strip().lower().lstrip(".") for e in ext_values]
             item["file_types"] = [e for e in exts if EXT_RE.match(e)][:30]
             item["max_size_mb"] = _int(src.get("max_size_mb"), 1, MAX_FILE_MB, 10)
             item["max_files"] = _int(src.get("max_files"), 1, 10, 1)
@@ -188,7 +193,9 @@ def clean_schema(raw) -> list[dict]:
                 item[flag] = bool(src.get(flag, default))
         elif kind == "heading" or kind == "subheading" or kind == "pagebreak":
             pass
+        form_validation.clean(item, src)
         items.append(item)
+    form_validation.clean_references(items)
     known = {i["id"] for i in items if TYPES[i["type"]][2]}
     known |= {f"{i['id']}_{c['id']}" for i in items if i["type"] == "block" for c in block_items(i["block_id"])}
     for item in items:
@@ -337,6 +344,8 @@ def expand(items: list[dict]) -> list[dict]:
                 c["show_if"] = own
             if c.get("required_if"):
                 c["required_if"] = _remap(c["required_if"], mapping)
+            if c.get("date_reference"):
+                c["date_reference"] = mapping.get(c["date_reference"], c["date_reference"])
             c["block_id"] = item["block_id"]
             out.append(c)
     return out
@@ -372,6 +381,8 @@ def is_open(form: Form) -> bool:
 # --- Antworten prüfen ------------------------------------------------------------
 
 def _parse_date(value: str) -> date | None:
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        return None
     try:
         return date.fromisoformat(value)
     except ValueError:
@@ -406,6 +417,17 @@ def _validate(items: list[dict], data, files, base_answers=None) -> tuple[dict, 
     for item in questions(items):
         qid, kind, name = item["id"], item["type"], f"q_{item['id']}"
         required = item.get("required")
+        # Existing answers remain usable when a rule is introduced later. Any
+        # changed answer still passes all current server-side checks.
+        if base_answers and qid in base_answers and kind not in ('file', 'address', 'geo') and kind not in form_fields.TYPES:
+            previous = base_answers[qid]
+            submitted = data.getlist(name) if kind == 'checkbox' else _str(data.get(name), 20000)
+            if submitted == previous:
+                answers[qid] = previous
+                continue
+        if kind == 'file' and base_answers and base_answers.get(qid) and not any(getattr(f, 'filename', '') for f in files.get(name, [])):
+            answers[qid] = base_answers[qid]
+            continue
         value = None
         if kind in form_fields.TYPES:
             value, error = form_fields.parse(item, data, name)
@@ -455,7 +477,9 @@ def _validate(items: list[dict], data, files, base_answers=None) -> tuple[dict, 
                 elif raw and raw not in labels:
                     errors[qid] = "Bitte eine der angebotenen Optionen wählen."
             elif kind == "short":
-                raw = raw[:1000].replace("\n", " ")
+                raw = raw.replace("\n", " ")
+                if len(raw) > 1000:
+                    errors[qid] = "Bitte höchstens 1000 Zeichen eingeben."
                 sub = item.get("subtype", "text")
                 if raw and sub == "email" and not EMAIL_RE.match(raw):
                     errors[qid] = "Bitte eine gültige E-Mail-Adresse angeben."
@@ -485,6 +509,8 @@ def _validate(items: list[dict], data, files, base_answers=None) -> tuple[dict, 
                     errors[qid] = f"Bitte höchstens {item['max_length']} Zeichen."
             elif kind == "date" and raw and item.get("with_time"):
                 try:
+                    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?", raw):
+                        raise ValueError("Non-canonical local datetime")
                     dt = datetime.fromisoformat(raw)
                     if item.get("min") and _parse_date(item["min"][:10]) and dt.date() < _parse_date(item["min"][:10]):
                         errors[qid] = f"Frühestens {_parse_date(item['min'][:10]).strftime('%d.%m.%Y')}."
@@ -508,11 +534,14 @@ def _validate(items: list[dict], data, files, base_answers=None) -> tuple[dict, 
                     errors[qid] = "Bitte eine gültige Uhrzeit angeben."
             elif kind == "datetime" and raw:
                 try:
+                    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?", raw):
+                        raise ValueError("Non-canonical local datetime")
                     dt = datetime.fromisoformat(raw)
                     if item.get("min") and _parse_date(item["min"][:10]) and dt.date() < _parse_date(item["min"][:10]):
                         errors[qid] = "Der Zeitpunkt liegt zu früh."
                     elif item.get("max") and _parse_date(item["max"][:10]) and dt.date() > _parse_date(item["max"][:10]):
                         errors[qid] = "Der Zeitpunkt liegt zu spät."
+                    raw = dt.strftime("%Y-%m-%dT%H:%M")
                 except ValueError:
                     errors[qid] = "Bitte Datum und Uhrzeit angeben."
             elif kind == "scale" and raw:
@@ -540,6 +569,26 @@ def _validate(items: list[dict], data, files, base_answers=None) -> tuple[dict, 
             value = raw or None
         if value is not None and qid not in errors:
             answers[qid] = value
+    rule_values = {**(base_answers or {}), **answers}
+    for item in questions(items):
+        qid = item['id']
+        if qid not in answers:
+            continue
+        unchanged = bool(base_answers and answers[qid] == base_answers.get(qid))
+        reference = item.get('date_reference')
+        reference_changed = bool(reference and base_answers and
+                                 rule_values.get(reference) != base_answers.get(reference))
+        if unchanged and not reference_changed:
+            continue
+        # Keep historical values under later-added rules, but an explicitly
+        # changed start date must still validate its unchanged end date.
+        error = form_validation.error(item, answers[qid], rule_values, relationship_only=unchanged)
+        if error:
+            errors[qid] = error
+            answers.pop(qid, None)
+    for item in questions(items):
+        if item.get('validation_message') and item['id'] in errors:
+            errors[item['id']] = item['validation_message']
     calculation_answers = {**(base_answers or {}), **answers}
     form_fields.calculate(questions(items), calculation_answers, errors)
     for item in questions(items):

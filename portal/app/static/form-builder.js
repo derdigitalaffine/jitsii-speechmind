@@ -188,6 +188,21 @@
         h += field('Max. Anzahl Dateien', input('max_files', it.max_files, 'type="number" min="1" max="10"'), 'md-3');
         break;
     }
+    if (it.type === 'short' || it.type === 'long') {
+      h += field('Mindestens Zeichen', input('min_length', it.min_length || '', 'type="number" min="1" placeholder="Keine Untergrenze"'), 'md-3');
+      if (it.type === 'short') { h += field('Höchstens Zeichen', input('max_length', it.max_length || '', 'type="number" min="1" max="1000" placeholder="1000"'), 'md-3'); }
+      if (it.subtype === 'number') { h += field('Schrittweite', input('step', it.step || '', 'type="number" min="0.000001" step="any" placeholder="Beliebig, z. B. 0,5"'), 'md-3'); }
+    }
+    if (it.type === 'date' || it.type === 'datetime') {
+      h += field('Erlaubter Zeitraum', '<select class="form-select" data-key="date_rule">' + [['','Keine Einschränkung'],['past','Nicht in der Zukunft'],['future','Nicht in der Vergangenheit']].map(function(o) {return '<option value="'+o[0]+'"'+(it.date_rule===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>');
+      h += '<div class="col-12">'+switchHtml('include_today','Heute erlauben',it.include_today !== false)+'</div>';
+      [['relative_min','Frühestens: Tage ab heute','-36500'],['relative_max','Spätestens: Tage ab heute','-36500'],['min_age','Mindestalter in Jahren','0'],['max_age','Höchstalter in Jahren','0']].forEach(function(o) {h += field(o[1],input(o[0],it[o[0]] == null ? '' : it[o[0]],'type="number" min="'+o[2]+'" step="1" placeholder="Keine Einschränkung"'),'md-3');});
+      var dateSources = items.filter(function(x) {return x.id !== it.id && (x.type === 'date' || x.type === 'datetime');}).sort(function(a,b) {return (a.title || a.id).localeCompare(b.title || b.id,'de');});
+      h += field('Abhängig von einem anderen Datum', '<select class="form-select" data-key="date_reference"><option value="">Kein Bezugsdatum</option>'+dateSources.map(function(x) {return '<option value="'+esc(x.id)+'"'+(it.date_reference===x.id?' selected':'')+'>'+esc(x.title || TYPES[x.type][0])+'</option>';}).join('')+'</select>');
+      if (it.date_reference) { h += field('Mindestens Tage danach',input('date_gap_min',it.date_gap_min == null ? 0 : it.date_gap_min,'type="number" min="0" step="1"'),'md-3'); h += field('Höchstens Tage danach',input('date_gap_max',it.date_gap_max == null ? '' : it.date_gap_max,'type="number" min="0" step="1" placeholder="Keine Obergrenze"'),'md-3'); }
+      h += '<div class="col-12 form-text">Negative Tageszahlen liegen vor heute, positive danach. Beispiel: −30 bis 0 erlaubt die letzten 30 Tage. Altersgrenzen prüfen das vollendete Lebensalter. Alle aktiven Regeln gelten gemeinsam; geprüft wird nach der Zeitzone des Portals.</div>';
+    }
+    if (['date','datetime','short','long','checkbox','file'].indexOf(it.type) >= 0) { h += field('Eigene Fehlermeldung (optional)',input('validation_message',it.validation_message || '', 'maxlength="500" placeholder="Automatische Meldung verwenden"'),'12'); }
     return h ? '<div class="row g-2 mt-1">' + h + '</div>' : '';
   }
   function switchHtml(key, label, on) {
@@ -514,7 +529,31 @@
     });
   }
 
-  form.addEventListener('submit', function () {
+  form.addEventListener('submit', function (event) {
+    var pairs = [['min','max','Unter- und Obergrenze'], ['relative_min','relative_max','Zeitraum ab heute'], ['min_age','max_age','Altersgrenzen'], ['date_gap_min','date_gap_max','Abstand zum Bezugsdatum'], ['min_length','max_length','Textlänge']];
+    var conflict;
+    items.some(function(item) {
+      return pairs.some(function(pair) {
+        var low = item[pair[0]], high = item[pair[1]];
+        if (low == null || low === '' || high == null || high === '') {return false;}
+        var dates = (item.type === 'date' || item.type === 'datetime') && pair[0] === 'min';
+        if (dates ? String(low) > String(high) : Number(low) > Number(high)) {
+          conflict = {id:item.id, key:pair[1], text:(item.title || TYPES[item.type][0])+': '+pair[2]+': Die Untergrenze darf nicht größer als die Obergrenze sein.'};
+          return true;
+        }
+        return false;
+      });
+    });
+    if (conflict) {
+      event.preventDefault();
+      selected = conflict.id; render();
+      var state = document.getElementById('builder-state');
+      state.textContent = conflict.text; state.setAttribute('role','alert');
+      var card = list.querySelector('[data-id="'+conflict.id+'"]');
+      var input = card && card.querySelector('[data-key="'+conflict.key+'"]');
+      if (input) {input.focus();}
+      return;
+    }
     // Offene Eingaben in „Neue Option“ nicht verlieren
     list.querySelectorAll('[data-new-option]').forEach(function (el) {
       if (el.value.trim()) { var f = find(el); readOptions(f.item, f.card); f.item.options.push({ id: uid(), label: el.value.trim() }); }

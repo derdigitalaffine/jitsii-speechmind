@@ -182,7 +182,37 @@
   }
 
   /* --- Prüfungen ---------------------------------------------------------------- */
+  var originalDates = {};
+  try {originalDates = JSON.parse(form.dataset.originalDates || '{}');} catch(e) { /* New forms do not carry a baseline. */ }
+  function updateDateRules(scope) {
+    scope.querySelectorAll('[data-date-rules]').forEach(function(input) {
+      var rules; try {rules = JSON.parse(input.dataset.dateRules);} catch(e) {return;}
+      var item = input.closest('[data-qid]'), qid = item && item.dataset.qid;
+      var unchanged = qid && Object.prototype.hasOwnProperty.call(originalDates,qid) && input.value === originalDates[qid];
+      var low = unchanged ? '' : rules.min || '', high = unchanged ? '' : rules.max || '';
+      var reference = rules.date_reference && form.querySelector('[name="q_'+rules.date_reference+'"]');
+      var referenceValue = reference ? reference.value : originalDates[rules.date_reference] || '';
+      var referenceChanged = reference && Object.prototype.hasOwnProperty.call(originalDates,rules.date_reference) && reference.value !== originalDates[rules.date_reference];
+      function addDays(iso,n) {var d = new Date(iso.slice(0,10)+'T12:00:00Z'); if (isNaN(d.getTime())) {return ''; } d.setUTCDate(d.getUTCDate()+Number(n)); return d.toISOString().slice(0,10);}
+      if (referenceValue && (!unchanged || referenceChanged)) {
+        var refMin = addDays(referenceValue,rules.date_gap_min || 0);
+        if (refMin && (!low || refMin > low)) {low = refMin;}
+        if (rules.date_gap_max != null) {var refMax=addDays(referenceValue,rules.date_gap_max); if (refMax && (!high || refMax < high)) {high=refMax;}}
+      }
+      var withTime = input.type === 'datetime-local' || input.dataset.dateKind === 'datetime-local';
+      input.min = low ? low+(withTime?'T00:00':'') : '';
+      input.max = high ? high+(withTime?'T23:59':'') : '';
+      var value = input.value.slice(0,10), message = '';
+      if (value && low && value < low) {message='Das Datum liegt vor dem erlaubten Zeitraum.';}
+      if (value && high && value > high) {message='Das Datum liegt nach dem erlaubten Zeitraum.';}
+      input.setCustomValidity(message ? rules.validation_message || message : '');
+      input.dispatchEvent(new CustomEvent('dateconstraintschange'));
+    });
+  }
+  form.addEventListener('input', function() {updateDateRules(form);});
+  updateDateRules(form);
   function checkCustom(scope) {
+    updateDateRules(scope);
     var ok = true;
     scope.querySelectorAll('.js-check-group').forEach(function (g) {
       var boxes = g.querySelectorAll('input[type="checkbox"]');
@@ -205,6 +235,8 @@
       var msg = '';
       if (input.files.length > maxFiles) { msg = 'Höchstens ' + maxFiles + ' Datei(en).'; }
       Array.prototype.forEach.call(input.files, function (f) { if (f.size > maxBytes) { msg = '„' + f.name + '“ ist größer als ' + input.dataset.maxMb + ' MB.'; } });
+      var allowed = (input.accept || '').toLowerCase().split(',').filter(Boolean);
+      Array.prototype.forEach.call(input.files, function(f) {var dot=f.name.lastIndexOf('.'), ext=dot >= 0 ? f.name.slice(dot).toLowerCase() : ''; if (allowed.length && allowed.indexOf(ext)<0) {msg='Erlaubte Dateitypen: '+allowed.join(', ');}});
       input.setCustomValidity(msg);
     });
     // Kartenfragen: Pflicht = etwas eingezeichnet bzw. Standort erfasst

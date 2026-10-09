@@ -51,7 +51,17 @@
   if (!root.document) return;
   var doc = root.document, states = new WeakMap(), all = new Set(), active = null, serial = 0;
   var selector = 'input[type="date"],input[type="datetime-local"],input[type="time"]';
-  function today() { var d = new Date(); return dateISO(d.getFullYear(), d.getMonth() + 1, d.getDate()); }
+  function today(s) {
+    // Form rules define today in the portal timezone; other fields use device-local today.
+    if (s && s.original.dataset.dateRules) {
+      try {
+        var value = JSON.parse(s.original.dataset.dateRules).today;
+        var parts = typeof value === 'string' && value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (parts && validDate(+parts[1], +parts[2], +parts[3])) return value;
+      } catch (_) { /* Leave unrelated native fields unchanged. */ }
+    }
+    var d = new Date(); return dateISO(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  }
   function el(tag, cls, text) { var node = doc.createElement(tag); if (cls) node.className = cls; if (text !== undefined) node.textContent = text; return node; }
   function button(label, icon) {
     var b = el('button', 'btn btn-sm btn-outline-secondary'); b.type = 'button'; b.setAttribute('aria-label', label); b.title = label;
@@ -150,7 +160,7 @@
     ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].forEach(function (day) { var h = el('span', 'portal-date-weekday', day); h.setAttribute('role', 'columnheader'); heads.appendChild(h); }); grid.appendChild(heads);
     var first = new Date(0); first.setFullYear(a.year, a.month, 1); first.setHours(12, 0, 0, 0);
     var offset = (first.getDay() + 6) % 7, length = 28; while (validDate(a.year, a.month + 1, length + 1)) length++;
-    var current = s.original.value.slice(0, 10), start = startFor(s), startValue = start && start.value.slice(0, 10), selected = focusDate || a.focus || current || today();
+    var current = s.original.value.slice(0, 10), start = startFor(s), startValue = start && start.value.slice(0, 10), selected = focusDate || a.focus || current || today(s);
     if (selected.slice(0, 7) !== dateISO(a.year, a.month + 1, 1).slice(0, 7)) selected = dateISO(a.year, a.month + 1, 1);
     var focusButton = null, firstEnabled = null;
     for (var index = 0; index < Math.ceil((offset + length) / 7) * 7; index++) {
@@ -159,7 +169,7 @@
       if (day < 1 || day > length) { var empty = el('span'); empty.setAttribute('role', 'gridcell'); row.appendChild(empty); continue; }
       var iso = dateISO(a.year, a.month + 1, day), b = button(format(iso, 'date')); b.className = 'portal-date-day'; b.textContent = day; b.dataset.iso = iso; b.setAttribute('role', 'gridcell'); b.tabIndex = -1;
       b.disabled = !dateAllowed(s, iso); b.setAttribute('aria-selected', iso === current ? 'true' : 'false');
-      if (iso === today()) { b.classList.add('is-today'); b.setAttribute('aria-current', 'date'); }
+      if (iso === today(s)) { b.classList.add('is-today'); b.setAttribute('aria-current', 'date'); }
       if (iso === current) b.classList.add('is-selected');
       if (startValue && current && iso >= startValue && iso <= current) b.classList.add('is-range');
       if (!b.disabled && !firstEnabled) firstEnabled = b;
@@ -184,7 +194,7 @@
       var timeLabel = el('label', 'portal-date-time', 'Uhrzeit'), ti = el('input', 'form-control form-control-sm'); ti.type = 'time'; ti.value = a.time; ti.step = s.original.step || '60'; ti.setAttribute('aria-label', 'Uhrzeit zum ausgewählten Datum');
       ti.addEventListener('change', function () { a.time = ti.value; if (s.original.value) setPicked(s, s.original.value.slice(0, 10) + 'T' + a.time); }); timeLabel.appendChild(ti); panel.appendChild(timeLabel);
     }
-    var actions = el('div', 'portal-date-actions'), now = button('Heute'), done = button('Fertig'); now.disabled = !dateAllowed(s, today()); now.addEventListener('click', function () { pickDay(today()); }); actions.appendChild(now);
+    var actions = el('div', 'portal-date-actions'), now = button('Heute'), done = button('Fertig'); now.disabled = !dateAllowed(s, today(s)); now.addEventListener('click', function () { pickDay(today(s)); }); actions.appendChild(now);
     if (!s.required) { var clear = button('Leeren'); clear.addEventListener('click', function () { setPicked(s, ''); close(true); }); actions.appendChild(clear); }
     done.addEventListener('click', function () { close(true); }); actions.appendChild(done); panel.appendChild(actions); position();
     if (focusDate && (focusButton || firstEnabled)) (focusButton || firstEnabled).focus();
@@ -206,7 +216,7 @@
     if (active && active.state === s) { close(true); return; } close(false);
     var panel = el('div', 'portal-date-panel'); panel.id = 'portal-date-panel-' + s.id; panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', s.type === 'time' ? 'Uhrzeit auswählen' : 'Datum auswählen'); panel.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); close(true); } });
     (s.original.closest('.modal') || doc.body).appendChild(panel); s.toggle.setAttribute('aria-expanded', 'true'); s.toggle.setAttribute('aria-controls', panel.id);
-    var iso = s.original.value || (s.type === 'time' ? '09:00' : today());
+    var iso = s.original.value || (s.type === 'time' ? '09:00' : today(s));
     if (!s.original.value && s.type !== 'time') { var o = options(s), lower = [o.min, o.start].filter(Boolean).sort().pop(); if (lower && iso < lower.slice(0, 10)) iso = lower; if (o.max && iso.slice(0, 10) > o.max.slice(0, 10)) iso = o.max; }
     var d = iso.slice(0, 10).split('-'); active = { state: s, panel: panel, year: +d[0], month: +d[1] - 1, time: iso.split('T')[1] || '09:00' };
     if (s.type !== 'time') { renderCalendar(); var selected = panel.querySelector('.portal-date-day[tabindex="0"]'); if (selected) selected.focus(); return; }
