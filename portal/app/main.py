@@ -2544,14 +2544,34 @@ def _drop_brand_file(db: Session, key: str) -> None:
     set_setting(db, key, "")
 
 
-@app.get("/admin/design")
-def admin_design(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
-    cfg = get_settings(db)
+def _design_page(request, user, cfg, error=""):
+    primary = cfg.get("ui_primary") or branding.DEFAULT_PRIMARY
+    if not branding.HEX.match(primary):
+        primary = branding.DEFAULT_PRIMARY
+    navbar = cfg.get("ui_navbar", "dark")
+    if navbar not in branding.NAVBARS:
+        navbar = "dark"
     return render(request, "admin_design.html", user, cfg=cfg, navbars=branding.NAVBARS,
+                  design_error=error, report=branding.contrast_report(primary.lower(), navbar),
                   photos=branding.photo_sizes(cfg), thumb_ratios=branding.THUMB_RATIOS,
                   radii=branding.RADII, default_primary=branding.DEFAULT_PRIMARY,
                   logo_url=branding._file(cfg, "ui_logo")[1], favicon_url=branding._file(cfg, "ui_favicon")[1],
                   favicon_auto_url=branding._file(cfg, "ui_favicon_auto")[1] if cfg.get("ui_logo") else "")
+
+
+@app.get("/admin/design")
+def admin_design(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    return _design_page(request, user, get_settings(db))
+
+
+@app.get("/admin/design/contrast")
+def admin_design_contrast(primary: str = branding.DEFAULT_PRIMARY, navbar: str = "dark",
+                          user: User = Depends(admin_user)):
+    if not branding.HEX.match(primary) or navbar not in branding.NAVBARS:
+        raise HTTPException(422, "Gültige Hauptfarbe und Kopfleiste wählen.")
+    p = primary.lower()
+    return dict(report=branding.contrast_report(p, navbar),
+                css=branding.theme_css(dict(primary=p, navbar=navbar, radius=".375rem")))
 
 
 @app.get("/admin/design/mail-vorschau")
@@ -2572,6 +2592,7 @@ def admin_design_mail_preview(user: User = Depends(admin_user), db: Session = De
 @app.post("/admin/design", dependencies=[Depends(check_csrf)])
 async def admin_design_save(
     request: Request,
+    contrast_ack: str = Form(""), contrast_key: str = Form(""),
     ui_custom: str = Form(""), ui_primary: str = Form(""), ui_navbar: str = Form("dark"),
     ui_theme: str = Form("auto"), ui_radius: str = Form("0.375rem"), ui_logo_height: str = Form("32"),
     ui_show_name: str = Form(""), ui_jitsi: str = Form(""), remove_logo: str = Form(""),
@@ -2585,6 +2606,27 @@ async def admin_design_save(
 ):
     values = dict(ui_brand_name=ui_brand_name, ui_product=ui_product, ui_login_text=ui_login_text,
                   ui_footer_text=ui_footer_text, ui_imprint_url=ui_imprint_url, ui_privacy_url=ui_privacy_url)
+    # Validate BEFORE writing settings or consuming/replacing any uploaded file.
+    current = get_settings(db)
+    primary = ui_primary.strip().lower() or current.get("ui_primary") or branding.DEFAULT_PRIMARY
+    navbar = ui_navbar if ui_navbar in branding.NAVBARS else "dark"
+    if not branding.HEX.match(primary):
+        problem = "Bitte eine Hauptfarbe im Format #123abc eingeben."
+    elif ui_custom == "1" and branding.contrast_report(primary, navbar)["warnings"] and not (
+            contrast_ack == "1" and contrast_key == primary + "|" + navbar):
+        problem = "Das Design hat Kontrastprobleme. Prüfen Sie die Werte und bestätigen Sie die Warnungen ausdrücklich."
+    else:
+        problem = ""
+    if problem:
+        posted = await request.form()
+        cfg = dict(current)
+        for key in (*DESIGN_TEXT_FIELDS, "ui_custom", "ui_primary", "ui_navbar", "ui_theme", "ui_radius", "ui_logo_height", "ui_show_name", "ui_jitsi", "ui_gallery_h", "ui_gallery_h_mobile", "ui_thumb_ratio", "ui_photo_fit", "ui_mail_frame", "remove_logo", "remove_favicon"):
+            if key not in ("ui_logo", "ui_favicon", "ui_favicon_auto"):
+                cfg[key] = str(posted.get(key, ""))
+        cfg.update(ui_primary=ui_primary, ui_navbar=navbar)
+        if (logo and logo.filename) or (favicon and favicon.filename):
+            problem += " Aus Sicherheitsgründen kann der Browser die Dateiauswahl nicht erhalten. Bitte Logo/Favicon erneut auswählen; bisherige Dateien bleiben erhalten."
+        return _design_page(request, user, cfg, problem)
     for key in DESIGN_TEXT_FIELDS:
         set_setting(db, key, values[key].strip()[:500])
     set_setting(db, "ui_custom", "1" if ui_custom == "1" else "0")
