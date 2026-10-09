@@ -2,26 +2,24 @@
 {% import "_macros.html" as m with context %}
 {% block title %}Ablage{% endblock %}
 {% macro status_badge(r) -%}
-{% if r.kind == 'manuell' %}<span class="badge text-bg-light border"><i class="fa-solid fa-box-archive me-1"></i>abgelegt</span>
-{% elif r.kind == 'buchung' %}<span class="badge text-bg-info"><i class="fa-solid fa-building me-1"></i>Buchung · {{ r.status }}</span>
-{% else %}{% set st = statuses.get(r.status, (r.status, 'secondary', 'fa-circle')) %}<span class="badge text-bg-{{ st[1] }}"><i class="fa-solid {{ st[2] }} me-1"></i>{{ st[0] }}</span>{% endif %}
+{% if r.kind=='manuell' %}{{ m.status_chip('Abgelegt','neutral','fa-box-archive') }}{% elif r.kind=='buchung' %}{{ m.status_chip('Buchung · ' ~ r.status,'info','fa-building') }}{% else %}{% set st=statuses.get(r.status,(r.status,'secondary','fa-circle')) %}{{ m.status_chip(st[0], {'success':'success','danger':'error','warning':'warning','info':'info','primary':'info'}.get(st[1],'neutral'), st[2]) }}{% endif %}
 {%- endmacro %}
 {% block head %}<link rel="stylesheet" href="/static/dms-browser.css">{% endblock %}
 {% block content %}
 <nav class="d-flex flex-wrap gap-2 mb-3" aria-label="Ablagestatus"><a href="/dms" class="btn btn-sm btn-outline-primary">Ablage</a><a href="/dms?state=archive" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-box-archive me-1"></i>Archiv</a><a href="/dms/trash" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-trash-can me-1"></i>Papierkorb</a></nav>
 {% if may_delete_folder %}<form method="post" action="/dms/areas/{{ selected_folder.id }}/delete" class="mb-3"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" data-confirm="Leeren Ordner 30 Tage in den Papierkorb verschieben?"><i class="fa-solid fa-trash-can me-1"></i>Leeren Ordner entfernen</button></form>{% endif %}
 {% import "_dms_folders.html" as folders_ui with context %}
-{% call m.page_head('Ablage', 'Ordner öffnen, Vorgänge finden und Dokumente lesen – mit Ihren vorhandenen Ablagerechten.') %}
-<a class="btn btn-outline-secondary" href="/dms/persons"><i class="fa-solid fa-address-book me-1"></i>Personen</a>
-{% if manager %}<a class="btn btn-outline-secondary" href="/dms/areas"><i class="fa-solid fa-sitemap me-1"></i>Aktenplan</a><a class="btn btn-outline-secondary" href="/dms/retention"><i class="fa-regular fa-calendar-xmark me-1"></i>Löschfristen</a>{% endif %}
-{% if can_write %}<a class="btn btn-primary" href="/dms/new{% if f.area %}?area={{ f.area }}{% endif %}"><i class="fa-solid fa-plus me-1"></i>Vorgang ablegen</a>{% endif %}
+{% call m.page_header('Ablage', 'Ordner öffnen, Vorgänge finden und Dokumente lesen – mit Ihren vorhandenen Ablagerechten.', '/dms/new' ~ ('?area=' ~ f.area if f.area else '') if can_write else '', 'Vorgang ablegen') %}
+{% call m.action_menu() %}<a class="btn btn-outline-secondary" href="/dms/persons">Personen</a>{% if manager %}<a class="btn btn-outline-secondary" href="/dms/areas">Aktenplan</a><a class="btn btn-outline-secondary" href="/dms/retention">Löschfristen</a>{% endif %}{% endcall %}
 {% endcall %}
+{% set reset_url=folder_url(selected_folder) %}
+
 
 <div class="row g-4">
   <div class="col-12 col-xl-3">
     <details class="card mb-3"><summary class="card-header"><i class="fa-solid fa-folder-tree me-2"></i>Ordnernavigation</summary><div class="card-body">{{ folders_ui.tree(folder_tree, selected_folder) }}</div></details>
-    <details class="card mb-3" {{ 'open' if filtering }}><summary class="card-header"><i class="fa-solid fa-filter me-2"></i>Suche & Filter</summary>
-    <form method="get" class="card border-0" id="dms-filter"><div class="card-body">
+    {% call m.filter_bar(expanded=filtering) %}
+    <form method="get" class="card border-0" id="dms-filter"><input type="hidden" name="state" value="{{ f.state }}"><div class="card-body">
       <label class="form-label small mb-1" for="d-q">Volltext</label>
       <div class="input-group mb-3"><span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span><input class="form-control" id="d-q" name="q" value="{{ f.q }}" placeholder="Begriffe in Angaben, Notizen, Dateinamen" type="search"></div>
       <label class="form-label small mb-1" for="d-area">Bereich (mit Unterbereichen)</label>
@@ -47,9 +45,9 @@
         <div class="col-6"><label class="form-label small mb-1" for="d-from">Eingang ab</label><input class="form-control form-control-sm" type="date" id="d-from" name="from" value="{{ f['from'] }}"></div>
         <div class="col-6"><label class="form-label small mb-1" for="d-to">bis</label><input class="form-control form-control-sm" type="date" id="d-to" name="to" value="{{ f.to }}"></div>
       </div>
-      <div class="d-flex gap-2"><button class="btn btn-primary flex-grow-1" type="submit">Suchen</button><a class="btn btn-outline-secondary" href="/dms" title="Filter zurücksetzen"><i class="fa-solid fa-xmark"></i></a></div>
+      <div class="d-flex gap-2"><button class="btn btn-primary flex-grow-1" type="submit">Suchen</button><a class="btn btn-outline-secondary" href="{{ reset_url }}" title="Filter zurücksetzen" aria-label="Filter zurücksetzen; Ordner und Archivansicht beibehalten"><i class="fa-solid fa-xmark"></i></a></div>
     </div></form>
-    </details>
+    {% endcall %}
 
     <div class="card mt-3"><div class="card-header small fw-semibold"><i class="fa-regular fa-bookmark me-1"></i>Gespeicherte Suchen</div>
       <div class="list-group list-group-flush small">
@@ -70,8 +68,9 @@
     {% if folders %}<div class="dms-folder-grid" aria-label="Unterordner">{% for a in folders %}<a class="dms-folder-card" href="{{ folder_url(a) }}"><i class="fa-solid fa-folder" aria-hidden="true"></i><span><strong>{{ a.code ~ ' ' if a.code }}{{ a.name }}</strong><small class="d-block text-secondary">Ordner öffnen</small></span></a>{% endfor %}</div>{% endif %}
     <p class="small text-secondary">{{ 'Suchergebnisse einschließlich Unterordnern' if f.scope=='all' else 'Vorgänge in diesem Ordner' }}</p>
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-      <strong>{{ total }} Treffer</strong>
-      {% for k, v in active.items() %}<span class="badge text-bg-light border fw-normal">{{ {'q': 'Text', 'applicant': 'Antragsteller:in', 'ref': 'Aktenzeichen', 'area': 'Bereich', 'form': 'Antragsart', 'status': 'Status', 'from': 'ab', 'to': 'bis', 'place': 'Ort', 'kind': 'Art', 'person': 'Person'}[k] }}: {{ by_id[v | int].name if k == 'area' and v.isdigit() and (v | int) in by_id else (person_name if k == 'person' else v) }}</span>{% endfor %}
+      {{ m.result_summary(total) }}
+      {% for k,v in active.items() %}{{ m.active_filter({'q':'Text','applicant':'Antragsteller:in','ref':'Aktenzeichen','area':'Bereich','form':'Antragsart','status':'Status','from':'ab','to':'bis','place':'Ort','kind':'Art','person':'Person','state':'Ansicht'}.get(k,k), by_id[v|int].name if k=='area' and v.isdigit() and (v|int) in by_id else person_name if k=='person' else 'Archiv' if k=='state' and v=='archive' else v) }}{% endfor %}
+
       <div class="ms-auto d-flex gap-2 align-items-center">
         <select class="form-select form-select-sm w-auto" name="sort" form="dms-filter" onchange="this.form.submit()" aria-label="Sortierung">
           {% for k, lbl in [('', 'neueste zuerst'), ('old', 'älteste zuerst'), ('ref', 'nach Aktenzeichen'), ('applicant', 'nach Antragsteller:in')] %}<option value="{{ k }}" {% if f.sort == k %}selected{% endif %}>{{ lbl }}</option>{% endfor %}</select>
@@ -114,7 +113,7 @@
     </ul></nav>
     {% endif %}
     {% else %}
-    <div class="card"><div class="card-body text-center text-secondary py-5"><i class="fa-solid fa-box-open fa-3x mb-3"></i><p class="mb-0">{% if active %}Keine Vorgänge für diese Auswahl.{% else %}Hier sind keine Vorgänge abgelegt. Öffnen Sie einen Ordner oder legen Sie einen Vorgang ab.{% endif %}</p></div></div>
+    {{ m.empty_state('Keine Vorgänge für diese Auswahl' if active else 'Hier sind noch keine Vorgänge abgelegt', 'Filter zurücksetzen oder einen anderen Ordner öffnen.' if active else 'Öffnen Sie einen Ordner oder legen Sie einen Vorgang ab.', reset_url if active else '/dms/new' ~ ('?area=' ~ f.area if f.area else '') if can_write else '', 'Filter zurücksetzen' if active else 'Vorgang ablegen') }}
     {% endif %}
   </div>
 </div>

@@ -13,13 +13,9 @@
   {% endfor %}
 </ul>
 <nav class="res-crumbs small text-truncate" aria-label="Pfad">{% if crumbs %}<a href="/resources">Ressourcen</a>{% else %}<span aria-current="page">Ressourcen</span>{% endif %}{% for label, href in crumbs %} <span class="text-secondary" aria-hidden="true">›</span> {% if href and not loop.last %}<a href="{{ href }}">{{ label }}</a>{% else %}<span aria-current="page">{{ label }}</span>{% endif %}{% endfor %}</nav>
-<div class="res-head">
-  <div class="res-head-text">
-    <h1 class="text-truncate" title="{{ title }}">{{ title }}</h1>
-    <p class="text-truncate" {% if lede %}title="{{ lede }}"{% endif %}>{% if lede %}{{ lede }}{% else %}&nbsp;{% endif %}</p>
-  </div>
-  <div class="res-head-actions">{{ caller() if caller else '' }}</div>
-</div>
+{% import '_macros.html' as m %}
+{% set actions=caller() if caller else '' %}
+{% call m.page_header(title, lede) %}{{ actions }}{% endcall %}
 {%- endmacro %}
 
 {# Öffentliche Seiten (Bürger:innen): gleiche Struktur – Kopfzeile mit Pfad links und Merkliste/Vereinszugang rechts

@@ -186,3 +186,17 @@
 {% macro qr_button(url, title='', label='', cls='btn btn-outline-secondary') -%}
 <button type="button" class="{{ cls }} js-qr-open" data-qr-link="{{ url }}" data-qr-title="{{ title }}" title="QR-Code{{ ' zu ' ~ title if title }}" aria-label="QR-Code{{ ' zu ' ~ title if title }}"><i class="fa-solid fa-qrcode{{ ' me-1' if label }}"></i>{{ label }}</button>
 {%- endmacro %}
+
+{# Shared components: semantics and mobile interaction, independent of module colors. #}
+{% macro page_header(title, lede='', primary_url='', primary_label='', primary_icon='fa-plus') -%}
+<header class="ds-page-header"><div class="ds-page-title"><h1>{{ title }}</h1>{% if lede %}<p>{{ lede }}</p>{% endif %}</div><div class="ds-page-actions">{% if primary_url %}<a class="btn btn-primary ds-primary" href="{{ primary_url }}"><i class="fa-solid {{ primary_icon }}" aria-hidden="true"></i> {{ primary_label }}</a>{% endif %}{{ caller() if caller else '' }}</div></header>
+{%- endmacro %}
+{% macro action_menu(label='Mehr') -%}<details class="ds-action-menu"><summary class="btn btn-outline-secondary"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i> {{ label }}</summary><div class="ds-action-items">{{ caller() }}</div></details>{%- endmacro %}
+{% macro filter_bar(label='Suche & Filter', expanded=false) -%}<details class="ds-filter-bar" {{ 'open' if expanded }}><summary><i class="fa-solid fa-filter" aria-hidden="true"></i> {{ label }}</summary><div class="ds-filter-content">{{ caller() }}</div></details>{%- endmacro %}
+{% macro active_filter(label, value) -%}<span class="ds-filter-chip"><strong>{{ label }}:</strong> {{ value }}</span>{%- endmacro %}
+{% macro result_summary(count, label='Treffer') -%}<p class="ds-result-summary" role="status">{{ count }} {{ label }}</p>{%- endmacro %}
+{% macro status_chip(label, tone='neutral', icon='') -%}
+{% set icons={'neutral':'fa-pencil','info':'fa-circle-info','success':'fa-circle-check','warning':'fa-triangle-exclamation','error':'fa-circle-xmark'} %}<span class="ds-status ds-status-{{ tone if tone in icons else 'neutral' }}"><i class="fa-solid {{ icon or icons.get(tone, 'fa-circle-info') }}" aria-hidden="true"></i> {{ label }}</span>
+{%- endmacro %}
+{% macro empty_state(title, description='', action_url='', action_label='', icon='fa-folder-open') -%}<div class="ds-empty"><i class="fa-solid {{ icon }}" aria-hidden="true"></i><h2 class="h5">{{ title }}</h2>{% if description %}<p>{{ description }}</p>{% endif %}{% if action_url %}<a class="btn btn-outline-primary" href="{{ action_url }}">{{ action_label }}</a>{% endif %}</div>{%- endmacro %}
+{% macro detail_meta(items) -%}<dl class="ds-detail-meta">{% for label,value in items %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl>{%- endmacro %}

@@ -101,8 +101,12 @@ def resources_list(request: Request, user: User = Depends(current_user), db: Ses
                 ResourceBooking.resource_id.in_(ids), ResourceBooking.status.in_(("requested", "confirmed")),
                 ResourceBooking.ends_at >= utcnow()).order_by(ResourceBooking.starts_at)):
             next_by.setdefault(b.resource_id, b)
+    q = request.query_params.get("q", "").strip()[:200]
+    if q:
+        needle = q.casefold()
+        items = [(r, lvl) for r, lvl in items if needle in " ".join((r.name or "", r.category or "", r.location or "")).casefold()]
     view, chosen = list_view(request, "jsm_res_view")
-    response = render(request, "resources.html", user, items=items, counts=counts, money=pay.money, view=view,
+    response = render(request, "resources.html", user, items=items, counts=counts, money=pay.money, view=view, q=q,
                       requests_by=requests_by, next_by=next_by, modes=rs.MODES, statuses=rs.STATUSES, when=rs.when_text,
                       unit_label=rs.unit_label, unit_ids=rs.unit_ids)
     return remember_view(response, "jsm_res_view", view) if chosen else response

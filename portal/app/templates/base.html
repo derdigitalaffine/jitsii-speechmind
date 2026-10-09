@@ -24,6 +24,7 @@
   <link rel="stylesheet" href="/static/vendor/coloris/coloris.min.css">
   <link rel="stylesheet" href="/static/app.css">
   <link rel="stylesheet" href="/static/date-picker.css">
+  <link rel="stylesheet" href="/static/design-system.css">
   <style>{{ ui.css | safe }}</style>
   {% block head %}{% endblock %}
 </head>
@@ -56,7 +57,7 @@
       {% endif %}
       {% if user %}
       <div class="dropdown">
-        <button class="btn btn-link d-flex align-items-center gap-2" data-bs-toggle="dropdown">
+        <button class="btn btn-link d-flex align-items-center gap-2" data-bs-toggle="dropdown" aria-label="Benutzermenü für {{ user.name }}">
           <span class="avatar">{{ m.initials(user.name) }}</span><span class="d-none d-md-inline">{{ user.name }}</span>
         </button>
         <ul class="dropdown-menu dropdown-menu-end">

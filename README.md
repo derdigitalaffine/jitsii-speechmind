@@ -187,6 +187,8 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 
 ## Dokumentation
 
+Oberflächen und Entwicklung: [Gemeinsames Designsystem](docs/DESIGN-SYSTEM.md), [Komponentenreferenz](docs/design-system-reference.html), [Branding und Kontrastprüfung](docs/BRANDING-ACCESSIBILITY.md), [UX-Grundsätze](docs/UX-GRUNDSAETZE.md), [UX-Review-Vorlage](docs/UX-REVIEW-VORLAGE.md).
+
 Zusätzliche Modul-Anleitungen: [Benutzerprofile](docs/BENUTZERPROFILE.md), [Dienstreisen und Satzpflege](docs/DIENSTREISEN.md), [Aushänge und Sammelmappen](docs/UMLAEUFE-UND-SAMMELMAPPEN.md), [interne Rechtstexte](portal/docs/internal-laws.md), [DMS-Dateibrowser und PDF-Vorschau](portal/docs/dms-browser.md).
 
 | Für wen | Datei |
