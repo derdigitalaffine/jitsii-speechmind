@@ -147,13 +147,16 @@ app.add_api_route("/r-embed", catalog, methods=["GET"], include_in_schema=False)
 
 
 @app.get("/r/{slug}/photo/{pid:int}")
-def resource_photo(slug: str, pid: int, s: str = "", db: Session = Depends(get_db)):
+def resource_photo(request: Request, slug: str, pid: int, s: str = "", db: Session = Depends(get_db)):
     """Foto (max. 1600 px) bzw. mit ?s=thumb das Vorschaubild (480 px). Für Fotos aus älteren Versionen wird
     die Vorschau beim ersten Abruf erzeugt."""
     _module_on()
     res = db.scalar(select(Resource).where(Resource.slug == slug))
+    user = session_user(request, db)
+    if res is None or not (res.active and res.public or user is not None and rs.level(db, user, res) >= 3):
+        raise HTTPException(404)
     photo = db.get(ResourcePhoto, pid)
-    if res is None or photo is None or photo.resource_id != res.id:
+    if photo is None or photo.resource_id != res.id:
         raise HTTPException(404)
     folder = files_dir(res.id)
     name = photo.file
@@ -171,7 +174,8 @@ def resource_photo(slug: str, pid: int, s: str = "", db: Session = Depends(get_d
     path = folder / name
     if not path.is_file():
         raise HTTPException(404)
-    return FileResponse(path, headers={"Cache-Control": "public, max-age=86400"})
+    # Auch öffentliche Fotos dürfen nach dem Zurückziehen der Ressource nicht aus einem Cache abrufbar bleiben.
+    return FileResponse(path, headers={"Cache-Control": "private, no-store"})
 
 
 @app.get("/r/{slug}/nutzungsordnung.pdf")

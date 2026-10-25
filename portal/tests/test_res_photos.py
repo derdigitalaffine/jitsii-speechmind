@@ -2,12 +2,14 @@
 
 import io
 
+import pytest
 from PIL import Image
 
-from app.db import Resource, ResourcePhoto, SessionLocal
+from app.db import Resource, ResourcePhoto, ResourceShare, SessionLocal, User
 from app.routes_resources import files_dir
+from app.security import hash_password
 
-from conftest import client, csrf_of, login
+from conftest import client, csrf_of, login, settings
 from test_resources import ADMIN, make_resource, module_on, slug_of  # noqa: F401  (Fixture)
 
 JSON = {"Accept": "application/json"}
@@ -94,3 +96,70 @@ def test_thumb_for_old_photo_is_created_on_demand():
     assert r.status_code == 200 and max(Image.open(io.BytesIO(r.content)).size) == 480 and len(r.content) < len(buf.getvalue())
     with SessionLocal() as db:
         assert db.get(ResourcePhoto, pid).thumb == "alt-t.jpg"
+
+
+def _old_photo(rid):
+    folder = files_dir(rid)
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "private.jpg").write_bytes(_jpeg(600, 400, gps=False))
+    with SessionLocal() as db:
+        photo = ResourcePhoto(resource_id=rid, file="private.jpg", name="private.jpg")
+        db.add(photo)
+        db.commit()
+        return photo.id
+
+
+@pytest.mark.parametrize("active,public", [(True, False), (False, True), (False, False)])
+@pytest.mark.parametrize("level", [None, 0, 1, 2, 3])
+def test_hidden_resource_photo_requires_management_access(active, public, level):
+    rid = make_resource(f"Geschütztes Foto {active} {public} {level}")
+    pid = _old_photo(rid)
+    with SessionLocal() as db:
+        res = db.get(Resource, rid)
+        res.active, res.public = active, public
+        if level is not None:
+            email = f"foto-{rid}@example.org"
+            user = User(email=email, name="Foto-Test", password_hash=hash_password("foto-passwort-123"),
+                        permissions="resources")
+            db.add(user)
+            db.flush()
+            if level:
+                db.add(ResourceShare(resource_id=rid, user_id=user.id, level=level))
+        db.commit()
+    c = client() if level is None else login(email, "foto-passwort-123")
+    url = f"/r/{slug_of(rid)}/photo/{pid}"
+    for suffix in ("", "?s=thumb"):
+        response = c.get(url + suffix)
+        assert response.status_code == (200 if level == 3 else 404)
+        if level == 3:
+            assert response.headers["cache-control"] == "private, no-store"
+    with SessionLocal() as db:
+        assert bool(db.get(ResourcePhoto, pid).thumb) == (level == 3)
+    assert (files_dir(rid) / "private-t.jpg").exists() == (level == 3)
+    # Besitz/Admin darf die Bilder auch vor Veröffentlichung im Editor sehen.
+    admin = login(*ADMIN)
+    assert admin.get(url).status_code == 200
+    assert admin.get(url + "?s=thumb").status_code == 200
+
+
+def test_photo_checks_module_resource_and_photo_relationship():
+    rid = make_resource("Foto Zugriff")
+    pid = _old_photo(rid)
+    slug = slug_of(rid)
+    pub = client()
+    url = f"/r/{slug}/photo/{pid}"
+    response = pub.get(url)
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"
+    other = make_resource("Foto fremde Ressource")
+    for suffix in ("", "?s=thumb"):
+        assert pub.get(f"/r/{slug_of(other)}/photo/{pid}" + suffix).status_code == 404
+        assert pub.get(f"/r/unbekannte-ressource/photo/{pid}" + suffix).status_code == 404
+        assert pub.get(f"/r/{slug}/photo/999999999" + suffix).status_code == 404
+    admin = login(*ADMIN)
+    settings(module_resources="0")
+    for c in (pub, admin):
+        for suffix in ("", "?s=thumb"):
+            assert c.get(url + suffix).status_code == 404
+    with SessionLocal() as db:
+        assert not db.get(ResourcePhoto, pid).thumb
