@@ -101,6 +101,8 @@ class User(Base):
 
 # Bereiche, die einzeln pro Benutzer freigeschaltet werden
 PERMISSIONS = {
+    "tasks": ("Aufgaben erstellen", "fa-list-check", "Eigene Aufgaben erfassen, zuweisen und bearbeiten"),
+    "tasks_manage": ("Aufgaben verwalten", "fa-user-gear", "Alle nativen Aufgaben sehen und verwalten"),
     "seminars": ("Seminare planen", "fa-chalkboard-user", "Seminare und Lehrgänge mit Terminen, Einladungen und Unterlagen planen"),
     "seminars_manage": ("Seminare verwalten", "fa-user-gear", "Alle Seminare und Teilnahmen verwalten"),
     "circulations_create": ("Umläufe erstellen", "fa-folder-open", "Aushänge und Sammelmappen als Entwurf erstellen"),
@@ -2726,6 +2728,7 @@ def seed_orgs(db) -> None:
 
 
 DEFAULT_SETTINGS = {
+    "module_tasks": "0",
     "sm_api_url": "https://api-v2.speechmind.com/external/v2/graphql",
     "sm_api_key_enc": "",
     "sm_project_slug": "",
@@ -3024,6 +3027,7 @@ def _migrate() -> None:
 
 
 def init_db() -> None:
+    from . import task_models  # noqa: F401 – register additive native-task tables
     Base.metadata.create_all(engine)
     _migrate()
     with SessionLocal() as db:

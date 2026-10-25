@@ -416,6 +416,8 @@ async def run_forever() -> None:
             await asyncio.to_thread(notify.process_queue)  # Hinweise zu neuen Antworten gleich verschicken
             if time.monotonic() - _last_booking_reminder[0] >= 300:
                 _last_booking_reminder[0] = time.monotonic()
+                from . import task_schedule
+                await asyncio.to_thread(task_schedule.tick)
                 from . import seminars
                 if await asyncio.to_thread(seminars.tick):
                     await asyncio.to_thread(notify.process_queue)

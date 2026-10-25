@@ -212,7 +212,7 @@ def tiles(db, user: User, modules: set, ctx=None, cache: dict | None = None) -> 
         available.append("seminars")
     if "circulations" in modules:
         available.append("circulations")
-    if modules & {"circulations", "resources"} or ("applications" in modules and _case_worker(db, user)):
+    if modules & {"circulations", "resources", "tasks"} or ("applications" in modules and _case_worker(db, user)):
         available.append("tasks")
     if "applications" in modules and _case_worker(db, user):
         available.append("applications")
@@ -279,7 +279,7 @@ def overview(db, user: User, modules: set) -> tuple[dict, dict]:
 
     now = utcnow()
     today = to_local(now).date()
-    if modules & {"circulations", "resources"} or ("applications" in modules and _case_worker(db, user)):
+    if modules & {"circulations", "resources", "tasks"} or ("applications" in modules and _case_worker(db, user)):
         t = cache["tasks"] = _tasks(db, user, work)
     if "applications" in modules and _case_worker(db, user):
         a = cache["applications"] = _applications(db, user)

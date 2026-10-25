@@ -298,3 +298,18 @@ def test_link_refs_unit():
     assert ", § 9, BauGB § 4 und" in out                                  # ins Leere: Text ohne Klammern
     assert re.search(r"<a href='x'>\[\[GemO § 2\]\]</a>", out)          # in vorhandenen Links nichts ändern
     assert lx.broken_refs("[[§ 9]] [[§ 1]] [[GemO § 1]] [[Gibtsnicht]]", "eigene", {"p1"}) == ["[[§ 9]]", "[[Gibtsnicht]]"]
+
+def test_reference_and_vocabulary_invalidation_during_early_uptime(monkeypatch):
+    """An invalidation must work even before the process has reached the cache TTL."""
+    import time
+    make_law('frischer-suchwortschatz', '# Neue Hundesteuersatzung\n\n### § 1 Hundesteuer\n\nHundesteuer.\n', 'FrischHS')
+    monkeypatch.setattr(time, 'monotonic', lambda: 10.0)
+    monkeypatch.setitem(lx._vocab_cache, 'at', 9.0)
+    monkeypatch.setitem(lx._vocab_cache, 'words', ['haushalt'])
+    monkeypatch.setitem(lx._ref_cache, 'at', 9.0)
+    monkeypatch.setitem(lx._ref_cache, 'map', {'veraltet': ('alt', 'Alt', set())})
+    lx.invalidate_refs()
+    with SessionLocal() as db:
+        assert lx.did_you_mean(db, 'Hundsteuer') == 'Hundesteuer'
+        assert 'frischer-suchwortschatz' in lx.ref_map(db)
+        assert 'veraltet' not in lx.ref_map(db)
