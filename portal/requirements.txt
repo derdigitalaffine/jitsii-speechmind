@@ -14,5 +14,6 @@ segno==1.6.6
 pillow==13.0.0
 markdown-it-py==4.2.0
 reportlab==5.0.1
-pypdf==6.19.0
+# Security floor: 6.21.2 fixes resource-exhaustion issues in untrusted PDF parsing.
+pypdf==6.21.2
 regex==2026.9.29
