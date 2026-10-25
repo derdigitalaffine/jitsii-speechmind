@@ -17,3 +17,6 @@ reportlab==5.0.1
 # Security floor: 6.21.2 fixes resource-exhaustion issues in untrusted PDF parsing.
 pypdf==6.21.2
 regex==2026.9.29
+
+# Task recurrence uses the RRULE implementation already used transitively by icalendar.
+python-dateutil==3.0.0

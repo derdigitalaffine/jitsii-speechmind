@@ -103,7 +103,7 @@
   {% endif %}
 
   {% if tasks %}
-  <h2 class="h4 mt-4">Aufgaben</h2>
+  <div class="d-flex flex-wrap align-items-center gap-2 mt-4 mb-2"><h2 class="h4 mb-0">Aufgaben</h2>{% if "tasks" in modules and (user.can("tasks") or user.can("tasks_manage")) %}<a class="btn btn-outline-secondary" href="/aufgaben/aufzeichnung/{{rec.id}}">Als Aufgaben übernehmen</a>{% endif %}</div>
   <ul class="list-group mb-4">
     {% for t in tasks %}
     <li class="list-group-item">{{ t.text }}{% if t.assignedTo %} <span class="badge text-bg-secondary ms-1"><i class="fa-regular fa-user me-1"></i>{{ t.assignedTo }}</span>{% endif %}{% if t.date %} <span class="badge text-bg-light border ms-1"><i class="fa-regular fa-calendar me-1"></i>bis {{ t.date }}</span>{% endif %}</li>

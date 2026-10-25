@@ -135,7 +135,7 @@ templates.env.globals["form_constraints"] = lambda item: _forms_mod().validation
 templates.env.globals["form_rule_hint"] = lambda item: _forms_mod().validation_hint(item)
 templates.env.globals["perm_modules"] = {"processes": "applications", "app_create": "applications", "formblocks": "forms",
                                          "dms_admin": "dms", "seminars_manage": "seminars", "votes": "polls", "resources": "resources",
-                                         "krank": "krank", "krank_admin": "krank"}
+                                         "krank": "krank", "krank_admin": "krank", "tasks_manage": "tasks"}
 templates.env.globals.update(planning_when=planning.when, cancel_recipients=planning.cancel_recipients, local_input=planning.local_input,
                              is_upcoming=planning.is_upcoming, rsvp_labels=planning.RSVP_LABELS,
                              rsvp_summary=planning.rsvp_summary)
@@ -175,6 +175,7 @@ templates.env.filters["local"] = lambda dt, fmt="%d.%m.%Y, %H:%M": to_local(dt).
 
 # Modul: (Einstellung, Rechte-Schlüssel, Pfad-Präfixe)
 MODULES = {
+    "tasks": ("Aufgaben & Zusammenarbeit", "module_tasks", ("/aufgaben",)),
     "seminars": ("Seminare & Lehrgänge", "module_seminars", ("/seminare",)),
     "shortlinks": ("Kurzlinks & QR-Codes", "module_shortlinks", ("/shortlinks", "/s/", "/s")),
     "forms": ("Formulare", "module_forms", ("/forms", "/f/")),
@@ -512,7 +513,7 @@ def _task_badge(user: User | None) -> int:
     if user is None:
         return 0
     mods = enabled_modules()
-    if not mods & {"applications", "resources", "circulations"}:
+    if not mods & {"applications", "resources", "circulations", "tasks"}:
         return 0
     cache_key = (user.id, frozenset(mods))
     hit = _badge_cache.get(cache_key)
@@ -2801,3 +2802,5 @@ from . import routes_seminar_series  # noqa: E402,F401
 from . import routes_oidc  # noqa: E402,F401
 
 from . import routes_seminar_planning, routes_seminar_hybrid  # noqa: E402,F401
+
+from . import routes_tasks  # noqa: E402,F401

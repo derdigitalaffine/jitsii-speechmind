@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from . import applications as apps, forms as fm, worker, workflow as wf
 from .db import (
     LOCAL_TZ, ApplicationDocument, ApplicationRequest, ApplicationTask, FormResponse, Group, Process,
-    RequestTemplate, User, utcnow,
+    RequestTemplate, User, utcnow, to_local,
 )
 from .main import app, check_csrf, current_user, enabled_modules, flash, get_db, session_user, rate_limit, redirect, render, require
 from .routes_forms import SAFE_MIME
@@ -45,16 +45,79 @@ def _groups(db):
 
 @app.get("/tasks")
 def tasks_page(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """Meine Aufgaben: Anträge, Ressourcenbuchungen und persönliche Umlauf-Rückmeldungen."""
     mods = enabled_modules()
-    if not mods & {"applications", "resources", "circulations"}:
+    if not mods & {"applications", "resources", "circulations", "tasks"}:
         raise HTTPException(404, "Kein Aufgabenmodul ist eingeschaltet.")
-    from . import task_overview
+    from . import task_overview, tasks as native
+    from urllib.parse import urlencode
+    keys = ('scope', 'source', 'perspective', 'priority', 'status', 'tag', 'q', 'view', 'sort', 'since', 'until', 'period', 'date')
+    if request.query_params:
+        chosen = {key: request.query_params.get(key, '')[:200] for key in keys}
+        request.session['task_filters'] = chosen
+    else:
+        chosen = request.session.get('task_filters', {})
+    if chosen.get('perspective') == 'managed' and not native.manager(user):
+        chosen['perspective'] = 'all'
     view = task_overview.collect(db, user, mods, now=utcnow())
-    view = task_overview.filtered(view, request.query_params.get('scope', 'all'), request.query_params.get('source', 'all'))
-    return render(request, "tasks.html", user, work=view, apps_on="applications" in mods,
-                  circulations_on="circulations" in mods, resources_on="resources" in mods)
-
+    view = task_overview.filtered(view, chosen.get('scope') or 'all', chosen.get('source') or 'all',
+                                  perspective=chosen.get('perspective') or 'all', priority=chosen.get('priority') or 'all',
+                                  status=chosen.get('status') or 'all', tag=chosen.get('tag', ''), query=chosen.get('q', ''),
+                                  sort=chosen.get('sort', 'due'), since=chosen.get('since', ''), until=chosen.get('until', ''))
+    mode = chosen.get('view', 'list')
+    mode = mode if mode in {'list', 'board', 'calendar', 'timeline'} else 'list'
+    def task_url(**changes):
+        values = {**chosen, **changes}
+        return '/tasks?' + urlencode({k: v for k, v in values.items() if v})
+    back = task_url()
+    for key in ('ready', 'pool', 'waiting'):
+        for item in view[key]:
+            if item['source'] == 'native':
+                item['href'] += '?' + urlencode({'back': back})
+    import calendar as cal
+    from datetime import date, timedelta
+    planning_items = list({item['href']: item for k in ('ready','pool','waiting') for item in view[k]}.values())
+    calendar = {}
+    for item in planning_items:
+        day = to_local(item['due']).date().isoformat() if item['due'] else ''
+        calendar.setdefault(day, []).append(item)
+    today = to_local(view['now']).date()
+    try:
+        anchor = date.fromisoformat(chosen.get('date', ''))
+    except ValueError:
+        anchor = today
+    period = 'week' if chosen.get('period') == 'week' else 'month'
+    if period == 'week':
+        first = anchor - timedelta(days=anchor.weekday())
+        days = [first + timedelta(days=i) for i in range(7)]
+        previous, following = first - timedelta(days=7), first + timedelta(days=7)
+        period_label = first.strftime('%d.%m.') + ' – ' + days[-1].strftime('%d.%m.%Y')
+    else:
+        first = anchor.replace(day=1)
+        days = list(cal.Calendar().itermonthdates(first.year, first.month))
+        previous = (first - timedelta(days=1)).replace(day=1)
+        following = (first + timedelta(days=32)).replace(day=1)
+        months = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
+        period_label = months[first.month-1] + ' ' + str(first.year)
+    calendar_days = [dict(day=d, items=calendar.get(d.isoformat(), []), outside=d.month != anchor.month, today=d == today) for d in days]
+    timeline_start = today - timedelta(days=7)
+    timeline_end = today + timedelta(days=28)
+    timeline = []
+    for item in planning_items:
+        start = to_local(item.get('starts_at')).date() if item.get('starts_at') else to_local(item['due']).date() if item['due'] else None
+        finish = to_local(item['due']).date() if item['due'] else start
+        left = max(0, min(100, (start-timeline_start).days / 35 * 100)) if start else 0
+        width = max(2, min(100-left, ((finish-start).days+1) / 35 * 100)) if start else 0
+        timeline.append(dict(item=item, left=round(left,2), width=round(width,2)))
+    capture = getattr(request.state, 'task_capture', {})
+    response = render(request, "tasks.html", user, work=view, apps_on="applications" in mods,
+                  circulations_on="circulations" in mods, resources_on="resources" in mods,
+                  native_on='tasks' in mods, may_create=native.may_create(user), priorities=native.PRIORITIES,
+                  statuses=native.STATUSES, mode=mode, task_url=task_url, back=back, calendar_days=calendar_days, undated=calendar.get('',[]), period=period, period_label=period_label,
+                  previous=previous.isoformat(), following=following.isoformat(), planning_items=planning_items,
+                  timeline=timeline, timeline_start=timeline_start, timeline_end=timeline_end, capture=capture, people=native.users(db) if capture else [])
+    if capture.get('error'):
+        response.status_code = 422
+    return response
 
 
 # --- Arbeitsschritte im Vorgang -----------------------------------------------------------
