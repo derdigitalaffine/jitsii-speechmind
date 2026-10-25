@@ -777,8 +777,9 @@ def ref_map(db=None) -> dict[str, tuple[str, str, set[str]]]:
 
 def invalidate_refs() -> None:
     """Nach Änderungen an Texten: Verweise und Wortschatz für Suchvorschläge neu aufbauen."""
-    _ref_cache["at"] = 0.0
-    _vocab_cache["at"] = 0.0
+    # Reset values as well: monotonic uptime can still be below the TTL just after startup.
+    _ref_cache.update(at=0.0, map={})
+    _vocab_cache.update(at=0.0, words=[])
 
 
 def norm_anchor(kind: str, num: str) -> str:

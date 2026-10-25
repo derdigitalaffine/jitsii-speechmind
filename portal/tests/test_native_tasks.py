@@ -217,3 +217,14 @@ def test_dependency_diamond_only_unblocks_after_both_branches(db,task_people):
     assert len(ts.blockers(db,last))==1
     ts.transition(db,task_people[1],branches[1],'done');db.commit()
     assert not ts.blockers(db,last)
+
+
+def test_board_choices_offer_only_possible_next_steps(db,task_people):
+    row=make(db,task_people,requires_review='1')
+    choices=ts.status_choices(task_people[1],row)
+    assert choices['done']=='Zur Freigabe einreichen' and 'cancelled' not in choices and 'review' not in choices
+    assert 'done' not in ts.status_choices(task_people[1],row,unfinished=True)
+    assert 'in_progress' not in ts.status_choices(task_people[1],row,blocked=True)
+    ts.transition(db,task_people[1],row,'done');db.commit()
+    assert not ts.status_choices(task_people[1],row)
+    assert 'done' in ts.status_choices(task_people[0],row)

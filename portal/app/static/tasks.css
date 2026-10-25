@@ -18,3 +18,5 @@
 .task-page .ds-detail-meta>div{min-width:0;overflow-wrap:anywhere}
 .task-page .ds-filter-chip{min-height:44px;align-items:center}
 .task-calendar-day a{min-height:44px}
+
+@media(max-width:575px){.task-page .ds-page-actions>form{flex:1 0 100%}.task-page .ds-page-actions>form>.btn{width:100%}}

@@ -8,8 +8,9 @@
 <a href="{{back}}" class="d-inline-block mb-3"><i class="fa-solid fa-arrow-left me-1" aria-hidden="true"></i>Meine Aufgaben</a>
 {% call m.page_header(task.title, '') %}
 {% if ts.may_work(user,task) and not task.archived_at %}
-{% if task.status=='open' %}{{action_form('status','Loslegen','primary','in_progress')}}
-{% elif task.status=='in_progress' %}{{action_form('status','Zur Freigabe einreichen' if task.requires_review else 'Erledigen','primary','done')}}
+{% if blockers %}<span class="text-secondary align-self-center">Wartet auf Vorgänger</span>
+{% elif task.status=='open' %}{{action_form('status','Loslegen','primary','in_progress')}}
+{% elif task.status=='in_progress' %}{% if checks|rejectattr('done')|list %}<a class="btn btn-primary" href="#checks-title">Checkliste abschließen</a>{% else %}{{action_form('status','Zur Freigabe einreichen' if task.requires_review else 'Erledigen','primary','done')}}{% endif %}
 {% elif task.status=='review' and ts.may_edit(user,task) %}{{action_form('status','Abschluss freigeben','primary','done')}}
 {% elif task.status in ['done','cancelled'] and ts.may_edit(user,task) %}{{action_form('status','Wieder öffnen','outline-primary','open')}}{% endif %}
 {% endif %}

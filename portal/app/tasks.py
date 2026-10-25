@@ -15,6 +15,9 @@ from .task_models import Task, TaskActivity, TaskCheck, TaskComment, TaskDepende
 STATUSES = {'open': 'Offen', 'in_progress': 'In Bearbeitung', 'review': 'Wartet auf Freigabe', 'done': 'Erledigt', 'cancelled': 'Storniert'}
 PRIORITIES = {'low': 'Niedrig', 'normal': 'Normal', 'high': 'Hoch', 'urgent': 'Dringend'}
 TONES = {'open': 'neutral', 'in_progress': 'info', 'review': 'warning', 'done': 'success', 'cancelled': 'neutral'}
+TRANSITIONS = {'open': {'in_progress', 'review', 'done', 'cancelled'},
+               'in_progress': {'open', 'review', 'done', 'cancelled'},
+               'review': {'done', 'in_progress', 'cancelled'}, 'done': {'open'}, 'cancelled': {'open'}}
 _MD = MarkdownIt('commonmark', {'html': False, 'linkify': False, 'maxNesting': 20})
 MAX_FILE = 20 * 1024 * 1024
 MAX_TOTAL = 100 * 1024 * 1024
@@ -57,6 +60,28 @@ def may_edit(user, row):
 
 def may_work(user, row):
     return may_edit(user, row) or row.assignee_id == user.id
+
+
+def status_choices(user, row, *, blocked=False, unfinished=False):
+    if not may_work(user, row) or row.archived_at:
+        return {}
+    choices = {}
+    for target, label in STATUSES.items():
+        if target not in TRANSITIONS[row.status]:
+            continue
+        if (row.status in {'done', 'cancelled', 'review'} or target == 'cancelled') and not may_edit(user, row):
+            continue
+        # Review returns need a reason, provided on the task detail page.
+        if row.status == 'review' and target == 'in_progress':
+            continue
+        if target == 'review':
+            continue  # Completion chooses review automatically according to the task's rule.
+        if blocked and target in {'in_progress', 'done'}:
+            continue
+        if unfinished and target == 'done':
+            continue
+        choices[target] = 'Zur Freigabe einreichen' if target == 'done' and row.requires_review and row.status != 'review' else label
+    return choices
 
 
 def check_version(row, data):
@@ -231,10 +256,7 @@ def transition(db, user, row, target, reason=''):
         return
     if target == 'done' and row.status != 'review' and row.requires_review:
         target = 'review'
-    allowed = {'open': {'in_progress', 'review', 'done', 'cancelled'},
-               'in_progress': {'open', 'review', 'done', 'cancelled'},
-               'review': {'done', 'in_progress', 'cancelled'}, 'done': {'open'}, 'cancelled': {'open'}}
-    if target not in allowed[row.status]:
+    if target not in TRANSITIONS[row.status]:
         raise Invalid('Dieser Statuswechsel ist im aktuellen Zustand nicht möglich.')
     if row.status in {'done', 'cancelled', 'review'} or target == 'cancelled':
         if not may_edit(user, row):

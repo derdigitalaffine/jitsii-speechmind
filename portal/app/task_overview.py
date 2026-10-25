@@ -41,10 +41,11 @@ def collect(db, user, modules, *, now=None):
 
     if 'tasks' in modules:
         from . import tasks as native
-        from .task_models import Task
+        from .task_models import Task, TaskCheck
         from sqlalchemy import select
         rows = db.scalars(native.visible_query(user)).all()
         visible_ids = {task.id for task in rows}
+        unfinished = set(db.scalars(select(TaskCheck.task_id).where(TaskCheck.task_id.in_(visible_ids), TaskCheck.done.is_(False))))
         for task in rows:
             predecessors = native.blockers(db, task)
             blocked = bool(predecessors)
@@ -58,7 +59,8 @@ def collect(db, user, modules, *, now=None):
             item = entry('native', task.title, f'/aufgaben/{task.id}', 'Freigabe prüfen' if review else 'Öffnen', task.due_at,
                          detail=detail, native_id=task.id, status=task.status, priority=task.priority, tags=task.tags,
                          assignee=task.responsible_name, updated_at=task.updated_at, seen_at=task.seen_at,
-                         starts_at=task.starts_at, blocked=blocked, version=task.version, may_work=native.may_work(user,task),
+                         starts_at=task.starts_at, blocked=blocked, version=task.version, may_work=native.may_work(user,task), may_plan=native.may_edit(user,task),
+                         status_choices=native.status_choices(user,task,blocked=blocked,unfinished=task.id in unfinished),
                          dependencies=[dict(id=b.id, title=b.title) for b in predecessors if b.id in visible_ids])
             if task.archived_at:
                 item['late'] = False
