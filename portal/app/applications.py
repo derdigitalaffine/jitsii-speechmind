@@ -482,12 +482,12 @@ def pdf(form: Form, resp: FormResponse, with_attachments: bool | None = None) ->
         if not e["data"]:
             continue
         for i, page in enumerate(e["data"].pages, start=1):
-            w, h = float(page.mediabox.width), float(page.mediabox.height)
+            added = writer.add_page(page)  # pypdf 7 verlangt die Seite vor Änderungen im Writer
+            w, h = float(added.mediabox.width), float(added.mediabox.height)
             try:
-                page.merge_page(PdfReader(io.BytesIO(_stamp(f"{resp.ref_no} · Anlage {e['n']}: {e['name']} · Seite {i}/{e['pages']}", w, h))).pages[0])
+                added.merge_page(PdfReader(io.BytesIO(_stamp(f"{resp.ref_no} · Anlage {e['n']}: {e['name']} · Seite {i}/{e['pages']}", w, h))).pages[0])
             except Exception:  # noqa: BLE001
                 pass
-            writer.add_page(page)
         writer.add_outline_item(f"Anlage {e['n']}: {e['name']}"[:120], e["start"] - 1)
     writer.add_metadata({"/Title": _latin(f"{resp.ref_no} {form.title}"), "/Subject": "Online-Antrag mit Anlagen"})
     out = io.BytesIO()
