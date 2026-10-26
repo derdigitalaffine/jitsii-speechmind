@@ -187,3 +187,17 @@ def test_shared_workflow_and_archive_controls_all_engines(people):
             assert ('data-confirm="Die Umfrage wird' in body) == (tab=='settings')
             if tab=='results':assert 'name="emails"' not in body
             if tab=='share':assert 'name="emails"' in body
+
+
+def test_poll_draft_participation_and_archived_owner_controls(people):
+    c=login(*ADMIN)
+    page=c.get(f'/polls/{people["poll"]}?tab=share')
+    body=main(page.text)
+    assert 'Zur Durchführung' in body and 'value="enable_link"' not in body
+    for model,key,base in [(Poll,'poll','/polls/'),(Vote,'vote','/votes/')]:
+        with SessionLocal() as db:
+            obj=db.get(model,people[key]);obj.archived_at=utcnow();db.commit()
+        body=main(c.get(base+str(people[key])+'?tab=settings').text)
+        assert 'Aus Archiv zurückholen' in body
+        assert '/unarchive' in body
+        assert '/edit"' not in body

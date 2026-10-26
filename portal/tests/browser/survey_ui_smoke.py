@@ -17,10 +17,15 @@ OUTPUT.mkdir(exist_ok=True)
 
 
 def no_horizontal_scroll(page):
-    assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Page overflows horizontally'
+    overflow=page.evaluate('document.documentElement.scrollWidth > window.innerWidth')
+    if overflow:
+        print(page.evaluate("Array.from(document.querySelectorAll('main *')).filter(e => e.getBoundingClientRect().right > innerWidth + 1).slice(0,12).map(e => [e.tagName, e.className, e.getBoundingClientRect().width])"))
+    assert not overflow, 'Page overflows horizontally'
 
 
 def capture(page,name):
+    page.evaluate('window.scrollTo(0,0)')
+    page.wait_for_timeout(100)
     page.screenshot(path=str(OUTPUT/(name+'.png')),full_page=True,animations='disabled')
 
 
@@ -78,7 +83,9 @@ def exercise(page):
     expect(page.locator('#lm-title')).to_have_text('Was wünschen Sie sich?')
     expect(page.get_by_role('button',name='Nächste Frage',exact=True)).to_be_disabled()
     guest.get_by_label('Begriff 1',exact=True).fill('Zusammenhalt')
-    guest.get_by_role('button',name='Absenden',exact=True).click()
+    with guest.expect_response(lambda response: response.url.endswith('/answer') and response.request.method=='POST') as saved:
+        guest.get_by_role('button',name='Absenden',exact=True).click()
+    assert saved.value.ok
     expect(guest.get_by_text('Antwort gespeichert.',exact=True)).to_be_visible()
     capture(guest,'live-participation-mobile')
     page.get_by_role('link',name='Beiträge aktualisieren',exact=True).click()
@@ -125,6 +132,20 @@ def exercise(page):
         page.get_by_role('link',name=label,exact=True).click()
         no_horizontal_scroll(page)
     capture(page,'vote-settings-mobile')
+    page.goto(BASE+'/polls/new')
+    page.locator('#t').fill('Termin für den Teamabend')
+    page.get_by_role('button',name='Einzelnen Termin',exact=True).click()
+    no_horizontal_scroll(page)
+    capture(page,'poll-editor-mobile')
+    page.get_by_role('button',name='Terminumfrage anlegen',exact=True).click()
+    expect(page.get_by_role('heading',name='Termin für den Teamabend',exact=True)).to_be_visible()
+    page.get_by_role('link',name='Durchführung',exact=True).click()
+    page.get_by_role('button',name='Veröffentlichen und öffnen',exact=True).click()
+    expect(page.locator('main')).to_contain_text('Abstimmung läuft')
+    page.get_by_role('link',name='Teilnahme',exact=True).click()
+    expect(page.locator('#pub')).to_be_visible()
+    no_horizontal_scroll(page)
+    capture(page,'poll-participation-mobile')
     page.goto(BASE+'/umfragen')
     no_horizontal_scroll(page)
     capture(page,'surveys-mobile')

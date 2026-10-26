@@ -46,16 +46,16 @@
         <div class="row g-3">
           <div class="col-md-6">
             <label class="form-label small" for="gen-day">Tage</label>
-            <div class="input-group input-group-sm mb-2"><input class="form-control" type="date" id="gen-day"><button class="btn btn-outline-primary" type="button" id="gen-add-day"><i class="fa-solid fa-plus"></i></button></div>
+            <div class="input-group input-group-sm mb-2"><input class="form-control" type="date" id="gen-day"><button class="btn btn-outline-primary" type="button" id="gen-add-day" aria-label="Tag hinzufügen"><i class="fa-solid fa-plus"></i></button></div>
             <div id="gen-days" class="d-flex flex-wrap gap-1"></div>
           </div>
           <div class="col-md-6">
             <label class="form-label small">Uhrzeiten <span class="text-secondary">(keine = ganztägig)</span></label>
-            <div class="input-group input-group-sm mb-2"><input class="form-control" type="time" id="gen-start" aria-label="Beginn"><span class="input-group-text">–</span><input class="form-control" type="time" id="gen-end" aria-label="Ende (optional)"><button class="btn btn-outline-primary" type="button" id="gen-add-time"><i class="fa-solid fa-plus"></i></button></div>
+            <div class="input-group input-group-sm mb-2"><input class="form-control" type="time" id="gen-start" aria-label="Beginn"><span class="input-group-text">–</span><input class="form-control" type="time" id="gen-end" aria-label="Ende (optional)"><button class="btn btn-outline-primary" type="button" id="gen-add-time" aria-label="Uhrzeit hinzufügen"><i class="fa-solid fa-plus"></i></button></div>
             <div id="gen-times" class="d-flex flex-wrap gap-1"></div>
           </div>
         </div>
-        <button class="btn btn-sm btn-primary mt-3" type="button" id="gen-run"><i class="fa-solid fa-calendar-plus me-1"></i>Vorschläge erzeugen</button>
+        <button class="btn btn-sm btn-outline-primary mt-3" type="button" id="gen-run"><i class="fa-solid fa-calendar-plus me-1"></i>Vorschläge erzeugen</button>
         <span class="form-text ms-2" id="gen-hint"></span>
       </div>
       <div class="d-flex justify-content-between align-items-center mb-2">
@@ -66,7 +66,7 @@
       <p class="text-secondary small mt-2 mb-0 d-none" id="opt-empty">Noch keine Vorschläge – oben Tage und Uhrzeiten wählen und „Vorschläge erzeugen“.</p>
     </div></div>
   </div>
-  <div class="col-12"><button class="btn btn-primary btn-lg" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>{{ 'Speichern' if poll else 'Terminumfrage anlegen' }}</button></div>
+  <div class="col-12"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>{{ 'Speichern' if poll else 'Terminumfrage anlegen' }}</button></div>
 </form>
 <script type="application/json" id="poll-options">{{ options_data | tojson }}</script>
 {% endblock %}

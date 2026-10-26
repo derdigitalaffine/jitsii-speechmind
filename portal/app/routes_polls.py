@@ -6,8 +6,8 @@ from urllib.parse import quote
 
 from fastapi import Depends, Form, HTTPException, Request
 from fastapi.responses import Response
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from . import poll_lifecycle as lifecycle, access, planning, polls as pl, shares as sh, shortlinks as sl, worker
 from .db import LOCAL_TZ, Group, Meeting, Poll, PollParticipant, User, to_local, utcnow
@@ -172,7 +172,8 @@ def poll_state(request: Request, poll_id: int, action: str = Form(...), user: Us
         poll.public_token = new_link_token()
         flash(request, "Öffentlicher Link erzeugt.")
     db.commit()
-    return redirect(f"/polls/{poll.id}")
+    tab = 'share' if action in ('renew', 'disable_link', 'enable_link') else 'results' if action == 'close' else 'conduct'
+    return redirect(f"/polls/{poll.id}?tab={tab}")
 
 
 @app.post("/polls/{poll_id}/final", dependencies=[Depends(check_csrf)])

@@ -27,13 +27,13 @@
   function render() {
     options.sort(function (a, b) { return key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0; });
     list.innerHTML = options.map(function (o, i) {
-      return '<div class="input-group input-group-sm" data-i="' + i + '">' +
+      return '<div class="input-group input-group-sm survey-date-option" data-i="' + i + '">' +
         '<span class="input-group-text" style="min-width:5.5rem">' + esc(label(o.date)) + '</span>' +
         '<input class="form-control" type="date" data-k="date" value="' + esc(o.date) + '" aria-label="Datum" required>' +
         '<input class="form-control" type="time" data-k="start" value="' + esc(o.start) + '" aria-label="Beginn (leer = ganztägig)">' +
         '<span class="input-group-text">–</span>' +
         '<input class="form-control" type="time" data-k="end" value="' + esc(o.end) + '" aria-label="Ende">' +
-        '<input class="form-control d-none d-md-block" data-k="note" value="' + esc(o.note) + '" maxlength="120" placeholder="Notiz" aria-label="Notiz">' +
+        '<input class="form-control" data-k="note" value="' + esc(o.note) + '" maxlength="120" placeholder="Notiz" aria-label="Notiz">' +
         '<button class="btn btn-outline-danger" type="button" data-del title="Entfernen" aria-label="Entfernen"><i class="fa-solid fa-xmark"></i></button></div>';
     }).join('');
     document.getElementById('opt-count').textContent = options.length;

@@ -4,7 +4,7 @@ import json
 
 from fastapi import Depends, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import poll_lifecycle as lifecycle, shares as sh, shortlinks as sl, votes as vt
@@ -178,7 +178,7 @@ def vote_state(request: Request, vote_id: int, action: str = Form(...), user: Us
         flash(request, "Abstimmung beendet, Ergebnis festgeschrieben.")
     db.commit()
     nxt = request.query_params.get("next", "")
-    return redirect(nxt if nxt in (f"/votes/{vote.id}/live",) else f"/votes/{vote.id}")
+    return redirect(nxt if nxt in (f"/votes/{vote.id}/live",) else f"/votes/{vote.id}?tab={'results' if action == 'close' else 'conduct'}")
 
 
 @app.post("/votes/{vote_id:int}/invite", dependencies=[Depends(check_csrf)])
