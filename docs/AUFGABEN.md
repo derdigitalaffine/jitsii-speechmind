@@ -16,6 +16,22 @@ Nach Enter erscheinen Titel, Person, Datum, Uhrzeit, Tags und Priorität direkt 
 
 Die Erkennung versteht heute/morgen/übermorgen, Wochentage, `31.10.`/`31.10.2026`, `14 Uhr`/`14:30`, `#Tag` und `!dringend`, `!hoch`, `!mittel`, `!niedrig`. Ein Datum ohne Jahr bezeichnet den nächsten passenden Termin. Ungültige Werte werden nicht still korrigiert.
 
+## Mit Formular anlegen
+
+Neben dem Schnellfeld ist **Mit Formular anlegen** als sichtbarer Einstieg in der Kopfzeile erreichbar. Das vollständige Formular öffnet eine eigene Seite, bleibt mobil einspaltig bedienbar und bietet direkt:
+
+- Titel und Beschreibung
+- genau eine verantwortliche Person, zunächst die eigene Person
+- Fälligkeitsdatum und optionale Uhrzeit
+- eine Checkliste mit einem Punkt pro Zeile, in der eingegebenen Reihenfolge
+- mehrere Dateien vor dem ersten Speichern
+
+Priorität, Tags, Freigabe, Start und Gruppenkontext liegen unter **Weitere Angaben**. Checkliste und Dateien bleiben optional. Es gelten höchstens 50 neue Checklistenpunkte mit je 500 Zeichen und die vorhandenen Dateigrenzen (10 Dateien pro Upload, je 20 MB, insgesamt 100 MB).
+
+**Aufgabe anlegen** speichert Aufgabe, Checkliste und Dateien gemeinsam. Bei einem Fehler wird keine teilweise angelegte Aufgabe zurückgelassen. Texte und die Rückkehr zur bisherigen Ansicht bleiben erhalten; Dateien müssen ausdrücklich erneut ausgewählt werden. Die Dateiauswahl zeigt Namen und meldet zu große Mengen bereits vor dem Absenden; die gleichen Grenzen gelten serverseitig.
+
+Nach erfolgreicher Anlage führen sowohl Formular als auch Schnellfeld zurück in die bisherige Aufgabenübersicht einschließlich Filter und Ansicht. Dort bestätigt eine Meldung den gespeicherten Titel. Beim Bearbeiten vorhandener Aufgaben bleibt der Rücksprung zur Detailansicht bestehen.
+
 ## Verantwortung und Abschluss
 
 Jede Aufgabe hat genau eine verantwortliche Person: intern oder extern. Eine Gruppe kann den Kontext beschreiben, vergibt aber keine Sichtrechte.
@@ -72,7 +88,7 @@ Die externe Ansicht enthält keine Portalnavigation, internen Personenlisten ode
 
 ## Aufgabenregeln
 
-Die Aufgabenverwaltung erreicht Regeln über **Weitere Bereiche → Aufgabenregeln**. Ein definierter Trigger wird mit festen Feldbedingungen und genau einer angebotenen Aktion kombiniert. Es gibt keine Skripte, Ausdrücke oder frei ausführbaren Templates. Regeln können zunächst pausiert gespeichert und ihre Bedingungen ohne Seiteneffekte an einer Beispielaufgabe geprüft werden.
+Die Aufgabenverwaltung erreicht Regeln über **Mehr → Aufgabenregeln**. Ein definierter Trigger wird mit festen Feldbedingungen und genau einer angebotenen Aktion kombiniert. Es gibt keine Skripte, Ausdrücke oder frei ausführbaren Templates. Regeln können zunächst pausiert gespeichert und ihre Bedingungen ohne Seiteneffekte an einer Beispielaufgabe geprüft werden.
 
 Verfügbare Ereignisse: erstellt, zugewiesen, Status geändert, erledigt, Freigabe erteilt/zurückgegeben, Fälligkeit erreicht, bestimmte Aufgabe erledigt. Bedingungen: Tag, Priorität, Ersteller, Verantwortlichkeit, Gruppe, Herkunft, Status und konkrete Aufgabe. Aktionen: Folgeaufgabe, Zuweisung, Tag/Priorität, relative Fälligkeit, Mitwirkung oder Benachrichtigung.
 

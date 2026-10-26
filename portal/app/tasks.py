@@ -1,16 +1,18 @@
 """Permission-checked native task operations, shared by every view and source adapter."""
 import json
 import re
+import secrets
+import logging
 from datetime import datetime, time, timezone
 from pathlib import Path
 
 from fastapi import HTTPException
 from markdown_it import MarkdownIt
 from markupsafe import Markup
-from sqlalchemy import or_, select, text
+from sqlalchemy import func, or_, select, text
 
 from .db import LOCAL_TZ, Group, GroupMember, User, to_local, utcnow
-from .task_models import Task, TaskActivity, TaskCheck, TaskComment, TaskDependency, TaskParticipant
+from .task_models import Task, TaskActivity, TaskAttachment, TaskCheck, TaskComment, TaskDependency, TaskParticipant
 
 STATUSES = {'open': 'Offen', 'in_progress': 'In Bearbeitung', 'review': 'Wartet auf Freigabe', 'done': 'Erledigt', 'cancelled': 'Storniert'}
 PRIORITIES = {'low': 'Niedrig', 'normal': 'Normal', 'high': 'Hoch', 'urgent': 'Dringend'}
@@ -21,6 +23,8 @@ TRANSITIONS = {'open': {'in_progress', 'review', 'done', 'cancelled'},
 _MD = MarkdownIt('commonmark', {'html': False, 'linkify': False, 'maxNesting': 20})
 MAX_FILE = 20 * 1024 * 1024
 MAX_TOTAL = 100 * 1024 * 1024
+MAX_UPLOADS = 10
+MAX_INITIAL_CHECKS = 50
 
 
 class Invalid(ValueError):
@@ -378,3 +382,56 @@ def form_values(row):
                 due_time=due.strftime('%H:%M') if due and row.due_has_time else '',
                 starts_at=to_local(row.starts_at).strftime('%Y-%m-%dT%H:%M') if row.starts_at else '',
                 tags=row.tags, requires_review='1' if row.requires_review else '', version=str(row.version))
+
+
+
+def initial_checklist(value):
+    """A conventional one-item-per-line entry, preserving the user's order."""
+    value = str(value or '')
+    if len(value) > 26000:
+        raise Invalid('Die Checkliste ist zu lang. Bitte verwenden Sie höchstens 50 Punkte mit je 500 Zeichen.')
+    lines = [line.strip() for line in value.splitlines() if line.strip()]
+    if len(lines) > MAX_INITIAL_CHECKS or any(len(line) > 500 for line in lines):
+        raise Invalid('Die Checkliste darf höchstens 50 Punkte mit je 500 Zeichen enthalten.')
+    return lines
+
+
+def add_initial_checks(db, user, row, items):
+    for position, title in enumerate(items, start=1):
+        db.add(TaskCheck(task_id=row.id, title=title, position=position))
+    if items:
+        audit(db, row, user, 'check', f'Checkliste mit {len(items)} Punkten angelegt.')
+
+
+async def attach_files(db, user, row, uploads, paths, *, required=False):
+    """Stage file metadata and writes; the caller commits all changes or removes every staged file."""
+    uploads = [upload for upload in uploads if getattr(upload, 'filename', '')]
+    if not uploads and not required:
+        return
+    if not uploads or len(uploads) > MAX_UPLOADS:
+        raise Invalid('Wählen Sie eine bis zehn Dateien aus.')
+    # The versioned write serializes total-size checks against concurrent uploads.
+    audit(db, row, user, 'attachment', f'{len(uploads)} Dateien hinzugefügt.')
+    db.flush()
+    total = db.scalar(select(func.sum(TaskAttachment.size)).where(
+        TaskAttachment.task_id == row.id, TaskAttachment.removed_at.is_(None))) or 0
+    for upload in uploads:
+        content = await upload.read(MAX_FILE + 1)
+        if len(content) > MAX_FILE or total + len(content) > MAX_TOTAL:
+            raise Invalid('Maximal 20 MB je Datei und 100 MB je Aufgabe. Bitte wählen Sie die Dateien erneut aus.')
+        item = TaskAttachment(task_id=row.id, name=filename(upload.filename), storage_key=secrets.token_hex(32),
+                              size=len(content), mime=safe_mime(content), uploaded_by=user.id)
+        path = attachment_path(item)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        paths.append(path)
+        path.write_bytes(content)
+        db.add(item)
+        total += len(content)
+
+
+def discard_files(paths):
+    for path in paths:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            logging.getLogger('portal.tasks').exception('Eine nicht gespeicherte Aufgabendatei konnte nicht entfernt werden.')

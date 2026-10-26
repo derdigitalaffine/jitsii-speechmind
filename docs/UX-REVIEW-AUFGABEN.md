@@ -19,3 +19,10 @@ Automatisierte Tests prüfen Rechte, Status, Fehlererhalt, Darstellung und Tasta
 Die Bestätigung der Schnellerfassung bleibt im gemeinsamen Arbeitsplatz. Archiv und abgeschlossene Delegationen sind wieder auffindbar. Liste, Board, Wochen-/Monatskalender und Zeitachse verwenden dieselben Berechtigungen und Filter. Statusformulare und native Details bieten Tastaturalternativen zu Drag & Drop.
 
 Server-/Markup- und JavaScript-Prüfungen sind automatisiert. Die tatsächliche Browser-, Tastatur- und Screenreaderabnahme ist noch offen; die bereitstehende Chromium-Laufzeit konnte in der Arbeitsumgebung nicht gestartet werden. Dies ist keine abgeschlossene manuelle Barrierefreiheitsprüfung.
+
+
+## Formular und visuelle Angleichung
+
+Die Erfassung bietet einen sichtbaren Formulareinstieg und das unverändert verfügbare Schnellfeld. Im Formular stehen Beschreibung, Person und Frist sowie optionale Checkliste/Dateien vor dem ersten Speichern bereit. Beide Wege kehren zur bisherigen Übersicht zurück. Das Speichern der Aufgabe einschließlich Checkliste und Dateien ist transaktional; Fehlermeldungen erhalten Textwerte und weisen auf die erneute Dateiauswahl hin.
+
+Schaltflächen verwenden die gemeinsamen Bootstrap-/TAKT-Größen und die Hauptaktionsklasse `ds-primary`. Desktop-Schaltflächen werden nicht mehr pauschal auf Touch-Höhe vergrößert; auf kleinen bzw. mit Touch bedienten Geräten bleiben mindestens 44 Pixel hohe Ziele erhalten. Perspektiven verwenden Tabs; Ansichten und Kalendersteuerung verwenden zusammenhängende Schaltflächengruppen wie die Ressourcenübersicht. Zeilenaktionen im Aufgabenarbeitsplatz sind sekundär; die bestehende Dashboard-Darstellung bleibt unverändert. Farbcodierung, Fokus und dunkles Design verwenden vorhandene semantische Variablen.

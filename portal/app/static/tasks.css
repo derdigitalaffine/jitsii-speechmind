@@ -1,22 +1,33 @@
-.task-capture{border-inline-start:4px solid var(--bs-primary)}
+/* Layout only: buttons, typography and colors use the shared TAKT/Bootstrap components. */
+.task-capture{background:var(--bs-tertiary-bg)}
 #capture-text{flex-basis:20rem;width:auto;min-width:0}
-.task-capture .btn{min-height:44px}
 .task-board{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));gap:1rem;align-items:start}
-.task-board-card{background:var(--bs-body-bg);box-shadow:0 1px 3px #0001}
+.task-board-card{background:var(--bs-body-bg)}
+.task-board-card:focus-within{border-color:var(--bs-primary)!important}
 .task-calendar{display:grid;gap:1rem}
-.task-markdown{overflow-wrap:anywhere}.task-markdown img{max-width:100%}.task-markdown pre{white-space:pre-wrap}
-@media(prefers-reduced-motion:no-preference){.task-board-card{transition:box-shadow .15s,transform .15s}.task-board-card:focus-within{box-shadow:0 3px 10px #0002;transform:translateY(-2px)}}
-@media(max-width:575px){.task-capture .btn{width:100%}}
-
+.task-markdown{overflow-wrap:anywhere}
+.task-markdown img{max-width:100%}
+.task-markdown pre{white-space:pre-wrap}
 .task-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.4rem}
-.task-calendar-day{min-height:7rem;min-width:0;background:var(--bs-body-bg)}.task-calendar-today{outline:2px solid var(--bs-primary);outline-offset:-2px}
-.task-timeline-track{height:.6rem;background:var(--bs-tertiary-bg);border-radius:.3rem;overflow:hidden}.task-timeline-track span{display:block;height:100%;background:var(--bs-primary);border-radius:.3rem}
-@media(max-width:767px){.task-calendar-grid{grid-template-columns:1fr}.task-calendar-weekday,.task-calendar-empty{display:none}.task-calendar-day{min-height:0}}
-
-.task-page .btn,.task-page .form-control,.task-page .form-select{min-height:44px}
+.task-calendar-day{min-height:7rem;min-width:0;background:var(--bs-body-bg)}
+.task-calendar-today{outline:2px solid var(--bs-primary);outline-offset:-2px}
+.task-timeline-track{height:.6rem;background:var(--bs-tertiary-bg);border-radius:.3rem;overflow:hidden}
+.task-timeline-track span{display:block;height:100%;background:var(--bs-primary);border-radius:.3rem}
 .task-page :focus-visible{outline:3px solid var(--ds-focus);outline-offset:3px}
 .task-page .ds-detail-meta>div{min-width:0;overflow-wrap:anywhere}
-.task-page .ds-filter-chip{min-height:44px;align-items:center}
-.task-calendar-day a{min-height:44px}
-
-@media(max-width:575px){.task-page .ds-page-actions>form{flex:1 0 100%}.task-page .ds-page-actions>form>.btn{width:100%}}
+.task-page .ds-filter-chip{align-items:center}
+@media(max-width:767px){
+  .task-calendar-grid{grid-template-columns:1fr}
+  .task-calendar-weekday,.task-calendar-empty{display:none}
+  .task-calendar-day{min-height:0}
+}
+@media(max-width:575px){
+  .task-capture .btn{width:100%}
+  .task-view-switch{width:100%}
+  .task-view-switch>.btn{flex:1 1 0;padding-inline:.5rem}
+  .task-view-switch .fa-solid{display:none}
+}
+@media(pointer:coarse),(max-width:575px){
+  .task-page .btn,.task-page .form-control,.task-page .form-select,.task-page .nav-link{min-height:44px}
+  .task-page a.ds-filter-chip,.task-calendar-day a{min-height:44px}
+}

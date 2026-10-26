@@ -787,11 +787,20 @@ Fehlt etwas, klicken Sie im Vorgang auf **Nachfordern**:
 
 Die antragstellende Person bekommt eine Mail und sieht auf ihrer Statusseite oben einen gelben Kasten **Jetzt ergänzen**. Was sie nachreicht, steht im Vorgang unter **Nachforderungen** (mit Dateien); korrigierte Angaben sind markiert, der ursprüngliche Wert bleibt sichtbar. Sie bekommen eine Mail, sobald etwas eingeht. Ist die Frist abgelaufen, erinnert das Portal einmal; **Erinnern** und **Zurücknehmen** gehen auch von Hand.
 
+### Eigene Aufgaben erfassen
+
+Unter **Mein Arbeitsplatz → Meine Aufgaben** führen zwei sichtbare Wege zum selben Aufgabenmodell:
+
+- **Schnellfeld:** Einen kurzen Satz eingeben, erkannte Person/Frist in der Vorschau prüfen und **Aufgabe anlegen** wählen.
+- **Mit Formular anlegen:** Titel, Beschreibung, verantwortliche Person und Frist in einzelnen Feldern ausfüllen. Checkliste (ein Punkt pro Zeile) und mehrere Dateien lassen sich bereits vor dem ersten Speichern hinzufügen. Seltenere Angaben stehen unter **Weitere Angaben**.
+
+Nach dem Anlegen kehren Sie zur bisherigen Übersicht mit ihren Filtern und der gewählten Ansicht zurück. Bei Fehlern bleiben Textwerte erhalten; Dateien müssen erneut ausgewählt werden. Das Portal legt Aufgabe, Checkliste und Dateien gemeinsam an. Der Einstieg ist nur bei aktiviertem Modul und mit dem Recht **Aufgaben erstellen** bzw. **Aufgaben verwalten** sichtbar. [Ausführliche Anleitung](AUFGABEN.md).
+
 ### Arbeitsschritte und „Meine Aufgaben“
 
 Ist dem Antragsformular ein **Prozess** zugeordnet (Reiter „Antrag“ › Bearbeitungsprozess; Prozesse gestalten Kolleg:innen mit dem Recht „Prozesse“ unter **Prozesse**), läuft jeder Antrag durch festgelegte Schritte:
 
-- **Meine Aufgaben** führt aktuell bearbeitbare Prozess-, Umlauf- und Ressourcenaufgaben zusammen. Filter unterscheiden persönliche Aufgaben, Gruppenaufgaben, Vertretung und die Quelle. Unter **Für meine Gruppen** zuerst **Übernehmen** klicken, damit niemand doppelt arbeitet. **Wartet auf andere** ist eingeklappt und enthält spätere Stationen, gestoppte Umläufe und offene Rückfragen; diese erzeugen keinen persönlichen Überfälligkeitshinweis. Ressourcenaufgaben führen direkt zur passenden Buchung, etwa für Anfragen, Kautionsfreigabe, Übergabe, Abnahme oder überfällige Zahlung. Die vorhandenen Rechte und Vertretungsregeln gelten weiterhin.
+- **Meine Aufgaben** führt native Aufgaben sowie aktuell bearbeitbare Prozess-, Umlauf- und Ressourcenaufgaben zusammen. Filter unterscheiden persönliche Aufgaben, Gruppenaufgaben, Vertretung und die Quelle. Unter **Für meine Gruppen** zuerst **Übernehmen** klicken, damit niemand doppelt arbeitet. **Wartet auf andere** ist eingeklappt und enthält spätere Stationen, gestoppte Umläufe und offene Rückfragen; diese erzeugen keinen persönlichen Überfälligkeitshinweis. Ressourcenaufgaben führen direkt zur passenden Buchung, etwa für Anfragen, Kautionsfreigabe, Übergabe, Abnahme oder überfällige Zahlung. Die vorhandenen Rechte und Vertretungsregeln gelten weiterhin.
 - Im Vorgang zeigt oben die **Schrittleiste**, wo der Antrag steht (✓ erledigt, blau = aktuell, durchgestrichen = übersprungen).
 - **Aufgabe:** Prüfpunkte abhaken, interne Angaben (z. B. Gebühr) eintragen, optional Vermerk, **Erledigt**. Der Knopf wird erst aktiv, wenn alle Prüfpunkte abgehakt sind.
 - **Freigabe:** **Genehmigen** oder **Ablehnen/Zurückgeben** (mit Begründung). Beim Vier-Augen-Prinzip darf nicht freigeben, wer den Schritt davor erledigt hat.

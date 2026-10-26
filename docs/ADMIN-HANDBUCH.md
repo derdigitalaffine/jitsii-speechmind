@@ -46,6 +46,7 @@ Das Menü links ist nach Bereichen gegliedert. Jede Person sieht nur, wofür sie
 | Bereich | Menüpunkt | Wozu |
 |---|---|---|
 | – | **Übersicht** | Startseite: Aufgaben und Fristen, Antragseingang, Termine, Umfragen, Buchungen, Zum Ausfüllen, neue Antworten, Ablage, Schnellzugriff – je Person sortier- und ausblendbar |
+| Mein Arbeitsplatz | **Meine Aufgaben** | Gemeinsame Aufgabenübersicht; eigene Aufgaben über Schnellfeld oder **Mit Formular anlegen** erfassen, sofern das Modul und das Erstellrecht freigeschaltet sind. [Einrichtung und Rechte](AUFGABEN.md) |
 | Videokonferenzen | **Meetings** | Eigene Räume anlegen und betreten, anstehende Besprechungen |
 | | **Besprechung planen** | Termin anlegen und Teilnehmende per Kalendereinladung einladen |
 | Kurzlinks | **Kurzlinks** | Kurze Adressen mit Statistik, QR-Generator; für Admins die Einstellungen (Kurz-Domain) |
@@ -79,6 +80,8 @@ Jede Person bekommt einzeln die Bereiche freigeschaltet, die sie braucht:
 
 | Recht | Erlaubt |
 |---|---|
+| **Aufgaben erstellen** | Eigene Aufgaben mit Schnellfeld oder Formular anlegen und eindeutig zuweisen; Beschreibung, Frist, Checkliste und Dateien vor dem Speichern ergänzen |
+| **Aufgaben verwalten** | Alle nativen Aufgaben verwalten und begrenzte Aufgabenregeln einrichten. Bestehende Fachrechte bleiben davon getrennt |
 | **Videokonferenzen** | Meetings anlegen, Besprechungen planen, moderieren, aufnehmen, eigene Aufnahmen transkribieren |
 | **Kurzlinks** | Kurzlinks anlegen, auswerten, QR-Codes erzeugen |
 | **Formulare** | Formulare erstellen, verteilen, auswerten (geteilte Formulare und „Zum Ausfüllen“ sehen alle, auch ohne dieses Recht). Datenblöcke aus der Bibliothek einfügen kann jede:r mit diesem Recht |
