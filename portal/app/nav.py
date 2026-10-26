@@ -120,6 +120,9 @@ ITEMS: list[Item] = [
          lambda p: (p == "/meetings" or p.startswith("/meetings/")) and p != "/meetings/plan"),
     Item("meeting_plan", "comm", "/meetings/plan", "fa-calendar-plus", "Besprechung planen", lambda c: c.can("video"),
          _is("/meetings/plan")),
+    Item("surveys", "comm", "/umfragen", "fa-square-poll-vertical", "Umfragen & Abstimmungen",
+         lambda c: "polls" in c.modules and (c.can("votes") or c.can("polls") or bool(c.shared & {"polls", "votes"})),
+         _pre("/umfragen", "/votes", "/polls")),
     Item("polls", "comm", "/polls", "fa-calendar-check", "Terminumfragen",
          lambda c: "polls" in c.modules and (c.can("polls") or "polls" in c.shared), _pre("/polls")),
     Item("votes", "comm", "/votes", "fa-check-to-slot", "Abstimmungen",
@@ -174,7 +177,7 @@ ITEMS.append(Item("seminars", "schedule", "/seminare", "fa-chalkboard-user", "Se
 ITEMS.append(Item("circulation_reports", "work", "/umlaeufe/auswertung", "fa-chart-column", "Meine Umläufe & Rückmeldungen", lambda c: "circulations" in c.modules, _pre("/umlaeufe/auswertung")))
 BY_ID = {it.id: it for it in ITEMS}
 CONTEXTS = [("resources", "res_planner", "res_bookings"), ("meetings", "meeting_plan"), ("dms", "dms_persons", "dms_areas"), ("recht", "laws"), ("map", "maps"), ("krank_me", "krank_mine")]
-CONTEXT_ONLY = {i for group in CONTEXTS for i in group[1:]}
+CONTEXT_ONLY = {i for group in CONTEXTS for i in group[1:]} | {"polls", "votes"}
 ADMIN_SECTIONS = {
     "Menschen & Organisation": ["users", "orgs", "recordings"],
     "Finanzen": ["payments", "expense_rules", "pay_settings"],
@@ -229,6 +232,10 @@ def build(c: Ctx) -> dict:
         best = max(hits, key=lambda e: len(e["url"]))
         for e in hits:
             e["active"] = e is best
+    if "surveys" in entries and entries["surveys"]["active"]:
+        for key in ("polls", "votes"):
+            if key in entries:
+                entries[key]["active"] = False
     groups, hidden = [], 0
     for key, label in GROUPS.items():
         rows = [entries[it.id] for it in items if it.group == key]

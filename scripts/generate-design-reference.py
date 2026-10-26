@@ -8,6 +8,7 @@ for theme in ('light','dark'):
     parts.append(f'<section data-bs-theme="{theme}" class="p-4" style="background:var(--bs-body-bg);color:var(--bs-body-color)"><h2>{theme}</h2>')
     parts.append(str(mod.page_header('Dokumente finden','Referenz der produktiven Jinja-Komponenten','/example/new','Neues Dokument',caller=lambda:Markup(mod.action_menu(caller=lambda:Markup('<button class="btn btn-outline-secondary" type="button" disabled>Export (nicht verfügbar)</button>'))))))
     parts.append(str(mod.filter_bar(expanded=True,caller=lambda:Markup('<label for="q-'+theme+'">Suche</label><input class="form-control" id="q-'+theme+'" type="search"><button type="button" class="btn btn-outline-primary mt-2">Suchen</button>'))))
+    parts.append(str(mod.survey_nav([('build','/example/questions','Fragen','fa-pen-ruler'),('share','/example/participation','Teilnahme','fa-share-nodes'),('conduct','/example/conduct','Durchführung','fa-sliders'),('results','/example/results','Ergebnisse','fa-chart-column')], 'build')))
     parts.append(str(mod.active_filter('Ordner','Personal'))+str(mod.result_summary(3)))
     for tone,label in [('neutral','Entwurf'),('info','Wartet auf nächste Person'),('success','Abgeschlossen'),('warning','Ihre Bestätigung fehlt'),('error','Abgelehnt')]:parts.append(str(mod.status_chip(label,tone)))
     parts.append(str(mod.detail_meta([('Verantwortlich','Anna Muster'),('Stand','Heute')])))

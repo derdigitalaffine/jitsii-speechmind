@@ -33,6 +33,15 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - Jede Person bekommt eine eigene **Outlook-Besprechungsanfrage** mit ICS und persönlichem Einwahllink. Änderungen, Ausladungen und Absagen aktualisieren die Kalender; beim Löschen eines Meetings werden Absagen vorgeschlagen.
 - **Zu- und Absagen** per Kalender (IMAP-Auswertung inkl. Outlook/Exchange-Sonderformaten, mit Postfach-Diagnose) oder per Link in jedem Mailprogramm.
 
+### Einheitliche Umfragen & Abstimmungen
+
+- **Kommunikation → Umfragen & Abstimmungen**: gemeinsame Übersicht für Live-Umfragen, Abstimmungen und Terminfindung; Suche, Art, eigene/geteilte Einträge, Archiv und Papierkorb kombinierbar.
+- **Neu erstellen → Live-Umfrage vorbereiten** führt direkt zur ersten Frage. Kein Titel- oder Einstellungsformular im Dropdown; der Entwurf ist noch nicht für Antworten geöffnet.
+- Gemeinsame Bereiche **Fragen · Teilnahme · Durchführung · Ergebnisse · Einstellungen**. Live startet moderiert, lässt sich aber auf freien Ablauf umstellen. Moderation mit aktueller Frage, Live-Ergebnis und nächster Frage; Präsentation separat für den Beamer.
+- Abstimmungen können mit anonymen, sofort sichtbaren Ergebnissen beginnen. Wahlberechtigte, Geheimhaltung, Zugangscodes und weitere Wahlregeln bleiben verfügbar; der öffentliche Abstimmungslink erfordert weiterhin E-Mail-Bestätigung.
+- Formulare und Online-Anträge bleiben eigenständige Bereiche. Bestehende öffentliche Links und Daten bleiben erhalten.
+- Details: [Umfragenanleitung](docs/UMFRAGEN.md), [UX-Review](docs/UX-REVIEW-UMFRAGEN.md).
+
 ### Terminumfragen wie Doodle (abschaltbares Modul)
 
 - Terminvorschläge (ganztägig oder mit Uhrzeit) mit Generator „Tage × Uhrzeiten“.

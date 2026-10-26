@@ -271,7 +271,7 @@ Die Abstimmung ist danach beendet; alle Teilnehmenden sehen den festgelegten Ter
 
 ### Umfragen schließen, archivieren und löschen
 
-Terminumfragen, Abstimmungen/Wahlen und Live-Umfragen bieten **Aktiv**, **Archiv** und **Papierkorb** in ihren Übersichten. Nur Eigentümer:innen und Admins dürfen archivieren, löschen oder wiederherstellen. Ausschließlich ungenutzte Entwürfe kommen für **30 Tage** in den Papierkorb. Sobald eine Umfrage veröffentlicht, gestartet, eingeladen, beantwortet oder mit einem Seminar beziehungsweise einer Besprechung verknüpft ist, wird sie stattdessen geschlossen und archiviert. Auch frühere Nutzung bleibt berücksichtigt, wenn Antworten später entfernt werden.
+Die gemeinsame Übersicht **Umfragen & Abstimmungen** bietet **Aktuell**, **Archiv** und **Papierkorb** für Terminumfragen, Abstimmungen und Live-Umfragen. Suche und Filter lassen sich kombinieren. Nur Eigentümer:innen und Admins dürfen archivieren, löschen oder wiederherstellen. Ausschließlich ungenutzte Entwürfe kommen für **30 Tage** in den Papierkorb. Sobald eine Umfrage veröffentlicht, gestartet, eingeladen, beantwortet oder mit einem Seminar beziehungsweise einer Besprechung verknüpft ist, wird sie stattdessen geschlossen und archiviert. Auch frühere Nutzung bleibt berücksichtigt, wenn Antworten später entfernt werden.
 
 Archivierte Umfragen nehmen keine Antworten an; bisher berechtigte Personen können Ergebnisse weiterhin lesen und exportieren. **Aus Archiv holen** lässt die Umfrage geschlossen. Eine erneute Teilnahme erfordert eine eigene Öffnungsaktion und passende Fristen. Festgeschriebene Ergebnisse abgeschlossener Abstimmungen/Wahlen werden niemals wieder geöffnet; dafür eine Kopie anlegen. Wiederhergestellte Terminumfrageentwürfe bleiben geschlossen und erhalten keinen alten öffentlichen Link.
 
@@ -425,7 +425,8 @@ Menü **Abstimmungen** (Recht „Abstimmungen“) – im selben Bereich wie die 
 
 **Quiz und Rangfolge:** siehe [Anleitung](LIVE-QUIZ.md) für Mehrfachlösungen, Teilpunkte, Zeitlimit, freiwillige Rangliste und Priorisierung.
 
-**Live-Umfrage** (z. B. Bürgerversammlung, Workshop): **Neu › Live-Umfrage**, Titel und Ablauf wählen (moderiert = Frage für Frage, frei = alle auf einmal), Fragen hinzufügen (Auswahl, Ja/Nein, Skala, Sterne, Schieberegler, **Wortwolke** – Teilnehmende nennen bis zu z. B. drei Begriffe, häufige erscheinen größer; Begriffe lassen sich ausblenden und zusammenfassen, Export als PNG und CSV; **Pinnwand** für freie Antworten und **Fragen ans Podium** mit Freigabe und Hochstimmen), **Starten** und **Präsentieren**. Auf dem Beamer stehen Frage, Ergebnis und QR-Code; mit den Pfeiltasten gehen Sie weiter. Teilnehmende scannen den Code und antworten ohne Namen – je Handy eine Antwort, die sie ändern können. Ob sie das Ergebnis sehen, legen Sie je Frage fest (sofort, nach Freigabe, nie).
+**Live-Umfrage** (z. B. Bürgerversammlung, Workshop): **Kommunikation → Umfragen & Abstimmungen → Neu erstellen → Live-Umfrage vorbereiten**. Sie gelangen direkt zur ersten Frage; Titel und Ablauf lassen sich anschließend unter **Einstellungen** ändern. Standard ist moderiert, Frage für Frage; freier Ablauf bleibt wählbar. Unter **Teilnahme** stehen Link und QR-Code. Unter **Durchführung** öffnen Sie die Teilnahme, sehen aktuelle Frage und Antworten und gehen mit **Nächste Frage** weiter. **Präsentieren** öffnet separat für den Beamer. Wortwolken, Quiz, Q&A, Timer und Freigaben bleiben verfügbar. Unter **Ergebnisse** finden Sie die Auswertung und Exporte. [Ausführliche Anleitung](UMFRAGEN.md).
+
 
 ### Abstimmung anlegen
 

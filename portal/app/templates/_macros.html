@@ -48,10 +48,9 @@
 {%- endmacro %}
 
 {% macro page_head(title, lede='') -%}
-<div class="page-head">
-  <div><h1>{{ title }}</h1>{% if lede %}<p>{{ lede }}</p>{% endif %}</div>
-  <div class="d-flex gap-2 flex-wrap">{{ caller() if caller else '' }}</div>
-</div>
+{# Keep legacy callers on the same component, including their nested actions. #}
+{% set actions = caller() if caller else '' %}
+{% call page_header(title, lede) %}{{ actions }}{% endcall %}
 {%- endmacro %}
 
 {% macro stat(icon, value, label) -%}
@@ -200,3 +199,10 @@
 {%- endmacro %}
 {% macro empty_state(title, description='', action_url='', action_label='', icon='fa-folder-open') -%}<div class="ds-empty"><i class="fa-solid {{ icon }}" aria-hidden="true"></i><h2 class="h5">{{ title }}</h2>{% if description %}<p>{{ description }}</p>{% endif %}{% if action_url %}<a class="btn btn-outline-primary" href="{{ action_url }}">{{ action_label }}</a>{% endif %}</div>{%- endmacro %}
 {% macro detail_meta(items) -%}<dl class="ds-detail-meta">{% for label,value in items %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl>{%- endmacro %}
+
+{# Shared workflow navigation for polls, votes and live surveys. Anchors stay native links. #}
+{% macro survey_nav(items, active) -%}
+<nav class="nav nav-tabs ds-section-nav mb-4" aria-label="Umfragebereiche">
+{% for key,href,label,icon in items %}<a class="nav-link {{ 'active' if key == active }}" href="{{ href }}" {% if key == active %}aria-current="page"{% endif %}><i class="fa-solid {{ icon }} me-1" aria-hidden="true"></i>{{ label }}</a>{% endfor %}
+</nav>
+{%- endmacro %}

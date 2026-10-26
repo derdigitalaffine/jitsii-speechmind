@@ -7,8 +7,9 @@
 {% endmacro %}
 {% block content %}
 {% call m.page_head('Terminumfrage bearbeiten' if poll else 'Neue Terminumfrage', '') %}
-  <a class="btn btn-outline-secondary" href="{{ '/polls/' ~ poll.id if poll else '/polls' }}"><i class="fa-solid fa-arrow-left me-1"></i>Zurück</a>
+  <a class="btn btn-outline-secondary" href="{{ '/polls/' ~ poll.id if poll else '/umfragen' }}"><i class="fa-solid fa-arrow-left me-1"></i>Zurück</a>
 {% endcall %}
+{% if poll %}{{ m.survey_nav([('build','/polls/' ~ poll.id ~ '/edit','Fragen','fa-pen-ruler'),('share','/polls/' ~ poll.id ~ '?tab=share','Teilnahme','fa-share-nodes'),('conduct','/polls/' ~ poll.id ~ '?tab=conduct','Durchführung','fa-sliders'),('results','/polls/' ~ poll.id ~ '?tab=results','Ergebnisse','fa-chart-column'),('settings','/polls/' ~ poll.id ~ '?tab=settings','Einstellungen','fa-gear')], 'build') }}{% endif %}
 {% if poll and poll.participants %}<div class="alert alert-info small"><i class="fa-solid fa-circle-info me-1"></i>Es gibt schon Antworten. Unveränderte Vorschläge behalten ihre Stimmen; für neue Vorschläge stimmen bisherige Teilnehmende erst ab, wenn sie ihre Antwort bearbeiten.</div>{% endif %}
 <form method="post" class="row g-4" id="poll-form">
   <input type="hidden" name="csrf" value="{{ csrf }}">

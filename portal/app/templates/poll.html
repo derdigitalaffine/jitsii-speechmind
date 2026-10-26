@@ -3,10 +3,11 @@
 {% block title %}{{ poll.title }} · Terminumfragen{% endblock %}
 {% block content %}
 {% set live_lifecycle = false %}
-{% include "_poll_lifecycle_actions.html" %}
+
+<a class="ds-back-link" href="/umfragen"><i class="fa-solid fa-arrow-left me-1" aria-hidden="true"></i>Umfragen & Abstimmungen</a>
 {% call m.page_head(poll.title, poll.location) %}
   {% if level >= 3 %}<a class="btn btn-outline-secondary" href="/polls/{{ poll.id }}/edit"><i class="fa-solid fa-pen me-1"></i>Bearbeiten</a>{% endif %}
-  <div class="dropdown"><button class="btn btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Weitere Aktionen"><i class="fa-solid fa-ellipsis"></i></button>
+  <div class="dropdown"><button class="btn btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Weitere Aktionen"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i> Mehr</button>
     <ul class="dropdown-menu dropdown-menu-end">
       <li><a class="dropdown-item" href="/polls/{{ poll.id }}/export.csv"><i class="fa-solid fa-file-csv fa-fw me-2"></i>Export (CSV)</a></li>
       {% if user.can('polls') %}<li><form method="post" action="/polls/{{ poll.id }}/copy"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="dropdown-item"><i class="fa-regular fa-copy fa-fw me-2"></i>Kopie anlegen</button></form></li>{% endif %}
@@ -18,6 +19,16 @@
     </ul></div>
 {% endcall %}
 
+{% set base='/polls/' ~ poll.id %}
+{% set sections=[] %}
+{% if level >= 3 %}{% set sections=sections + [('build',base ~ '/edit','Fragen','fa-pen-ruler')] %}{% endif %}
+{% if level >= 2 %}{% set sections=sections + [('share',base ~ '?tab=share','Teilnahme','fa-share-nodes'),('conduct',base ~ '?tab=conduct','Durchführung','fa-sliders')] %}{% endif %}
+{% set sections=sections + [('results',base ~ '?tab=results','Ergebnisse','fa-chart-column')] %}
+{% if level >= 3 or (lifecycle_owner and poll.archived_at) %}{% set sections=sections + [('settings',base ~ '?tab=settings','Einstellungen','fa-gear')] %}{% endif %}
+{{ m.survey_nav(sections, tab) }}
+{% if tab == 'settings' %}<section class="card mb-4"><div class="card-body"><h2 class="h5">Einstellungen und Aufbewahrung</h2>{% if level >= 3 %}<a class="btn btn-outline-secondary mb-3" href="{{ base }}/edit">Einstellungen bearbeiten</a>{% endif %}{% include '_poll_lifecycle_actions.html' %}</div></section>{% endif %}
+{% if tab == 'conduct' %}<section class="ds-next-step"><h2 class="h5">Teilnahme steuern</h2><p class="text-secondary">Öffnen Sie die Teilnahme, sammeln Sie Antworten und legen Sie anschließend unter „Ergebnisse“ den gemeinsamen Termin fest.</p>{% if level >= 3 %}<form method="post" action="{{ base }}/state"><input type="hidden" name="csrf" value="{{ csrf }}">{% if poll.closed and lifecycle_owner %}<button class="btn btn-primary" name="action" value="reopen">{{ 'Veröffentlichen und öffnen' if not poll.published_at else 'Teilnahme wieder öffnen' }}</button>{% elif not poll.closed %}<button class="btn btn-outline-secondary" name="action" value="close">Teilnahme beenden</button>{% endif %}</form>{% endif %}</section>{% endif %}
+
 <div class="d-flex flex-wrap gap-2 mb-3 small align-items-center">
   {% if level < 4 and not lifecycle_owner %}<span class="badge text-bg-info"><i class="fa-solid fa-share-nodes me-1"></i>geteilt von {{ poll.owner.name if poll.owner else '–' }} · {{ share_levels[level][0] }}</span>{% endif %}
   {% if not poll.published_at %}<span class="badge text-bg-secondary">Entwurf</span>{% elif poll.final_option %}<span class="badge text-bg-success">Termin festgelegt</span>{% elif is_open %}<span class="badge text-bg-primary">Abstimmung läuft</span>{% else %}<span class="badge text-bg-secondary">Abstimmung beendet</span>{% endif %}
@@ -28,6 +39,7 @@
 </div>
 {% if poll.description %}<p class="text-secondary">{{ poll.description | richtext }}</p>{% endif %}
 
+{% if tab == 'results' %}
 {% if poll.final_option %}
 <div class="alert alert-success d-flex flex-wrap align-items-center gap-3">
   {{ m.date_tile(parts(poll.final_option), True) }}
@@ -74,6 +86,8 @@
   {% if comments %}<div class="mt-3"><div class="small fw-semibold mb-1">Kommentare</div>{% for p in comments %}<div class="small border-start border-3 ps-2 mb-1"><strong>{{ p.name }}:</strong> {{ p.comment }}</div>{% endfor %}</div>{% endif %}
 </div></div>
 
+{% endif %}
+{% if tab == 'share' %}
 <div class="row g-4">
   {% if level >= 2 %}
   <div class="col-12 col-xxl-6" id="teilen"><div class="card h-100"><div class="card-header"><i class="fa-solid fa-share-nodes me-2"></i>Link zur Abstimmung</div><div class="card-body">
@@ -114,12 +128,12 @@
     {% if waiting and level >= 2 %}<form method="post" action="/polls/{{ poll.id }}/remind"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-primary" data-confirm-title="Erinnerung senden?" data-confirm="Alle Eingeladenen ohne Antwort bekommen eine Erinnerung." data-confirm-button="Senden"><i class="fa-regular fa-bell me-1"></i>Offene erinnern</button></form>{% endif %}
   </div><div class="card-body">
   {% if poll.participants %}
-  <table class="table table-hover align-middle js-table w-100" data-order='[[0,"asc"]]'>
+  <table class="table table-hover align-middle ds-mobile-table w-100" data-order='[[0,"asc"]]'>
     <thead><tr><th>Name</th><th>E-Mail</th><th>Status</th><th class="no-sort col-actions"></th></tr></thead>
     <tbody>{% for p in poll.participants %}
-      <tr><td>{{ p.name }}</td><td class="small">{{ p.email }}</td>
-        <td>{% if p.answered_at %}<span class="badge text-bg-success">geantwortet {{ p.answered_at | local('%d.%m. %H:%M') }}</span>{% else %}<span class="badge text-bg-warning">offen</span>{% if p.reminded_at %} <span class="small text-secondary">erinnert {{ p.reminded_at | local('%d.%m.') }}</span>{% endif %}{% endif %}</td>
-        <td class="col-actions"><div class="d-inline-flex gap-1">
+      <tr><td data-label="Name">{{ p.name }}</td><td data-label="E-Mail" class="small">{{ p.email }}</td>
+        <td data-label="Status">{% if p.answered_at %}<span class="badge text-bg-success">geantwortet {{ p.answered_at | local('%d.%m. %H:%M') }}</span>{% else %}<span class="badge text-bg-warning">offen</span>{% if p.reminded_at %} <span class="small text-secondary">erinnert {{ p.reminded_at | local('%d.%m.') }}</span>{% endif %}{% endif %}</td>
+        <td class="col-actions" data-label="Aktionen"><div class="d-inline-flex gap-1">
           {% if level >= 2 %}<button class="btn btn-sm btn-outline-secondary" type="button" data-copy-text="{{ personal_link(p) }}" title="Persönlichen Link kopieren" aria-label="Link kopieren"><i class="fa-regular fa-copy"></i></button>{% endif %}
           {% if level >= 3 %}<form method="post" action="/polls/{{ poll.id }}/participants/{{ p.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-sm btn-outline-danger" data-confirm-title="{{ p.name }} entfernen?" data-confirm="Die Antworten dieser Person werden gelöscht." title="Entfernen" aria-label="Entfernen"><i class="fa-regular fa-trash-can"></i></button></form>{% endif %}
         </div></td></tr>
@@ -132,6 +146,7 @@
   {% endif %}
 </div>
 
+{% endif %}
 <div class="modal fade" id="final-modal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content">
   <form method="post" action="/polls/{{ poll.id }}/final">
     <input type="hidden" name="csrf" value="{{ csrf }}">

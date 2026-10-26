@@ -41,19 +41,41 @@ async def live_create(request: Request, user: User = Depends(vote_user), db: Ses
     db.add(poll)
     db.commit()
     flash(request, "Live-Umfrage angelegt – jetzt Fragen hinzufügen.")
-    return redirect(f"/votes/live/{poll.id}")
+    return redirect(f"/votes/live/{poll.id}?tab=build#neu" if data.get("workspace") == "1" else f"/votes/live/{poll.id}")
 
 
 @app.get("/votes/live/{poll_id:int}")
 def live_edit(request: Request, poll_id: int, user: User = Depends(vote_user), db: Session = Depends(get_db)):
     poll = _poll(db, poll_id, user)
-    return render(request, "live_archive.html" if poll.archived_at else "live_edit.html", user, poll=poll, lifecycle_owner=True, removable=lifecycle.removable(db,"live_poll",poll), kinds=lv.KINDS, charts=lv.CHARTS, pacing=lv.PACING,
+    tab = request.query_params.get('tab', 'moderate' if poll.status == 'open' else 'build')
+    tab = tab if tab in ('build', 'share', 'moderate', 'results', 'settings') else 'build'
+    if poll.archived_at:
+        tab = 'results'
+    return _edit_page(request, db, user, poll, tab)
+
+
+def _edit_page(request, db, user, poll, tab, draft=None, error='', status=200):
+    selected_kind = str((draft or {}).get('kind', request.query_params.get('kind', 'single')))
+    selected_kind = selected_kind if selected_kind in lv.KINDS else 'single'
+    response = render(request, "live_edit.html", user, poll=poll, tab=tab, selected_kind=selected_kind,
+                  draft_question=draft or {}, question_error=error,
+                  lifecycle_owner=True, removable=lifecycle.removable(db,"live_poll",poll),
+                  kinds=lv.KINDS, charts=lv.CHARTS, pacing=lv.PACING,
                   show_results=lv.SHOW_RESULTS, statuses=lv.STATUSES, opts=lv.opts, settings_of=lv.settings,
                   join=join_url(poll), counts={q.id: lv.tally(db, q)["total"] for q in poll.questions},
                   results={q.id: lv.tally(db,q) for q in poll.questions},
+                  staff_state=lv.state(db,poll,staff=True),
                   words={q.id: lv.raw_words(db, q) for q in poll.questions if q.kind == "words"},
                   entries={q.id: lv.entry_payload(db, q, None, True)["entries"] for q in poll.questions
                            if q.kind in lv.ENTRY_KINDS})
+    response.status_code=status
+    return response
+
+
+def _return(poll, data, default='build', anchor=''):
+    tab = data.get('return_tab', default)
+    tab = tab if tab in ('build', 'share', 'moderate', 'results', 'settings') else default
+    return redirect(f'/votes/live/{poll.id}?tab={tab}' + ('#' + anchor if anchor else ''))
 
 
 @app.post("/votes/live/{poll_id:int}/settings", dependencies=[Depends(check_csrf)])
@@ -66,7 +88,7 @@ async def live_settings(request: Request, poll_id: int, user: User = Depends(vot
     poll.pacing = data.get("pacing") if data.get("pacing") in lv.PACING else poll.pacing
     db.commit()
     flash(request, "Gespeichert.")
-    return redirect(f"/votes/live/{poll.id}")
+    return _return(poll, data, "settings")
 
 
 @app.post("/votes/live/{poll_id:int}/fragen", dependencies=[Depends(check_csrf)])
@@ -88,12 +110,11 @@ async def live_question_save(request: Request, poll_id: int, user: User = Depend
         raise HTTPException(409, "Eine aufgelöste Quizfrage kann erst nach bewusstem Zurücksetzen verändert werden.")
     if q.id and lv.tally(db, q)["total"]:
         flash(request, "Fragen mit Antworten können nicht verändert werden. Erst Antworten zurücksetzen oder eine neue Frage anlegen.", "error")
-        return redirect(f"/votes/live/{poll.id}#frage-{q.id}")
+        return _return(poll, data, anchor=f"frage-{q.id}")
     error = lv.apply_question(q, data)
     if error:
         db.rollback()
-        flash(request, error, "error")
-        return redirect(f"/votes/live/{poll.id}#neu")
+        return _edit_page(request, db, user, poll, "build", draft=dict(data), error=error, status=422)
     if q.id is None:
         poll.questions.append(q)
     if poll.status == "open" and (poll.pacing == "free" or poll.current_id == q.id):
@@ -105,7 +126,7 @@ async def live_question_save(request: Request, poll_id: int, user: User = Depend
             lv.start_timer(q)
         db.commit()
     flash(request, "Frage gespeichert.")
-    return redirect(f"/votes/live/{poll.id}#frage-{q.id}")
+    return _return(poll, data, "build", f"frage-{q.id}")
 
 
 def _question(poll: LivePoll, qid: int) -> LiveQuestion:
@@ -132,7 +153,7 @@ async def live_words(request: Request, poll_id: int, qid: int, user: User = Depe
         db.commit()
     if request.headers.get("accept", "").startswith("application/json"):
         return JSONResponse({"ok": not error, "error": error, "words": lv.raw_words(db, q)})
-    return redirect(f"/votes/live/{poll.id}#frage-{q.id}")
+    return _return(poll, data, "moderate", f"frage-{q.id}")
 
 
 @app.post("/votes/live/{poll_id:int}/fragen/{qid:int}/{action}", dependencies=[Depends(check_csrf)])
@@ -191,7 +212,7 @@ async def live_question_action(request: Request, poll_id: int, qid: int, action:
     db.commit()
     if request.headers.get("accept", "").startswith("application/json"):
         return JSONResponse(lv.state(db, poll, staff=True))
-    return redirect(f"/votes/live/{poll.id}#frage-{q.id}" if action != "delete" else f"/votes/live/{poll.id}")
+    return _return(poll, data, "moderate", f"frage-{q.id}" if action != "delete" else "")
 
 
 @app.get("/votes/live/{poll_id:int}/fragen/{qid:int}/export.csv")
@@ -217,11 +238,12 @@ def live_cloud_png(poll_id: int, qid: int, dunkel: str = "", user: User = Depend
 async def live_status(request: Request, poll_id: int, user: User = Depends(vote_user), db: Session = Depends(get_db)):
     poll = _poll(db, poll_id, user)
     lifecycle.mutable(poll)
-    action = (await request.form()).get("action")
+    data = await request.form()
+    action = data.get("action")
     if action == "open":
         if not poll.questions:
             flash(request, "Bitte zuerst mindestens eine Frage anlegen.", "error")
-            return redirect(f"/votes/live/{poll.id}")
+            return _return(poll, {}, "build", "neu")
         poll.status = "open"
         poll.opened_at = poll.opened_at or utcnow()
         if poll.current_id is None:
@@ -234,7 +256,7 @@ async def live_status(request: Request, poll_id: int, user: User = Depends(vote_
     db.commit()
     flash(request, {"open": "Die Umfrage läuft – Teilnehmende können jetzt per QR-Code antworten.",
                     "close": "Die Umfrage ist beendet."}.get(action, "Gespeichert."))
-    return redirect(f"/votes/live/{poll.id}")
+    return _return(poll, data, "moderate" if action == "open" else "results")
 
 
 @app.post("/votes/live/{poll_id:int}/schritt", dependencies=[Depends(check_csrf)])
@@ -245,7 +267,9 @@ async def live_step(request: Request, poll_id: int, user: User = Depends(vote_us
     data = await request.form()
     lv.step(poll, 1 if data.get("dir") == "next" else -1)
     db.commit()
-    return JSONResponse(lv.state(db, poll, staff=True))
+    if data.get("return_tab") != "moderate" or request.headers.get("accept", "").startswith("application/json"):
+        return JSONResponse(lv.state(db, poll, staff=True))
+    return _return(poll, data, "moderate")
 
 
 @app.get("/votes/live/{poll_id:int}/state.json")
@@ -389,7 +413,7 @@ def live_entry_action(request: Request, poll_id: int, aid: int, action: str, use
     db.commit()
     if request.headers.get("accept", "").startswith("application/json"):
         return JSONResponse(lv.state(db, poll, staff=True))
-    return redirect(f"/votes/live/{poll.id}#frage-{a.question_id}")
+    return _return(poll, {}, "moderate", f"frage-{a.question_id}")
 
 
 @app.post("/votes/live/{poll_id:int}/unarchive", dependencies=[Depends(check_csrf)])

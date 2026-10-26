@@ -2761,6 +2761,7 @@ from . import routes_dms  # noqa: E402,F401
 from . import routes_polls  # noqa: E402,F401
 from . import routes_bookings  # noqa: E402,F401
 from . import routes_btypes  # noqa: E402,F401
+from . import routes_surveys  # noqa: E402,F401
 from . import routes_live  # noqa: E402,F401
 from . import routes_public  # noqa: E402,F401
 from . import routes_absences  # noqa: E402,F401

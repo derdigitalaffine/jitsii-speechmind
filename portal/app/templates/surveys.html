@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Umfragen & Abstimmungen{% endblock %}
+{% block content %}
+<div class="survey-workspace">
+{% call m.page_header('Umfragen & Abstimmungen', 'Feedback sammeln, gemeinsam abstimmen oder einen Termin finden. Alle Umfragen an einem Ort.', '/umfragen/neu' if create_kinds else '', 'Neu erstellen') %}
+{% endcall %}
+<nav class="nav nav-tabs ds-section-nav mb-4" aria-label="Umfragestatus">
+{% for key,label,icon in [('active','Aktuell','fa-layer-group'),('archive','Archiv','fa-box-archive'),('trash','Papierkorb','fa-trash-can')] %}
+<a class="nav-link {{ 'active' if state == key }}" href="{{ survey_url(state=key) }}" {% if state == key %}aria-current="page"{% endif %}><i class="fa-solid {{ icon }} me-1" aria-hidden="true"></i>{{ label }}</a>
+{% endfor %}
+</nav>
+<form method="get" action="/umfragen" class="ds-search-panel mb-4" role="search" aria-label="Umfragen suchen und filtern">
+  <input type="hidden" name="state" value="{{ state }}">
+  <div class="row g-3 align-items-end">
+    <div class="col-12 col-lg"><label class="form-label" for="survey-search">Suchen</label><input class="form-control" id="survey-search" name="q" type="search" value="{{ q }}" maxlength="200" placeholder="Titel, Beschreibung oder Person"></div>
+    <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="survey-kind">Art</label><select class="form-select" id="survey-kind" name="kind"><option value="">Alle Arten</option>{% for key,info in kinds.items() %}<option value="{{ key }}" {{ 'selected' if kind == key }}>{{ info[0] }}</option>{% endfor %}</select></div>
+    <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="survey-scope">Anzeigen</label><select class="form-select" id="survey-scope" name="scope">{% for key,label in [('all','Meine & mit mir geteilt'),('own','Von mir erstellt'),('shared','Mit mir geteilt')] %}<option value="{{ key }}" {{ 'selected' if scope == key }}>{{ label }}</option>{% endfor %}{% if user.is_admin %}<option value="portal" {{ 'selected' if scope == 'portal' }}>Alle im Portal</option>{% endif %}</select></div>
+    <div class="col-12 col-lg-auto"><button class="btn btn-outline-primary w-100" type="submit"><i class="fa-solid fa-magnifying-glass me-1" aria-hidden="true"></i>Anzeigen</button></div>
+  </div>
+</form>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  {{ m.result_summary(trash | length if state == 'trash' else rows | length, 'Umfragen') }}
+  {% if q or kind or scope != 'all' %}<a href="{{ survey_url(q='',kind='',scope='all') }}" class="small">Filter zurücksetzen</a>{% endif %}
+</div>
+{% if state == 'archive' %}<p class="text-secondary small">Archivierte Umfragen nehmen keine Antworten an. Ergebnisse und Freigaben bleiben erhalten.</p>{% elif state == 'trash' %}<p class="text-secondary small">Ungenutzte Entwürfe sind 30 Tage wiederherstellbar. Veröffentlichte oder verwendete Umfragen finden Sie im Archiv.</p>{% endif %}
+{% if state == 'trash' %}
+<div class="list-group">{% for item in trash %}<div class="list-group-item d-flex flex-wrap align-items-center justify-content-between gap-3"><div><strong>{{ item.title }}</strong><div class="small text-secondary">{{ kinds[item.kind][0] }} · Wiederherstellbar bis {{ item.expires | local }}</div></div><form method="post" action="{{ item.restore }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-secondary" type="submit"><i class="fa-solid fa-rotate-left me-1" aria-hidden="true"></i>Wiederherstellen</button></form></div>{% else %}{{ m.empty_state('Keine Entwürfe im Papierkorb', 'Hier erscheinen entfernte, ungenutzte Entwürfe.') }}{% endfor %}</div>
+{% elif rows %}
+<div class="row g-3" aria-label="Umfragen">
+{% for row in rows %}
+<div class="col-12 col-md-6 col-xxl-4"><article class="card h-100 ds-survey-card">
+  <div class="card-body d-flex flex-column gap-3">
+    <div class="d-flex align-items-start justify-content-between gap-2"><span class="ds-eyebrow"><i class="fa-solid {{ kinds[row.kind][1] }} me-1" aria-hidden="true"></i>{{ kinds[row.kind][0] }}</span>{{ m.status_chip(row.status, row.tone) }}</div>
+    <div><h2 class="h5 mb-2"><a href="{{ row.href }}" class="ds-card-title">{{ row.title }}</a></h2>{% if row.description %}<p class="text-secondary small mb-0 ds-clamp">{{ row.description }}</p>{% endif %}</div>
+    <div class="small text-secondary">{{ row.question_count }} {{ row.question_unit }} · {{ row.count }} {{ row.unit }}<br>{{ 'Geteilt von ' if row.shared else 'Erstellt von ' }}{{ row.owner }} · {{ row.updated | local('%d.%m.%Y') }}</div>
+    <div class="mt-auto d-flex flex-wrap gap-2 ds-card-actions">
+      <a class="btn btn-sm btn-outline-secondary" href="{{ row.results }}"><i class="fa-solid fa-chart-column me-1" aria-hidden="true"></i>Antworten</a>
+      {% if row.edit %}<a class="btn btn-sm btn-outline-secondary" href="{{ row.edit }}"><i class="fa-solid fa-pen me-1" aria-hidden="true"></i>Bearbeiten</a>{% endif %}
+      {% if row.share %}<a class="btn btn-sm btn-outline-secondary" href="{{ row.share }}"><i class="fa-solid fa-share-nodes me-1" aria-hidden="true"></i>Teilen</a>{% endif %}
+      {% if row.present %}<a class="btn btn-sm btn-outline-secondary" href="{{ row.present }}" target="_blank" rel="noopener"><i class="fa-solid fa-display me-1" aria-hidden="true"></i>Präsentieren<span class="visually-hidden"> (neuer Tab)</span></a>{% endif %}
+    </div>
+  </div>
+</article></div>
+{% endfor %}
+</div>
+{% else %}{{ m.empty_state('Keine Umfragen in dieser Ansicht', 'Ändern Sie die Filter oder legen Sie eine neue Umfrage an.' if create_kinds else 'Hier erscheinen Umfragen, die im Portal mit Ihnen geteilt wurden.', '/umfragen' if q or kind or scope != 'all' else '', 'Filter zurücksetzen', 'fa-clipboard-list') }}{% endif %}
+</div>
+{% endblock %}
