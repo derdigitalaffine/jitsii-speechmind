@@ -107,4 +107,4 @@ Regeln behalten Ersteller und Version. Ausführung prüft dessen aktuelle Rechte
 
 Automatisierte Tests decken Rechte/CSRF/Modulabschaltung, Status und Review, parallele Versionen, Parser, sichere Darstellung, Dateien, DMS-Rechtewechsel, Ansichten, Serien/DST/Retry, externe Links, SpeechMind-Übernahme sowie Regeln ab. JavaScript wird zusätzlich auf Syntax geprüft.
 
-Eine reale Browserprüfung auf Mobil-/Desktopbreiten und mit Tastatur/Screenreader bleibt zur Abnahme offen: Die verfügbare Chromium-Laufzeit ließ sich in der Arbeitsumgebung nicht starten. Die automatischen Server- und Markupprüfungen ersetzen diese Prüfung nicht.
+Der zusätzliche CI-Job **tasks-browser** prüft die tatsächliche Oberfläche in Chromium: Formular mit Checkliste und Dateien, Rückkehr zur Übersicht, Dateidownload, Tastaturbedienung, Boardstatus, Kalender und Schnellfeld. Desktop- und Mobilansichten sowie helles/dunkles Design werden mit Screenshots dokumentiert; der Job legt diese zusammen mit dem Serverlog als Artefakt **tasks-browser** ab. Eine manuelle Prüfung mit einem Screenreader wird dadurch nicht ersetzt.

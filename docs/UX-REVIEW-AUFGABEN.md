@@ -12,13 +12,13 @@
 - **Komponenten:** page_header, filter_bar, status_chip, detail_meta und empty_state aus dem TAKT-Designsystem; vorhandene Mailqueue und CSRF-Prüfung.
 - **Sicherheitsgrenzen:** Eine hauptverantwortliche Person; Beteiligte sehen nur explizite Aufgaben; Quellenrechte bleiben eigenständig. Änderungen und Review prüfen serverseitig Rolle und Version.
 
-Automatisierte Tests prüfen Rechte, Status, Fehlererhalt, Darstellung und Tastatur-Markup. Eine manuelle Prüfung mit realen Screenreadern ist gesondert zu benennen.
+Automatisierte Tests prüfen Rechte, Status, Fehlererhalt, Darstellung und Tastatur-Markup. Zusätzlich prüft der CI-Job `tasks-browser` echte Bedienabläufe in Chromium auf Desktop- und Mobilbreiten sowie im hellen und dunklen Design. Eine manuelle Prüfung mit realen Screenreadern bleibt eine eigene Abnahme.
 
 ## Ergebnis der Umsetzung
 
 Die Bestätigung der Schnellerfassung bleibt im gemeinsamen Arbeitsplatz. Archiv und abgeschlossene Delegationen sind wieder auffindbar. Liste, Board, Wochen-/Monatskalender und Zeitachse verwenden dieselben Berechtigungen und Filter. Statusformulare und native Details bieten Tastaturalternativen zu Drag & Drop.
 
-Server-/Markup- und JavaScript-Prüfungen sind automatisiert. Die tatsächliche Browser-, Tastatur- und Screenreaderabnahme ist noch offen; die bereitstehende Chromium-Laufzeit konnte in der Arbeitsumgebung nicht gestartet werden. Dies ist keine abgeschlossene manuelle Barrierefreiheitsprüfung.
+Server-/Markup-, JavaScript- und Chromium-Prüfungen sind automatisiert. Der Browserjob umfasst die Anlage samt Dateien/Checkliste, Rücksprung, Download, Tastatur, Board/Kalender und Schnellfeld. Screenshots dokumentieren mobile und Desktopbreiten sowie die Farbmodi. Eine vollständige manuelle Barrierefreiheits- oder Screenreaderprüfung wird damit nicht behauptet.
 
 
 ## Formular und visuelle Angleichung

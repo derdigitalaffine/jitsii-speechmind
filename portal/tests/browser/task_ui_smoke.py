@@ -46,7 +46,8 @@ def exercise(page):
     page.keyboard.press('Tab')
     expect(page.locator('#task-person')).to_be_focused()
     page.locator('#task-description').fill('Beschreibung und Unterlagen vor dem ersten Speichern prüfen.')
-    page.locator('#task-date').fill((datetime.now(ZoneInfo('Europe/Berlin')).date()+timedelta(days=3)).isoformat())
+    page.locator('#task-date-display').fill((datetime.now(ZoneInfo('Europe/Berlin')).date()+timedelta(days=3)).strftime('%d.%m.%Y'))
+    page.locator('#task-date-display').press('Tab')
     page.locator('#task-checklist').fill('Unterlagen sammeln\nZahlen prüfen')
     page.locator('#task-initial-files').set_input_files([
         {'name':'Unterlagen.txt','mimeType':'text/plain','buffer':b'Unterlagen fuer den Browser-Test'},
