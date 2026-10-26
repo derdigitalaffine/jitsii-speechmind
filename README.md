@@ -93,6 +93,14 @@ Herausgegeben von der Verbandsgemeinde Otterbach-Otterberg und als **freie Softw
 - Durchsuchbare Auswahl statt Mehrfach-Dropdowns, Inhaltskarten und zugängliche Reihenfolge; verbesserter Markdowneditor mit Werkzeugleiste und Vorschau.
 - Unabhängige Übernahmen, fassungsgebundene Nachweise und bestehende Quellrechte; Portalbenutzer, Gruppen und Gäste per persönlichem E-Mail-Link. [Anleitung](docs/UMLAEUFE-UND-SAMMELMAPPEN.md).
 
+### Aufgaben & Zusammenarbeit (abschaltbares Modul)
+
+- Gemeinsamer Arbeitsplatz **Meine Aufgaben** für eigene Aufgaben und Fachaufgaben aus Anträgen, Umläufen und Ressourcen.
+- **Schnellfeld mit deutscher Kurzsyntax oder vollständiges Formular**; Beschreibung, Verantwortlichkeit, Frist, Checkliste und Dateien können vor dem Anlegen festgelegt werden. Anschließend geht es zur bisherigen Übersicht zurück.
+- Delegation, Mitwirkende, Kommentare, sichere Anhänge, optionale Abschlussfreigabe und nachvollziehbarer Verlauf.
+- Liste, Board, Wochen-/Monatskalender und einfache Zeitachse mit gemeinsamen Filtern; Wiederholungen, Erinnerungen, Abhängigkeiten und begrenzte Aufgabenregeln.
+- Persönliche externe Aufgabenlinks sowie kontrollierte Übernahme aus Aufzeichnungen und DMS-Verknüpfung. [Bedienung, Rechte und Einrichtung](docs/AUFGABEN.md).
+
 ### Dienstreisen und Reisekostensätze
 
 - Interne Dienstreisevorlage auf Basis allgemeiner Formulare und Prozesse, Reisekostenabrechnung mit Personalabteilungs-PDF und optionalen CSV-/JSON-Exporten.

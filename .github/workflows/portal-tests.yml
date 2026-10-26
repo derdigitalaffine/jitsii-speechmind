@@ -29,3 +29,34 @@ jobs:
         run: python -m pip install -r requirements.txt pytest
       - name: Run portal tests
         run: python -m pytest -q tests
+
+  tasks-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: portal
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: portal/requirements.txt
+      - name: Install browser test dependencies
+        run: python -m pip install -r requirements.txt playwright==1.62.0
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Check file-picker feedback
+        run: node tests/test_task_create_client.js
+      - name: Exercise task UI in Chromium
+        run: python tests/browser/task_ui_smoke.py
+      - name: Save browser screenshots and server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tasks-browser
+          path: portal/browser-artifacts/
+          retention-days: 7

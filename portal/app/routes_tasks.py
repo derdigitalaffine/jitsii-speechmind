@@ -1,5 +1,4 @@
 """Native task UI; the common workplace stays at /tasks."""
-import secrets
 from urllib.parse import urlencode
 
 from fastapi import Depends, HTTPException, Request
@@ -64,22 +63,40 @@ async def capture_preview(request: Request, user: User = Depends(current_user), 
 @app.post('/aufgaben/neu', dependencies=[Depends(check_csrf)])
 async def create_task(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
     module_on()
-    data = dict(await request.form())
+    if not ts.may_create(user):
+        raise HTTPException(403)
+    form = await request.form()
+    # Upload objects stay out of the values re-rendered after a validation error.
+    data = {key: value for key, value in form.items() if not hasattr(value, 'filename')}
     back = back_path(data.get('back'))
+    paths = []
     try:
+        checks = ts.initial_checklist(data.get('checklist', ''))
         row = ts.create(db, user, data)
+        ts.add_initial_checks(db, user, row, checks)
+        await ts.attach_files(db, user, row, form.getlist('files'), paths)
         db.commit()
-    except ts.Invalid as exc:
+    except (ts.Invalid, StaleDataError, OSError) as exc:
         db.rollback()
+        ts.discard_files(paths)
+        error = str(exc) if isinstance(exc, ts.Invalid) else (
+            'Die Dateien konnten nicht gespeichert werden. Die Aufgabe wurde noch nicht angelegt.' if isinstance(exc, OSError)
+            else 'Die Aufgabe konnte noch nicht angelegt werden. Bitte prüfen Sie Ihre Eingabe.')
+        if any(getattr(upload, 'filename', '') for upload in form.getlist('files')) and 'erneut' not in error:
+            error += ' Bitte wählen Sie die Dateien erneut aus.'
         if data.get('inline_capture') == '1':
-            request.state.task_capture = dict(data=data, notices=[], original=data.get('original', ''), error=str(exc))
+            request.state.task_capture = dict(data=data, notices=[], original=data.get('original', ''), error=error)
             from .routes_workflow import tasks_page
             return tasks_page(request, user, db)
-        return editor(request, db, user, data, str(exc), back=back, original=data.get('original', ''))
+        return editor(request, db, user, data, error, back=back, original=data.get('original', ''))
+    except Exception:
+        db.rollback()
+        ts.discard_files(paths)
+        raise
     from .main import _badge_cache
     _badge_cache.clear()
-    flash(request, 'Aufgabe angelegt. Los geht’s!')
-    return redirect(f'/aufgaben/{row.id}?' + urlencode({'back': back}))
+    flash(request, f'Aufgabe „{row.title}“ angelegt.')
+    return redirect(back)
 
 
 def detail(request, db, user, row, *, error='', data=None):
@@ -320,35 +337,16 @@ async def task_upload(request: Request, task_id: int, user: User = Depends(curre
     created_paths = []
     try:
         ts.check_version(row, data)
-        # Acquire the task's versioned write before calculating the total size.
-        ts.audit(db, row, user, 'attachment', 'Dateien hinzugefügt.')
-        db.flush()
-        total = db.scalar(select(func.sum(TaskAttachment.size)).where(TaskAttachment.task_id == row.id, TaskAttachment.removed_at.is_(None))) or 0
-        uploads = [v for v in data.getlist('files') if getattr(v, 'filename', '')]
-        if not uploads or len(uploads) > 10:
-            raise ts.Invalid('Wählen Sie eine bis zehn Dateien aus.')
-        for upload in uploads:
-            content = await upload.read(ts.MAX_FILE + 1)
-            if len(content) > ts.MAX_FILE or total + len(content) > ts.MAX_TOTAL:
-                raise ts.Invalid('Maximal 20 MB je Datei und 100 MB je Aufgabe. Bitte wählen Sie die Dateien erneut aus.')
-            item = TaskAttachment(task_id=row.id, name=ts.filename(upload.filename), storage_key=secrets.token_hex(32),
-                                  size=len(content), mime=ts.safe_mime(content), uploaded_by=user.id)
-            path = ts.attachment_path(item)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            created_paths.append(path)
-            path.write_bytes(content)
-            db.add(item)
-            total += len(content)
+        await ts.attach_files(db, user, row, data.getlist('files'), created_paths, required=True)
         db.commit()
-    except (ts.Invalid, StaleDataError) as exc:
+    except (ts.Invalid, StaleDataError, OSError) as exc:
         db.rollback()
-        for path in created_paths:
-            path.unlink(missing_ok=True)
-        return detail(request, db, user, ts.get(db, user, task_id), error=str(exc) if isinstance(exc, ts.Invalid) else 'Die Aufgabe wurde inzwischen geändert. Bitte wählen Sie die Dateien erneut aus.')
+        ts.discard_files(created_paths)
+        error = str(exc) if isinstance(exc, ts.Invalid) else 'Die Dateien konnten nicht gespeichert werden. Bitte wählen Sie sie erneut aus.'
+        return detail(request, db, user, ts.get(db, user, task_id), error=error)
     except Exception:
         db.rollback()
-        for path in created_paths:
-            path.unlink(missing_ok=True)
+        ts.discard_files(created_paths)
         raise
     flash(request, 'Dateien angehängt.')
     return redirect(f'/aufgaben/{row.id}')

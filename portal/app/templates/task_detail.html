@@ -2,7 +2,10 @@
 {% import '_macros.html' as m with context %}
 {% block title %}{{task.title}}{% endblock %}
 {% macro hidden() %}<input type="hidden" name="csrf" value="{{csrf}}"><input type="hidden" name="version" value="{{task.version}}"><input type="hidden" name="back" value="{{back}}">{% endmacro %}
-{% macro action_form(action, label, style='outline-secondary', status='') %}<form method="post" action="/aufgaben/{{task.id}}/aktion">{{hidden()}}<input type="hidden" name="action" value="{{action}}">{% if status %}<input type="hidden" name="status" value="{{status}}">{% endif %}<button class="btn btn-{{style}}">{{label}}</button></form>{% endmacro %}
+{% macro action_form(action, label, style='outline-secondary', status='') %}
+{% set icon={'in_progress':'fa-play','done':'fa-check','open':'fa-rotate-left','cancelled':'fa-ban'}.get(status, 'fa-box-archive' if action=='archive' else 'fa-rotate-left' if action=='restore' else '') %}
+<form method="post" action="/aufgaben/{{task.id}}/aktion" {% if style=='primary' %}class="ds-primary"{% endif %}>{{hidden()}}<input type="hidden" name="action" value="{{action}}">{% if status %}<input type="hidden" name="status" value="{{status}}">{% endif %}<button class="btn btn-{{style}} w-100">{% if icon %}<i class="fa-solid {{icon}} me-1" aria-hidden="true"></i>{% endif %}{{label}}</button></form>
+{% endmacro %}
 {% block head %}<link rel="stylesheet" href="/static/tasks.css">{% endblock %}
 {% block content %}<div class="task-page">
 <a href="{{back}}" class="d-inline-block mb-3"><i class="fa-solid fa-arrow-left me-1" aria-hidden="true"></i>Meine Aufgaben</a>
@@ -14,7 +17,7 @@
 {% elif task.status=='review' and ts.may_edit(user,task) %}{{action_form('status','Abschluss freigeben','primary','done')}}
 {% elif task.status in ['done','cancelled'] and ts.may_edit(user,task) %}{{action_form('status','Wieder öffnen','outline-primary','open')}}{% endif %}
 {% endif %}
-{% if ts.may_edit(user,task) %}{% call m.action_menu() %}<a href="/aufgaben/{{task.id}}/bearbeiten?back={{back|urlencode}}" class="btn btn-outline-secondary">Details bearbeiten</a>{% if task.archived_at %}{{action_form('restore','Aus Archiv wiederherstellen')}}{% elif task.status in ['done','cancelled'] %}{{action_form('archive','Archivieren')}}{% else %}{{action_form('status','Stornieren','outline-secondary','cancelled')}}{% endif %}{% endcall %}{% endif %}
+{% if ts.may_edit(user,task) %}{% call m.action_menu() %}<a href="/aufgaben/{{task.id}}/bearbeiten?back={{back|urlencode}}" class="btn btn-outline-secondary">Details bearbeiten</a>{% if task.archived_at %}{{action_form('restore','Aus Archiv wiederherstellen')}}{% elif task.status in ['done','cancelled'] %}{{action_form('archive','Archivieren')}}{% else %}{{action_form('status','Stornieren','outline-danger','cancelled')}}{% endif %}{% endcall %}{% endif %}
 {% endcall %}
 {% if error %}<div class="alert alert-danger" role="alert" tabindex="-1"><strong>Änderung noch nicht gespeichert</strong><p class="mb-0">{{error}}</p></div>{% endif %}
 <div class="d-flex flex-wrap gap-2 mb-3">{{m.status_chip(ts.STATUSES[task.status],ts.TONES[task.status])}}{% if task.archived_at %}{{m.status_chip('Archiviert')}}{% endif %}{% if task.priority in ['high','urgent'] %}{{m.status_chip('Priorität: ' ~ ts.PRIORITIES[task.priority],'warning','fa-flag')}}{% endif %}{% if task.requires_review %}<span class="small align-self-center text-secondary">Mit Abschlussfreigabe</span>{% endif %}</div>

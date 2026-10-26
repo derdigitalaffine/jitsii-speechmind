@@ -24,6 +24,9 @@ def task_people(db):
     yield people
     db.rollback()
     ids = list(db.scalars(select(Task.id).where(Task.creator_id.in_([u.id for u in people]))))
+    for attachment in db.scalars(select(TaskAttachment).where(TaskAttachment.task_id.in_(ids))):
+        if not attachment.is_reference and attachment.storage_key:
+            ts.attachment_path(attachment).unlink(missing_ok=True)
     for model in (TaskRuleRun, TaskExternal, TaskOccurrence, TaskDependency, TaskReminder, TaskAttachment, TaskComment, TaskCheck, TaskParticipant, TaskActivity):
         if model is TaskDependency:
             db.query(model).filter((model.task_id.in_(ids)) | (model.blocker_id.in_(ids))).delete(synchronize_session=False)
