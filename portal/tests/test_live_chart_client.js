@@ -28,3 +28,18 @@ const empty={clientWidth:280,innerHTML:''};
 context.window.LiveChart.render(empty,{...q,results:{total:0,rows:[]}},{});
 assert.ok(empty.innerHTML.includes('Noch keine Begriffe'));
 console.log('Cloud rendering passed: responsive long terms, escaping, counts and empty state.');
+
+// The initial moderator state comes from a JSON script node. Even numeric-looking
+// properties must not become HTML when that state is malformed or manipulated.
+const attack='<img src=x onerror=alert(1)>';
+for (const kind of ['qa','quiz','rank','words']) {
+  const target={clientWidth:280,innerHTML:''};
+  const question={kind,chart:kind==='words'?'table':'table',options:[{id:'a',label:attack}],solution:['a'],
+    score:attack,settings:{points:attack},scoreboard:[{name:attack,points:attack}],
+    entries:[{text:attack,upvotes:attack,approved:true,hidden:false}],
+    results:{total:1,pending:attack,rows:[{label:attack,count:attack,pct:attack,avg_rank:attack}]}};
+  context.window.LiveChart.render(target,question,{});
+  assert.ok(!target.innerHTML.includes('<img'),kind+' keeps data out of markup');
+  assert.ok(target.innerHTML.includes('&lt;img'),kind+' shows untrusted values as text');
+}
+console.log('Q&A, quiz and ranking rendering passed: untrusted numeric and text fields stay escaped.');
