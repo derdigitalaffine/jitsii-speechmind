@@ -138,6 +138,8 @@ def exercise(page):
     page.locator('#t').fill('Termin für den Teamabend')
     page.get_by_role('button',name='Einzelnen Termin',exact=True).click()
     no_horizontal_scroll(page)
+    date_width=page.locator('#opt-list .portal-date-field').first.evaluate('(el) => el.getBoundingClientRect().width')
+    assert date_width >= 240, 'Mobile date field must show the full date'
     capture(page,'poll-editor-mobile')
     page.get_by_role('button',name='Terminumfrage anlegen',exact=True).click()
     expect(page.get_by_role('heading',name='Termin für den Teamabend',exact=True)).to_be_visible()

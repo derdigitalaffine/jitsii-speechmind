@@ -5,12 +5,13 @@
   if (!root || !document.getElementById('lm-chart')) return;
   var seed = document.getElementById('lm-initial');
   var message = document.getElementById('lm-connection');
-  var shownQuestion = null, shownStatus = null;
+  var shownQuestion = null, shownStatus = null, latestState = null;
   function text(id, value) {
     var element = document.getElementById(id);
     if (element.textContent !== value) element.textContent = value;
   }
   function draw(state) {
+    latestState = state;
     var index = state.questions.findIndex(function (q) { return q.id === state.current; });
     index = index < 0 ? 0 : index;
     var question = state.questions[index];
@@ -42,5 +43,6 @@
       .catch(function () { message.textContent = 'Verbindung unterbrochen. Die Vorschau wird automatisch erneut geladen. Antworten bleiben gespeichert.'; })
       .finally(function () { busy = false; });
   }
+  window.addEventListener('resize', function () { if (latestState) draw(latestState); });
   setInterval(refresh, 2500);
 })();
