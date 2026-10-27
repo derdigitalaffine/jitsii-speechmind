@@ -1,0 +1,29 @@
+name: Survey security diagnostics
+on:
+  push:
+    branches: [feat/unified-survey-experience]
+permissions:
+  contents: read
+jobs:
+  sarif:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        language: [python, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@v4
+        with:
+          upload: false
+          output: codeql-results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: survey-security-${{ matrix.language }}
+          path: codeql-results/*.sarif
+          retention-days: 1
