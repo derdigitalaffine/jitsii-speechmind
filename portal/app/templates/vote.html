@@ -3,13 +3,13 @@
 {% block title %}{{ vote.title }} · Abstimmungen{% endblock %}
 {% block content %}
 {% set live_lifecycle = false %}
-{% include "_poll_lifecycle_actions.html" %}
+
 {% set st = statuses[vote.status] %}
-<nav aria-label="Pfad" class="small mb-2"><a href="/votes">Abstimmungen</a> › {{ vote.title }}</nav>
+<a class="ds-back-link" href="/umfragen"><i class="fa-solid fa-arrow-left me-1" aria-hidden="true"></i>Umfragen & Abstimmungen</a>
 {% call m.page_head(vote.title, vote.description) %}
-  {% if level >= 2 and vote.status != 'closed' %}<a class="btn btn-outline-secondary" href="/votes/{{ vote.id }}/live"><i class="fa-solid fa-tv me-1"></i>Live-Modus</a>{% endif %}
-  {% if level >= 3 %}<a class="btn btn-outline-secondary" href="/votes/{{ vote.id }}/edit"><i class="fa-solid fa-pen me-1"></i>Bearbeiten</a>{% endif %}
-  <div class="dropdown"><button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Weitere Aktionen"><i class="fa-solid fa-ellipsis"></i></button>
+  {% if level >= 2 and vote.status != 'closed' %}<a class="btn btn-outline-secondary" href="/votes/{{ vote.id }}/live" target="_blank" rel="noopener"><i class="fa-solid fa-display me-1" aria-hidden="true"></i>Präsentieren<span class="visually-hidden"> (neuer Tab)</span></a>{% endif %}
+  {% if level >= 3 and tab != "settings" %}<a class="btn btn-outline-secondary" href="/votes/{{ vote.id }}/edit"><i class="fa-solid fa-pen me-1"></i>Bearbeiten</a>{% endif %}
+  <div class="dropdown"><button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Weitere Aktionen"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i> Mehr</button>
     <ul class="dropdown-menu dropdown-menu-end">
       <li><a class="dropdown-item" href="/votes/{{ vote.id }}/protocol.pdf" target="_blank"><i class="fa-regular fa-file-pdf me-2"></i>Ergebnisprotokoll (PDF)</a></li>
       {% if vote.status == 'closed' or vote.results == 'live' %}<li><a class="dropdown-item" href="/votes/{{ vote.id }}/export.csv"><i class="fa-solid fa-file-csv me-2"></i>Stimmzettel (CSV)</a></li>{% endif %}
@@ -17,25 +17,34 @@
     </ul></div>
 {% endcall %}
 
+{% set base='/votes/' ~ vote.id %}
+{% set sections=[] %}
+{% if level >= 3 %}{% set sections=sections + [('build',base ~ '/edit','Fragen','fa-pen-ruler')] %}{% endif %}
+{% if level >= 2 %}{% set sections=sections + [('share',base ~ '?tab=share','Teilnahme','fa-share-nodes'),('conduct',base ~ '?tab=conduct','Durchführung','fa-sliders')] %}{% endif %}
+{% set sections=sections + [('results',base ~ '?tab=results','Ergebnisse','fa-chart-column')] %}
+{% if level >= 3 or (lifecycle_owner and vote.archived_at) %}{% set sections=sections + [('settings',base ~ '?tab=settings','Einstellungen','fa-gear')] %}{% endif %}
+{{ m.survey_nav(sections, tab) }}
+{% if tab == 'settings' %}<section class="card mb-4"><div class="card-body"><h2 class="h5">Regeln und Aufbewahrung</h2><p>Geheimhaltung: {{ secrecy[vote.secrecy][0] }}. Ergebnis: {{ results_modes[vote.results][0] }}.</p>{% if level >= 3 %}<a class="btn btn-outline-secondary mb-3" href="{{ base }}/edit#vote-rules">Regeln bearbeiten</a>{% endif %}{% include '_poll_lifecycle_actions.html' %}</div></section>{% endif %}
+
 <div class="card mb-4 border-{{ st[1] }}"><div class="card-body d-flex flex-wrap gap-4 align-items-center">
   <div><div class="small text-secondary">Stand</div><span class="badge fs-6 text-bg-{{ st[1] }}">{% if vote.status == 'draft' and vote.opened_at %}angehalten{% else %}{{ st[0] }}{% endif %}</span></div>
   <div><div class="small text-secondary">Art</div><strong>{{ secrecy[vote.secrecy][0] }}</strong></div>
   <div><div class="small text-secondary">Stimmzettel</div><strong class="fs-5">{{ turnout.ballots }}</strong></div>
   {% if vote.secrecy != 'anonymous' and turnout.eligible %}<div><div class="small text-secondary">Beteiligung</div><strong>{{ turnout.voted }} / {{ turnout.eligible }}</strong>{% if turnout.percent is not none %} <span class="text-secondary">({{ turnout.percent }} %)</span>{% endif %}</div>{% endif %}
   {% if vote.ends_at %}<div><div class="small text-secondary">Ende</div>{{ vote.ends_at | local }}</div>{% endif %}
-  <div class="ms-auto d-flex gap-2">
+  {% if tab == "conduct" %}<div class="ms-auto d-flex flex-wrap gap-2">
     {% if level >= 2 %}
-    {% if lifecycle_owner and vote.status != 'open' and vote.status != 'closed' %}<form method="post" action="/votes/{{ vote.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="start"><button class="btn btn-success" type="submit"><i class="fa-solid fa-play me-1"></i>{{ 'Fortsetzen' if vote.opened_at else 'Abstimmung starten' }}</button></form>{% endif %}
+    {% if lifecycle_owner and vote.status != 'open' and vote.status != 'closed' %}<form method="post" action="/votes/{{ vote.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="start"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-play me-1"></i>{{ 'Fortsetzen' if vote.opened_at else 'Abstimmung starten' }}</button></form>{% endif %}
     {% if vote.status == 'open' %}<form method="post" action="/votes/{{ vote.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="pause"><button class="btn btn-outline-secondary" type="submit"><i class="fa-solid fa-pause me-1"></i>Anhalten</button></form>{% endif %}
     {% endif %}
-    {% if level >= 3 and vote.status != 'closed' and vote.opened_at %}<form method="post" action="/votes/{{ vote.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="close"><button class="btn btn-danger" type="submit" data-confirm-title="Abstimmung beenden?" data-confirm="Danach kann niemand mehr abstimmen; das Ergebnis wird mit Prüfsumme festgeschrieben." data-confirm-button="Beenden"><i class="fa-solid fa-flag-checkered me-1"></i>Beenden</button></form>{% endif %}
-  </div>
+    {% if level >= 3 and vote.status != 'closed' and vote.opened_at %}<form method="post" action="/votes/{{ vote.id }}/state"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="close"><button class="btn btn-outline-secondary" type="submit" data-confirm-title="Abstimmung beenden?" data-confirm="Danach kann niemand mehr abstimmen; das Ergebnis wird mit Prüfsumme festgeschrieben." data-confirm-button="Beenden"><i class="fa-solid fa-flag-checkered me-1"></i>Beenden</button></form>{% endif %}
+  </div>{% endif %}
 </div>
 {% if vote.result_hash %}<div class="card-footer small text-secondary text-break">Ergebnis festgeschrieben am {{ vote.closed_at | local }} · SHA-256 <span class="font-monospace">{{ vote.result_hash }}</span></div>{% endif %}
 </div>
 
 <div class="row g-4">
-  <div class="col-12 col-xxl-7">
+  {% if tab == "results" %}<div class="col-12">
     <h2 class="h5 mb-3"><i class="fa-solid fa-chart-column me-2"></i>{{ 'Ergebnis' if vote.status == 'closed' else 'Zwischenstand' }}</h2>
     {% include "_vote_results.html" %}
     {% if named %}
@@ -46,8 +55,8 @@
     {% endif %}
   </div>
 
-  <div class="col-12 col-xxl-5">
-    {% if level >= 2 %}
+  {% endif %}<div class="col-12">
+    {% if level >= 2 and tab == "share" %}
     <div class="card mb-4" id="zugang"><div class="card-header"><i class="fa-solid fa-door-open me-2"></i>Zugang</div><div class="card-body small">
       <div class="mb-2">{% for k in modes %}<span class="badge text-bg-light border me-1">{{ access[k][0] }}</span>{% endfor %}</div>
       {% if 'public' in modes or 'codes' in modes %}
@@ -95,7 +104,7 @@
     </div>
     {% endif %}
 
-    {% if dms_areas %}
+    {% if dms_areas and tab == "results" %}
     <form method="post" action="/votes/{{ vote.id }}/dms" class="card mb-4"><input type="hidden" name="csrf" value="{{ csrf }}">
       <div class="card-body small"><div class="fw-semibold mb-2"><i class="fa-solid fa-box-archive me-1"></i>Ergebnisprotokoll in die Ablage</div>
         <div class="input-group input-group-sm"><select class="form-select" name="area_id" aria-label="Ablagebereich">{% for a, d in dms_areas %}<option value="{{ a.id }}">{{ '  ' * d }}{{ a.code ~ ' ' if a.code }}{{ a.name }}</option>{% endfor %}</select>
@@ -104,7 +113,7 @@
     </form>
     {% endif %}
 
-    {% if level == 4 %}
+    {% if level == 4 and tab == "share" %}
     <div class="card" id="teilen"><div class="card-header"><i class="fa-solid fa-share-nodes me-2"></i>Im Portal freigeben</div><div class="card-body small">
       <form method="post" action="/votes/{{ vote.id }}/shares" class="row g-2 mb-2"><input type="hidden" name="csrf" value="{{ csrf }}">
         <div class="col-md-6"><select class="form-select form-select-sm js-select" data-search="1" name="users" multiple aria-label="Personen">{% for u in users if u.id != vote.owner_id %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</select></div>

@@ -2,10 +2,11 @@
 {% import "_macros.html" as m with context %}
 {% block title %}{{ vote.title if vote else 'Neue Abstimmung' }}{% endblock %}
 {% block content %}
-<nav aria-label="Pfad" class="small mb-2"><a href="/votes">Abstimmungen</a>{% if vote %} › <a href="/votes/{{ vote.id }}">{{ vote.title }}</a>{% endif %}</nav>
+<nav aria-label="Pfad" class="small mb-2"><a href="/umfragen">Umfragen & Abstimmungen</a>{% if vote %} › <a href="/votes/{{ vote.id }}">{{ vote.title }}</a>{% endif %}</nav>
 {{ m.page_head(vote.title if vote else 'Neue Abstimmung', 'Fragen, Antwortmöglichkeiten und Regeln festlegen. Wahlberechtigte tragen Sie danach auf der Seite der Abstimmung ein.') }}
+{% if vote %}{{ m.survey_nav([('build','/votes/' ~ vote.id ~ '/edit','Fragen','fa-pen-ruler'),('share','/votes/' ~ vote.id ~ '?tab=share','Teilnahme','fa-share-nodes'),('conduct','/votes/' ~ vote.id ~ '?tab=conduct','Durchführung','fa-sliders'),('results','/votes/' ~ vote.id ~ '?tab=results','Ergebnisse','fa-chart-column'),('settings','/votes/' ~ vote.id ~ '?tab=settings','Einstellungen','fa-gear')], 'build') }}{% endif %}
 {% set d = draft or {} %}
-<form method="post" action="{{ '/votes/' ~ vote.id ~ '/edit' if vote else '/votes/new' }}" id="vote-form" class="row g-4">
+<form data-unsaved method="post" action="{{ '/votes/' ~ vote.id ~ '/edit' if vote else '/votes/new' }}" id="vote-form" class="row g-4">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <input type="hidden" name="questions_json" id="questions-json">
   <div class="col-12 col-xl-5">
@@ -14,16 +15,16 @@
       <div class="mb-3"><label class="form-label" for="v-desc">Beschreibung</label><textarea class="form-control" id="v-desc" name="description" rows="3" placeholder="Worum geht es? Wer darf abstimmen?">{{ vote.description if vote else d.get('description', '') }}</textarea></div>
       <div><label class="form-label" for="v-end">Ende (optional)</label><input class="form-control" type="datetime-local" id="v-end" name="ends_at" value="{{ ends }}"><div class="form-text">Danach wird die Abstimmung automatisch beendet. Ohne Ende beenden Sie sie von Hand (z. B. im Live-Modus).</div></div>
     </div></div>
-    <div class="card"><div class="card-header"><i class="fa-solid fa-shield-halved me-2"></i>Regeln</div><div class="card-body">
+    <details class="card" id="vote-rules" {{ 'open' if vote or not simple }}><summary class="card-header"><i class="fa-solid fa-shield-halved me-2" aria-hidden="true"></i>Teilnahme & Wahlregeln</summary><div class="card-body">
       <fieldset class="mb-3" {% if vote and vote.voters and vote.status != 'draft' %}disabled{% endif %}><legend class="form-label fs-6">Geheimhaltung</legend>
-        {% for k, s in secrecy.items() %}<div class="form-check mb-1"><input class="form-check-input" type="radio" name="secrecy" id="sec-{{ k }}" value="{{ k }}" {% if (vote.secrecy if vote else 'secret') == k %}checked{% endif %}><label class="form-check-label" for="sec-{{ k }}"><strong>{{ s[0] }}</strong> <span class="small text-secondary d-block">{{ s[1] }}</span></label></div>{% endfor %}
+        {% for k, s in secrecy.items() %}<div class="form-check mb-1"><input class="form-check-input" type="radio" name="secrecy" id="sec-{{ k }}" value="{{ k }}" {% if (vote.secrecy if vote else d.get('secrecy', 'anonymous' if simple else 'secret')) == k %}checked{% endif %}><label class="form-check-label" for="sec-{{ k }}"><strong>{{ s[0] }}</strong> <span class="small text-secondary d-block">{{ s[1] }}</span></label></div>{% endfor %}
       </fieldset>
       <fieldset class="mb-3"><legend class="form-label fs-6">Wer darf abstimmen?</legend>
-        {% set am = (vote.access if vote else 'invite').split(',') %}
+        {% set am = (vote.access if vote else ','.join(d.getlist('access')) if draft else 'public' if simple else 'invite').split(',') %}
         {% for k, a in access.items() %}<div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="access" id="acc-{{ k }}" value="{{ k }}" {% if k in am %}checked{% endif %}><label class="form-check-label" for="acc-{{ k }}"><strong>{{ a[0] }}</strong> <span class="small text-secondary d-block">{{ a[1] }}</span></label></div>{% endfor %}
       </fieldset>
       <div class="mb-3"><label class="form-label" for="v-res">Ergebnis sichtbar für Abstimmende</label>
-        <select class="form-select" id="v-res" name="results">{% for k, r in results_modes.items() %}<option value="{{ k }}" {% if (vote.results if vote else 'after_end') == k %}selected{% endif %}>{{ r[0] }} – {{ r[1] }}</option>{% endfor %}</select>
+        <select class="form-select" id="v-res" name="results">{% for k, r in results_modes.items() %}<option value="{{ k }}" {% if (vote.results if vote else d.get('results', 'live' if simple else 'after_end')) == k %}selected{% endif %}>{{ r[0] }} – {{ r[1] }}</option>{% endfor %}</select>
         <div class="form-text">Sie selbst und Freigegebene sehen den Stand immer (z. B. für den Live-Modus).</div></div>
       <div class="mb-3"><span class="form-label d-block">Balken in der Live-Ansicht</span>
         <div class="btn-group" role="group" aria-label="Darstellung der Balken">
@@ -31,7 +32,8 @@
           <input type="radio" class="btn-check" name="chart" id="v-chart-col" value="column" {% if vote and vote.chart == 'column' %}checked{% endif %}><label class="btn btn-outline-secondary btn-sm" for="v-chart-col"><i class="fa-solid fa-chart-column me-1"></i>stehend</label></div>
         <div class="form-text">Voreinstellung – in der Live-Ansicht jederzeit umschaltbar.</div></div>
       <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="v-change" name="allow_change" value="1" {% if vote and vote.allow_change %}checked{% endif %}><label class="form-check-label" for="v-change">Stimme bis zum Ende änderbar <span class="small text-secondary">(nur bei offener Abstimmung)</span></label></div>
-    </div></div>
+    </div></details>
+    {% if simple and not vote %}<p class="small text-secondary mt-3">Voreinstellung: anonym, Ergebnis sofort sichtbar, Teilnahme mit einer Stimme je bestätigter E-Mail-Adresse. Unter „Teilnahme & Wahlregeln“ können Sie Einladungen, Geheimhaltung und Zugangscodes festlegen.</p>{% endif %}
   </div>
 
   <div class="col-12 col-xl-7">
@@ -42,7 +44,7 @@
     {% if not locked %}<button class="btn btn-outline-primary mt-2" type="button" id="vote-add-q"><i class="fa-solid fa-plus me-1"></i>Frage hinzufügen</button>{% endif %}
   </div>
   <div class="col-12 d-flex gap-2"><button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>{{ 'Speichern' if vote else 'Abstimmung anlegen' }}</button>
-    <a class="btn btn-outline-secondary" href="{{ '/votes/' ~ vote.id if vote else '/votes' }}">Abbrechen</a></div>
+    <a class="btn btn-outline-secondary" href="{{ '/votes/' ~ vote.id if vote else '/umfragen' }}">Abbrechen</a></div>
 </form>
 {% endblock %}
-{% block scripts %}<script src="/static/vote-editor.js"></script>{% endblock %}
+{% block scripts %}<script src="/static/unsaved-form.js"></script><script src="/static/vote-editor.js"></script>{% endblock %}

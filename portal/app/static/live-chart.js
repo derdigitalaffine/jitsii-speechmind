@@ -26,7 +26,7 @@
     box.innerHTML = '<div class="live-numbers ' + (big ? 'is-big' : '') + '">' +
       '<div><span class="live-num">' + fmt(s.avg) + unit + '</span><span class="live-num-label">Durchschnitt' + (star ? ' (Sterne)' : '') + '</span></div>' +
       '<div><span class="live-num">' + fmt(s.median) + unit + '</span><span class="live-num-label">Median</span></div>' +
-      '<div><span class="live-num">' + r.total + '</span><span class="live-num-label">Antworten</span></div>' +
+      '<div><span class="live-num">' + esc(r.total) + '</span><span class="live-num-label">Antworten</span></div>' +
       (q.kind === 'slider' ? '<div><span class="live-num">' + fmt(s.min) + '–' + fmt(s.max) + unit + '</span><span class="live-num-label">Spanne</span></div>' : '') +
       '</div>' + (star ? '<div class="live-stars" aria-hidden="true">' + stars(s.avg) + '</div>' : '');
   }
@@ -39,40 +39,50 @@
     return out;
   }
 
-  // Wortwolke: je häufiger desto größer und fetter, bunt; Reihenfolge gemischt (stabil je Begriff), damit die
+  // Wortwolke: je häufiger desto größer und fetter; Reihenfolge gemischt (stabil je Begriff), damit die
   // großen Begriffe nicht alle vorn stehen
   function hash(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; }
   function cloud(box, q, big) {
     var rows = q.results.rows || [];
     if (!rows.length) { box.innerHTML = '<p class="text-secondary">Noch keine Begriffe.</p>'; return; }
-    var top = rows[0].count, colors = palette(12);
+    var top = rows[0].count;
+    var rootSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    var fontFamily = getComputedStyle(box).fontFamily;
+    var measure = document.createElement('canvas').getContext('2d');
+    var available = Math.max(80, box.clientWidth - 8);
     var items = rows.slice(0, big ? 80 : 50).map(function (r, i) {
       var f = Math.pow(r.count / top, 0.75);
-      return { r: r, size: (big ? 1.1 : 0.9) + f * (big ? 4.4 : 2.4), weight: 400 + Math.round(f * 5) * 100, color: colors[i % colors.length], h: hash(r.key || r.label) };
+      var size = (big ? 1.1 : 0.9) + f * (big ? 4.4 : 2.4);
+      var weight = 400 + Math.round(f * 5) * 100;
+      if (measure) {
+        measure.font = weight + ' ' + (size * rootSize) + 'px ' + fontFamily;
+        size *= Math.min(1, available / Math.max(1, measure.measureText(r.label).width));
+      }
+      return { r:r, size:Math.max(.9,size), weight:weight, h:hash(r.key || r.label) };
     });
     items.sort(function (a, b) { return (a.h % 997) - (b.h % 997); });
     var biggest = items.reduce(function (m, x) { return x.size > m.size ? x : m; }, items[0]);
     items.splice(items.indexOf(biggest), 1);
     items.splice(Math.floor(items.length / 2), 0, biggest);
     box.innerHTML = '<div class="live-cloud ' + (big ? 'is-big' : '') + '" role="list" aria-label="Wortwolke">' + items.map(function (x) {
-      return '<span role="listitem" style="font-size:' + x.size.toFixed(2) + 'rem;font-weight:' + x.weight + ';color:' + x.color + '" title="' + esc(x.r.label) + ': ' + x.r.count + '">' + esc(x.r.label) + '<span class="visually-hidden"> (' + x.r.count + ')</span></span>';
+      return '<span role="listitem" style="font-size:' + x.size.toFixed(2) + 'rem;font-weight:' + x.weight + '" title="' + esc(x.r.label) + ': ' + esc(x.r.count) + '">' + esc(x.r.label) + '<span class="visually-hidden"> (' + esc(x.r.count) + ')</span></span>';
     }).join(' ') + '</div>';
   }
   function table(box, q) {
     var rows = q.results.rows || [];
     box.innerHTML = rows.length ? '<div class="table-responsive live-table"><table class="table table-sm align-middle mb-0"><thead><tr><th>' + (q.kind === 'words' ? 'Begriff' : 'Antwort') + '</th><th class="text-end">Nennungen</th><th class="text-end">%</th></tr></thead><tbody>' +
-      rows.map(function (r) { return '<tr><td>' + esc(r.label) + '</td><td class="text-end fw-semibold">' + r.count + '</td><td class="text-end text-secondary">' + r.pct + '</td></tr>'; }).join('') +
+      rows.map(function (r) { return '<tr><td>' + esc(r.label) + '</td><td class="text-end fw-semibold">' + esc(r.count) + '</td><td class="text-end text-secondary">' + esc(r.pct) + '</td></tr>'; }).join('') +
       '</tbody></table></div>' : '<p class="text-secondary">Noch keine Antworten.</p>';
   }
 
   // Pinnwand und Q&A (nur freigegebene, nicht ausgeblendete Beiträge)
   function entries(box, q, big) {
     var list = (q.entries || []).filter(function (e) { return e.approved && !e.hidden; });
-    var pending = q.results && q.results.pending ? '<div class="small text-secondary mb-2">' + q.results.pending + ' Beitr' + (q.results.pending === 1 ? 'ag wartet' : 'äge warten') + ' auf Freigabe</div>' : '';
+    var pending = q.results && q.results.pending ? '<div class="small text-secondary mb-2">' + esc(q.results.pending) + ' Beitr' + (q.results.pending === 1 ? 'ag wartet' : 'äge warten') + ' auf Freigabe</div>' : '';
     if (!list.length) { box.innerHTML = pending + '<p class="text-secondary">Noch keine Beiträge.</p>'; return; }
     if (q.kind === 'qa') {
       box.innerHTML = pending + '<ol class="live-qa ' + (big ? 'is-big' : '') + '">' + list.map(function (e) {
-        return '<li class="' + (e.answered ? 'is-answered' : '') + '"><span class="live-qa-votes"><i class="fa-solid fa-thumbs-up"></i> ' + e.upvotes + '</span><span class="live-qa-text">' + esc(e.text) + '</span>' + (e.answered ? '<span class="badge text-bg-success ms-2">beantwortet</span>' : '') + '</li>';
+        return '<li class="' + (e.answered ? 'is-answered' : '') + '"><span class="live-qa-votes"><i class="fa-solid fa-thumbs-up"></i> ' + esc(e.upvotes) + '</span><span class="live-qa-text">' + esc(e.text) + '</span>' + (e.answered ? '<span class="badge text-bg-success ms-2">beantwortet</span>' : '') + '</li>';
       }).join('') + '</ol>';
       return;
     }
@@ -90,9 +100,9 @@
       var result = q.results;
       if (!result) { box.innerHTML = q.kind === 'quiz' ? '<ul class="list-group mb-3">' + q.options.map(function (o) { return '<li class="list-group-item">' + esc(o.label) + '</li>'; }).join('') + '</ul><p class="text-secondary">Lösung und Ergebnis erscheinen nach Freigabe.</p>' : ''; return; }
       var solution = q.solution || [];
-      box.innerHTML = (q.kind === 'quiz' && solution.length ? '<div class="alert alert-success"><i class="fa-solid fa-circle-check me-2"></i>Richtige Lösung: ' + q.options.filter(function (o) { return solution.indexOf(o.id) >= 0; }).map(function (o) { return esc(o.label); }).join(', ') + (q.score != null ? '<br>Ihre Punkte: ' + q.score + ' / ' + q.settings.points : '') + '</div>' : '') +
-        '<div class="table-responsive live-table"><table class="table align-middle"><thead><tr><th>' + (q.kind === 'rank' ? 'Priorität' : 'Antwort') + '</th><th>' + (q.kind === 'rank' ? 'Borda-Punkte' : 'Nennungen') + '</th><th>' + (q.kind === 'rank' ? 'Mittlerer Rang' : 'Anteil') + '</th></tr></thead><tbody>' + result.rows.map(function (r) { return '<tr><td>' + esc(r.label) + '</td><td>' + r.count + '</td><td>' + (q.kind === 'rank' ? (r.avg_rank == null ? '–' : r.avg_rank) : r.pct + '%') + '</td></tr>'; }).join('') + '</tbody></table></div>' +
-        (q.scoreboard && q.scoreboard.length ? '<h3 class="h6">Freiwillige Rangliste · diese Frage</h3><ol>' + q.scoreboard.map(function (r) { return '<li>' + esc(r.name) + ' · ' + r.points + ' Punkte</li>'; }).join('') + '</ol>' : '');
+      box.innerHTML = (q.kind === 'quiz' && solution.length ? '<div class="alert alert-success"><i class="fa-solid fa-circle-check me-2"></i>Richtige Lösung: ' + q.options.filter(function (o) { return solution.indexOf(o.id) >= 0; }).map(function (o) { return esc(o.label); }).join(', ') + (q.score != null ? '<br>Ihre Punkte: ' + esc(q.score) + ' / ' + esc(q.settings.points) : '') + '</div>' : '') +
+        '<div class="table-responsive live-table"><table class="table align-middle"><thead><tr><th>' + (q.kind === 'rank' ? 'Priorität' : 'Antwort') + '</th><th>' + (q.kind === 'rank' ? 'Borda-Punkte' : 'Nennungen') + '</th><th>' + (q.kind === 'rank' ? 'Mittlerer Rang' : 'Anteil') + '</th></tr></thead><tbody>' + result.rows.map(function (r) { return '<tr><td>' + esc(r.label) + '</td><td>' + esc(r.count) + '</td><td>' + (q.kind === 'rank' ? (r.avg_rank == null ? '–' : esc(r.avg_rank)) : esc(r.pct) + '%') + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+        (q.scoreboard && q.scoreboard.length ? '<h3 class="h6">Freiwillige Rangliste · diese Frage</h3><ol>' + q.scoreboard.map(function (r) { return '<li>' + esc(r.name) + ' · ' + esc(r.points) + ' Punkte</li>'; }).join('') + '</ol>' : '');
       return;
     }
     var r = q.results;

@@ -51,3 +51,69 @@
 .ds-action-items{right:auto;left:0}
 .ds-page-title h1{font-size:1.45rem}
 }
+
+/* Shared rhythm and interaction for all module headers and native controls. */
+.ds-page-header{flex-wrap:wrap}
+.ds-page-title{flex:1 1 22rem}
+.ds-page-title h1{font-weight:650;line-height:1.25;margin:0 0 .4rem}
+.ds-page-actions{align-items:center;max-width:100%}
+.ds-page-actions>.btn-primary,.ds-page-actions>.ds-primary{order:2}
+.ds-page-actions>.dropdown>.btn,.ds-page-actions>form>.btn{white-space:normal}
+.btn{font-weight:500}
+.btn:not(.btn-link){border-radius:var(--bs-border-radius);transition:background-color .15s,border-color .15s,box-shadow .15s}
+:where(a,button,input,textarea,select,summary,[tabindex]):focus-visible{outline:3px solid var(--ds-focus);outline-offset:3px}
+:where(button,a,input,select,textarea)[disabled],.btn.disabled{cursor:not-allowed}
+.card-header{padding:.85rem 1rem}
+.ds-section-nav{gap:.25rem;row-gap:.5rem;flex-wrap:wrap}
+.ds-section-nav .nav-link{color:var(--bs-secondary-color);border-radius:var(--bs-border-radius) var(--bs-border-radius) 0 0}
+.ds-section-nav .nav-link.active{color:var(--bs-body-color);font-weight:600}
+.ds-section-nav .nav-link:hover:not(.active){color:var(--bs-primary);background:var(--bs-tertiary-bg)}
+.app-main :target{scroll-margin-block-start:6rem}
+.ds-back-link{display:inline-flex;align-items:center;margin-bottom:1rem;text-underline-offset:.2em}
+.ds-form-page{max-width:76rem;margin-inline:auto}
+.ds-form-actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1.5rem;align-items:center}
+.ds-search-panel{padding:1rem;border:1px solid var(--bs-border-color);border-radius:var(--bs-border-radius-lg);background:var(--bs-tertiary-bg)}
+.ds-search-panel .form-label{font-size:.875rem;font-weight:600}
+.ds-eyebrow{font-size:.8rem;font-weight:600;color:var(--bs-secondary-color)}
+.ds-survey-card{border-color:var(--bs-border-color)}
+.ds-survey-card .card-body{padding:1.25rem}
+.ds-card-title{color:var(--bs-body-color);text-decoration:none;overflow-wrap:anywhere}
+.ds-card-title:hover{color:var(--bs-primary);text-decoration:underline;text-underline-offset:.2em}
+.ds-clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+.ds-choice-icon{display:grid;place-items:center;width:3rem;height:3rem;border-radius:var(--bs-border-radius-lg);background:rgba(var(--bs-primary-rgb),.1);color:var(--bs-primary);font-size:1.3rem}
+.survey-create-choices .card-body{padding:1.5rem}
+.ds-next-step{padding:1rem 1.25rem;background:var(--bs-tertiary-bg);border:1px solid var(--bs-border-color);border-radius:var(--bs-border-radius-lg);margin-bottom:1.5rem}
+.ds-next-step p:last-child{margin-bottom:0}
+.live-question-type{display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:.5rem}
+.live-question-type a{text-align:left}
+.live-moderation{max-width:62rem;margin-inline:auto}
+.live-moderation-controls{display:flex;gap:.75rem;flex-wrap:wrap;justify-content:space-between}
+.live-moderation-question{font-size:clamp(1.4rem,3vw,2rem);line-height:1.3;overflow-wrap:anywhere}
+.live-mod-chart{min-height:14rem}
+.survey-workspace .ds-card-actions .btn{white-space:normal}
+@media(pointer:coarse),(max-width:575px){
+main :where(.btn,.nav-link,summary,.form-control:not(textarea):not([type=checkbox]):not([type=radio]),.form-select){min-height:44px}
+main :where(.btn,.nav-link){align-content:center}
+main .btn-group{flex-wrap:wrap}
+.ds-form-actions>.btn{flex:1 1 auto}
+.live-moderation-controls>form{flex:1 1 auto}
+.live-moderation-controls>form>.btn{width:100%}
+}
+@media(max-width:767px){
+.ds-page-title{flex-basis:auto}
+.ds-page-actions>.btn-primary,.ds-page-actions>.ds-primary{order:-1;flex:1 0 100%}
+.ds-page-actions>.ds-primary>.btn{width:100%}
+.ds-section-nav{font-size:.875rem}
+.ds-section-nav .nav-link{padding:.65rem .7rem}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+@media(max-width:575px){
+.survey-date-option{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.5rem;border:1px solid var(--bs-border-color);padding:.75rem;border-radius:var(--bs-border-radius)}
+.survey-date-option>*{width:100%!important;min-width:0!important;margin:0!important;border-radius:var(--bs-border-radius)!important}
+.survey-date-option>.input-group-text:first-child,.survey-date-option>[data-k=date],.survey-date-option>.portal-date-field:has([data-k=date]),.survey-date-option>[data-k=note]{grid-column:1/-1}
+.survey-date-option>.input-group-text:not(:first-child){display:none}
+}
+
+/* Expanded navigation keeps the full destination readable; the icon rail stays compact. */
+.app-sidebar .app-nav .nav-label{white-space:normal;overflow-wrap:anywhere;line-height:1.35}

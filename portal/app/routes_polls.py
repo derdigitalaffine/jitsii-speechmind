@@ -6,8 +6,8 @@ from urllib.parse import quote
 
 from fastapi import Depends, Form, HTTPException, Request
 from fastapi.responses import Response
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from . import poll_lifecycle as lifecycle, access, planning, polls as pl, shares as sh, shortlinks as sl, worker
 from .db import LOCAL_TZ, Group, Meeting, Poll, PollParticipant, User, to_local, utcnow
@@ -70,23 +70,10 @@ def _form_ctx(poll: Poll | None) -> dict:
 
 @app.get("/polls")
 def polls_list(request: Request, all: str = "", state: str = "active", user: User = Depends(current_user), db: Session = Depends(get_db)):
-    show_all = user.is_admin and all == "1"
-    shared = [] if show_all else sh.shared_with(db, "poll", user)
-    if not user.can("polls") and not shared:
-        raise HTTPException(403, "Für den Bereich „Terminumfragen“ fehlt die Berechtigung. "
-                                 "Bitte wenden Sie sich an die Verwaltung des Portals.")
-    q = select(Poll).options(joinedload(Poll.owner)).order_by(Poll.updated_at.desc())
-    if not show_all:
-        q = q.where(Poll.owner_id == user.id)
-    state = state if state in ("active", "archive", "trash") else "active"
-    q = q.where(Poll.archived_at.is_not(None) if state == "archive" else Poll.archived_at.is_(None))
-    items = db.scalars(q).unique().all() if user.can("polls") and state != "trash" else []
-    shared = [(p, lvl) for p, lvl in shared if (bool(p.archived_at) == (state == "archive")) and state != "trash"]
-    counts = dict(db.execute(select(PollParticipant.poll_id, func.count(PollParticipant.id))
-                             .where(PollParticipant.answered_at.is_not(None))
-                             .group_by(PollParticipant.poll_id)).all())
-    return render(request, "polls.html", user, polls=items, counts=counts, show_all=show_all, is_open=pl.is_open,
-                  parts=pl.option_parts, shared=shared, state=state, trash_items=lifecycle.trash_items(db, ["poll"], user) if state == "trash" else [], levels=sh.LEVELS["poll"])
+    from .routes_surveys import survey_list
+    return survey_list(request, q=request.query_params.get('q', ''), kind=request.query_params.get('kind', 'poll'),
+                       state=state, scope='portal' if user.is_admin and all == '1' else request.query_params.get('scope', 'all'),
+                       user=user, db=db)
 
 
 @app.get("/polls/new")
@@ -113,6 +100,10 @@ async def poll_create(request: Request, user: User = Depends(poll_user), db: Ses
 @app.get("/polls/{poll_id}")
 def poll_detail(request: Request, poll_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     poll, level = _poll(db, poll_id, user, sh.VIEW)
+    tab = request.query_params.get('tab', 'share' if not poll.published_at else 'results')
+    tab = tab if tab in ('share','conduct','results','settings') else 'results'
+    if (poll.archived_at and tab not in ('results','settings')) or (level < sh.INVITE and tab != 'results'):
+        tab = 'results'
     counts = pl.tally(poll)
     users = db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all()
     groups = db.scalars(select(Group).order_by(Group.name)).all()
@@ -123,7 +114,7 @@ def poll_detail(request: Request, poll_id: int, user: User = Depends(current_use
         c = counts[o.id]
         ranking.append({"option": o, **c, "missing": max(answered_n - c["yes"] - c["maybe"] - c["no"], 0),
                         "yes_pct": round(100 * c["yes"] / answered_n), "maybe_pct": round(100 * c["maybe"] / answered_n)})
-    return render(request, "poll.html", user, poll=poll, counts=counts, best=pl.best(poll, counts), ranking=ranking,
+    return render(request, "poll.html", user, tab=tab, poll=poll, counts=counts, best=pl.best(poll, counts), ranking=ranking,
                   parts=pl.option_parts, answers=pl.ANSWERS, is_open=pl.is_open(poll), public_url=public,
                   personal_link=pl.personal_link, users=users, groups=groups, errors=sl.QR_ERRORS,
                   answered=[p for p in poll.participants if p.answered_at],
@@ -181,7 +172,8 @@ def poll_state(request: Request, poll_id: int, action: str = Form(...), user: Us
         poll.public_token = new_link_token()
         flash(request, "Öffentlicher Link erzeugt.")
     db.commit()
-    return redirect(f"/polls/{poll.id}")
+    tab = 'share' if action in ('renew', 'disable_link', 'enable_link') else 'results' if action == 'close' else 'conduct'
+    return redirect(f"/polls/{poll.id}?tab={tab}")
 
 
 @app.post("/polls/{poll_id}/final", dependencies=[Depends(check_csrf)])
@@ -244,7 +236,7 @@ async def poll_invite(request: Request, poll_id: int, user: User = Depends(curre
         flash(request, f"{added} Person(en) eingeladen" + (f", {skipped} waren schon dabei" if skipped else "") + ".")
     else:
         flash(request, "Bitte Personen, Gruppen oder E-Mail-Adressen auswählen.", "error")
-    return redirect(f"/polls/{poll.id}#teilnehmende")
+    return redirect(f"/polls/{poll.id}?tab=share#teilnehmende")
 
 
 @app.post("/polls/{poll_id}/remind", dependencies=[Depends(check_csrf)])
@@ -255,7 +247,7 @@ def poll_remind(request: Request, poll_id: int, user: User = Depends(current_use
     worker.wake()
     flash(request, f"Erinnerung an {count} Person(en) wird verschickt." if count else
           "Niemand mehr offen (oder Mailversand nicht eingerichtet).")
-    return redirect(f"/polls/{poll.id}#teilnehmende")
+    return redirect(f"/polls/{poll.id}?tab=share#teilnehmende")
 
 
 @app.post("/polls/{poll_id}/participants/{pid}/delete", dependencies=[Depends(check_csrf)])
@@ -268,7 +260,7 @@ def poll_participant_delete(request: Request, poll_id: int, pid: int, user: User
     db.delete(p)
     db.commit()
     flash(request, f"{p.name or p.email} entfernt. Der persönliche Link funktioniert nicht mehr.")
-    return redirect(f"/polls/{poll.id}#teilnehmende")
+    return redirect(f"/polls/{poll.id}?tab=share#teilnehmende")
 
 
 @app.get("/polls/{poll_id}/export.csv")
@@ -329,7 +321,7 @@ async def poll_share_add(request: Request, poll_id: int, user: User = Depends(cu
     db.commit()
     flash(request, f"Freigabe für {added} Eintrag/Einträge gespeichert: {sh.LEVELS['poll'][level][0]}." if added else
           "Bitte Personen oder Gruppen auswählen.", "ok" if added else "error")
-    return redirect(f"/polls/{poll.id}#freigaben")
+    return redirect(f"/polls/{poll.id}?tab=share#freigaben")
 
 
 @app.post("/polls/{poll_id}/shares/{share_id}", dependencies=[Depends(check_csrf)])
@@ -341,7 +333,7 @@ def poll_share_update(request: Request, poll_id: int, share_id: int, action: str
         raise HTTPException(404)
     db.commit()
     flash(request, message)
-    return redirect(f"/polls/{poll.id}#freigaben")
+    return redirect(f"/polls/{poll.id}?tab=share#freigaben")
 
 
 # --- Abstimmen (öffentlich) ----------------------------------------------------------------

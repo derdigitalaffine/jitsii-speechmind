@@ -236,6 +236,8 @@ Weitere Schutzmechanismen, die immer aktiv sind:
 
 ## Module ein- und ausschalten
 
+**Gemeinsamer Einstieg für Befragungen:** Unter **Kommunikation → Umfragen & Abstimmungen** erscheinen Live-Umfragen, Abstimmungen und Terminumfragen in einer Übersicht. Die Rechte **Abstimmungen** (einschließlich Live) und **Terminumfragen** sowie die bisherigen Freigabestufen gelten weiter. Administration sieht fremde Einträge erst mit **Anzeigen → Alle im Portal**. Formulare und Online-Anträge bleiben eigenständig. **Neu erstellen** bietet sichtbare Auswahlkarten; Live öffnet unmittelbar die Fragenvorbereitung ohne vorgeschaltete Titelabfrage. [Bedienung und Erhalt der Funktionen](UMFRAGEN.md).
+
 Menü **Module** (nur Admins). **Kurzlinks & QR-Codes**, **Formulare**, **Online-Anträge** (nur zusammen mit Formularen), **Ablage (DMS)**, **Umfragen & Abstimmungen**, **Terminbuchung**, **Ressourcenbuchung**, **Kartenbrowser** und **Rechtstexte** lassen sich komplett abschalten. Videokonferenzen sind die Kernfunktion und immer aktiv.
 
 Ein abgeschaltetes Modul

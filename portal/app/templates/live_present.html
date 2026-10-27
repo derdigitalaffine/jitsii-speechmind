@@ -14,7 +14,7 @@
       <button class="btn btn-outline-secondary" type="button" id="lp-results" title="Ergebnis ein-/ausblenden (R)" aria-pressed="true"><i class="fa-solid fa-chart-column"></i></button>
       <button class="btn btn-outline-secondary" type="button" id="lp-qr" title="QR-Code ein-/ausblenden (Q)" aria-pressed="true"><i class="fa-solid fa-qrcode"></i></button>
       <button class="btn btn-outline-secondary" type="button" id="lp-full" title="Vollbild (F)" aria-label="Vollbild"><i class="fa-solid fa-expand"></i></button>
-      <a class="btn btn-outline-secondary" href="/votes/live/{{ poll.id }}" title="Schließen" aria-label="Präsentation schließen"><i class="fa-solid fa-xmark"></i></a>
+      <a class="btn btn-outline-secondary" href="/votes/live/{{ poll.id }}?tab=moderate" title="Schließen" aria-label="Präsentation schließen"><i class="fa-solid fa-xmark"></i></a>
     </div>
   </header>
   <div class="live-p-title" id="lp-title" aria-live="polite">{{ poll.title }}</div>

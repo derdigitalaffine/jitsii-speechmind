@@ -1,0 +1,45 @@
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          {% if poll.pacing == 'moderated' %}<form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/show"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="return_tab" value="moderate"><button class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-eye me-1"></i>Jetzt zeigen</button></form>{% endif %}
+          {% if q.show_results == 'release' or q.kind == 'quiz' %}<form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/release"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="return_tab" value="moderate"><button class="btn btn-sm {{ 'btn-outline-primary' if q.released else 'btn-outline-primary' }}"><i class="fa-solid fa-chart-pie me-1"></i>{{ 'Ergebnis freigegeben' if q.released else 'Ergebnis freigeben' }}</button></form>{% endif %}
+          {% if q.kind == 'quiz' and settings_of(q).seconds %}<form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/timer"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="return_tab" value="moderate"><button class="btn btn-sm btn-outline-secondary" {% if q.released %}disabled title="Quiz ist bereits aufgelöst; für eine neue Runde zuerst zurücksetzen."{% endif %}><i class="fa-solid fa-stopwatch me-1"></i>Zeitlimit neu starten</button></form>{% endif %}
+          <form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/lock"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="return_tab" value="moderate"><button class="btn btn-sm btn-outline-secondary" {% if q.kind == 'quiz' and q.released %}disabled title="Quiz ist bereits aufgelöst; für eine neue Runde zuerst zurücksetzen."{% endif %}><i class="fa-solid {{ 'fa-lock-open' if q.locked else 'fa-lock' }} me-1"></i>{{ 'Antworten wieder zulassen' if q.locked else 'Antworten sperren' }}</button></form>
+
+        </div>
+        {% if q.kind == 'words' %}
+        <div class="mb-3">
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2"><strong class="small">Begriffe moderieren</strong>
+            <span class="small text-secondary">ausblenden oder Schreibvarianten zusammenfassen („Radweg“ ← „Radwege“)</span>
+            <a class="btn btn-sm btn-outline-secondary ms-auto" href="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/wolke.png"><i class="fa-regular fa-image me-1"></i>PNG</a>
+            <a class="btn btn-sm btn-outline-secondary" href="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/export.csv"><i class="fa-solid fa-file-csv me-1"></i>CSV</a></div>
+          {% if words[q.id] %}
+          <div class="table-responsive" style="max-height: 18rem"><table class="table table-sm align-middle small mb-0">
+            <thead><tr><th>Begriff</th><th class="text-end">Anzahl</th><th>Status</th><th></th></tr></thead><tbody>
+            {% for w in words[q.id] %}<tr class="{{ 'text-secondary text-decoration-line-through' if w.hidden }}"><td>{{ w.label }}</td><td class="text-end">{{ w.count }}</td>
+              <td>{% if w.hidden %}ausgeblendet{% elif w.into %}→ {{ w.into }}{% endif %}</td>
+              <td class="text-end text-nowrap"><form method="post" action="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/woerter" class="d-inline-flex gap-1"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="return_tab" value="moderate"><input type="hidden" name="key" value="{{ w.key }}">
+                {% if w.hidden %}<button class="btn btn-sm btn-link p-0" name="action" value="unhide">zeigen</button>{% else %}<button class="btn btn-sm btn-link p-0" name="action" value="hide">ausblenden</button>{% endif %}
+                {% if w.into %}<button class="btn btn-sm btn-link p-0" name="action" value="unmerge">trennen</button>
+                {% else %}<select class="form-select form-select-sm py-0" name="into" aria-label="zusammenfassen mit" style="width: 9rem"><option value="">zusammenfassen …</option>{% for o in words[q.id] if o.key != w.key and not o.into %}<option value="{{ o.label }}">{{ o.label }}</option>{% endfor %}</select><button class="btn btn-sm btn-link p-0" name="action" value="merge">ok</button>{% endif %}
+              </form></td></tr>{% endfor %}
+            </tbody></table></div>
+          {% else %}<p class="small text-secondary mb-0">Noch keine Begriffe.</p>{% endif %}
+        </div>
+        {% elif q.kind in ('open', 'qa') %}
+        {% set es = entries[q.id] %}{% set pending = es | selectattr('approved', 'equalto', false) | rejectattr('hidden') | list %}
+        <div class="mb-3">
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2"><strong class="small">Beiträge moderieren</strong>
+            {% if pending %}<span class="badge text-bg-warning">{{ pending | length }} warten auf Freigabe</span>{% endif %}
+            <a class="btn btn-sm btn-outline-secondary ms-auto" href="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/export.csv"><i class="fa-solid fa-file-csv me-1"></i>CSV</a></div>
+          {% if es %}
+          <ul class="list-group small live-mod-list">{% for e in es %}
+            <li class="list-group-item d-flex flex-wrap gap-2 align-items-start {{ 'list-group-item-warning' if not e.approved and not e.hidden }} {{ 'text-secondary text-decoration-line-through' if e.hidden }}">
+              <span class="flex-grow-1">{{ e.text }}{% if q.kind == 'qa' %} <span class="badge text-bg-light border"><i class="fa-solid fa-thumbs-up me-1"></i>{{ e.upvotes }}</span>{% endif %}{% if e.answered %} <span class="badge text-bg-success">beantwortet</span>{% endif %}</span>
+              <form method="post" action="/votes/live/{{ poll.id }}/beitraege/{{ e.id }}/approve" class="d-inline">{% if not e.approved or e.hidden %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="return_tab" value="moderate"><button class="btn btn-sm btn-outline-primary py-0">freigeben</button>{% endif %}</form>
+              {% if not e.hidden %}<form method="post" action="/votes/live/{{ poll.id }}/beitraege/{{ e.id }}/hide" class="d-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="return_tab" value="moderate"><button class="btn btn-sm btn-outline-secondary py-0">ausblenden</button></form>{% endif %}
+              {% if q.kind == 'qa' and e.approved and not e.hidden %}<form method="post" action="/votes/live/{{ poll.id }}/beitraege/{{ e.id }}/answered" class="d-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="return_tab" value="moderate"><button class="btn btn-sm btn-outline-primary py-0">{{ 'offen' if e.answered else 'beantwortet' }}</button></form>{% endif %}
+            </li>{% endfor %}</ul>
+          {% else %}<p class="small text-secondary mb-0">Noch keine Beiträge.</p>{% endif %}
+        </div>
+        {% else %}
+        <div class="mb-3 small"><a href="/votes/live/{{ poll.id }}/fragen/{{ q.id }}/export.csv"><i class="fa-solid fa-file-csv me-1"></i>Ergebnis als CSV</a></div>
+        {% endif %}

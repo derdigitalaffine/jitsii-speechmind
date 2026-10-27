@@ -4,7 +4,7 @@ import json
 
 from fastapi import Depends, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import poll_lifecycle as lifecycle, shares as sh, shortlinks as sl, votes as vt
@@ -60,35 +60,16 @@ def _editor_ctx(vote: Vote | None) -> dict:
 
 @app.get("/votes")
 def votes_list(request: Request, all: str = "", state: str = "active", user: User = Depends(current_user), db: Session = Depends(get_db)):
-    _module_on()
-    show_all = user.is_admin and all == "1"
-    shared = [] if show_all else sh.shared_with(db, "vote", user)
-    if not user.can("votes") and not shared:
-        raise HTTPException(403, "Für „Abstimmungen“ fehlt die Berechtigung. Bitte wenden Sie sich an die Verwaltung des Portals.")
-    state = state if state in ("active","archive","trash") else "active"
-    shared = [(v,lvl) for v,lvl in shared if bool(v.archived_at) == (state == "archive") and state != "trash"]
-    q = select(Vote).where(Vote.archived_at.is_not(None) if state == "archive" else Vote.archived_at.is_(None)).order_by(Vote.updated_at.desc())
-    if not show_all:
-        q = q.where(Vote.owner_id == user.id)
-    items = db.scalars(q).all() if (user.can("votes") or show_all) and state != "trash" else []
-    counts = dict(db.execute(select(VoteBallot.vote_id, func.count(VoteBallot.id)).group_by(VoteBallot.vote_id)).all())
-    from . import live as lv
-    from .db import LiveAnswer, LivePoll
-    lq = select(LivePoll).where(LivePoll.archived_at.is_not(None) if state == "archive" else LivePoll.archived_at.is_(None)).order_by(LivePoll.updated_at.desc())
-    if not show_all:
-        lq = lq.where(LivePoll.owner_id == user.id)
-    lives = db.scalars(lq).all() if (user.can("votes") or show_all) and state != "trash" else []
-    live_counts = dict(db.execute(select(LiveAnswer.poll_id, func.count(func.distinct(LiveAnswer.device)))
-                                  .group_by(LiveAnswer.poll_id)).all())
-    return render(request, "votes.html", user, votes=items, shared=shared, counts=counts, show_all=show_all,
-                  state=state, trash_items=lifecycle.trash_items(db,["vote","live_poll"],user) if state == "trash" else [], statuses=vt.STATUSES, secrecy=vt.SECRECY, levels=sh.LEVELS["vote"], is_open=vt.is_open,
-                  lives=lives, live_counts=live_counts, live_statuses=lv.STATUSES, pacing=lv.PACING)
+    from .routes_surveys import survey_list
+    return survey_list(request, q=request.query_params.get('q', ''), kind=request.query_params.get('kind', ''),
+                       state=state, scope='portal' if user.is_admin and all == '1' else request.query_params.get('scope', 'all'),
+                       user=user, db=db)
 
 
 @app.get("/votes/new")
 def vote_new(request: Request, user: User = Depends(vote_user)):
     _module_on()
-    return render(request, "vote_edit.html", user, **_editor_ctx(None))
+    return render(request, "vote_edit.html", user, simple=request.query_params.get("simple") == "1", **_editor_ctx(None))
 
 
 @app.post("/votes/new", dependencies=[Depends(check_csrf)])
@@ -115,6 +96,10 @@ async def vote_create(request: Request, user: User = Depends(vote_user), db: Ses
 @app.get("/votes/{vote_id:int}")
 def vote_detail(request: Request, vote_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     vote, level = _vote(db, vote_id, user, sh.VIEW)
+    tab = request.query_params.get('tab', 'share' if vote.status == 'draft' and not vote.opened_at else 'results')
+    tab = tab if tab in ('share','conduct','results','settings') else 'results'
+    if (vote.archived_at and tab not in ('results','settings')) or (level < sh.INVITE and tab != 'results'):
+        tab = 'results'
     ballots = vt.ballots(db, vote)
     voters = {v.id: v for v in vote.voters}
     named = []
@@ -127,7 +112,7 @@ def vote_detail(request: Request, vote_id: int, user: User = Depends(current_use
         from . import dms
         lv = dms.levels(db, user)
         dms_areas = [(a, d) for a, d in dms.tree(db) if lv.get(a.id, 0) >= dms.WRITE]
-    return render(request, "vote.html", user, vote=vote, level=sh.VIEW if vote.archived_at else level, lifecycle_owner=lifecycle.owner(vote,user), removable=lifecycle.removable(db,"vote",vote), results=vt.frozen(vote) or vt.tally(db, vote),
+    return render(request, "vote.html", user, tab=tab, vote=vote, level=sh.VIEW if vote.archived_at else level, lifecycle_owner=lifecycle.owner(vote,user), removable=lifecycle.removable(db,"vote",vote), results=vt.frozen(vote) or vt.tally(db, vote),
                   turnout=vt.turnout(vote, len(ballots)), statuses=vt.STATUSES, secrecy=vt.SECRECY, access=vt.ACCESS,
                   results_modes=vt.RESULTS, kinds=vt.KINDS, modes=vt.access_modes(vote), public_link=vt.public_link(vote),
                   personal_link=vt.personal_link, format_code=vt.format_code, named=named, options=vt.options,
@@ -193,7 +178,7 @@ def vote_state(request: Request, vote_id: int, action: str = Form(...), user: Us
         flash(request, "Abstimmung beendet, Ergebnis festgeschrieben.")
     db.commit()
     nxt = request.query_params.get("next", "")
-    return redirect(nxt if nxt in (f"/votes/{vote.id}/live",) else f"/votes/{vote.id}")
+    return redirect(nxt if nxt in (f"/votes/{vote.id}/live",) else f"/votes/{vote.id}?tab={'results' if action == 'close' else 'conduct'}")
 
 
 @app.post("/votes/{vote_id:int}/invite", dependencies=[Depends(check_csrf)])
@@ -214,7 +199,7 @@ async def vote_invite(request: Request, vote_id: int, user: User = Depends(curre
     if invalid:
         msg += f" Ungültig: {', '.join(invalid[:5])}"
     flash(request, msg)
-    return redirect(f"/votes/{vote.id}#waehler")
+    return redirect(f"/votes/{vote.id}?tab=share#waehler")
 
 
 @app.post("/votes/{vote_id:int}/remind", dependencies=[Depends(check_csrf)])
@@ -223,7 +208,7 @@ def vote_remind(request: Request, vote_id: int, user: User = Depends(current_use
     n = vt.remind(db, vote, user) if vt.is_open(vote) else 0
     db.commit()
     flash(request, f"{n} Erinnerung(en) verschickt." if n else "Niemand zu erinnern (oder Abstimmung läuft nicht).")
-    return redirect(f"/votes/{vote.id}#waehler")
+    return redirect(f"/votes/{vote.id}?tab=share#waehler")
 
 
 @app.post("/votes/{vote_id:int}/voters/{voter_id:int}/delete", dependencies=[Depends(check_csrf)])
@@ -239,7 +224,7 @@ def vote_voter_delete(request: Request, vote_id: int, voter_id: int, user: User 
         db.delete(voter)
         db.commit()
         flash(request, "Aus dem Wählerverzeichnis entfernt – der Link gilt nicht mehr.")
-    return redirect(f"/votes/{vote.id}#waehler")
+    return redirect(f"/votes/{vote.id}?tab=share#waehler")
 
 
 @app.post("/votes/{vote_id:int}/codes", dependencies=[Depends(check_csrf)])
@@ -252,7 +237,7 @@ def vote_codes(request: Request, vote_id: int, count: int = Form(10), label: str
     lifecycle.mark_used(vote)
     db.commit()
     flash(request, f"{n} Zugangscodes erzeugt.")
-    return redirect(f"/votes/{vote.id}#codes")
+    return redirect(f"/votes/{vote.id}?tab=share#codes")
 
 
 @app.get("/votes/{vote_id:int}/codes/print")
@@ -371,7 +356,7 @@ async def vote_share_add(request: Request, vote_id: int, user: User = Depends(cu
         lifecycle.mark_used(vote)
     db.commit()
     flash(request, f"{added} Freigabe(n) mit Stufe „{sh.LEVELS['vote'][level][0]}“." if added else "Bitte Personen oder Gruppen wählen.")
-    return redirect(f"/votes/{vote.id}#teilen")
+    return redirect(f"/votes/{vote.id}?tab=share#teilen")
 
 
 @app.post("/votes/{vote_id:int}/shares/{share_id:int}", dependencies=[Depends(check_csrf)])
@@ -381,7 +366,7 @@ def vote_share_update(request: Request, vote_id: int, share_id: int, action: str
     msg = sh.update(db, "vote", vote, share_id, action, level)
     db.commit()
     flash(request, msg or "Freigabe nicht gefunden.")
-    return redirect(f"/votes/{vote.id}#teilen")
+    return redirect(f"/votes/{vote.id}?tab=share#teilen")
 
 
 # --- Öffentlich: abstimmen --------------------------------------------------------------------

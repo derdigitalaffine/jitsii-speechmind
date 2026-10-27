@@ -1,6 +1,6 @@
 # Gemeinsame Oberflächen
 
-Das Designsystem vereinheitlicht wiederkehrende Aufgaben. Fachnavigation, Rechte, Archivregeln und Spezialansichten bleiben im jeweiligen Modul. DMS, Ressourcen und Umläufe verwenden die Komponenten produktiv; weitere Module folgen bei normalen Änderungen.
+Das Designsystem vereinheitlicht wiederkehrende Aufgaben. Fachnavigation, Rechte, Archivregeln und Spezialansichten bleiben im jeweiligen Modul. DMS, Ressourcen, Umläufe, Aufgaben und Umfragen verwenden die Komponenten produktiv. Das bisherige `page_head` delegiert an `page_header`: bestehende Modulseiten erhalten denselben Seitenkopf mit erhaltenen Aktionen.
 
 ## Seitenmuster
 
@@ -17,6 +17,7 @@ Import: `{% import '_macros.html' as m with context %}`. Beschriftungen werden a
 | Makro | Verwendung |
 |---|---|
 | `page_header(title, lede, primary_url, primary_label, primary_icon)` | Titel/Hauptaktion; optionaler call-Block für weitere Aktionen |
+| `survey_nav(items, active)` | Gemeinsame, umbruchfähige Bereichsnavigation mit nativen Links und `aria-current` |
 | `action_menu(label='Mehr')` | Native Details/Summary; call-Block für seltene Aktionen, ohne extra JavaScript bedienbar |
 | `filter_bar(label, expanded)` | Einklappbare Filterzone; call-Block enthält das GET-Formular |
 | `active_filter(label, value)` | Aktiver Filter, außerhalb der einklappbaren Zone |
@@ -34,3 +35,9 @@ Tabellen der Ressourcenliste verwenden `ds-mobile-table`: alle Zellen besitzen `
 [Komponentenreferenz](design-system-reference.html) lokal im Browser öffnen. Sie rendert die tatsächlichen Jinja-Makros mit hellen und dunklen Zuständen: Normal, Leer, Laden, Fehler, Disabled, Felder, Tabelle, Karte und nativer Dialog. Sie ist bewusst kein neuer Eintrag im Benutzermenü. Bei Komponentenänderungen im Repositorywurzelverzeichnis `python scripts/generate-design-reference.py` ausführen (Jinja2 ist erforderlich).
 
 Automatische Prüfungen testen Kontrast der semantischen Tokenpaare, echtes Makro-Markup, mobil beschriftete Tabellenzellen, beide Ressourcenansichten mit Suche und Rechtefilterung. Eine vollständige manuelle Tastatur-/Browserprüfung bleibt zusätzlich sinnvoll; keine Zertifizierung der gesamten Plattform.
+
+## Gemeinsame Interaktion
+
+Seitenköpfe, Schaltflächen, Kartenabstände und Fokusmarkierung werden zentral gestaltet. Mobile Hauptaktionen stehen über die volle Breite; Touch-Bedienelemente im Hauptinhalt sind mindestens 44 px hoch. Desktopgrößen bleiben kompakt. `prefers-reduced-motion` wird respektiert. Sekundäre Kartenaktionen verwenden Outline statt vieler konkurrierender Hauptaktionen.
+
+Umfragen zeigen einen gemeinsamen Arbeitsablauf mit Fragen, Teilnahme, Durchführung, Ergebnissen und Einstellungen. Die Übersicht verwendet eine direkt sichtbare, kombinierbare Suche mit Art und Besitz/Freigabe; Statuswechsel erhalten diese Filter. Formulare sind eigenständig. Neue Live-Fragen und Einstellungen warnen bei ungespeicherten Änderungen; Serverfehler erhalten die Fragewerte. Die Moderation aktualisiert den aktuellen Stand und zeigt Verbindungsprobleme ausdrücklich an.

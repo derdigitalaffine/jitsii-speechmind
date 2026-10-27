@@ -179,7 +179,7 @@ MODULES = {
     "seminars": ("Seminare & Lehrgänge", "module_seminars", ("/seminare",)),
     "shortlinks": ("Kurzlinks & QR-Codes", "module_shortlinks", ("/shortlinks", "/s/", "/s")),
     "forms": ("Formulare", "module_forms", ("/forms", "/f/")),
-    "polls": ("Umfragen & Abstimmungen", "module_polls", ("/polls", "/t/", "/votes", "/v/", "/l/")),
+    "polls": ("Umfragen & Abstimmungen", "module_polls", ("/umfragen", "/polls", "/t/", "/votes", "/v/", "/l/")),
     "bookings": ("Terminbuchung", "module_bookings", ("/bookings", "/b/", "/b")),
     "laws": ("Rechtstexte", "module_laws", ("/laws", "/recht")),
     "maps": ("Kartenbrowser", "module_maps", ("/karte", "/maps")),
@@ -2761,6 +2761,7 @@ from . import routes_dms  # noqa: E402,F401
 from . import routes_polls  # noqa: E402,F401
 from . import routes_bookings  # noqa: E402,F401
 from . import routes_btypes  # noqa: E402,F401
+from . import routes_surveys  # noqa: E402,F401
 from . import routes_live  # noqa: E402,F401
 from . import routes_public  # noqa: E402,F401
 from . import routes_absences  # noqa: E402,F401
