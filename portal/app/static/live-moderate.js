@@ -23,7 +23,8 @@
     shownStatus = state.status;
     text('lm-title', question.title);
     text('lm-position', 'Aktuelle Frage · ' + (index + 1) + ' von ' + state.questions.length);
-    text('lm-count', (question.results ? question.results.total : 0) + ' Antworten');
+    var total = question.results ? question.results.total : 0;
+    text('lm-count', total + (total === 1 ? ' Antwort' : ' Antworten'));
     if (window.LiveChart) window.LiveChart.render(document.getElementById('lm-chart'), question, {});
     var previous = root.querySelector('button[value="prev"]');
     var next = root.querySelector('button[value="next"]');

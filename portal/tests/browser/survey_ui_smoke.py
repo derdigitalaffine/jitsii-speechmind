@@ -17,10 +17,12 @@ OUTPUT.mkdir(exist_ok=True)
 
 
 def no_horizontal_scroll(page):
-    overflow=page.evaluate('document.documentElement.scrollWidth > window.innerWidth')
-    if overflow:
-        print(page.evaluate("Array.from(document.querySelectorAll('main *')).filter(e => e.getBoundingClientRect().right > innerWidth + 1).slice(0,12).map(e => [e.tagName, e.className, e.getBoundingClientRect().width])"))
-    assert not overflow, 'Page overflows horizontally'
+    page.evaluate('document.fonts.ready')
+    try:
+        page.wait_for_function('document.documentElement.scrollWidth <= window.innerWidth',timeout=3000)
+    except Exception:
+        print(page.evaluate("({url:location.href, viewport:innerWidth, width:document.documentElement.scrollWidth, wide:Array.from(document.querySelectorAll('body *')).filter(e => e.getBoundingClientRect().right > innerWidth + 1).slice(0,16).map(e => [e.tagName, e.className, e.getBoundingClientRect().right])})"))
+        raise AssertionError('Page overflows horizontally after layout settled')
 
 
 def capture(page,name):
@@ -76,7 +78,7 @@ def exercise(page):
     guest.goto(join)
     guest.get_by_role('button',name='Pizza',exact=True).click()
     expect(guest.get_by_text('Antwort gespeichert.',exact=True)).to_be_visible()
-    expect(page.locator('#lm-count')).to_have_text('1 Antworten',timeout=10000)
+    expect(page.locator('#lm-count')).to_have_text('1 Antwort',timeout=10000)
     capture(page,'live-moderation-desktop')
     page.get_by_role('button',name='Nächste Frage',exact=True).focus()
     page.keyboard.press('Enter')

@@ -184,8 +184,7 @@ def _quick(user, modules):
     add = lambda cond, href, icon, label: cond and links.append((href, icon, label))  # noqa: E731
     add(user.can("video"), "/meetings", "fa-video", "Meeting starten")
     add(user.can("video"), "/meetings/plan", "fa-calendar-plus", "Besprechung planen")
-    add(user.can("polls") and "polls" in modules, "/polls/new", "fa-calendar-check", "Terminumfrage")
-    add(user.can("votes") and "polls" in modules, "/votes/new", "fa-check-to-slot", "Abstimmung")
+    add((user.can("polls") or user.can("votes")) and "polls" in modules, "/umfragen/neu", "fa-square-poll-vertical", "Umfrage / Abstimmung")
     add(user.can("forms") and "forms" in modules, "/forms", "fa-clipboard-list", "Formular")
     add(user.can("shortlinks") and "shortlinks" in modules, "/shortlinks", "fa-link", "Kurzlink & QR")
     add("krank" in modules, "/krank", "fa-notes-medical", "Krank melden")

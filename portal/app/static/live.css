@@ -38,7 +38,7 @@
 
 /* Wortwolke und Tabelle */
 .live-cloud { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .2rem .9rem; line-height: 1.15; padding: .5rem 0; }
-.live-cloud > span { max-width:100%; min-width:0; overflow-wrap:anywhere; display: inline-block; transition: font-size .4s ease; }
+.live-cloud > span { color:var(--bs-primary-text-emphasis); max-width:100%; min-width:0; overflow-wrap:anywhere; display: inline-block; transition: font-size .4s ease; }
 .live-cloud.is-big { gap: .3rem 1.6rem; max-height: 62vh; overflow: hidden; }
 .live-table { max-height: 62vh; overflow: auto; }
 .live-present .live-table { font-size: 1.4rem; }

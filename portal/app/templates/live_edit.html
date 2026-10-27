@@ -12,7 +12,7 @@
   {% if tab != 'moderate' and poll.status == 'open' %}<a class="btn btn-primary ds-primary" href="/votes/live/{{ poll.id }}?tab=moderate"><i class="fa-solid fa-sliders me-1" aria-hidden="true"></i>Moderieren</a>{% elif tab == 'build' %}<a class="btn btn-outline-primary" href="#neu"><i class="fa-solid fa-plus me-1" aria-hidden="true"></i>Frage hinzufügen</a>{% endif %}
 {% endif %}
 {% endcall %}
-<div class="d-flex flex-wrap gap-3 align-items-center mb-3">{{ m.status_chip('Archiviert' if poll.archived_at else statuses[poll.status][0]|capitalize, 'success' if poll.status == 'open' and not poll.archived_at else 'neutral') }}<span class="small text-secondary">{{ poll.questions | length }} Fragen · {{ staff_state.participants }} Teilnehmende</span></div>
+<div class="d-flex flex-wrap gap-3 align-items-center mb-3">{{ m.status_chip('Archiviert' if poll.archived_at else 'Entwurf' if poll.status == 'draft' else statuses[poll.status][0]|capitalize, 'success' if poll.status == 'open' and not poll.archived_at else 'neutral') }}<span class="small text-secondary">{{ poll.questions | length }} Fragen · {{ staff_state.participants }} Teilnehmende</span></div>
 {% set base='/votes/live/' ~ poll.id %}
 {% if poll.archived_at %}
 {{ m.survey_nav([('results',base ~ '?tab=results','Ergebnisse','fa-chart-column')], 'results') }}

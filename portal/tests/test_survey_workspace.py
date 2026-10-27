@@ -157,6 +157,7 @@ def test_module_gates_and_creation_permissions(people):
     assert c.get('/umfragen').status_code==404 and c.get('/umfragen/neu').status_code==404
     assert c.post('/votes/live/new',data={'csrf':token,'workspace':'1'}).status_code==404
     assert c.get('/forms').status_code==200
+    assert c.post('/umfragen/papierkorb/999/restore',data={'csrf':token}).status_code==404
     settings(module_polls='1')
     c=login('survey-reader@example.org','survey-password')
     token=csrf_of(c.get('/umfragen').text)

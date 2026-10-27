@@ -7,7 +7,7 @@
 {% set st = statuses[vote.status] %}
 <a class="ds-back-link" href="/umfragen"><i class="fa-solid fa-arrow-left me-1" aria-hidden="true"></i>Umfragen & Abstimmungen</a>
 {% call m.page_head(vote.title, vote.description) %}
-  {% if level >= 2 and vote.status != 'closed' %}<a class="btn btn-outline-secondary" href="/votes/{{ vote.id }}/live"><i class="fa-solid fa-tv me-1"></i>Live-Modus</a>{% endif %}
+  {% if level >= 2 and vote.status != 'closed' %}<a class="btn btn-outline-secondary" href="/votes/{{ vote.id }}/live" target="_blank" rel="noopener"><i class="fa-solid fa-display me-1" aria-hidden="true"></i>Präsentieren<span class="visually-hidden"> (neuer Tab)</span></a>{% endif %}
   {% if level >= 3 and tab != "settings" %}<a class="btn btn-outline-secondary" href="/votes/{{ vote.id }}/edit"><i class="fa-solid fa-pen me-1"></i>Bearbeiten</a>{% endif %}
   <div class="dropdown"><button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Weitere Aktionen"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i> Mehr</button>
     <ul class="dropdown-menu dropdown-menu-end">

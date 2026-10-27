@@ -114,3 +114,6 @@ main .btn-group{flex-wrap:wrap}
 .survey-date-option>.input-group-text:first-child,.survey-date-option>[data-k=date],.survey-date-option>.dt-field:first-of-type,.survey-date-option>[data-k=note]{grid-column:1/-1}
 .survey-date-option>.input-group-text:not(:first-child){display:none}
 }
+
+/* Expanded navigation keeps the full destination readable; the icon rail stays compact. */
+.app-sidebar .app-nav .nav-label{white-space:normal;overflow-wrap:anywhere;line-height:1.35}

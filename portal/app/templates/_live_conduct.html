@@ -8,7 +8,7 @@
 {% set q=ns.current %}
 <section class="card mb-4" id="live-current-question"><div class="card-body">
 <p class="ds-eyebrow" id="lm-position">Aktuelle Frage · {{ kinds[q.kind][0] }}</p><h2 class="live-moderation-question mb-3" id="lm-title">{{ q.title }}</h2>
-<p class="small text-secondary" id="lm-count" role="status">{{ counts[q.id] }} Antworten</p>
+<p class="small text-secondary" id="lm-count" role="status">{{ counts[q.id] }} Antwort{{ '' if counts[q.id] == 1 else 'en' }}</p>
 <div id="lm-chart" class="live-mod-chart"></div><p class="small text-secondary" id="lm-connection" role="status"></p>
 <div class="live-moderation-controls mt-3">
 <form method="post" action="{{ base }}/schritt"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="return_tab" value="moderate"><button class="btn btn-outline-secondary" type="submit" name="dir" value="prev" {{ 'disabled' if q.id == poll.questions[0].id }}><i class="fa-solid fa-arrow-left me-1" aria-hidden="true"></i>Vorige Frage</button></form>

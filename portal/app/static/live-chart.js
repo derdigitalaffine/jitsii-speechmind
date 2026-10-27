@@ -39,23 +39,33 @@
     return out;
   }
 
-  // Wortwolke: je häufiger desto größer und fetter, bunt; Reihenfolge gemischt (stabil je Begriff), damit die
+  // Wortwolke: je häufiger desto größer und fetter; Reihenfolge gemischt (stabil je Begriff), damit die
   // großen Begriffe nicht alle vorn stehen
   function hash(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; }
   function cloud(box, q, big) {
     var rows = q.results.rows || [];
     if (!rows.length) { box.innerHTML = '<p class="text-secondary">Noch keine Begriffe.</p>'; return; }
-    var top = rows[0].count, colors = palette(12);
+    var top = rows[0].count;
+    var rootSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    var fontFamily = getComputedStyle(box).fontFamily;
+    var measure = document.createElement('canvas').getContext('2d');
+    var available = Math.max(80, box.clientWidth - 8);
     var items = rows.slice(0, big ? 80 : 50).map(function (r, i) {
       var f = Math.pow(r.count / top, 0.75);
-      return { r: r, size: (big ? 1.1 : 0.9) + f * (big ? 4.4 : 2.4), weight: 400 + Math.round(f * 5) * 100, color: colors[i % colors.length], h: hash(r.key || r.label) };
+      var size = (big ? 1.1 : 0.9) + f * (big ? 4.4 : 2.4);
+      var weight = 400 + Math.round(f * 5) * 100;
+      if (measure) {
+        measure.font = weight + ' ' + (size * rootSize) + 'px ' + fontFamily;
+        size *= Math.min(1, available / Math.max(1, measure.measureText(r.label).width));
+      }
+      return { r:r, size:Math.max(.9,size), weight:weight, h:hash(r.key || r.label) };
     });
     items.sort(function (a, b) { return (a.h % 997) - (b.h % 997); });
     var biggest = items.reduce(function (m, x) { return x.size > m.size ? x : m; }, items[0]);
     items.splice(items.indexOf(biggest), 1);
     items.splice(Math.floor(items.length / 2), 0, biggest);
     box.innerHTML = '<div class="live-cloud ' + (big ? 'is-big' : '') + '" role="list" aria-label="Wortwolke">' + items.map(function (x) {
-      return '<span role="listitem" style="font-size:' + x.size.toFixed(2) + 'rem;font-weight:' + x.weight + ';color:' + x.color + '" title="' + esc(x.r.label) + ': ' + x.r.count + '">' + esc(x.r.label) + '<span class="visually-hidden"> (' + x.r.count + ')</span></span>';
+      return '<span role="listitem" style="font-size:' + x.size.toFixed(2) + 'rem;font-weight:' + x.weight + '" title="' + esc(x.r.label) + ': ' + x.r.count + '">' + esc(x.r.label) + '<span class="visually-hidden"> (' + x.r.count + ')</span></span>';
     }).join(' ') + '</div>';
   }
   function table(box, q) {

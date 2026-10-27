@@ -179,7 +179,7 @@ MODULES = {
     "seminars": ("Seminare & Lehrgänge", "module_seminars", ("/seminare",)),
     "shortlinks": ("Kurzlinks & QR-Codes", "module_shortlinks", ("/shortlinks", "/s/", "/s")),
     "forms": ("Formulare", "module_forms", ("/forms", "/f/")),
-    "polls": ("Umfragen & Abstimmungen", "module_polls", ("/polls", "/t/", "/votes", "/v/", "/l/")),
+    "polls": ("Umfragen & Abstimmungen", "module_polls", ("/umfragen", "/polls", "/t/", "/votes", "/v/", "/l/")),
     "bookings": ("Terminbuchung", "module_bookings", ("/bookings", "/b/", "/b")),
     "laws": ("Rechtstexte", "module_laws", ("/laws", "/recht")),
     "maps": ("Kartenbrowser", "module_maps", ("/karte", "/maps")),
